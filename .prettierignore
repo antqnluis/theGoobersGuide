@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+docs/PRODUCT.md
+docs/MVP_SCOPE.md
+.agents/
+skills-lock.json
