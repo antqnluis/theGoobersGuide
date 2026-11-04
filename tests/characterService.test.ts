@@ -53,6 +53,7 @@ describe('character management', () => {
     const edited = {
       ...a,
       name: 'Updated',
+      level: 4,
       abilityScores: {
         ...a.abilityScores,
         strength: { score: 18, modifier: 7 },
@@ -94,6 +95,9 @@ describe('character management', () => {
       updated.characters.find((c) => c.id === a.id)?.features[0].name,
     ).toBe('Custom');
     expect(updated.characters.find((c) => c.id === b.id)?.name).toBe('B');
+    expect(repository.load().characters.find((c) => c.id === a.id)?.level).toBe(
+      4,
+    );
     expect(updated.characters.find((c) => c.id === a.id)).toMatchObject({
       abilityScores: { strength: { score: 18, modifier: 7 } },
       skills: [{ name: 'Athletics', modifier: 11, proficient: true }],
@@ -156,10 +160,17 @@ describe('character management', () => {
     ).toEqual([b.id]);
   });
 
-  it('rejects invalid hit points and currency without changing saved data', () => {
+  it('rejects invalid level, hit points and currency without changing saved data', () => {
     const { repository, data, first } = setup();
     const character = { ...newCharacter(first.id), name: 'A' };
     const saved = saveCharacter(repository, data, character);
+
+    expect(() =>
+      saveCharacter(repository, saved, { ...character, level: 0 }),
+    ).toThrow('Level must be at least 1');
+    expect(() =>
+      saveCharacter(repository, saved, { ...character, level: 1.5 }),
+    ).toThrow('Level must be at least 1');
 
     expect(() =>
       saveCharacter(repository, saved, {

@@ -87,6 +87,7 @@ export default function CharacterSheetPreview({
   const [quickTemp, setQuickTemp] = useState(
     String(initial.combat.temporaryHp),
   );
+  const [quickLevel, setQuickLevel] = useState(String(initial.level));
   const [quickError, setQuickError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
@@ -102,6 +103,7 @@ export default function CharacterSheetPreview({
       setDraft(initial);
       setQuickHp(String(initial.combat.currentHp));
       setQuickTemp(String(initial.combat.temporaryHp));
+      setQuickLevel(String(initial.level));
     }
   }, [initial]);
 
@@ -136,6 +138,7 @@ export default function CharacterSheetPreview({
 
   function startEdit() {
     setDraft(structuredClone(saved));
+    setQuickError(null);
     setEditing(true);
   }
 
@@ -146,6 +149,7 @@ export default function CharacterSheetPreview({
       return;
     }
     setDraft(structuredClone(saved));
+    setQuickLevel(String(saved.level));
     setEditing(false);
   }
 
@@ -156,6 +160,7 @@ export default function CharacterSheetPreview({
       return;
     }
     setSaved(structuredClone(draft));
+    setQuickLevel(String(draft.level));
     setEditing(false);
     if (!creating) allowNavigation.current = false;
   }
@@ -176,6 +181,27 @@ export default function CharacterSheetPreview({
     } else {
       if (key === 'currentHp') setQuickHp(String(saved.combat.currentHp));
       else setQuickTemp(String(saved.combat.temporaryHp));
+    }
+  }
+
+  function saveQuickLevel() {
+    const level = Number(quickLevel);
+    if (quickLevel.trim() === '' || !Number.isInteger(level) || level < 1) {
+      setQuickError('Level must be a whole number of at least 1.');
+      setQuickLevel(String(saved.level));
+      return;
+    }
+    if (level === saved.level) {
+      setQuickError(null);
+      return;
+    }
+    const next = { ...saved, level };
+    if (onSave(next)) {
+      setSaved(next);
+      setDraft(next);
+      setQuickError(null);
+    } else {
+      setQuickLevel(String(saved.level));
     }
   }
 
@@ -229,7 +255,34 @@ export default function CharacterSheetPreview({
             <h1>{character.name}</h1>
           )}
           <p className="character-line">
-            Level {character.level} {character.className}
+            <label className="level-control">
+              Level
+              {editing ? (
+                <NumberEdit
+                  label="Level"
+                  value={character.level}
+                  onChange={(value) =>
+                    setDraft((current) => ({ ...current, level: value }))
+                  }
+                  className="level-input"
+                />
+              ) : (
+                <input
+                  className="field-input field-input-number level-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  aria-label="Level"
+                  value={quickLevel}
+                  onChange={(event) => setQuickLevel(event.target.value)}
+                  onBlur={saveQuickLevel}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                  }}
+                />
+              )}
+            </label>{' '}
+            {character.className}
             {character.subclass ? `, ${character.subclass}` : ''} /{' '}
             {character.species}
           </p>
@@ -1077,16 +1130,6 @@ export default function CharacterSheetPreview({
                       className="field-input"
                       value={character.subclass ?? ''}
                       onChange={(e) => updateField('subclass', e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Level
-                    <NumberEdit
-                      label="Level"
-                      value={character.level}
-                      onChange={(value) =>
-                        setDraft((c) => ({ ...c, level: value }))
-                      }
                     />
                   </label>
                   <label>
