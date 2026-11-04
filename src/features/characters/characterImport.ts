@@ -1,0 +1,66 @@
+import { isCharacter } from '../../shared/persistence/validation';
+import type { Character } from './model';
+
+export const CHARACTER_IMPORT_FORMAT = 'the-goobers-guide-character';
+export const CHARACTER_IMPORT_VERSION = 1;
+export const MAX_CHARACTER_IMPORT_BYTES = 1024 * 1024;
+
+type ImportOptions = {
+  createId?: () => string;
+  now?: () => string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function replaceEntryIds(value: unknown, createId: () => string): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((entry) =>
+    isRecord(entry) ? { ...entry, id: createId() } : entry,
+  );
+}
+
+export function parseCharacterImport(
+  source: string,
+  campaignId: string,
+  options: ImportOptions = {},
+): Character {
+  let document: unknown;
+  try {
+    document = JSON.parse(source);
+  } catch {
+    throw new Error('This file is not valid JSON.');
+  }
+
+  if (!isRecord(document))
+    throw new Error('This file is not a character import document.');
+  if (document.format !== CHARACTER_IMPORT_FORMAT)
+    throw new Error('This JSON file is not a Goober’s Guide character file.');
+  if (document.version !== CHARACTER_IMPORT_VERSION)
+    throw new Error(
+      `Character import version ${String(document.version)} is not supported.`,
+    );
+  if (!isRecord(document.character))
+    throw new Error('The character data is missing from this file.');
+
+  const createId = options.createId ?? (() => crypto.randomUUID());
+  const timestamp = (options.now ?? (() => new Date().toISOString()))();
+  const imported = {
+    ...document.character,
+    id: createId(),
+    campaignId,
+    attacks: replaceEntryIds(document.character.attacks, createId),
+    inventory: replaceEntryIds(document.character.inventory, createId),
+    features: replaceEntryIds(document.character.features, createId),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  if (!isCharacter(imported))
+    throw new Error(
+      'The character data is incomplete or contains unsupported values.',
+    );
+
+  return imported;
+}

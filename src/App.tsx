@@ -13,6 +13,10 @@ import {
   newCharacter,
   saveCharacter,
 } from './features/characters/characterService';
+import {
+  MAX_CHARACTER_IMPORT_BYTES,
+  parseCharacterImport,
+} from './features/characters/characterImport';
 import type { Character } from './features/characters/model';
 import CharacterSheetPreview from './features/characters/CharacterSheetPreview';
 import PartyReadOnly from './features/characters/PartyReadOnly';
@@ -70,6 +74,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [characterImport, setCharacterImport] = useState<{
+    campaignId: string;
+    character: Character;
+    sourceLabel: string;
+  } | null>(null);
   const storageStatus = repository.getStatus();
   const diceDialog = useRef<HTMLDialogElement>(null);
   const diceTrigger = useRef<HTMLButtonElement>(null);
@@ -176,10 +185,16 @@ export default function App() {
   function saveSheet(character: Character): boolean {
     try {
       setData(saveCharacter(repository, data, character));
-      setFeedback(`Saved ${character.name.trim()}.`);
+      const importing = location.characterId === 'import';
+      setFeedback(
+        importing
+          ? `Imported ${character.name.trim()}.`
+          : `Saved ${character.name.trim()}.`,
+      );
       setError(null);
-      if (location.characterId === 'new')
+      if (location.characterId === 'new' || importing)
         window.location.hash = `#/characters/${character.campaignId}/${character.id}`;
+      if (importing) setCharacterImport(null);
       return true;
     } catch (cause) {
       setError(
@@ -188,6 +203,44 @@ export default function App() {
           : 'Character could not be saved.',
       );
       return false;
+    }
+  }
+
+  function stageCharacterImport(
+    campaignId: string,
+    source: string,
+    sourceLabel: string,
+  ) {
+    setFeedback(null);
+    setError(null);
+    if (!source.trim()) {
+      setError('Paste character JSON before continuing.');
+      return;
+    }
+    try {
+      const character = parseCharacterImport(source, campaignId);
+      setCharacterImport({ campaignId, character, sourceLabel });
+      window.location.hash = `#/characters/${campaignId}/import`;
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The character JSON could not be read.',
+      );
+    }
+  }
+
+  async function importCharacterFile(campaignId: string, file: File) {
+    setFeedback(null);
+    setError(null);
+    if (file.size > MAX_CHARACTER_IMPORT_BYTES) {
+      setError('Choose a character JSON file smaller than 1 MB.');
+      return;
+    }
+    try {
+      stageCharacterImport(campaignId, await file.text(), file.name);
+    } catch {
+      setError('The character file could not be read.');
     }
   }
 
@@ -365,6 +418,13 @@ export default function App() {
                 campaign={activeCampaign}
                 characters={characters}
                 onDelete={confirmCharacterDelete}
+                onImportFile={(file) =>
+                  importCharacterFile(activeCampaign.id, file)
+                }
+                onImportText={(source) =>
+                  stageCharacterImport(activeCampaign.id, source, 'pasted JSON')
+                }
+                error={error}
               />
             )}
             {activeCampaign &&
@@ -375,6 +435,19 @@ export default function App() {
                   campaign={activeCampaign}
                   character={newCharacter(activeCampaign.id)}
                   creating
+                  onSave={saveSheet}
+                  error={error}
+                  feedback={feedback}
+                />
+              ) : location.characterId === 'import' &&
+                characterImport?.campaignId === activeCampaign.id ? (
+                <CharacterSheetPreview
+                  key={`${activeCampaign.id}-import-${characterImport.sourceLabel}`}
+                  campaign={activeCampaign}
+                  character={characterImport.character}
+                  creating
+                  importSource={characterImport.sourceLabel}
+                  onCancelImport={() => setCharacterImport(null)}
                   onSave={saveSheet}
                   error={error}
                   feedback={feedback}

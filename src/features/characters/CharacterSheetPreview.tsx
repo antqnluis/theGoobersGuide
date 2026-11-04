@@ -71,6 +71,8 @@ export default function CharacterSheetPreview({
   onDelete,
   error,
   feedback,
+  importSource,
+  onCancelImport,
 }: {
   campaign: Campaign;
   character: Character;
@@ -79,6 +81,8 @@ export default function CharacterSheetPreview({
   onDelete?: (character: Character) => void;
   error: string | null;
   feedback: string | null;
+  importSource?: string;
+  onCancelImport?: () => void;
 }) {
   const [saved, setSaved] = useState<Character>(initial);
   const [draft, setDraft] = useState<Character>(initial);
@@ -91,7 +95,9 @@ export default function CharacterSheetPreview({
   const [quickError, setQuickError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
-  const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved);
+  const dirty =
+    editing &&
+    (Boolean(importSource) || JSON.stringify(draft) !== JSON.stringify(saved));
   const allowNavigation = useUnsavedChanges(
     dirty,
     'Discard unsaved character changes?',
@@ -145,6 +151,7 @@ export default function CharacterSheetPreview({
   function cancelEdit() {
     if (creating) {
       allowNavigation.current = true;
+      onCancelImport?.();
       window.location.hash = `#/party/${campaign.id}`;
       return;
     }
@@ -236,6 +243,15 @@ export default function CharacterSheetPreview({
       className="sheet"
       aria-label={`${character.name || 'New character'} sheet`}
     >
+      {importSource && (
+        <div className="import-source" role="status">
+          <strong>Reviewing {importSource}</strong>
+          <span>
+            Nothing has been added to {campaign.name} yet. Check each section,
+            then import the character.
+          </span>
+        </div>
+      )}
       <header className="sheet-header">
         <div className="sheet-header-copy">
           <p className="sheet-context">
@@ -305,14 +321,18 @@ export default function CharacterSheetPreview({
                 className="button button-quiet"
                 onClick={cancelEdit}
               >
-                Cancel
+                {importSource ? 'Cancel import' : 'Cancel'}
               </button>
               <button
                 type="button"
                 className="button button-primary"
                 onClick={savePreview}
               >
-                {creating ? 'Create character' : 'Save changes'}
+                {importSource
+                  ? 'Import character'
+                  : creating
+                    ? 'Create character'
+                    : 'Save changes'}
               </button>
             </div>
           ) : (
@@ -332,7 +352,9 @@ export default function CharacterSheetPreview({
           quickError ||
           feedback ||
           (editing
-            ? 'Changes are saved when you select Save changes.'
+            ? importSource
+              ? 'Imported values remain editable until you add this character.'
+              : 'Changes are saved when you select Save changes.'
             : 'Saved in this browser.')}
       </div>
 
