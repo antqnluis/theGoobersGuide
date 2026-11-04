@@ -9,6 +9,8 @@ import {
   type CharacterSpell,
   type CombatStats,
 } from './model';
+import type { CharacterExportFormat } from './characterExport';
+import CharacterFeatures from './CharacterFeatures';
 
 type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
 
@@ -85,7 +87,8 @@ export default function CharacterSheetPreview({
   error,
   feedback,
   importSource,
-  onCancelImport,
+  onCancel,
+  onExport,
 }: {
   campaign: Campaign;
   character: Character;
@@ -95,7 +98,8 @@ export default function CharacterSheetPreview({
   error: string | null;
   feedback: string | null;
   importSource?: string;
-  onCancelImport?: () => void;
+  onCancel?: () => void;
+  onExport?: (character: Character, format: CharacterExportFormat) => void;
 }) {
   const [saved, setSaved] = useState<Character>(initial);
   const [draft, setDraft] = useState<Character>(initial);
@@ -173,8 +177,7 @@ export default function CharacterSheetPreview({
   function cancelEdit() {
     if (creating) {
       allowNavigation.current = true;
-      onCancelImport?.();
-      window.location.hash = `#/party/${campaign.id}`;
+      onCancel?.();
       return;
     }
     setDraft(structuredClone(saved));
@@ -302,7 +305,7 @@ export default function CharacterSheetPreview({
               />
             </label>
           ) : (
-            <h1>{character.name}</h1>
+            <h2 className="sheet-title">{character.name}</h2>
           )}
           <p className="character-line">
             <label className="level-control">
@@ -339,14 +342,36 @@ export default function CharacterSheetPreview({
           <p className="character-description">{character.description}</p>
         </div>
         <div className="sheet-header-actions">
-          {onDelete && !editing && (
-            <button
-              className="button button-quiet"
-              type="button"
-              onClick={() => onDelete(saved)}
-            >
-              Delete character
-            </button>
+          {!editing && (
+            <div className="sheet-secondary-actions">
+              {onExport && (
+                <>
+                  <button
+                    className="button button-quiet"
+                    type="button"
+                    onClick={() => onExport(saved, 'json')}
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    type="button"
+                    onClick={() => onExport(saved, 'markdown')}
+                  >
+                    Export Markdown
+                  </button>
+                </>
+              )}
+              {onDelete && (
+                <button
+                  className="button button-quiet"
+                  type="button"
+                  onClick={() => onDelete(saved)}
+                >
+                  Delete character
+                </button>
+              )}
+            </div>
           )}
           {editing ? (
             <div className="edit-actions">
@@ -859,286 +884,197 @@ export default function CharacterSheetPreview({
         {activeTab === 'gear' && (
           <div className="sheet-panel-grid">
             <section
-              className="sheet-section"
+              className="sheet-section sheet-section-wide gear-section"
               aria-labelledby="inventory-heading"
             >
               <div className="section-heading">
                 <h2 id="inventory-heading">Inventory</h2>
                 <p>Gear carried into the next session</p>
               </div>
-              <div className="ledger-list">
-                {character.inventory.map((item, index) => (
-                  <div className="ledger-row inventory-row" key={item.id}>
-                    <div>
-                      {editing ? (
-                        <>
-                          <input
-                            className="field-input"
-                            aria-label="Item name"
-                            value={item.name}
-                            onChange={(e) =>
-                              setDraft((c) => ({
-                                ...c,
-                                inventory: c.inventory.map((i) =>
-                                  i.id === item.id
-                                    ? { ...i, name: e.target.value }
-                                    : i,
+              <div className="gear-layout">
+                <div className="gear-inventory">
+                  <div className="ledger-list">
+                    {character.inventory.map((item, index) => (
+                      <div className="ledger-row inventory-row" key={item.id}>
+                        <div>
+                          {editing ? (
+                            <>
+                              <input
+                                className="field-input"
+                                aria-label="Item name"
+                                value={item.name}
+                                onChange={(e) =>
+                                  setDraft((c) => ({
+                                    ...c,
+                                    inventory: c.inventory.map((i) =>
+                                      i.id === item.id
+                                        ? { ...i, name: e.target.value }
+                                        : i,
+                                    ),
+                                  }))
+                                }
+                              />
+                              <input
+                                className="field-input"
+                                aria-label="Item description"
+                                value={item.description ?? ''}
+                                onChange={(e) =>
+                                  setDraft((c) => ({
+                                    ...c,
+                                    inventory: c.inventory.map((i) =>
+                                      i.id === item.id
+                                        ? { ...i, description: e.target.value }
+                                        : i,
+                                    ),
+                                  }))
+                                }
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <strong>{item.name}</strong>
+                              {item.description && (
+                                <span>{item.description}</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {editing ? (
+                          <NumberEdit
+                            label={`${item.name} quantity`}
+                            value={item.quantity}
+                            onChange={(value) =>
+                              setDraft((current) => ({
+                                ...current,
+                                inventory: current.inventory.map(
+                                  (entry, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...entry, quantity: value }
+                                      : entry,
                                 ),
                               }))
                             }
                           />
-                          <input
-                            className="field-input"
-                            aria-label="Item description"
-                            value={item.description ?? ''}
-                            onChange={(e) =>
+                        ) : (
+                          <span className="row-value">× {item.quantity}</span>
+                        )}
+                        {editing && (
+                          <button
+                            type="button"
+                            className="button button-quiet"
+                            onClick={() =>
                               setDraft((c) => ({
                                 ...c,
-                                inventory: c.inventory.map((i) =>
-                                  i.id === item.id
-                                    ? { ...i, description: e.target.value }
-                                    : i,
+                                inventory: c.inventory.filter(
+                                  (i) => i.id !== item.id,
                                 ),
                               }))
                             }
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <strong>{item.name}</strong>
-                          {item.description && <span>{item.description}</span>}
-                        </>
-                      )}
-                    </div>
-                    {editing ? (
-                      <NumberEdit
-                        label={`${item.name} quantity`}
-                        value={item.quantity}
-                        onChange={(value) =>
-                          setDraft((current) => ({
-                            ...current,
-                            inventory: current.inventory.map(
-                              (entry, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...entry, quantity: value }
-                                  : entry,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : (
-                      <span className="row-value">× {item.quantity}</span>
-                    )}
-                    {editing && (
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() =>
-                          setDraft((c) => ({
-                            ...c,
-                            inventory: c.inventory.filter(
-                              (i) => i.id !== item.id,
-                            ),
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {editing && (
+                    <button
+                      type="button"
+                      className="button button-quiet gear-action"
+                      onClick={() =>
+                        setDraft((c) => ({
+                          ...c,
+                          inventory: [
+                            ...c.inventory,
+                            { id: crypto.randomUUID(), name: '', quantity: 1 },
+                          ],
+                        }))
+                      }
+                    >
+                      Add item
+                    </button>
+                  )}
+                </div>
+                <div
+                  className="gear-currency"
+                  aria-labelledby="currency-heading"
+                >
+                  <h3 className="subheading" id="currency-heading">
+                    Currency
+                  </h3>
+                  <div className="currency-row">
+                    {Object.entries(character.currency).map(
+                      ([denomination, amount]) => (
+                        <div key={denomination}>
+                          <span>{denomination}</span>
+                          {editing ? (
+                            <NumberEdit
+                              label={`${denomination} balance`}
+                              value={amount}
+                              onChange={(value) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  currency: {
+                                    ...current.currency,
+                                    [denomination]: value,
+                                  },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <strong>{amount}</strong>
+                          )}
+                          {editing && (
+                            <button
+                              type="button"
+                              aria-label={`Remove ${denomination}`}
+                              onClick={() =>
+                                setDraft((c) => {
+                                  const currency = { ...c.currency };
+                                  delete currency[denomination];
+                                  return { ...c, currency };
+                                })
+                              }
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ),
                     )}
                   </div>
-                ))}
-              </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() =>
-                    setDraft((c) => ({
-                      ...c,
-                      inventory: [
-                        ...c.inventory,
-                        { id: crypto.randomUUID(), name: '', quantity: 1 },
-                      ],
-                    }))
-                  }
-                >
-                  Add item
-                </button>
-              )}
-              <h3 className="subheading">Currency</h3>
-              <div className="currency-row">
-                {Object.entries(character.currency).map(
-                  ([denomination, amount]) => (
-                    <div key={denomination}>
-                      <span>{denomination}</span>
-                      {editing ? (
-                        <NumberEdit
-                          label={`${denomination} balance`}
-                          value={amount}
-                          onChange={(value) =>
-                            setDraft((current) => ({
-                              ...current,
-                              currency: {
-                                ...current.currency,
-                                [denomination]: value,
-                              },
-                            }))
-                          }
-                        />
-                      ) : (
-                        <strong>{amount}</strong>
-                      )}
-                      {editing && (
-                        <button
-                          type="button"
-                          aria-label={`Remove ${denomination}`}
-                          onClick={() =>
-                            setDraft((c) => {
-                              const currency = { ...c.currency };
-                              delete currency[denomination];
-                              return { ...c, currency };
-                            })
-                          }
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ),
-                )}
-              </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() => {
-                    const name = window
-                      .prompt('Currency name (for example, pp)')
-                      ?.trim();
-                    if (name)
-                      setDraft((c) => ({
-                        ...c,
-                        currency: {
-                          ...c.currency,
-                          [name]: c.currency[name] ?? 0,
-                        },
-                      }));
-                  }}
-                >
-                  Add currency
-                </button>
-              )}
-            </section>
-            <section
-              className="sheet-section"
-              aria-labelledby="features-heading"
-            >
-              <div className="section-heading">
-                <h2 id="features-heading">Features</h2>
-                <p>Custom and homebrew text is welcome</p>
-              </div>
-              <div className="feature-list">
-                {character.features.map((feature, index) => (
-                  <div className="feature-entry" key={feature.id}>
-                    {editing ? (
-                      <>
-                        <input
-                          className="field-input"
-                          aria-label="Feature category"
-                          placeholder="Category (optional)"
-                          value={feature.category ?? ''}
-                          onChange={(e) =>
-                            setDraft((c) => ({
-                              ...c,
-                              features: c.features.map((f) =>
-                                f.id === feature.id
-                                  ? { ...f, category: e.target.value }
-                                  : f,
-                              ),
-                            }))
-                          }
-                        />
-                        <input
-                          className="field-input"
-                          aria-label="Feature name"
-                          value={feature.name}
-                          onChange={(e) =>
-                            setDraft((c) => ({
-                              ...c,
-                              features: c.features.map((f) =>
-                                f.id === feature.id
-                                  ? { ...f, name: e.target.value }
-                                  : f,
-                              ),
-                            }))
-                          }
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <span className="feature-category">
-                          {feature.category}
-                        </span>
-                        <h3>{feature.name}</h3>
-                      </>
-                    )}
-                    {editing ? (
-                      <textarea
-                        aria-label={`${feature.name} description`}
-                        className="field-input field-textarea"
-                        rows={3}
-                        value={feature.description}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            features: current.features.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, description: event.target.value }
-                                : item,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : (
-                      <p>{feature.description}</p>
-                    )}
-                    {editing && (
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() =>
+                  {editing && (
+                    <button
+                      type="button"
+                      className="button button-quiet gear-action"
+                      onClick={() => {
+                        const name = window
+                          .prompt('Currency name (for example, pp)')
+                          ?.trim();
+                        if (name)
                           setDraft((c) => ({
                             ...c,
-                            features: c.features.filter(
-                              (f) => f.id !== feature.id,
-                            ),
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
+                            currency: {
+                              ...c.currency,
+                              [name]: c.currency[name] ?? 0,
+                            },
+                          }));
+                      }}
+                    >
+                      Add currency
+                    </button>
+                  )}
+                </div>
               </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() =>
-                    setDraft((c) => ({
-                      ...c,
-                      features: [
-                        ...c.features,
-                        { id: crypto.randomUUID(), name: '', description: '' },
-                      ],
-                    }))
-                  }
-                >
-                  Add feature
-                </button>
-              )}
             </section>
+            <CharacterFeatures
+              characterId={character.id}
+              features={character.features}
+              editing={editing}
+              onChange={(features) =>
+                setDraft((current) => ({ ...current, features }))
+              }
+            />
           </div>
         )}
 

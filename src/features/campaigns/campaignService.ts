@@ -68,6 +68,10 @@ export function deleteCampaign(
   data: AppData,
   id: string,
 ): AppData {
+  const selectedCharacterByCampaign = {
+    ...data.preferences.selectedCharacterByCampaign,
+  };
+  delete selectedCharacterByCampaign[id];
   const next = {
     ...data,
     campaigns: data.campaigns.filter((campaign) => campaign.id !== id),
@@ -75,6 +79,10 @@ export function deleteCampaign(
       (character) => character.campaignId !== id,
     ),
     notes: data.notes.filter((note) => note.campaignId !== id),
+    preferences: {
+      ...data.preferences,
+      selectedCharacterByCampaign,
+    },
   };
   repository.save(next);
   return next;

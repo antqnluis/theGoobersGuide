@@ -11,6 +11,8 @@ import type { Campaign } from './features/campaigns/model';
 import {
   deleteCharacter,
   newCharacter,
+  selectCharacter,
+  selectedCharacterId,
   saveCharacter,
 } from './features/characters/characterService';
 import {
@@ -19,7 +21,12 @@ import {
 } from './features/characters/characterImport';
 import type { Character } from './features/characters/model';
 import CharacterSheetPreview from './features/characters/CharacterSheetPreview';
+import CharacterWorkspace from './features/characters/CharacterWorkspace';
 import PartyReadOnly from './features/characters/PartyReadOnly';
+import {
+  createCharacterExport,
+  type CharacterExportFormat,
+} from './features/characters/characterExport';
 import DiceRoller from './features/dice/DiceRoller';
 import CampaignJournal from './features/notes/CampaignJournal';
 import {
@@ -43,7 +50,7 @@ const navigation: { route: Route; label: string }[] = [
   { route: 'campaigns', label: 'Campaign library' },
   { route: 'campaign', label: 'Overview' },
   { route: 'party', label: 'Party' },
-  { route: 'characters', label: 'Character sheets' },
+  { route: 'characters', label: 'My Character' },
   { route: 'notes', label: 'Campaign notes' },
 ];
 
@@ -102,6 +109,9 @@ export default function App() {
   const notes = activeCampaign
     ? data.notes.filter((note) => note.campaignId === activeCampaign.id)
     : [];
+  const preferredCharacterId = activeCampaign
+    ? selectedCharacterId(data, activeCampaign.id)
+    : null;
 
   useEffect(() => {
     const onHashChange = (event: HashChangeEvent) => {
@@ -124,6 +134,39 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (
+      !activeCampaign ||
+      location.route !== 'characters' ||
+      !location.characterId ||
+      location.characterId === 'new' ||
+      location.characterId === 'import' ||
+      !characters.some((character) => character.id === location.characterId) ||
+      data.preferences.selectedCharacterByCampaign[activeCampaign.id] ===
+        location.characterId
+    )
+      return;
+    try {
+      setData(
+        selectCharacter(
+          repository,
+          data,
+          activeCampaign.id,
+          location.characterId,
+        ),
+      );
+    } catch {
+      setError('The selected character could not be remembered.');
+    }
+  }, [
+    activeCampaign,
+    characters,
+    data,
+    location.characterId,
+    location.route,
+    repository,
+  ]);
 
   function saveCreate(details: CampaignDetails): boolean {
     try {
@@ -184,15 +227,24 @@ export default function App() {
 
   function saveSheet(character: Character): boolean {
     try {
-      setData(saveCharacter(repository, data, character));
+      let next = saveCharacter(repository, data, character);
       const importing = location.characterId === 'import';
+      const creating = location.characterId === 'new';
+      if (creating || importing)
+        next = selectCharacter(
+          repository,
+          next,
+          character.campaignId,
+          character.id,
+        );
+      setData(next);
       setFeedback(
         importing
           ? `Imported ${character.name.trim()}.`
           : `Saved ${character.name.trim()}.`,
       );
       setError(null);
-      if (location.characterId === 'new' || importing)
+      if (creating || importing)
         window.location.hash = `#/characters/${character.campaignId}/${character.id}`;
       if (importing) setCharacterImport(null);
       return true;
@@ -210,37 +262,66 @@ export default function App() {
     campaignId: string,
     source: string,
     sourceLabel: string,
-  ) {
+  ): boolean {
     setFeedback(null);
     setError(null);
     if (!source.trim()) {
       setError('Paste character JSON before continuing.');
-      return;
+      return false;
     }
     try {
       const character = parseCharacterImport(source, campaignId);
       setCharacterImport({ campaignId, character, sourceLabel });
       window.location.hash = `#/characters/${campaignId}/import`;
+      return true;
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
           : 'The character JSON could not be read.',
       );
+      return false;
     }
   }
 
-  async function importCharacterFile(campaignId: string, file: File) {
+  async function importCharacterFile(
+    campaignId: string,
+    file: File,
+  ): Promise<boolean> {
     setFeedback(null);
     setError(null);
     if (file.size > MAX_CHARACTER_IMPORT_BYTES) {
       setError('Choose a character JSON file smaller than 1 MB.');
-      return;
+      return false;
     }
     try {
-      stageCharacterImport(campaignId, await file.text(), file.name);
+      return stageCharacterImport(campaignId, await file.text(), file.name);
     } catch {
       setError('The character file could not be read.');
+      return false;
+    }
+  }
+
+  function exportCharacter(
+    character: Character,
+    format: CharacterExportFormat,
+  ) {
+    try {
+      const file = createCharacterExport(character, format);
+      const url = URL.createObjectURL(
+        new Blob([file.content], { type: `${file.mimeType};charset=utf-8` }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      setFeedback(
+        `Exported ${character.name} as ${format === 'json' ? 'JSON' : 'Markdown'}.`,
+      );
+      setError(null);
+    } catch {
+      setError('Character could not be exported.');
     }
   }
 
@@ -248,13 +329,25 @@ export default function App() {
     if (!window.confirm(`Delete “${character.name}”? This cannot be undone.`))
       return;
     try {
-      setData(
-        deleteCharacter(repository, data, character.campaignId, character.id),
+      let next = deleteCharacter(
+        repository,
+        data,
+        character.campaignId,
+        character.id,
       );
+      const fallback = selectedCharacterId(next, character.campaignId);
+      if (fallback)
+        next = selectCharacter(
+          repository,
+          next,
+          character.campaignId,
+          fallback,
+        );
+      setData(next);
       setFeedback(`Deleted ${character.name}.`);
       setError(null);
       if (location.characterId === character.id)
-        window.location.hash = `#/party/${character.campaignId}`;
+        window.location.hash = `#/characters/${character.campaignId}${fallback ? `/${fallback}` : ''}`;
     } catch {
       setError('Character could not be deleted.');
     }
@@ -347,7 +440,9 @@ export default function App() {
                   href={
                     item.route === 'campaigns'
                       ? '#/campaigns'
-                      : `#/${item.route}/${activeCampaign?.id}`
+                      : item.route === 'characters'
+                        ? `#/characters/${activeCampaign?.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`
+                        : `#/${item.route}/${activeCampaign?.id}`
                   }
                   aria-current={route === item.route ? 'page' : undefined}
                   onClick={() => setMenuOpen(false)}
@@ -417,7 +512,21 @@ export default function App() {
               <PartyReadOnly
                 campaign={activeCampaign}
                 characters={characters}
-                onDelete={confirmCharacterDelete}
+              />
+            )}
+            {activeCampaign && route === 'characters' && (
+              <CharacterWorkspace
+                key={activeCampaign.id}
+                campaign={activeCampaign}
+                characters={characters}
+                selectedCharacterId={
+                  location.characterId &&
+                  characters.some(
+                    (character) => character.id === location.characterId,
+                  )
+                    ? location.characterId
+                    : preferredCharacterId
+                }
                 onImportFile={(file) =>
                   importCharacterFile(activeCampaign.id, file)
                 }
@@ -425,66 +534,78 @@ export default function App() {
                   stageCharacterImport(activeCampaign.id, source, 'pasted JSON')
                 }
                 error={error}
-              />
+              >
+                {location.characterId === 'new' ? (
+                  <CharacterSheetPreview
+                    key={`${activeCampaign.id}-new`}
+                    campaign={activeCampaign}
+                    character={newCharacter(activeCampaign.id)}
+                    creating
+                    onCancel={() => {
+                      window.location.hash = `#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`;
+                    }}
+                    onSave={saveSheet}
+                    error={error}
+                    feedback={feedback}
+                  />
+                ) : location.characterId === 'import' &&
+                  characterImport?.campaignId === activeCampaign.id ? (
+                  <CharacterSheetPreview
+                    key={`${activeCampaign.id}-import-${characterImport.sourceLabel}`}
+                    campaign={activeCampaign}
+                    character={characterImport.character}
+                    creating
+                    importSource={characterImport.sourceLabel}
+                    onCancel={() => {
+                      setCharacterImport(null);
+                      window.location.hash = `#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`;
+                    }}
+                    onSave={saveSheet}
+                    error={error}
+                    feedback={feedback}
+                  />
+                ) : (location.characterId ?? preferredCharacterId) &&
+                  characters.some(
+                    (character) =>
+                      character.id ===
+                      (location.characterId ?? preferredCharacterId),
+                  ) ? (
+                  <CharacterSheetPreview
+                    key={location.characterId ?? preferredCharacterId}
+                    campaign={activeCampaign}
+                    character={characters.find(
+                      (character) =>
+                        character.id ===
+                        (location.characterId ?? preferredCharacterId),
+                    )!}
+                    onSave={saveSheet}
+                    onDelete={confirmCharacterDelete}
+                    onExport={exportCharacter}
+                    error={error}
+                    feedback={feedback}
+                  />
+                ) : location.characterId ? (
+                  <div className="campaign-empty">
+                    <h2>Character not found</h2>
+                    <p>This character is not in the selected campaign.</p>
+                    <a
+                      className="button button-primary"
+                      href={`#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`}
+                    >
+                      Return to My Character
+                    </a>
+                  </div>
+                ) : (
+                  <div className="campaign-empty">
+                    <h2>No character yet</h2>
+                    <p>
+                      Create a character manually, import JSON, or use the
+                      Markdown guide above to prepare a character file.
+                    </p>
+                  </div>
+                )}
+              </CharacterWorkspace>
             )}
-            {activeCampaign &&
-              route === 'characters' &&
-              (location.characterId === 'new' ? (
-                <CharacterSheetPreview
-                  key={`${activeCampaign.id}-new`}
-                  campaign={activeCampaign}
-                  character={newCharacter(activeCampaign.id)}
-                  creating
-                  onSave={saveSheet}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : location.characterId === 'import' &&
-                characterImport?.campaignId === activeCampaign.id ? (
-                <CharacterSheetPreview
-                  key={`${activeCampaign.id}-import-${characterImport.sourceLabel}`}
-                  campaign={activeCampaign}
-                  character={characterImport.character}
-                  creating
-                  importSource={characterImport.sourceLabel}
-                  onCancelImport={() => setCharacterImport(null)}
-                  onSave={saveSheet}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : location.characterId &&
-                characters.some((c) => c.id === location.characterId) ? (
-                <CharacterSheetPreview
-                  key={location.characterId}
-                  campaign={activeCampaign}
-                  character={characters.find(
-                    (c) => c.id === location.characterId,
-                  )!}
-                  onSave={saveSheet}
-                  onDelete={confirmCharacterDelete}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : (
-                <div className="campaign-empty">
-                  <h2>
-                    {location.characterId
-                      ? 'Character not found'
-                      : 'Choose a character'}
-                  </h2>
-                  <p>
-                    {location.characterId
-                      ? 'This character is not in the selected campaign.'
-                      : "Open a sheet from this campaign's party."}
-                  </p>
-                  <a
-                    className="button button-primary"
-                    href={`#/party/${activeCampaign.id}`}
-                  >
-                    View party
-                  </a>
-                </div>
-              ))}
             {activeCampaign && route === 'notes' && (
               <CampaignJournal
                 key={`${activeCampaign.id}-${location.characterId ?? 'index'}`}

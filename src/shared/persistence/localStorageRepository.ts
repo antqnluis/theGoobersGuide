@@ -12,7 +12,7 @@ import {
 } from './validation';
 
 export const APP_STORAGE_KEY = 'the-goobers-guide:data';
-const LEGACY_SCHEMA_VERSION = 1;
+const LEGACY_SCHEMA_VERSIONS = [1, 2] as const;
 
 export type StorageStatus =
   | { kind: 'ready' }
@@ -63,7 +63,7 @@ export class LocalStorageRepository implements AppRepository {
         'schemaVersion' in parsed ? parsed.schemaVersion : undefined;
       if (
         parsedVersion !== SCHEMA_VERSION &&
-        parsedVersion !== LEGACY_SCHEMA_VERSION
+        !LEGACY_SCHEMA_VERSIONS.some((version) => version === parsedVersion)
       ) {
         this.status = {
           kind: 'blocked',
@@ -73,7 +73,8 @@ export class LocalStorageRepository implements AppRepository {
         return emptyAppData();
       }
 
-      const migratingLegacyData = parsedVersion === LEGACY_SCHEMA_VERSION;
+      const migratingLegacySpells = parsedVersion === 1;
+      const migratingPreferences = parsedVersion === 2;
 
       // Recover valid records from a damaged current-version payload.
       const record = parsed as Record<string, unknown>;
@@ -114,15 +115,49 @@ export class LocalStorageRepository implements AppRepository {
             },
           )
         : [];
+      const characterById = new Map(
+        characters.map((character) => [character.id, character]),
+      );
+      const preferenceSource =
+        record.preferences &&
+        typeof record.preferences === 'object' &&
+        !Array.isArray(record.preferences) &&
+        'selectedCharacterByCampaign' in record.preferences &&
+        record.preferences.selectedCharacterByCampaign &&
+        typeof record.preferences.selectedCharacterByCampaign === 'object' &&
+        !Array.isArray(record.preferences.selectedCharacterByCampaign)
+          ? (record.preferences.selectedCharacterByCampaign as Record<
+              string,
+              unknown
+            >)
+          : {};
+      const selectedCharacterByCampaign: Record<string, string> = {};
+      for (const [campaignId, characterId] of Object.entries(
+        preferenceSource,
+      )) {
+        if (
+          typeof characterId === 'string' &&
+          characterById.get(characterId)?.campaignId === campaignId
+        )
+          selectedCharacterByCampaign[campaignId] = characterId;
+      }
 
       this.recoveredRaw = stored;
       this.status = {
         kind: 'recovered',
-        message: migratingLegacyData
+        message: migratingLegacySpells
           ? 'Saved data was upgraded. Existing spell text was not carried into the new spell format. The original data will be kept as a browser backup when you next save.'
-          : 'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
+          : migratingPreferences
+            ? 'Saved data was upgraded with character preferences. The original data will be kept as a browser backup when you next save.'
+            : 'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
       };
-      return { schemaVersion: SCHEMA_VERSION, campaigns, characters, notes };
+      return {
+        schemaVersion: SCHEMA_VERSION,
+        campaigns,
+        characters,
+        notes,
+        preferences: { selectedCharacterByCampaign },
+      };
     } catch {
       this.status = {
         kind: 'blocked',
@@ -154,7 +189,7 @@ export class LocalStorageRepository implements AppRepository {
       this.status = {
         kind: 'recovered',
         message: upgradedLegacyData
-          ? 'Saved data was upgraded. Existing spell text was not carried into the new spell format. The original data is preserved as a browser backup.'
+          ? 'Saved data was upgraded. The original data is preserved as a browser backup.'
           : 'Some saved records could not be loaded. The original data is preserved as a browser backup.',
       };
     }

@@ -1,6 +1,6 @@
 # Local setup
 
-The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open a campaign's Party page to add, edit, and delete characters. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Spells use structured entries in their own tab and remain manually editable for homebrew content. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
+The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open **My Character** to select, create, import, edit, export, or delete a campaign character; Party is a read-only roster that links back to those saved sheets. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Spells use structured entries in their own tab and remain manually editable for homebrew content. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
 
 Use Node.js 22.12+, 24+, or 26+ and npm. From the repository root:
 
@@ -25,4 +25,4 @@ Open the local address printed by Vite, usually `http://localhost:5173/`.
 
 LocalStorage is scoped to the browser profile and origin. It is not a secure or shared data store. Feature code should depend on the `AppRepository` interface, not call `window.localStorage` directly.
 
-Schema version 2 replaces legacy freeform spell text with structured spell entries. Version-1 browser data is upgraded automatically: campaigns, notes, and non-spell character data are retained, legacy spell text is discarded, and the original payload is saved under a recovery key before the first subsequent save.
+Schema version 3 adds the remembered My Character selection for each campaign. Version-2 data is upgraded with empty character preferences. Version-1 data is also upgraded: campaigns, notes, and non-spell character data are retained, legacy spell text is discarded, and the original payload is saved under a recovery key before the first subsequent save.

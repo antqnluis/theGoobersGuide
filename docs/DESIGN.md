@@ -42,7 +42,7 @@ Desktop
 │ Campaign library   │                                                │
 │ Overview           │ Character sheet or selected campaign view      │
 │ Party              │                                                │
-│ Character sheets   │                                                │
+│ My Character       │                                                │
 │ Campaign notes     │                                                │
 └────────────────────┴────────────────────────────────────────────────┘
 
@@ -53,11 +53,18 @@ Mobile
 └─────────────────────────────────────────┘
 ```
 
-The campaign library is always reachable from the index. Within a selected campaign, the index shows overview, party, character sheets, and notes. Show the active campaign name in both the index and top bar so context is never ambiguous. The mobile menu overlays the page and closes after a destination is selected. The dice roller opens in a side dialog from any page and returns the player to the same view when closed. Use the same names for destinations and page headings.
+The campaign library is always reachable from the index. Within a selected campaign, the index shows overview, party, My Character, and campaign notes. My Character remembers one selected character per campaign and returns to it after navigation or refresh. Show the active campaign name in both the index and top bar so context is never ambiguous. The mobile menu overlays the page and closes after a destination is selected. The dice roller opens in a side dialog from any page and returns the player to the same view when closed. Use the same names for destinations and page headings.
 
 The application opens at the campaign library. Campaign-aware hash links carry the selected campaign ID across views and browser refreshes. Character links also carry the character ID.
 
 ## Character sheet
+
+My Character places a compact command area above the continuous sheet. It
+contains the campaign character switcher, manual creation, JSON import, and
+the Markdown conversion guide. A campaign with no characters uses the same
+area as an onboarding surface rather than redirecting through Party. Saved
+characters expose JSON and Markdown export beside the sheet editing controls;
+unsaved drafts do not.
 
 ```text
 Character name, level, class, species                 Edit sheet
@@ -83,7 +90,7 @@ All gameplay values remain manually adjustable, including skills, saves, attack 
 
 - **Campaign library:** one row per saved campaign with name, party, and optional location/status. The whole row opens the campaign. Creation, editing, and confirmed deletion are available alongside each row.
 - **Campaign overview:** a short title and description, a narrow summary line for party and location, then party members and recent notes. It should direct players to their sheet in one step.
-- **Party:** compact character rows with class, level, HP, and AC where available. Selecting a row opens that character's sheet.
+- **Party:** compact, read-only character rows with class, level, HP, and AC where available. Selecting a row opens that character in My Character. Creation, import, editing, exporting, and deletion remain in My Character.
 - **Campaign notes:** a readable list of titles, categories, and excerpts, scoped to the active campaign. Full note editing follows the MVP scope.
 - **Dice roller:** a persistent top-bar entry opens a focused side panel with standard dice, count, modifier, individual results, total, and recent history.
 

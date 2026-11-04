@@ -108,8 +108,14 @@ export default function CampaignOverview({
         </section>
       </div>
       <div className="overview-shortcuts">
+        <a
+          className="button button-primary"
+          href={`#/characters/${campaign.id}`}
+        >
+          Open My Character
+        </a>
         <a className="button button-quiet" href={`#/party/${campaign.id}`}>
-          View party and character sheets
+          View party
         </a>
         <a className="button button-quiet" href="#/campaigns">
           Campaign library

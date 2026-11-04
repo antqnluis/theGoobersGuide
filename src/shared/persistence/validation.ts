@@ -46,6 +46,10 @@ function isNumberRecord(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(isNumber);
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every(isString);
+}
+
 function hasUniqueIds(values: { id: string }[]): boolean {
   return new Set(values.map((value) => value.id)).size === values.length;
 }
@@ -286,12 +290,17 @@ export function isAppData(value: unknown): value is AppData {
     value.schemaVersion !== SCHEMA_VERSION ||
     !isArrayOf(value.campaigns, isCampaign) ||
     !isArrayOf(value.characters, isCharacter) ||
-    !isArrayOf(value.notes, isCampaignNote)
+    !isArrayOf(value.notes, isCampaignNote) ||
+    !isRecord(value.preferences) ||
+    !isStringRecord(value.preferences.selectedCharacterByCampaign)
   ) {
     return false;
   }
 
   const campaignIds = new Set(value.campaigns.map((campaign) => campaign.id));
+  const charactersById = new Map(
+    value.characters.map((character) => [character.id, character]),
+  );
   return (
     hasUniqueIds(value.campaigns) &&
     hasUniqueIds(value.characters) &&
@@ -299,6 +308,11 @@ export function isAppData(value: unknown): value is AppData {
     value.characters.every((character) =>
       campaignIds.has(character.campaignId),
     ) &&
-    value.notes.every((note) => campaignIds.has(note.campaignId))
+    value.notes.every((note) => campaignIds.has(note.campaignId)) &&
+    Object.entries(value.preferences.selectedCharacterByCampaign).every(
+      ([campaignId, characterId]) =>
+        campaignIds.has(campaignId) &&
+        charactersById.get(characterId)?.campaignId === campaignId,
+    )
   );
 }

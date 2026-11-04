@@ -5,6 +5,54 @@ export function abilityModifier(score: number): number {
   return Math.floor((score - 10) / 2);
 }
 
+export function selectedCharacterId(
+  data: AppData,
+  campaignId: string,
+): string | null {
+  const selected = data.preferences.selectedCharacterByCampaign[campaignId];
+  if (
+    selected &&
+    data.characters.some(
+      (character) =>
+        character.id === selected && character.campaignId === campaignId,
+    )
+  )
+    return selected;
+  return (
+    data.characters.find((character) => character.campaignId === campaignId)
+      ?.id ?? null
+  );
+}
+
+export function selectCharacter(
+  repository: AppRepository,
+  data: AppData,
+  campaignId: string,
+  characterId: string,
+): AppData {
+  if (
+    !data.characters.some(
+      (character) =>
+        character.id === characterId && character.campaignId === campaignId,
+    )
+  )
+    throw new Error('Character not found in this campaign.');
+  if (data.preferences.selectedCharacterByCampaign[campaignId] === characterId)
+    return data;
+  const next = {
+    ...data,
+    preferences: {
+      ...data.preferences,
+      selectedCharacterByCampaign: {
+        ...data.preferences.selectedCharacterByCampaign,
+        [campaignId]: characterId,
+      },
+    },
+  };
+  repository.save(next);
+  return next;
+}
+
 export function newCharacter(campaignId: string): Character {
   const now = new Date().toISOString();
   const standardSkills = [
@@ -141,9 +189,18 @@ export function deleteCharacter(
     )
   )
     throw new Error('Character not found in this campaign.');
+  const selectedCharacterByCampaign = {
+    ...data.preferences.selectedCharacterByCampaign,
+  };
+  if (selectedCharacterByCampaign[campaignId] === characterId)
+    delete selectedCharacterByCampaign[campaignId];
   const next = {
     ...data,
     characters: data.characters.filter((c) => c.id !== characterId),
+    preferences: {
+      ...data.preferences,
+      selectedCharacterByCampaign,
+    },
   };
   repository.save(next);
   return next;

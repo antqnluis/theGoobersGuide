@@ -193,7 +193,7 @@ describe('LocalStorageRepository', () => {
     const repository = new LocalStorageRepository(storage);
 
     const loaded = repository.load();
-    expect(loaded.schemaVersion).toBe(2);
+    expect(loaded.schemaVersion).toBe(3);
     expect(loaded.campaigns).toEqual([campaign]);
     expect(loaded.notes).toEqual([note]);
     expect(loaded.characters).toEqual([{ ...character, spells: [] }]);
@@ -212,6 +212,60 @@ describe('LocalStorageRepository', () => {
     expect(repository.getStatus()).toMatchObject({
       kind: 'recovered',
       message: expect.stringContaining('Saved data was upgraded'),
+    });
+  });
+
+  it('migrates version 2 data with empty character preferences', () => {
+    const storage = memoryStorage();
+    const raw = JSON.stringify({
+      schemaVersion: 2,
+      campaigns: [campaign],
+      characters: [character],
+      notes: [note],
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+    expect(loaded).toMatchObject({
+      schemaVersion: 3,
+      campaigns: [campaign],
+      characters: [character],
+      notes: [note],
+      preferences: { selectedCharacterByCampaign: {} },
+    });
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('character preferences'),
+    });
+
+    repository.save(loaded);
+    expect(
+      storage
+        .keys()
+        .some((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`)),
+    ).toBe(true);
+  });
+
+  it('recovers only campaign-scoped character preferences', () => {
+    const storage = memoryStorage();
+    const secondCampaign = { ...campaign, id: 'campaign-2', name: 'Second' };
+    const raw = JSON.stringify({
+      ...emptyAppData(),
+      campaigns: [campaign, secondCampaign],
+      characters: [character],
+      preferences: {
+        selectedCharacterByCampaign: {
+          [campaign.id]: character.id,
+          [secondCampaign.id]: character.id,
+          missing: 'missing-character',
+        },
+      },
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+
+    expect(new LocalStorageRepository(storage).load().preferences).toEqual({
+      selectedCharacterByCampaign: { [campaign.id]: character.id },
     });
   });
 

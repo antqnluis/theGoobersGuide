@@ -79,8 +79,8 @@ export default function CampaignLibrary({
           <p className="page-context">Your adventures</p>
           <h1>Campaign library</h1>
           <p>
-            Choose a campaign to bring its party, notes, and character sheets
-            into view.
+            Choose a campaign to bring its party, notes, and My Character
+            workspace into view.
           </p>
         </div>
         <button
