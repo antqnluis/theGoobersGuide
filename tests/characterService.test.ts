@@ -53,10 +53,28 @@ describe('character management', () => {
     const edited = {
       ...a,
       name: 'Updated',
+      abilityScores: {
+        ...a.abilityScores,
+        strength: { score: 18, modifier: 7 },
+      },
       combat: { ...a.combat, currentHp: 7 },
+      skills: [{ name: 'Athletics', modifier: 11, proficient: true }],
+      savingThrows: [
+        { ability: 'strength' as const, modifier: 5, proficient: true },
+      ],
+      attacks: [
+        {
+          id: 'attack',
+          name: 'Longsword',
+          attackBonus: 9,
+          damageExpression: '1d8 + 4',
+        },
+      ],
       inventory: [{ id: 'item', name: 'Rope', quantity: 2 }],
       currency: { gp: 12 },
       features: [{ id: 'feature', name: 'Custom', description: 'Homebrew' }],
+      notes: 'Keep watch.',
+      spells: 'User-entered spell text.',
     };
     const updated = saveCharacter(repository, saved, edited);
     expect(
@@ -76,6 +94,14 @@ describe('character management', () => {
       updated.characters.find((c) => c.id === a.id)?.features[0].name,
     ).toBe('Custom');
     expect(updated.characters.find((c) => c.id === b.id)?.name).toBe('B');
+    expect(updated.characters.find((c) => c.id === a.id)).toMatchObject({
+      abilityScores: { strength: { score: 18, modifier: 7 } },
+      skills: [{ name: 'Athletics', modifier: 11, proficient: true }],
+      savingThrows: [{ ability: 'strength', modifier: 5, proficient: true }],
+      attacks: [{ name: 'Longsword', attackBonus: 9 }],
+      notes: 'Keep watch.',
+      spells: 'User-entered spell text.',
+    });
     expect(() =>
       saveCharacter(repository, updated, { ...a, campaignId: second.id }),
     ).toThrow();
@@ -128,5 +154,25 @@ describe('character management', () => {
     expect(
       deleteCampaign(repository, saved, first.id).characters.map((c) => c.id),
     ).toEqual([b.id]);
+  });
+
+  it('rejects invalid hit points and currency without changing saved data', () => {
+    const { repository, data, first } = setup();
+    const character = { ...newCharacter(first.id), name: 'A' };
+    const saved = saveCharacter(repository, data, character);
+
+    expect(() =>
+      saveCharacter(repository, saved, {
+        ...character,
+        combat: { ...character.combat, currentHp: 1.5 },
+      }),
+    ).toThrow('nonnegative whole number');
+    expect(() =>
+      saveCharacter(repository, saved, {
+        ...character,
+        currency: { gp: -1 },
+      }),
+    ).toThrow('nonnegative whole number');
+    expect(repository.load()).toEqual(saved);
   });
 });

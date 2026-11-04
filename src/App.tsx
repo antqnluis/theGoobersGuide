@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CampaignLibrary from './features/campaigns/CampaignLibrary';
 import CampaignOverview from './features/campaigns/CampaignOverview';
 import {
@@ -24,8 +24,9 @@ import {
   type NoteDetails,
 } from './features/notes/noteService';
 import type { CampaignNote } from './features/notes/model';
-import { LocalStorageRepository } from './shared/persistence/localStorageRepository';
+import { browserLocalStorageRepository } from './shared/persistence/localStorageRepository';
 import type { AppData } from './shared/persistence/model';
+import { NavigationGuardContext } from './shared/ui/useUnsavedChanges';
 
 type Route = 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
 type Location = {
@@ -62,18 +63,23 @@ function currentLocation(): Location {
 }
 
 export default function App() {
-  const repository = useMemo(
-    () => new LocalStorageRepository(window.localStorage),
-    [],
-  );
+  const repository = useMemo(browserLocalStorageRepository, []);
   const [data, setData] = useState<AppData>(() => repository.load());
   const [location, setLocation] = useState<Location>(currentLocation);
   const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const storageStatus = repository.getStatus();
   const diceDialog = useRef<HTMLDialogElement>(null);
   const diceTrigger = useRef<HTMLButtonElement>(null);
+  const navigationGuard = useRef<(() => boolean) | null>(null);
+  const registerGuard = useCallback((guard: () => boolean) => {
+    navigationGuard.current = guard;
+    return () => {
+      if (navigationGuard.current === guard) navigationGuard.current = null;
+    };
+  }, []);
 
   const activeCampaign = data.campaigns.find(
     (campaign) => campaign.id === location.campaignId,
@@ -89,7 +95,11 @@ export default function App() {
     : [];
 
   useEffect(() => {
-    const onHashChange = () => {
+    const onHashChange = (event: HashChangeEvent) => {
+      if (navigationGuard.current && !navigationGuard.current()) {
+        window.history.replaceState(window.history.state, '', event.oldURL);
+        return;
+      }
       const next = currentLocation();
       if (
         locationRef.current.route !== next.route ||
@@ -235,192 +245,200 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      {menuOpen && (
-        <button
-          type="button"
-          className="mobile-scrim"
-          aria-label="Close navigation"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-      <aside
-        className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}
-        aria-label="Application navigation"
-      >
-        <a
-          className="brand"
-          href="#/campaigns"
-          onClick={() => setMenuOpen(false)}
-        >
-          <span className="brand-mark" aria-hidden="true">
-            G
-          </span>
-          <span>The Goober&apos;s Guide</span>
-        </a>
-        <div className="sidebar-rule" />
-        <div className="sidebar-campaign">
-          {activeCampaign ? (
-            <>
-              <span>Current campaign</span>
-              <strong>{activeCampaign.name}</strong>
-              <small>{activeCampaign.partyName}</small>
-            </>
-          ) : (
-            <>
-              <span>Campaigns</span>
-              <strong>Your adventures</strong>
-              <small>Choose a campaign to continue</small>
-            </>
-          )}
-        </div>
-        <nav className="sidebar-nav" aria-label="Primary">
-          {navigation
-            .filter((item) => item.route === 'campaigns' || activeCampaign)
-            .map((item) => (
-              <a
-                key={item.route}
-                href={
-                  item.route === 'campaigns'
-                    ? '#/campaigns'
-                    : `#/${item.route}/${activeCampaign?.id}`
-                }
-                aria-current={route === item.route ? 'page' : undefined}
-                onClick={() => setMenuOpen(false)}
-              >
-                <span>{item.label}</span>
-                {route === item.route && <span aria-hidden="true">—</span>}
-              </a>
-            ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <span>Local guide</span>
-          <small>Saved in this browser</small>
-        </div>
-      </aside>
-
-      <div className="workspace">
-        <header className="topbar">
-          <div className="topbar-leading">
-            <button
-              type="button"
-              className="menu-button"
-              aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-            <span className="topbar-campaign">
-              {activeCampaign ? activeCampaign.name : 'Campaign library'}
-            </span>
-          </div>
+    <NavigationGuardContext.Provider value={registerGuard}>
+      <div className="app-shell">
+        {menuOpen && (
           <button
             type="button"
-            className="dice-trigger"
-            ref={diceTrigger}
-            onClick={openDice}
+            className="mobile-scrim"
+            aria-label="Close navigation"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+        <aside
+          className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}
+          aria-label="Application navigation"
+        >
+          <a
+            className="brand"
+            href="#/campaigns"
+            onClick={() => setMenuOpen(false)}
           >
-            <span aria-hidden="true">d20</span> Dice roller
-          </button>
-        </header>
-        <main className="workspace-main">
-          {route === 'campaigns' && (
-            <CampaignLibrary
-              campaigns={data.campaigns}
-              onCreate={saveCreate}
-              onUpdate={saveUpdate}
-              onDelete={confirmDelete}
-              error={error}
-              feedback={feedback}
-            />
-          )}
-          {activeCampaign && route === 'campaign' && (
-            <CampaignOverview
-              campaign={activeCampaign}
-              characters={characters}
-              notes={notes}
-            />
-          )}
-          {activeCampaign && route === 'party' && (
-            <PartyReadOnly
-              campaign={activeCampaign}
-              characters={characters}
-              onDelete={confirmCharacterDelete}
-            />
-          )}
-          {activeCampaign &&
-            route === 'characters' &&
-            (location.characterId === 'new' ? (
-              <CharacterSheetPreview
-                key={`${activeCampaign.id}-new`}
-                campaign={activeCampaign}
-                character={newCharacter(activeCampaign.id)}
-                creating
-                onSave={saveSheet}
-                error={error}
-                feedback={feedback}
-              />
-            ) : location.characterId &&
-              characters.some((c) => c.id === location.characterId) ? (
-              <CharacterSheetPreview
-                key={location.characterId}
-                campaign={activeCampaign}
-                character={characters.find(
-                  (c) => c.id === location.characterId,
-                )!}
-                onSave={saveSheet}
-                onDelete={confirmCharacterDelete}
-                error={error}
-                feedback={feedback}
-              />
+            <span className="brand-mark" aria-hidden="true">
+              G
+            </span>
+            <span>The Goober&apos;s Guide</span>
+          </a>
+          <div className="sidebar-rule" />
+          <div className="sidebar-campaign">
+            {activeCampaign ? (
+              <>
+                <span>Current campaign</span>
+                <strong>{activeCampaign.name}</strong>
+                <small>{activeCampaign.partyName}</small>
+              </>
             ) : (
-              <div className="campaign-empty">
-                <h2>
-                  {location.characterId
-                    ? 'Character not found'
-                    : 'Choose a character'}
-                </h2>
-                <p>
-                  {location.characterId
-                    ? 'This character is not in the selected campaign.'
-                    : "Open a sheet from this campaign's party."}
-                </p>
+              <>
+                <span>Campaigns</span>
+                <strong>Your adventures</strong>
+                <small>Choose a campaign to continue</small>
+              </>
+            )}
+          </div>
+          <nav className="sidebar-nav" aria-label="Primary">
+            {navigation
+              .filter((item) => item.route === 'campaigns' || activeCampaign)
+              .map((item) => (
                 <a
-                  className="button button-primary"
-                  href={`#/party/${activeCampaign.id}`}
+                  key={item.route}
+                  href={
+                    item.route === 'campaigns'
+                      ? '#/campaigns'
+                      : `#/${item.route}/${activeCampaign?.id}`
+                  }
+                  aria-current={route === item.route ? 'page' : undefined}
+                  onClick={() => setMenuOpen(false)}
                 >
-                  View party
+                  <span>{item.label}</span>
+                  {route === item.route && <span aria-hidden="true">—</span>}
                 </a>
-              </div>
-            ))}
-          {activeCampaign && route === 'notes' && (
-            <CampaignJournal
-              key={`${activeCampaign.id}-${location.characterId ?? 'index'}`}
-              campaign={activeCampaign}
-              notes={notes}
-              noteId={location.characterId}
-              onSave={saveJournalNote}
-              onDelete={confirmNoteDelete}
-              feedback={feedback}
-              error={error}
-            />
-          )}
-        </main>
+              ))}
+          </nav>
+          <div className="sidebar-bottom">
+            <span>Local guide</span>
+            <small>Saved in this browser</small>
+          </div>
+        </aside>
+
+        <div className="workspace">
+          <header className="topbar">
+            <div className="topbar-leading">
+              <button
+                type="button"
+                className="menu-button"
+                aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+              <span className="topbar-campaign">
+                {activeCampaign ? activeCampaign.name : 'Campaign library'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="dice-trigger"
+              ref={diceTrigger}
+              onClick={openDice}
+            >
+              <span aria-hidden="true">d20</span> Dice roller
+            </button>
+          </header>
+          <main className="workspace-main">
+            {storageStatus.kind !== 'ready' && (
+              <p className="form-error" role="alert">
+                {storageStatus.message}
+              </p>
+            )}
+            {route === 'campaigns' && (
+              <CampaignLibrary
+                campaigns={data.campaigns}
+                onCreate={saveCreate}
+                onUpdate={saveUpdate}
+                onDelete={confirmDelete}
+                error={error}
+                feedback={feedback}
+              />
+            )}
+            {activeCampaign && route === 'campaign' && (
+              <CampaignOverview
+                campaign={activeCampaign}
+                characters={characters}
+                notes={notes}
+              />
+            )}
+            {activeCampaign && route === 'party' && (
+              <PartyReadOnly
+                campaign={activeCampaign}
+                characters={characters}
+                onDelete={confirmCharacterDelete}
+              />
+            )}
+            {activeCampaign &&
+              route === 'characters' &&
+              (location.characterId === 'new' ? (
+                <CharacterSheetPreview
+                  key={`${activeCampaign.id}-new`}
+                  campaign={activeCampaign}
+                  character={newCharacter(activeCampaign.id)}
+                  creating
+                  onSave={saveSheet}
+                  error={error}
+                  feedback={feedback}
+                />
+              ) : location.characterId &&
+                characters.some((c) => c.id === location.characterId) ? (
+                <CharacterSheetPreview
+                  key={location.characterId}
+                  campaign={activeCampaign}
+                  character={characters.find(
+                    (c) => c.id === location.characterId,
+                  )!}
+                  onSave={saveSheet}
+                  onDelete={confirmCharacterDelete}
+                  error={error}
+                  feedback={feedback}
+                />
+              ) : (
+                <div className="campaign-empty">
+                  <h2>
+                    {location.characterId
+                      ? 'Character not found'
+                      : 'Choose a character'}
+                  </h2>
+                  <p>
+                    {location.characterId
+                      ? 'This character is not in the selected campaign.'
+                      : "Open a sheet from this campaign's party."}
+                  </p>
+                  <a
+                    className="button button-primary"
+                    href={`#/party/${activeCampaign.id}`}
+                  >
+                    View party
+                  </a>
+                </div>
+              ))}
+            {activeCampaign && route === 'notes' && (
+              <CampaignJournal
+                key={`${activeCampaign.id}-${location.characterId ?? 'index'}`}
+                campaign={activeCampaign}
+                notes={notes}
+                noteId={location.characterId}
+                onSave={saveJournalNote}
+                onDelete={confirmNoteDelete}
+                feedback={feedback}
+                error={error}
+              />
+            )}
+          </main>
+        </div>
+        <dialog
+          className="dice-dialog"
+          ref={diceDialog}
+          aria-labelledby="dice-title"
+          onClose={() => diceTrigger.current?.focus()}
+          onClick={(event) => {
+            if (event.target === diceDialog.current)
+              diceDialog.current?.close();
+          }}
+        >
+          <DiceRoller onClose={() => diceDialog.current?.close()} />
+        </dialog>
       </div>
-      <dialog
-        className="dice-dialog"
-        ref={diceDialog}
-        aria-labelledby="dice-title"
-        onClose={() => diceTrigger.current?.focus()}
-        onClick={(event) => {
-          if (event.target === diceDialog.current) diceDialog.current?.close();
-        }}
-      >
-        <DiceRoller onClose={() => diceDialog.current?.close()} />
-      </dialog>
-    </div>
+    </NavigationGuardContext.Provider>
   );
 }

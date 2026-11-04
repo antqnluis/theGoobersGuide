@@ -45,12 +45,19 @@ function isNumberRecord(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(isNumber);
 }
 
+function hasUniqueIds(values: { id: string }[]): boolean {
+  return new Set(values.map((value) => value.id)).size === values.length;
+}
+
 export function isCampaign(value: unknown): value is Campaign {
   return (
     isRecord(value) &&
     isString(value.id) &&
+    value.id.trim() !== '' &&
     isString(value.name) &&
+    value.name.trim() !== '' &&
     isString(value.partyName) &&
+    value.partyName.trim() !== '' &&
     isOptionalString(value.description) &&
     isOptionalString(value.currentLocation) &&
     isOptionalString(value.status) &&
@@ -138,7 +145,9 @@ export function isCharacter(value: unknown): value is Character {
   return (
     isRecord(value) &&
     isString(value.id) &&
+    value.id.trim() !== '' &&
     isString(value.campaignId) &&
+    value.campaignId.trim() !== '' &&
     isString(value.name) &&
     isOptionalString(value.playerName) &&
     isString(value.className) &&
@@ -236,9 +245,13 @@ export function isCampaignNote(value: unknown): value is CampaignNote {
   return (
     isRecord(value) &&
     isString(value.id) &&
+    value.id.trim() !== '' &&
     isString(value.campaignId) &&
+    value.campaignId.trim() !== '' &&
     isString(value.title) &&
+    value.title.trim() !== '' &&
     isString(value.content) &&
+    value.content.trim() !== '' &&
     isOptionalString(value.category) &&
     isString(value.createdAt) &&
     isString(value.updatedAt)
@@ -258,8 +271,12 @@ export function isAppData(value: unknown): value is AppData {
 
   const campaignIds = new Set(value.campaigns.map((campaign) => campaign.id));
   return (
+    hasUniqueIds(value.campaigns) &&
+    hasUniqueIds(value.characters) &&
+    hasUniqueIds(value.notes) &&
     value.characters.every((character) =>
       campaignIds.has(character.campaignId),
-    ) && value.notes.every((note) => campaignIds.has(note.campaignId))
+    ) &&
+    value.notes.every((note) => campaignIds.has(note.campaignId))
   );
 }

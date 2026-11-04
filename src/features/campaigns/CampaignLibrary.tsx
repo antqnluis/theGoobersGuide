@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import type { Campaign } from './model';
 import type { CampaignDetails } from './campaignService';
 
@@ -29,21 +30,26 @@ export default function CampaignLibrary({
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CampaignDetails | null>(null);
+  const [original, setOriginal] = useState<CampaignDetails | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const dirty =
+    draft !== null && JSON.stringify(draft) !== JSON.stringify(original);
+  useUnsavedChanges(dirty, 'Discard unsaved campaign changes?');
 
   function start(campaign?: Campaign) {
+    if (dirty && !window.confirm('Discard unsaved campaign changes?')) return;
     setEditingId(campaign?.id ?? null);
-    setDraft(
-      campaign
-        ? {
-            name: campaign.name,
-            partyName: campaign.partyName,
-            description: campaign.description ?? '',
-            currentLocation: campaign.currentLocation ?? '',
-            status: campaign.status ?? '',
-          }
-        : { ...blank },
-    );
+    const values = campaign
+      ? {
+          name: campaign.name,
+          partyName: campaign.partyName,
+          description: campaign.description ?? '',
+          currentLocation: campaign.currentLocation ?? '',
+          status: campaign.status ?? '',
+        }
+      : { ...blank };
+    setOriginal(values);
+    setDraft(values);
     setFormError(null);
   }
 
@@ -57,6 +63,7 @@ export default function CampaignLibrary({
     const saved = editingId ? onUpdate(editingId, draft) : onCreate(draft);
     if (!saved) return;
     setDraft(null);
+    setOriginal(null);
     setEditingId(null);
     setFormError(null);
   }
@@ -165,7 +172,10 @@ export default function CampaignLibrary({
             <button
               className="button button-quiet"
               type="button"
-              onClick={() => setDraft(null)}
+              onClick={() => {
+                setDraft(null);
+                setOriginal(null);
+              }}
             >
               Cancel
             </button>

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Campaign } from '../src/features/campaigns/model';
 import type { Character } from '../src/features/characters/model';
 import type { CampaignNote } from '../src/features/notes/model';
-import { LocalStorageRepository } from '../src/shared/persistence/localStorageRepository';
+import {
+  APP_STORAGE_KEY,
+  LocalStorageRepository,
+} from '../src/shared/persistence/localStorageRepository';
 import { emptyAppData } from '../src/shared/persistence/model';
 
 function memoryStorage() {
@@ -12,6 +15,7 @@ function memoryStorage() {
     setItem: (key: string, value: string) => {
       values.set(key, value);
     },
+    keys: () => [...values.keys()],
   };
 }
 
@@ -129,5 +133,66 @@ describe('LocalStorageRepository', () => {
     expect(() =>
       repository.save({ ...emptyAppData(), characters: [character] }),
     ).toThrow('Cannot save invalid application data');
+  });
+
+  it('protects malformed and future-version data from an empty-data save', () => {
+    for (const raw of [
+      '{bad json',
+      JSON.stringify({ ...emptyAppData(), schemaVersion: 2 }),
+    ]) {
+      const storage = memoryStorage();
+      storage.setItem(APP_STORAGE_KEY, raw);
+      const repository = new LocalStorageRepository(storage);
+
+      expect(repository.load()).toEqual(emptyAppData());
+      expect(repository.getStatus().kind).toBe('blocked');
+      expect(() => repository.save(emptyAppData())).toThrow(
+        'protected from being replaced',
+      );
+      expect(storage.getItem(APP_STORAGE_KEY)).toBe(raw);
+    }
+  });
+
+  it('deduplicates damaged current-version data and backs up the original before saving', () => {
+    const storage = memoryStorage();
+    const raw = JSON.stringify({
+      ...emptyAppData(),
+      campaigns: [campaign, campaign],
+      characters: [character, character],
+      notes: [note, note],
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+    expect(loaded.campaigns).toEqual([campaign]);
+    expect(loaded.characters).toEqual([character]);
+    expect(loaded.notes).toEqual([note]);
+    expect(repository.getStatus().kind).toBe('recovered');
+
+    repository.save(loaded);
+    const backupKey = storage
+      .keys()
+      .find((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`));
+    expect(backupKey).toBeDefined();
+    expect(storage.getItem(backupKey!)).toBe(raw);
+    expect(new LocalStorageRepository(storage).load()).toEqual(loaded);
+  });
+
+  it('stays usable without crashing when browser storage cannot be read', () => {
+    const repository = new LocalStorageRepository({
+      getItem: () => {
+        throw new Error('Storage unavailable');
+      },
+      setItem: () => {
+        throw new Error('Storage unavailable');
+      },
+    });
+
+    expect(repository.load()).toEqual(emptyAppData());
+    expect(repository.getStatus().kind).toBe('blocked');
+    expect(() => repository.save(emptyAppData())).toThrow(
+      'protected from being replaced',
+    );
   });
 });

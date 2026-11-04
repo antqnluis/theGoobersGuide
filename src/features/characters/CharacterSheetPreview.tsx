@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import type { Campaign } from '../campaigns/model';
+import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import { abilityModifier } from './characterService';
 import {
   abilityNames,
@@ -41,13 +42,23 @@ function NumberEdit({
   onChange: (value: number) => void;
   className?: string;
 }) {
+  const [input, setInput] = useState(String(value));
+
+  useEffect(() => setInput(String(value)), [value]);
+
   return (
     <input
       aria-label={label}
       className={`field-input field-input-number ${className}`}
       type="number"
-      value={value}
-      onChange={(event) => onChange(Number(event.target.value))}
+      value={input}
+      onChange={(event) => {
+        const next = event.target.value;
+        setInput(next);
+        if (next.trim() !== '' && Number.isFinite(Number(next)))
+          onChange(Number(next));
+      }}
+      onBlur={() => setInput(String(value))}
     />
   );
 }
@@ -72,41 +83,27 @@ export default function CharacterSheetPreview({
   const [saved, setSaved] = useState<Character>(initial);
   const [draft, setDraft] = useState<Character>(initial);
   const [editing, setEditing] = useState(creating);
-  const [quickHp, setQuickHp] = useState(initial.combat.currentHp);
-  const [quickTemp, setQuickTemp] = useState(initial.combat.temporaryHp);
-  const allowNavigation = useRef(false);
+  const [quickHp, setQuickHp] = useState(String(initial.combat.currentHp));
+  const [quickTemp, setQuickTemp] = useState(
+    String(initial.combat.temporaryHp),
+  );
+  const [quickError, setQuickError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
   const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved);
+  const allowNavigation = useUnsavedChanges(
+    dirty,
+    'Discard unsaved character changes?',
+  );
 
   useEffect(() => {
     setSaved(initial);
     if (!editing) {
       setDraft(initial);
-      setQuickHp(initial.combat.currentHp);
-      setQuickTemp(initial.combat.temporaryHp);
+      setQuickHp(String(initial.combat.currentHp));
+      setQuickTemp(String(initial.combat.temporaryHp));
     }
   }, [initial]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    const oldHash = window.location.hash;
-    const hashChanged = () => {
-      if (allowNavigation.current) return;
-      if (!window.confirm('Discard unsaved character changes?'))
-        window.location.hash = oldHash;
-    };
-    window.addEventListener('beforeunload', beforeUnload);
-    window.addEventListener('hashchange', hashChanged);
-    return () => {
-      window.removeEventListener('beforeunload', beforeUnload);
-      window.removeEventListener('hashchange', hashChanged);
-    };
-  }, [dirty]);
 
   function updateField(key: keyof Character, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -144,6 +141,7 @@ export default function CharacterSheetPreview({
 
   function cancelEdit() {
     if (creating) {
+      allowNavigation.current = true;
       window.location.hash = `#/party/${campaign.id}`;
       return;
     }
@@ -159,14 +157,25 @@ export default function CharacterSheetPreview({
     }
     setSaved(structuredClone(draft));
     setEditing(false);
+    if (!creating) allowNavigation.current = false;
   }
 
-  function saveQuick(key: 'currentHp' | 'temporaryHp', value: number) {
-    if (!Number.isFinite(value) || value < 0) return;
+  function saveQuick(key: 'currentHp' | 'temporaryHp', raw: string) {
+    const value = Number(raw);
+    if (raw.trim() === '' || !Number.isInteger(value) || value < 0) {
+      setQuickError('Enter a nonnegative whole number for hit points.');
+      if (key === 'currentHp') setQuickHp(String(saved.combat.currentHp));
+      else setQuickTemp(String(saved.combat.temporaryHp));
+      return;
+    }
     const next = { ...saved, combat: { ...saved.combat, [key]: value } };
     if (onSave(next)) {
       setSaved(next);
       setDraft(next);
+      setQuickError(null);
+    } else {
+      if (key === 'currentHp') setQuickHp(String(saved.combat.currentHp));
+      else setQuickTemp(String(saved.combat.temporaryHp));
     }
   }
 
@@ -267,6 +276,7 @@ export default function CharacterSheetPreview({
 
       <div className="sheet-status" role="status">
         {error ||
+          quickError ||
           feedback ||
           (editing
             ? 'Changes are saved when you select Save changes.'
@@ -307,7 +317,7 @@ export default function CharacterSheetPreview({
                   min="0"
                   aria-label="Current hit points"
                   value={quickHp}
-                  onChange={(e) => setQuickHp(Number(e.target.value))}
+                  onChange={(e) => setQuickHp(e.target.value)}
                   onBlur={() => saveQuick('currentHp', quickHp)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') e.currentTarget.blur();
@@ -341,7 +351,7 @@ export default function CharacterSheetPreview({
                 min="0"
                 aria-label="Temporary hit points"
                 value={quickTemp}
-                onChange={(e) => setQuickTemp(Number(e.target.value))}
+                onChange={(e) => setQuickTemp(e.target.value)}
                 onBlur={() => saveQuick('temporaryHp', quickTemp)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.currentTarget.blur();
@@ -390,7 +400,7 @@ export default function CharacterSheetPreview({
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            aria-controls={`panel-${tab.id}`}
+            aria-controls="sheet-panel"
             tabIndex={activeTab === tab.id ? 0 : -1}
             onClick={() => setActiveTab(tab.id)}
             onKeyDown={(event) => handleTabKeyDown(event, index)}
@@ -401,7 +411,7 @@ export default function CharacterSheetPreview({
       </div>
 
       <div
-        id={`panel-${activeTab}`}
+        id="sheet-panel"
         className="sheet-panel"
         role="tabpanel"
         aria-labelledby={`tab-${activeTab}`}

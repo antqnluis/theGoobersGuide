@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import type { Campaign } from '../campaigns/model';
 import type { CampaignNote } from './model';
 import { noteCategories, recentNotes, type NoteDetails } from './noteService';
@@ -40,7 +41,16 @@ export default function CampaignJournal({
     content: selected?.content ?? '',
     category: selected?.category ?? 'General',
   });
+  const [original, setOriginal] = useState<NoteDetails>({
+    title: selected?.title ?? '',
+    content: selected?.content ?? '',
+    category: selected?.category ?? 'General',
+  });
   const [formError, setFormError] = useState<string | null>(null);
+  const allowNavigation = useUnsavedChanges(
+    editing && JSON.stringify(draft) !== JSON.stringify(original),
+    'Discard unsaved note changes?',
+  );
   const base = `#/notes/${campaign.id}`;
   const ordered = recentNotes(notes, notes.length);
 
@@ -50,9 +60,13 @@ export default function CampaignJournal({
       setFormError('Enter a title and note content.');
       return;
     }
+    allowNavigation.current = true;
     if (onSave(draft, selected?.id)) {
       setEditing(false);
       setFormError(null);
+      if (!creating) allowNavigation.current = false;
+    } else {
+      allowNavigation.current = false;
     }
   }
 
@@ -165,7 +179,13 @@ export default function CampaignJournal({
                   Save note
                 </button>
                 {creating ? (
-                  <a className="button button-quiet" href={base}>
+                  <a
+                    className="button button-quiet"
+                    href={base}
+                    onClick={() => {
+                      allowNavigation.current = true;
+                    }}
+                  >
                     Cancel
                   </a>
                 ) : (
@@ -209,6 +229,11 @@ export default function CampaignJournal({
                   type="button"
                   onClick={() => {
                     setDraft({
+                      title: selected.title,
+                      content: selected.content,
+                      category: selected.category ?? 'General',
+                    });
+                    setOriginal({
                       title: selected.title,
                       content: selected.content,
                       category: selected.category ?? 'General',

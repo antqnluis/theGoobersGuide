@@ -72,11 +72,13 @@ function validate(data: AppData, character: Character) {
   if (!Number.isInteger(character.level) || character.level < 1)
     throw new Error('Level must be at least 1.');
   if (
-    character.combat.maximumHp < 0 ||
-    character.combat.temporaryHp < 0 ||
-    character.combat.currentHp < 0
+    [
+      character.combat.maximumHp,
+      character.combat.temporaryHp,
+      character.combat.currentHp,
+    ].some((value) => !Number.isInteger(value) || value < 0)
   )
-    throw new Error('HP cannot be negative.');
+    throw new Error('HP must be a nonnegative whole number.');
   if (
     character.inventory.some(
       (i) => !i.name.trim() || !Number.isInteger(i.quantity) || i.quantity < 0,
@@ -88,9 +90,9 @@ function validate(data: AppData, character: Character) {
   if (character.features.some((f) => !f.name.trim()))
     throw new Error('Features need a name.');
   if (
-    Object.values(character.currency).some((v) => !Number.isFinite(v) || v < 0)
+    Object.values(character.currency).some((v) => !Number.isInteger(v) || v < 0)
   )
-    throw new Error('Currency cannot be negative.');
+    throw new Error('Currency must be a nonnegative whole number.');
 }
 
 export function saveCharacter(
