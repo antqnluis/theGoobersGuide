@@ -288,6 +288,10 @@ a {
   font-size: 14px;
   line-height: 1.55;
 }
+.character-description-editor {
+  max-width: 62ch;
+  margin-top: 12px;
+}
 .sheet-header-actions {
   display: flex;
   flex: none;
