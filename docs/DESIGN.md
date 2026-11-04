@@ -1,6 +1,6 @@
 # The Goober's Guide: interface direction
 
-This is the proposed visual and interaction system for the local MVP. [PRODUCT.md](PRODUCT.md) and [MVP_SCOPE.md](MVP_SCOPE.md) remain authoritative for product behavior and scope. Campaign management now uses saved local records. The character sheet and dice roller remain previews; persistent character editing, notes management, and dice rolling are not implemented yet.
+This is the proposed visual and interaction system for the local MVP. [PRODUCT.md](PRODUCT.md) and [MVP_SCOPE.md](MVP_SCOPE.md) remain authoritative for product behavior and scope. Campaign, character, and note management use saved local records. Dice rolls and recent history are kept in the current page session.
 
 ## Design idea
 
@@ -55,7 +55,7 @@ Mobile
 
 The campaign library is always reachable from the index. Within a selected campaign, the index shows overview, party, character sheets, and notes. Show the active campaign name in both the index and top bar so context is never ambiguous. The mobile menu overlays the page and closes after a destination is selected. The dice roller opens in a side dialog from any page and returns the player to the same view when closed. Use the same names for destinations and page headings.
 
-The application now opens at the campaign library. Campaign-aware hash links carry the selected campaign ID across views and browser refreshes. The character sheet still shows sample data until character management is implemented.
+The application opens at the campaign library. Campaign-aware hash links carry the selected campaign ID across views and browser refreshes. Character links also carry the character ID.
 
 ## Character sheet
 
@@ -84,7 +84,7 @@ All gameplay values remain manually adjustable, including skills, saves, attack 
 - **Campaign overview:** a short title and description, a narrow summary line for party and location, then party members and recent notes. It should direct players to their sheet in one step.
 - **Party:** compact character rows with class, level, HP, and AC where available. Selecting a row opens that character's sheet.
 - **Campaign notes:** a readable list of titles, categories, and excerpts, scoped to the active campaign. Full note editing follows the MVP scope.
-- **Dice roller:** a persistent top-bar entry opens a focused side panel. Standard dice, count, modifier, individual results, total, and recent history belong in the functional version. The preview panel shows sample controls and an explicitly labeled example result only.
+- **Dice roller:** a persistent top-bar entry opens a focused side panel with standard dice, count, modifier, individual results, total, and recent history.
 
 ## Reusable interface patterns
 
@@ -100,7 +100,7 @@ All gameplay values remain manually adjustable, including skills, saves, attack 
 | Feedback       | Specific action and outcome; errors explain what to fix, saves confirm completion                    |
 | Empty state    | State what is missing and provide one clear action to create the first record                        |
 
-For the functional MVP, edit mode should keep a draft separate from saved data. Save explicitly, allow cancel, validate values near the relevant field, and show whether a change persisted. Frequent fields such as HP and quantity should be quick to edit without a long form. Confirm destructive deletions. The current sample editor demonstrates the edit/read distinction but stores nothing in LocalStorage and resets when the sheet is left or reloaded.
+The character editor keeps a draft separate from saved data. Save changes explicitly or cancel; HP fields in the combat band save when committed. Character deletion requires confirmation. Character records persist in LocalStorage.
 
 ## Responsive and accessible behavior
 

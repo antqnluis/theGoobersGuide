@@ -1,6 +1,6 @@
 # Local setup
 
-The Goober's Guide includes local campaign management. Create, edit, open, switch, and delete campaigns in the campaign library. Campaigns persist in this browser's LocalStorage. The dashboard reads the selected campaign and shows any linked character and note records. Character and note editing are not implemented yet. The sample character sheet can be edited on the page, but changes reset when you leave or reload it. See [DESIGN.md](DESIGN.md) for the interface system.
+The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open a campaign's Party page to add, edit, and delete characters. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
 
 Use Node.js 22.12+, 24+, or 26+ and npm. From the repository root:
 
@@ -21,6 +21,6 @@ Open the local address printed by Vite, usually `http://localhost:5173/`.
 - `src/shared/persistence/` contains the storage interface, validation, and LocalStorage adapter.
 - `src/App.tsx` maintains campaign-aware hash navigation and the existing shell.
 - `src/features/campaigns/` contains the campaign library, dashboard, and persistence-backed campaign actions.
-- `src/features/characters/CharacterSheetPreview.tsx` contains the sample sheet and page-only edit interaction.
+- `src/features/characters/` contains the editable character sheet, party roster, and persistence-backed character actions.
 
 LocalStorage is scoped to the browser profile and origin. It is not a secure or shared data store. Feature code should depend on the `AppRepository` interface, not call `window.localStorage` directly.

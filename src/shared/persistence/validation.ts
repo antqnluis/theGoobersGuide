@@ -12,6 +12,7 @@ import {
 } from '../../features/characters/model';
 import type { CampaignNote } from '../../features/notes/model';
 import { SCHEMA_VERSION, type AppData } from './model';
+import { newCharacter } from '../../features/characters/characterService';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -159,6 +160,76 @@ export function isCharacter(value: unknown): value is Character {
     isString(value.createdAt) &&
     isString(value.updatedAt)
   );
+}
+
+export function recoverCharacter(
+  value: unknown,
+  campaignIds: Set<string>,
+): Character | null {
+  if (
+    !isRecord(value) ||
+    !isString(value.id) ||
+    !value.id ||
+    !isString(value.campaignId) ||
+    !campaignIds.has(value.campaignId)
+  )
+    return null;
+  if (isCharacter(value)) return value;
+  const base = newCharacter(value.campaignId);
+  const combat = isRecord(value.combat) ? value.combat : {};
+  const abilities = isRecord(value.abilityScores) ? value.abilityScores : {};
+  return {
+    ...base,
+    id: value.id,
+    name: isString(value.name) ? value.name : '',
+    playerName: isOptionalString(value.playerName)
+      ? value.playerName
+      : undefined,
+    className: isString(value.className) ? value.className : '',
+    subclass: isOptionalString(value.subclass) ? value.subclass : undefined,
+    species: isString(value.species) ? value.species : '',
+    level: isNumber(value.level) ? value.level : 1,
+    background: isOptionalString(value.background)
+      ? value.background
+      : undefined,
+    description: isOptionalString(value.description)
+      ? value.description
+      : undefined,
+    notes: isOptionalString(value.notes) ? value.notes : undefined,
+    spells: isOptionalString(value.spells) ? value.spells : undefined,
+    abilityScores: Object.fromEntries(
+      abilityNames.map((name) => {
+        const entry = isRecord(abilities[name]) ? abilities[name] : {};
+        return [
+          name,
+          {
+            score: isNumber(entry.score) ? entry.score : 10,
+            modifier: isNumber(entry.modifier) ? entry.modifier : 0,
+          },
+        ];
+      }),
+    ) as AbilityScores,
+    combat: Object.fromEntries(
+      Object.entries(base.combat).map(([key, fallback]) => [
+        key,
+        isNumber(combat[key]) ? combat[key] : fallback,
+      ]),
+    ) as unknown as CombatStats,
+    skills: Array.isArray(value.skills) ? value.skills.filter(isSkill) : [],
+    savingThrows: Array.isArray(value.savingThrows)
+      ? value.savingThrows.filter(isSavingThrow)
+      : base.savingThrows,
+    attacks: Array.isArray(value.attacks) ? value.attacks.filter(isAttack) : [],
+    inventory: Array.isArray(value.inventory)
+      ? value.inventory.filter(isInventoryItem)
+      : [],
+    currency: isNumberRecord(value.currency) ? value.currency : base.currency,
+    features: Array.isArray(value.features)
+      ? value.features.filter(isCharacterFeature)
+      : [],
+    createdAt: isString(value.createdAt) ? value.createdAt : base.createdAt,
+    updatedAt: isString(value.updatedAt) ? value.updatedAt : base.updatedAt,
+  };
 }
 
 export function isCampaignNote(value: unknown): value is CampaignNote {

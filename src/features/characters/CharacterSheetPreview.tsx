@@ -1,5 +1,6 @@
-import { useState, type KeyboardEvent } from 'react';
-import { sampleCharacter } from '../../design/sampleData';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { Campaign } from '../campaigns/model';
+import { abilityModifier } from './characterService';
 import {
   abilityNames,
   type AbilityName,
@@ -51,12 +52,61 @@ function NumberEdit({
   );
 }
 
-export default function CharacterSheetPreview() {
-  const [saved, setSaved] = useState<Character>(sampleCharacter);
-  const [draft, setDraft] = useState<Character>(sampleCharacter);
-  const [editing, setEditing] = useState(false);
+export default function CharacterSheetPreview({
+  campaign,
+  character: initial,
+  creating = false,
+  onSave,
+  onDelete,
+  error,
+  feedback,
+}: {
+  campaign: Campaign;
+  character: Character;
+  creating?: boolean;
+  onSave: (character: Character) => boolean;
+  onDelete?: (character: Character) => void;
+  error: string | null;
+  feedback: string | null;
+}) {
+  const [saved, setSaved] = useState<Character>(initial);
+  const [draft, setDraft] = useState<Character>(initial);
+  const [editing, setEditing] = useState(creating);
+  const [quickHp, setQuickHp] = useState(initial.combat.currentHp);
+  const [quickTemp, setQuickTemp] = useState(initial.combat.temporaryHp);
+  const allowNavigation = useRef(false);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
+  const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved);
+
+  useEffect(() => {
+    setSaved(initial);
+    if (!editing) {
+      setDraft(initial);
+      setQuickHp(initial.combat.currentHp);
+      setQuickTemp(initial.combat.temporaryHp);
+    }
+  }, [initial]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const oldHash = window.location.hash;
+    const hashChanged = () => {
+      if (allowNavigation.current) return;
+      if (!window.confirm('Discard unsaved character changes?'))
+        window.location.hash = oldHash;
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('hashchange', hashChanged);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('hashchange', hashChanged);
+    };
+  }, [dirty]);
 
   function updateField(key: keyof Character, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -78,7 +128,11 @@ export default function CharacterSheetPreview() {
       ...current,
       abilityScores: {
         ...current.abilityScores,
-        [ability]: { ...current.abilityScores[ability], [key]: value },
+        [ability]: {
+          ...current.abilityScores[ability],
+          [key]: value,
+          ...(key === 'score' ? { modifier: abilityModifier(value) } : {}),
+        },
       },
     }));
   }
@@ -89,13 +143,31 @@ export default function CharacterSheetPreview() {
   }
 
   function cancelEdit() {
+    if (creating) {
+      window.location.hash = `#/party/${campaign.id}`;
+      return;
+    }
     setDraft(structuredClone(saved));
     setEditing(false);
   }
 
   function savePreview() {
+    allowNavigation.current = true;
+    if (!onSave(draft)) {
+      allowNavigation.current = false;
+      return;
+    }
     setSaved(structuredClone(draft));
     setEditing(false);
+  }
+
+  function saveQuick(key: 'currentHp' | 'temporaryHp', value: number) {
+    if (!Number.isFinite(value) || value < 0) return;
+    const next = { ...saved, combat: { ...saved.combat, [key]: value } };
+    if (onSave(next)) {
+      setSaved(next);
+      setDraft(next);
+    }
   }
 
   function handleTabKeyDown(
@@ -125,10 +197,16 @@ export default function CharacterSheetPreview() {
   }
 
   return (
-    <article className="sheet" aria-label="Sample character sheet">
+    <article
+      className="sheet"
+      aria-label={`${character.name || 'New character'} sheet`}
+    >
       <header className="sheet-header">
         <div className="sheet-header-copy">
-          <p className="sheet-context">The Bad Company / Character sheet</p>
+          <p className="sheet-context">
+            <a href={`#/campaign/${campaign.id}`}>{campaign.name}</a> /
+            Character sheet
+          </p>
           {editing ? (
             <label className="edit-heading-label">
               Character name
@@ -149,7 +227,15 @@ export default function CharacterSheetPreview() {
           <p className="character-description">{character.description}</p>
         </div>
         <div className="sheet-header-actions">
-          <span className="sample-tag">Sample character</span>
+          {onDelete && !editing && (
+            <button
+              className="button button-quiet"
+              type="button"
+              onClick={() => onDelete(saved)}
+            >
+              Delete character
+            </button>
+          )}
           {editing ? (
             <div className="edit-actions">
               <button
@@ -164,7 +250,7 @@ export default function CharacterSheetPreview() {
                 className="button button-primary"
                 onClick={savePreview}
               >
-                Save preview
+                {creating ? 'Create character' : 'Save changes'}
               </button>
             </div>
           ) : (
@@ -173,15 +259,18 @@ export default function CharacterSheetPreview() {
               className="button button-primary"
               onClick={startEdit}
             >
-              Edit sample sheet
+              Edit sheet
             </button>
           )}
         </div>
       </header>
 
-      <div className="sheet-status" role="note">
-        This is a design preview. Edits reset when you leave or reload this
-        page.
+      <div className="sheet-status" role="status">
+        {error ||
+          feedback ||
+          (editing
+            ? 'Changes are saved when you select Save changes.'
+            : 'Saved in this browser.')}
       </div>
 
       <div className="combat-band" aria-label="Combat information">
@@ -212,7 +301,18 @@ export default function CharacterSheetPreview() {
               </>
             ) : (
               <>
-                <strong>{character.combat.currentHp}</strong>
+                <input
+                  className="field-input field-input-number hp-input"
+                  type="number"
+                  min="0"
+                  aria-label="Current hit points"
+                  value={quickHp}
+                  onChange={(e) => setQuickHp(Number(e.target.value))}
+                  onBlur={() => saveQuick('currentHp', quickHp)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                  }}
+                />
                 <span className="hp-divider">/</span>
                 <span>{character.combat.maximumHp}</span>
               </>
@@ -235,7 +335,18 @@ export default function CharacterSheetPreview() {
                 className="inline-number"
               />
             ) : (
-              character.combat.temporaryHp
+              <input
+                className="field-input field-input-number inline-number"
+                type="number"
+                min="0"
+                aria-label="Temporary hit points"
+                value={quickTemp}
+                onChange={(e) => setQuickTemp(Number(e.target.value))}
+                onBlur={() => saveQuick('temporaryHp', quickTemp)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+              />
             )}
           </span>
         </div>
@@ -361,8 +472,45 @@ export default function CharacterSheetPreview() {
                 {character.attacks.map((attack, index) => (
                   <div className="ledger-row attack-row" key={attack.id}>
                     <div>
-                      <strong>{attack.name}</strong>
-                      <span>{attack.damageExpression}</span>
+                      {editing ? (
+                        <>
+                          <input
+                            className="field-input"
+                            aria-label="Attack name"
+                            value={attack.name}
+                            onChange={(e) =>
+                              setDraft((c) => ({
+                                ...c,
+                                attacks: c.attacks.map((a) =>
+                                  a.id === attack.id
+                                    ? { ...a, name: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                          />
+                          <input
+                            className="field-input"
+                            aria-label="Damage expression"
+                            value={attack.damageExpression}
+                            onChange={(e) =>
+                              setDraft((c) => ({
+                                ...c,
+                                attacks: c.attacks.map((a) =>
+                                  a.id === attack.id
+                                    ? { ...a, damageExpression: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <strong>{attack.name}</strong>
+                          <span>{attack.damageExpression}</span>
+                        </>
+                      )}
                     </div>
                     {editing ? (
                       <NumberEdit
@@ -384,9 +532,47 @@ export default function CharacterSheetPreview() {
                         {signed(attack.attackBonus)} to hit
                       </span>
                     )}
+                    {editing && (
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        onClick={() =>
+                          setDraft((c) => ({
+                            ...c,
+                            attacks: c.attacks.filter(
+                              (a) => a.id !== attack.id,
+                            ),
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() =>
+                    setDraft((c) => ({
+                      ...c,
+                      attacks: [
+                        ...c.attacks,
+                        {
+                          id: crypto.randomUUID(),
+                          name: '',
+                          attackBonus: 0,
+                          damageExpression: '',
+                        },
+                      ],
+                    }))
+                  }
+                >
+                  Add attack
+                </button>
+              )}
             </section>
           </div>
         )}
@@ -400,7 +586,7 @@ export default function CharacterSheetPreview() {
               </div>
               <div className="ledger-list">
                 {character.skills.map((skill, index) => (
-                  <div className="ledger-row proficiency-row" key={skill.name}>
+                  <div className="ledger-row proficiency-row" key={index}>
                     <label className="proficiency-name">
                       <input
                         type="checkbox"
@@ -417,7 +603,25 @@ export default function CharacterSheetPreview() {
                           }))
                         }
                       />
-                      {skill.name}
+                      {editing ? (
+                        <input
+                          className="field-input"
+                          aria-label="Skill name"
+                          value={skill.name}
+                          onChange={(e) =>
+                            setDraft((c) => ({
+                              ...c,
+                              skills: c.skills.map((s, i) =>
+                                i === index
+                                  ? { ...s, name: e.target.value }
+                                  : s,
+                              ),
+                            }))
+                          }
+                        />
+                      ) : (
+                        skill.name
+                      )}
                     </label>
                     {editing ? (
                       <NumberEdit
@@ -439,9 +643,40 @@ export default function CharacterSheetPreview() {
                         {signed(skill.modifier)}
                       </span>
                     )}
+                    {editing && (
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        onClick={() =>
+                          setDraft((c) => ({
+                            ...c,
+                            skills: c.skills.filter((_, i) => i !== index),
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() =>
+                    setDraft((c) => ({
+                      ...c,
+                      skills: [
+                        ...c.skills,
+                        { name: '', modifier: 0, proficient: false },
+                      ],
+                    }))
+                  }
+                >
+                  Add skill
+                </button>
+              )}
             </section>
             <section className="sheet-section" aria-labelledby="saves-heading">
               <div className="section-heading">
@@ -516,8 +751,45 @@ export default function CharacterSheetPreview() {
                 {character.inventory.map((item, index) => (
                   <div className="ledger-row inventory-row" key={item.id}>
                     <div>
-                      <strong>{item.name}</strong>
-                      {item.description && <span>{item.description}</span>}
+                      {editing ? (
+                        <>
+                          <input
+                            className="field-input"
+                            aria-label="Item name"
+                            value={item.name}
+                            onChange={(e) =>
+                              setDraft((c) => ({
+                                ...c,
+                                inventory: c.inventory.map((i) =>
+                                  i.id === item.id
+                                    ? { ...i, name: e.target.value }
+                                    : i,
+                                ),
+                              }))
+                            }
+                          />
+                          <input
+                            className="field-input"
+                            aria-label="Item description"
+                            value={item.description ?? ''}
+                            onChange={(e) =>
+                              setDraft((c) => ({
+                                ...c,
+                                inventory: c.inventory.map((i) =>
+                                  i.id === item.id
+                                    ? { ...i, description: e.target.value }
+                                    : i,
+                                ),
+                              }))
+                            }
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <strong>{item.name}</strong>
+                          {item.description && <span>{item.description}</span>}
+                        </>
+                      )}
                     </div>
                     {editing ? (
                       <NumberEdit
@@ -538,9 +810,42 @@ export default function CharacterSheetPreview() {
                     ) : (
                       <span className="row-value">× {item.quantity}</span>
                     )}
+                    {editing && (
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        onClick={() =>
+                          setDraft((c) => ({
+                            ...c,
+                            inventory: c.inventory.filter(
+                              (i) => i.id !== item.id,
+                            ),
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() =>
+                    setDraft((c) => ({
+                      ...c,
+                      inventory: [
+                        ...c.inventory,
+                        { id: crypto.randomUUID(), name: '', quantity: 1 },
+                      ],
+                    }))
+                  }
+                >
+                  Add item
+                </button>
+              )}
               <h3 className="subheading">Currency</h3>
               <div className="currency-row">
                 {Object.entries(character.currency).map(
@@ -564,10 +869,46 @@ export default function CharacterSheetPreview() {
                       ) : (
                         <strong>{amount}</strong>
                       )}
+                      {editing && (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${denomination}`}
+                          onClick={() =>
+                            setDraft((c) => {
+                              const currency = { ...c.currency };
+                              delete currency[denomination];
+                              return { ...c, currency };
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   ),
                 )}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => {
+                    const name = window
+                      .prompt('Currency name (for example, pp)')
+                      ?.trim();
+                    if (name)
+                      setDraft((c) => ({
+                        ...c,
+                        currency: {
+                          ...c.currency,
+                          [name]: c.currency[name] ?? 0,
+                        },
+                      }));
+                  }}
+                >
+                  Add currency
+                </button>
+              )}
             </section>
             <section
               className="sheet-section"
@@ -580,8 +921,48 @@ export default function CharacterSheetPreview() {
               <div className="feature-list">
                 {character.features.map((feature, index) => (
                   <div className="feature-entry" key={feature.id}>
-                    <span className="feature-category">{feature.category}</span>
-                    <h3>{feature.name}</h3>
+                    {editing ? (
+                      <>
+                        <input
+                          className="field-input"
+                          aria-label="Feature category"
+                          placeholder="Category (optional)"
+                          value={feature.category ?? ''}
+                          onChange={(e) =>
+                            setDraft((c) => ({
+                              ...c,
+                              features: c.features.map((f) =>
+                                f.id === feature.id
+                                  ? { ...f, category: e.target.value }
+                                  : f,
+                              ),
+                            }))
+                          }
+                        />
+                        <input
+                          className="field-input"
+                          aria-label="Feature name"
+                          value={feature.name}
+                          onChange={(e) =>
+                            setDraft((c) => ({
+                              ...c,
+                              features: c.features.map((f) =>
+                                f.id === feature.id
+                                  ? { ...f, name: e.target.value }
+                                  : f,
+                              ),
+                            }))
+                          }
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span className="feature-category">
+                          {feature.category}
+                        </span>
+                        <h3>{feature.name}</h3>
+                      </>
+                    )}
                     {editing ? (
                       <textarea
                         aria-label={`${feature.name} description`}
@@ -602,9 +983,42 @@ export default function CharacterSheetPreview() {
                     ) : (
                       <p>{feature.description}</p>
                     )}
+                    {editing && (
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        onClick={() =>
+                          setDraft((c) => ({
+                            ...c,
+                            features: c.features.filter(
+                              (f) => f.id !== feature.id,
+                            ),
+                          }))
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() =>
+                    setDraft((c) => ({
+                      ...c,
+                      features: [
+                        ...c.features,
+                        { id: crypto.randomUUID(), name: '', description: '' },
+                      ],
+                    }))
+                  }
+                >
+                  Add feature
+                </button>
+              )}
             </section>
           </div>
         )}
@@ -619,16 +1033,75 @@ export default function CharacterSheetPreview() {
                 <h2 id="background-heading">Character details</h2>
                 <p>Identity and background</p>
               </div>
-              <dl className="detail-list">
-                <div>
-                  <dt>Player</dt>
-                  <dd>{character.playerName}</dd>
+              {editing ? (
+                <div className="identity-fields">
+                  <label>
+                    Player name
+                    <input
+                      className="field-input"
+                      value={character.playerName ?? ''}
+                      onChange={(e) =>
+                        updateField('playerName', e.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Species
+                    <input
+                      className="field-input"
+                      value={character.species}
+                      onChange={(e) => updateField('species', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Class
+                    <input
+                      className="field-input"
+                      value={character.className}
+                      onChange={(e) => updateField('className', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Subclass
+                    <input
+                      className="field-input"
+                      value={character.subclass ?? ''}
+                      onChange={(e) => updateField('subclass', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Level
+                    <NumberEdit
+                      label="Level"
+                      value={character.level}
+                      onChange={(value) =>
+                        setDraft((c) => ({ ...c, level: value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Background
+                    <input
+                      className="field-input"
+                      value={character.background ?? ''}
+                      onChange={(e) =>
+                        updateField('background', e.target.value)
+                      }
+                    />
+                  </label>
                 </div>
-                <div>
-                  <dt>Background</dt>
-                  <dd>{character.background}</dd>
-                </div>
-              </dl>
+              ) : (
+                <dl className="detail-list">
+                  <div>
+                    <dt>Player</dt>
+                    <dd>{character.playerName}</dd>
+                  </div>
+                  <div>
+                    <dt>Background</dt>
+                    <dd>{character.background}</dd>
+                  </div>
+                </dl>
+              )}
               <h3 className="subheading">Description</h3>
               {editing ? (
                 <textarea

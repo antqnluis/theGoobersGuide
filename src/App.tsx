@@ -8,15 +8,31 @@ import {
   type CampaignDetails,
 } from './features/campaigns/campaignService';
 import type { Campaign } from './features/campaigns/model';
+import {
+  deleteCharacter,
+  newCharacter,
+  saveCharacter,
+} from './features/characters/characterService';
+import type { Character } from './features/characters/model';
 import CharacterSheetPreview from './features/characters/CharacterSheetPreview';
 import PartyReadOnly from './features/characters/PartyReadOnly';
-import DicePreview from './features/dice/DicePreview';
-import NotesReadOnly from './features/notes/NotesReadOnly';
+import DiceRoller from './features/dice/DiceRoller';
+import CampaignJournal from './features/notes/CampaignJournal';
+import {
+  deleteNote,
+  saveNote,
+  type NoteDetails,
+} from './features/notes/noteService';
+import type { CampaignNote } from './features/notes/model';
 import { LocalStorageRepository } from './shared/persistence/localStorageRepository';
 import type { AppData } from './shared/persistence/model';
 
 type Route = 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
-type Location = { route: Route; campaignId: string | null };
+type Location = {
+  route: Route;
+  campaignId: string | null;
+  characterId: string | null;
+};
 
 const navigation: { route: Route; label: string }[] = [
   { route: 'campaigns', label: 'Campaign library' },
@@ -27,7 +43,7 @@ const navigation: { route: Route; label: string }[] = [
 ];
 
 function currentLocation(): Location {
-  const [route, campaignId] = window.location.hash
+  const [route, campaignId, characterId] = window.location.hash
     .replace(/^#\/?/, '')
     .split('/');
   if (
@@ -36,9 +52,13 @@ function currentLocation(): Location {
     route !== 'characters' &&
     route !== 'notes'
   ) {
-    return { route: 'campaigns', campaignId: null };
+    return { route: 'campaigns', campaignId: null, characterId: null };
   }
-  return { route, campaignId: campaignId || null };
+  return {
+    route,
+    campaignId: campaignId || null,
+    characterId: characterId || null,
+  };
 }
 
 export default function App() {
@@ -48,10 +68,12 @@ export default function App() {
   );
   const [data, setData] = useState<AppData>(() => repository.load());
   const [location, setLocation] = useState<Location>(currentLocation);
+  const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const diceDialog = useRef<HTMLDialogElement>(null);
+  const diceTrigger = useRef<HTMLButtonElement>(null);
 
   const activeCampaign = data.campaigns.find(
     (campaign) => campaign.id === location.campaignId,
@@ -68,10 +90,17 @@ export default function App() {
 
   useEffect(() => {
     const onHashChange = () => {
-      setLocation(currentLocation());
+      const next = currentLocation();
+      if (
+        locationRef.current.route !== next.route ||
+        locationRef.current.campaignId !== next.campaignId
+      ) {
+        setFeedback(null);
+        setError(null);
+      }
+      locationRef.current = next;
+      setLocation(next);
       setMenuOpen(false);
-      setFeedback(null);
-      setError(null);
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -129,6 +158,80 @@ export default function App() {
   function openDice() {
     setMenuOpen(false);
     diceDialog.current?.showModal();
+    diceDialog.current
+      ?.querySelector<HTMLButtonElement>('.die-option-active')
+      ?.focus();
+  }
+
+  function saveSheet(character: Character): boolean {
+    try {
+      setData(saveCharacter(repository, data, character));
+      setFeedback(`Saved ${character.name.trim()}.`);
+      setError(null);
+      if (location.characterId === 'new')
+        window.location.hash = `#/characters/${character.campaignId}/${character.id}`;
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Character could not be saved.',
+      );
+      return false;
+    }
+  }
+
+  function confirmCharacterDelete(character: Character) {
+    if (!window.confirm(`Delete “${character.name}”? This cannot be undone.`))
+      return;
+    try {
+      setData(
+        deleteCharacter(repository, data, character.campaignId, character.id),
+      );
+      setFeedback(`Deleted ${character.name}.`);
+      setError(null);
+      if (location.characterId === character.id)
+        window.location.hash = `#/party/${character.campaignId}`;
+    } catch {
+      setError('Character could not be deleted.');
+    }
+  }
+
+  function saveJournalNote(details: NoteDetails, noteId?: string): boolean {
+    if (!activeCampaign) return false;
+    try {
+      const result = saveNote(
+        repository,
+        data,
+        activeCampaign.id,
+        details,
+        noteId,
+      );
+      setData(result.data);
+      setFeedback(`Saved ${result.note.title}.`);
+      setError(null);
+      if (!noteId)
+        window.location.hash = `#/notes/${activeCampaign.id}/${result.note.id}`;
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Note could not be saved.',
+      );
+      return false;
+    }
+  }
+
+  function confirmNoteDelete(note: CampaignNote) {
+    if (!window.confirm(`Delete “${note.title}”? This cannot be undone.`))
+      return;
+    try {
+      setData(deleteNote(repository, data, note.campaignId, note.id));
+      setFeedback(`Deleted ${note.title}.`);
+      setError(null);
+      window.location.hash = `#/notes/${note.campaignId}`;
+    } catch {
+      setError('Note could not be deleted.');
+    }
   }
 
   return (
@@ -214,7 +317,12 @@ export default function App() {
               {activeCampaign ? activeCampaign.name : 'Campaign library'}
             </span>
           </div>
-          <button type="button" className="dice-trigger" onClick={openDice}>
+          <button
+            type="button"
+            className="dice-trigger"
+            ref={diceTrigger}
+            onClick={openDice}
+          >
             <span aria-hidden="true">d20</span> Dice roller
           </button>
         </header>
@@ -237,30 +345,81 @@ export default function App() {
             />
           )}
           {activeCampaign && route === 'party' && (
-            <PartyReadOnly campaign={activeCampaign} characters={characters} />
+            <PartyReadOnly
+              campaign={activeCampaign}
+              characters={characters}
+              onDelete={confirmCharacterDelete}
+            />
           )}
-          {activeCampaign && route === 'characters' && (
-            <>
-              <p className="sample-context">
-                Sample character sheet preview. It is not part of{' '}
-                {activeCampaign.name}; edits here do not persist.
-              </p>
-              <CharacterSheetPreview />
-            </>
-          )}
+          {activeCampaign &&
+            route === 'characters' &&
+            (location.characterId === 'new' ? (
+              <CharacterSheetPreview
+                key={`${activeCampaign.id}-new`}
+                campaign={activeCampaign}
+                character={newCharacter(activeCampaign.id)}
+                creating
+                onSave={saveSheet}
+                error={error}
+                feedback={feedback}
+              />
+            ) : location.characterId &&
+              characters.some((c) => c.id === location.characterId) ? (
+              <CharacterSheetPreview
+                key={location.characterId}
+                campaign={activeCampaign}
+                character={characters.find(
+                  (c) => c.id === location.characterId,
+                )!}
+                onSave={saveSheet}
+                onDelete={confirmCharacterDelete}
+                error={error}
+                feedback={feedback}
+              />
+            ) : (
+              <div className="campaign-empty">
+                <h2>
+                  {location.characterId
+                    ? 'Character not found'
+                    : 'Choose a character'}
+                </h2>
+                <p>
+                  {location.characterId
+                    ? 'This character is not in the selected campaign.'
+                    : "Open a sheet from this campaign's party."}
+                </p>
+                <a
+                  className="button button-primary"
+                  href={`#/party/${activeCampaign.id}`}
+                >
+                  View party
+                </a>
+              </div>
+            ))}
           {activeCampaign && route === 'notes' && (
-            <NotesReadOnly campaign={activeCampaign} notes={notes} />
+            <CampaignJournal
+              key={`${activeCampaign.id}-${location.characterId ?? 'index'}`}
+              campaign={activeCampaign}
+              notes={notes}
+              noteId={location.characterId}
+              onSave={saveJournalNote}
+              onDelete={confirmNoteDelete}
+              feedback={feedback}
+              error={error}
+            />
           )}
         </main>
       </div>
       <dialog
         className="dice-dialog"
         ref={diceDialog}
+        aria-labelledby="dice-title"
+        onClose={() => diceTrigger.current?.focus()}
         onClick={(event) => {
           if (event.target === diceDialog.current) diceDialog.current?.close();
         }}
       >
-        <DicePreview onClose={() => diceDialog.current?.close()} />
+        <DiceRoller onClose={() => diceDialog.current?.close()} />
       </dialog>
     </div>
   );

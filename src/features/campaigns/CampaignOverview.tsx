@@ -1,6 +1,7 @@
 import type { Character } from '../characters/model';
 import type { CampaignNote } from '../notes/model';
 import type { Campaign } from './model';
+import { recentNotes as getRecentNotes } from '../notes/noteService';
 
 interface Props {
   campaign: Campaign;
@@ -13,9 +14,7 @@ export default function CampaignOverview({
   characters,
   notes,
 }: Props) {
-  const recentNotes = [...notes]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 3);
+  const recentNotes = getRecentNotes(notes);
   return (
     <div className="preview-page">
       <div className="page-heading">
@@ -54,7 +53,11 @@ export default function CampaignOverview({
           </div>
           {characters.length ? (
             characters.map((character) => (
-              <div className="party-entry" key={character.id}>
+              <a
+                className="party-entry"
+                href={`#/characters/${campaign.id}/${character.id}`}
+                key={character.id}
+              >
                 <span className="party-initial" aria-hidden="true">
                   {character.name.charAt(0).toUpperCase()}
                 </span>
@@ -65,9 +68,10 @@ export default function CampaignOverview({
                   </small>
                 </span>
                 <span className="party-entry-hp">
-                  {character.combat.currentHp}/{character.combat.maximumHp} HP
+                  {character.combat.currentHp}/{character.combat.maximumHp} HP ·
+                  AC {character.combat.armorClass}
                 </span>
-              </div>
+              </a>
             ))
           ) : (
             <p className="section-empty">
@@ -85,22 +89,27 @@ export default function CampaignOverview({
           </div>
           {recentNotes.length ? (
             recentNotes.map((note) => (
-              <div className="recent-note" key={note.id}>
+              <a
+                className="recent-note"
+                href={`#/notes/${campaign.id}/${note.id}`}
+                key={note.id}
+              >
                 {note.category && <span>{note.category}</span>}
                 <strong>{note.title}</strong>
                 <p>{note.content}</p>
-              </div>
+              </a>
             ))
           ) : (
             <p className="section-empty">
-              No campaign notes yet. Notes will appear here when added.
+              No campaign notes yet.{' '}
+              <a href={`#/notes/${campaign.id}/new`}>Create the first note</a>.
             </p>
           )}
         </section>
       </div>
       <div className="overview-shortcuts">
-        <a className="button button-quiet" href={`#/characters/${campaign.id}`}>
-          Preview character sheet
+        <a className="button button-quiet" href={`#/party/${campaign.id}`}>
+          View party and character sheets
         </a>
         <a className="button button-quiet" href="#/campaigns">
           Campaign library

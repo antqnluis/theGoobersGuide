@@ -8,7 +8,7 @@ import {
   isAppData,
   isCampaign,
   isCampaignNote,
-  isCharacter,
+  recoverCharacter,
 } from './validation';
 
 export const APP_STORAGE_KEY = 'the-goobers-guide:data';
@@ -44,10 +44,11 @@ export class LocalStorageRepository implements AppRepository {
         : [];
       const campaignIds = new Set(campaigns.map((campaign) => campaign.id));
       const characters = Array.isArray(record.characters)
-        ? record.characters.filter(
-            (value: unknown): value is AppData['characters'][number] =>
-              isCharacter(value) && campaignIds.has(value.campaignId),
-          )
+        ? record.characters
+            .map((value: unknown) => recoverCharacter(value, campaignIds))
+            .filter(
+              (value): value is AppData['characters'][number] => value !== null,
+            )
         : [];
       const notes = Array.isArray(record.notes)
         ? record.notes.filter(
