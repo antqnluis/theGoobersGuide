@@ -2,7 +2,7 @@ import { isCharacter } from '../../shared/persistence/validation';
 import type { Character } from './model';
 
 export const CHARACTER_IMPORT_FORMAT = 'the-goobers-guide-character';
-export const CHARACTER_IMPORT_VERSION = 1;
+export const CHARACTER_IMPORT_VERSION = 2;
 export const MAX_CHARACTER_IMPORT_BYTES = 1024 * 1024;
 
 type ImportOptions = {
@@ -37,6 +37,10 @@ export function parseCharacterImport(
     throw new Error('This file is not a character import document.');
   if (document.format !== CHARACTER_IMPORT_FORMAT)
     throw new Error('This JSON file is not a Goober’s Guide character file.');
+  if (document.version === 1)
+    throw new Error(
+      'Character import version 1 uses the old spell format. Regenerate it using the current conversion prompt.',
+    );
   if (document.version !== CHARACTER_IMPORT_VERSION)
     throw new Error(
       `Character import version ${String(document.version)} is not supported.`,
@@ -53,6 +57,7 @@ export function parseCharacterImport(
     attacks: replaceEntryIds(document.character.attacks, createId),
     inventory: replaceEntryIds(document.character.inventory, createId),
     features: replaceEntryIds(document.character.features, createId),
+    spells: replaceEntryIds(document.character.spells, createId),
     createdAt: timestamp,
     updatedAt: timestamp,
   };

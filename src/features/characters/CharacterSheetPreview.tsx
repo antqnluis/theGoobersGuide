@@ -6,16 +6,18 @@ import {
   abilityNames,
   type AbilityName,
   type Character,
+  type CharacterSpell,
   type CombatStats,
 } from './model';
 
-type SheetTab = 'overview' | 'skills' | 'gear' | 'journal';
+type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
 
 const tabs: { id: SheetTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'skills', label: 'Skills & saves' },
   { id: 'gear', label: 'Gear & features' },
-  { id: 'journal', label: 'Notes & spells' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'spells', label: 'Spells' },
 ];
 
 const abilityLabels: Record<AbilityName, string> = {
@@ -31,16 +33,24 @@ function signed(value: number): string {
   return value >= 0 ? `+${value}` : String(value);
 }
 
+function spellLevelLabel(level: number): string {
+  return level === 0 ? 'Cantrips' : `Level ${level}`;
+}
+
 function NumberEdit({
   label,
   value,
   onChange,
   className = '',
+  min,
+  max,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   className?: string;
+  min?: number;
+  max?: number;
 }) {
   const [input, setInput] = useState(String(value));
 
@@ -51,6 +61,9 @@ function NumberEdit({
       aria-label={label}
       className={`field-input field-input-number ${className}`}
       type="number"
+      min={min}
+      max={max}
+      step="1"
       value={input}
       onChange={(event) => {
         const next = event.target.value;
@@ -139,6 +152,15 @@ export default function CharacterSheetPreview({
           ...(key === 'score' ? { modifier: abilityModifier(value) } : {}),
         },
       },
+    }));
+  }
+
+  function updateSpell(id: string, changes: Partial<CharacterSpell>) {
+    setDraft((current) => ({
+      ...current,
+      spells: current.spells.map((spell) =>
+        spell.id === id ? { ...spell, ...changes } : spell,
+      ),
     }));
   }
 
@@ -237,6 +259,18 @@ export default function CharacterSheetPreview({
     setActiveTab(tabs[nextIndex].id);
     document.getElementById(`tab-${tabs[nextIndex].id}`)?.focus();
   }
+
+  const spellGroups = [...character.spells]
+    .sort(
+      (left, right) =>
+        left.level - right.level || left.name.localeCompare(right.name),
+    )
+    .reduce<Map<number, CharacterSpell[]>>((groups, spell) => {
+      const level = groups.get(spell.level) ?? [];
+      level.push(spell);
+      groups.set(spell.level, level);
+      return groups;
+    }, new Map());
 
   return (
     <article
@@ -1108,10 +1142,10 @@ export default function CharacterSheetPreview({
           </div>
         )}
 
-        {activeTab === 'journal' && (
+        {activeTab === 'notes' && (
           <div className="sheet-panel-grid">
             <section
-              className="sheet-section"
+              className="sheet-section sheet-section-wide"
               aria-labelledby="background-heading"
             >
               <div className="section-heading">
@@ -1204,26 +1238,295 @@ export default function CharacterSheetPreview({
                 <p className="body-copy">{character.notes}</p>
               )}
             </section>
-            <section className="sheet-section" aria-labelledby="spells-heading">
-              <div className="section-heading">
-                <h2 id="spells-heading">Spells</h2>
-                <p>User-entered reference text</p>
-              </div>
-              {editing ? (
-                <textarea
-                  aria-label="Spells"
-                  className="field-input field-textarea"
-                  rows={5}
-                  value={character.spells ?? ''}
-                  onChange={(event) =>
-                    updateField('spells', event.target.value)
-                  }
-                />
-              ) : (
-                <p className="body-copy">{character.spells}</p>
-              )}
-            </section>
           </div>
+        )}
+
+        {activeTab === 'spells' && (
+          <section
+            className="sheet-section sheet-section-wide spells-section"
+            aria-labelledby="spells-heading"
+          >
+            <div className="section-heading">
+              <h2 id="spells-heading">Spells</h2>
+              <p>Manual reference for prepared and known magic</p>
+            </div>
+
+            {editing ? (
+              <>
+                {character.spells.length === 0 && (
+                  <p className="section-empty spell-empty">
+                    No spells recorded. Add the first spell to build this
+                    character’s reference.
+                  </p>
+                )}
+                <div className="spell-editor-list">
+                  {character.spells.map((spell, index) => (
+                    <section className="spell-editor" key={spell.id}>
+                      <div className="spell-editor-heading">
+                        <h3>{spell.name.trim() || `Spell ${index + 1}`}</h3>
+                        <button
+                          type="button"
+                          className="button button-quiet"
+                          onClick={() =>
+                            setDraft((current) => ({
+                              ...current,
+                              spells: current.spells.filter(
+                                (item) => item.id !== spell.id,
+                              ),
+                            }))
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="spell-editor-grid">
+                        <label className="spell-field-wide">
+                          Spell name
+                          <input
+                            className="field-input"
+                            value={spell.name}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                name: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Level
+                          <NumberEdit
+                            label={`${spell.name || 'Spell'} level`}
+                            value={spell.level}
+                            min={0}
+                            max={9}
+                            onChange={(level) =>
+                              updateSpell(spell.id, { level })
+                            }
+                          />
+                        </label>
+                        <label>
+                          School
+                          <input
+                            className="field-input"
+                            value={spell.school}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                school: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Casting time
+                          <input
+                            className="field-input"
+                            value={spell.castingTime}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                castingTime: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Range
+                          <input
+                            className="field-input"
+                            value={spell.range}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                range: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Components
+                          <input
+                            className="field-input"
+                            value={spell.components}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                components: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Duration
+                          <input
+                            className="field-input"
+                            value={spell.duration}
+                            onChange={(event) =>
+                              updateSpell(spell.id, {
+                                duration: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <fieldset className="spell-flags">
+                        <legend>Spell states</legend>
+                        {(
+                          [
+                            ['prepared', 'Prepared'],
+                            ['concentration', 'Concentration'],
+                            ['ritual', 'Ritual'],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <label key={key}>
+                            <input
+                              type="checkbox"
+                              checked={spell[key]}
+                              onChange={(event) =>
+                                updateSpell(spell.id, {
+                                  [key]: event.target.checked,
+                                })
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </fieldset>
+                      <label className="spell-description-field">
+                        Description
+                        <textarea
+                          className="field-input field-textarea"
+                          rows={5}
+                          value={spell.description}
+                          onChange={(event) =>
+                            updateSpell(spell.id, {
+                              description: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </section>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="button button-quiet spell-add-button"
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      spells: [
+                        ...current.spells,
+                        {
+                          id: crypto.randomUUID(),
+                          name: '',
+                          level: 0,
+                          school: '',
+                          castingTime: '',
+                          range: '',
+                          components: '',
+                          duration: '',
+                          concentration: false,
+                          ritual: false,
+                          prepared: false,
+                          description: '',
+                        },
+                      ],
+                    }))
+                  }
+                >
+                  Add spell
+                </button>
+              </>
+            ) : character.spells.length === 0 ? (
+              <p className="section-empty spell-empty">
+                No spells recorded for this character.
+              </p>
+            ) : (
+              <div className="spell-level-list">
+                {[...spellGroups].map(([level, spells]) => (
+                  <section
+                    className="spell-level-group"
+                    aria-labelledby={`spell-level-${level}`}
+                    key={level}
+                  >
+                    <div className="spell-level-heading">
+                      <h3 id={`spell-level-${level}`}>
+                        {spellLevelLabel(level)}
+                      </h3>
+                      <span>
+                        {spells.length}{' '}
+                        {spells.length === 1 ? 'spell' : 'spells'}
+                      </span>
+                    </div>
+                    <div className="spell-list">
+                      {spells.map((spell) => (
+                        <details className="spell-entry" key={spell.id}>
+                          <summary>
+                            <span className="spell-summary-name">
+                              <strong>{spell.name}</strong>
+                              <span>
+                                {spell.school || 'School not recorded'}
+                              </span>
+                            </span>
+                            <span className="spell-summary-facts">
+                              <span>
+                                {spell.castingTime || 'No casting time'}
+                              </span>
+                              <span>{spell.range || 'No range'}</span>
+                              <span
+                                className={
+                                  spell.prepared
+                                    ? 'spell-state spell-state-active'
+                                    : 'spell-state'
+                                }
+                              >
+                                {spell.prepared ? 'Prepared' : 'Not prepared'}
+                              </span>
+                            </span>
+                          </summary>
+                          <div className="spell-entry-body">
+                            <dl className="spell-facts">
+                              <div>
+                                <dt>Casting time</dt>
+                                <dd>{spell.castingTime || 'Not recorded'}</dd>
+                              </div>
+                              <div>
+                                <dt>Range</dt>
+                                <dd>{spell.range || 'Not recorded'}</dd>
+                              </div>
+                              <div>
+                                <dt>Components</dt>
+                                <dd>{spell.components || 'Not recorded'}</dd>
+                              </div>
+                              <div>
+                                <dt>Duration</dt>
+                                <dd>{spell.duration || 'Not recorded'}</dd>
+                              </div>
+                            </dl>
+                            <div
+                              className="spell-state-list"
+                              aria-label="Spell states"
+                            >
+                              <span>
+                                {spell.prepared ? 'Prepared' : 'Not prepared'}
+                              </span>
+                              <span>
+                                {spell.concentration
+                                  ? 'Concentration'
+                                  : 'No concentration'}
+                              </span>
+                              <span>
+                                {spell.ritual ? 'Ritual' : 'Not a ritual'}
+                              </span>
+                            </div>
+                            <p className="body-copy spell-description">
+                              {spell.description || 'No description recorded.'}
+                            </p>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
         )}
       </div>
     </article>

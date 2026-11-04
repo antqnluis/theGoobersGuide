@@ -16,11 +16,11 @@ character inside the campaign from which the import was started.
 5. Select **Import character** to save the character locally.
 
 Selecting a file does not save anything. Cancelling or leaving the review
-keeps the campaign unchanged. Imported character, attack, inventory, and
-feature IDs are replaced, and the active campaign always becomes the
+keeps the campaign unchanged. Imported character, attack, inventory, feature,
+and spell IDs are replaced, and the active campaign always becomes the
 character's campaign.
 
-## Version 1 file format
+## Version 2 file format
 
 The top-level object identifies the portable file format and contains one
 character. Application-owned fields such as the character ID, campaign ID,
@@ -29,7 +29,7 @@ and timestamps are ignored and regenerated during import.
 ```json
 {
   "format": "the-goobers-guide-character",
-  "version": 1,
+  "version": 2,
   "character": {
     "name": "Arlen Vale",
     "className": "Ranger",
@@ -82,18 +82,37 @@ and timestamps are ignored and regenerated during import.
       }
     ],
     "notes": "Keeps watch at dusk.",
-    "spells": "Hunter's Mark"
+    "spells": [
+      {
+        "id": "portable-spell-id",
+        "name": "Hunter's Mark",
+        "level": 1,
+        "school": "Divination",
+        "castingTime": "1 bonus action",
+        "range": "90 feet",
+        "components": "V",
+        "duration": "Up to 1 hour",
+        "concentration": true,
+        "ritual": false,
+        "prepared": true,
+        "description": "Mark a creature and deal extra damage when you hit it."
+      }
+    ]
   }
 }
 ```
 
-Optional text fields are `playerName`, `subclass`, `background`,
-`description`, `notes`, and `spells`. An inventory item's `description` and a
-feature's `category` are also optional. All other fields shown above are
-required, although the collection fields may be empty arrays.
+Optional text fields are `playerName`, `subclass`, `background`, `description`,
+and `notes`. An inventory item's `description` and a feature's `category` are
+also optional. Every spell field shown above is required, although reference
+text may be empty. Use spell level `0` for cantrips. Collection fields may be
+empty arrays.
 
 The importer checks structural types when the file is selected. The normal
 character validation runs again when the reviewed character is saved.
+Version-1 character files are rejected because their freeform spell text does
+not match the structured version-2 format. Regenerate those files with the
+current conversion prompt.
 
 The application does not send the Markdown file to an AI service or parse it
 directly. The format guide provides a copyable conversion prompt. That prompt

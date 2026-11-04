@@ -6,7 +6,7 @@ import {
   APP_STORAGE_KEY,
   LocalStorageRepository,
 } from '../src/shared/persistence/localStorageRepository';
-import { emptyAppData } from '../src/shared/persistence/model';
+import { emptyAppData, SCHEMA_VERSION } from '../src/shared/persistence/model';
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -57,6 +57,7 @@ const character: Character = {
   inventory: [],
   currency: { gold: 10 },
   features: [],
+  spells: [],
   createdAt: '2026-11-04T00:00:00.000Z',
   updatedAt: '2026-11-04T00:00:00.000Z',
 };
@@ -123,7 +124,7 @@ describe('LocalStorageRepository', () => {
 
     storage.setItem(
       'the-goobers-guide:data',
-      JSON.stringify({ ...emptyAppData(), schemaVersion: 2 }),
+      JSON.stringify({ ...emptyAppData(), schemaVersion: SCHEMA_VERSION + 1 }),
     );
     expect(repository.load()).toEqual(emptyAppData());
   });
@@ -138,7 +139,7 @@ describe('LocalStorageRepository', () => {
   it('protects malformed and future-version data from an empty-data save', () => {
     for (const raw of [
       '{bad json',
-      JSON.stringify({ ...emptyAppData(), schemaVersion: 2 }),
+      JSON.stringify({ ...emptyAppData(), schemaVersion: SCHEMA_VERSION + 1 }),
     ]) {
       const storage = memoryStorage();
       storage.setItem(APP_STORAGE_KEY, raw);
@@ -177,6 +178,41 @@ describe('LocalStorageRepository', () => {
     expect(backupKey).toBeDefined();
     expect(storage.getItem(backupKey!)).toBe(raw);
     expect(new LocalStorageRepository(storage).load()).toEqual(loaded);
+  });
+
+  it('migrates version 1 data without legacy spell text and backs up the original', () => {
+    const storage = memoryStorage();
+    const legacyCharacter = { ...character, spells: 'Hunter’s Mark' };
+    const raw = JSON.stringify({
+      schemaVersion: 1,
+      campaigns: [campaign],
+      characters: [legacyCharacter],
+      notes: [note],
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+    expect(loaded.schemaVersion).toBe(2);
+    expect(loaded.campaigns).toEqual([campaign]);
+    expect(loaded.notes).toEqual([note]);
+    expect(loaded.characters).toEqual([{ ...character, spells: [] }]);
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('spell text was not carried'),
+    });
+
+    repository.save(loaded);
+    const backupKey = storage
+      .keys()
+      .find((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`));
+    expect(backupKey).toBeDefined();
+    expect(storage.getItem(backupKey!)).toBe(raw);
+    expect(JSON.parse(storage.getItem(APP_STORAGE_KEY)!)).toEqual(loaded);
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('Saved data was upgraded'),
+    });
   });
 
   it('stays usable without crashing when browser storage cannot be read', () => {

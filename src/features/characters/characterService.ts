@@ -60,6 +60,7 @@ export function newCharacter(campaignId: string): Character {
     inventory: [],
     currency: { gp: 0, sp: 0, cp: 0 },
     features: [],
+    spells: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -89,6 +90,15 @@ function validate(data: AppData, character: Character) {
     throw new Error('Attacks need a name.');
   if (character.features.some((f) => !f.name.trim()))
     throw new Error('Features need a name.');
+  if (character.spells.some((spell) => !spell.name.trim()))
+    throw new Error('Spells need a name.');
+  if (
+    character.spells.some(
+      (spell) =>
+        !Number.isInteger(spell.level) || spell.level < 0 || spell.level > 9,
+    )
+  )
+    throw new Error('Spell levels must be whole numbers from 0 to 9.');
   if (
     Object.values(character.currency).some((v) => !Number.isInteger(v) || v < 0)
   )

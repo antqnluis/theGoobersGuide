@@ -64,7 +64,7 @@ Character name, level, class, species                 Edit sheet
 Short description and sample/status message
 ┌─ HP current / maximum ─┬─ AC ┬─ Initiative ┬─ Speed ┬─ Proficiency ┐
 └────────────────────────┴──────┴──────────────┴───────┴─────────────┘
-Overview | Skills & saves | Gear & features | Notes & spells
+Overview | Skills & saves | Gear & features | Notes | Spells
 Ability scores: six aligned cells, score and modifier shown together
 Attacks: name, damage expression, and manually entered hit bonus
 ```
@@ -74,7 +74,8 @@ Combat values stay above the tabs because they are frequently consulted. The HP 
 - **Overview:** identity, combat, abilities, and attacks.
 - **Skills & saves:** compact rows with modifier and proficiency state.
 - **Gear & features:** inventory quantities, currency, and user-entered feature text.
-- **Notes & spells:** background, personal notes, and optional freeform spell reference.
+- **Notes:** background, character description, and personal notes.
+- **Spells:** full-width level groups with compact expandable rows for casting details, states, and user-entered descriptions. Edit mode uses labeled fields rather than a raw text area.
 
 All gameplay values remain manually adjustable, including skills, saves, attack bonuses, and ability modifiers. The design does not assume a rules engine. Character records remain attached to one campaign; there is no character privacy or ownership control in this MVP.
 
@@ -104,7 +105,7 @@ The character editor keeps a draft separate from saved data. Save changes explic
 
 ## Responsive and accessible behavior
 
-At desktop widths, the index remains visible and the sheet uses two-column detail sections. Below about 1,050 px, the index becomes an overlay menu. Below about 850 px, section helper text moves beneath each heading. Below about 760 px, the character sheet sections become one column, HP takes a full row, and abilities wrap into two rows of three. Below about 520 px, the header becomes compact so combat values appear sooner; the description remains in Notes & spells. Tabs scroll horizontally rather than clipping.
+At desktop widths, the index remains visible and the sheet uses two-column detail sections. Below about 1,050 px, the index becomes an overlay menu. Below about 850 px, section helper text moves beneath each heading. Below about 760 px, the character sheet sections become one column, HP takes a full row, abilities wrap into two rows of three, and spell summaries stack their key facts. Below about 520 px, the header becomes compact so combat values appear sooner; the description remains in Notes. Tabs scroll horizontally rather than clipping.
 
 Use semantic headings, labeled fields, a primary navigation landmark, current-page indication, and a native dialog for the dice panel. Preserve visible keyboard focus and Escape-to-close behavior. Proficiency must be indicated by a checkbox state and text, not color alone. Maintain readable contrast and 40 px or larger tap targets where practical. Respect reduced-motion preferences. Before feature release, test keyboard order, screen reader labels, desktop and mobile widths, and color contrast with the final content.
 

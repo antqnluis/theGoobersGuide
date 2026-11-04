@@ -75,7 +75,22 @@ describe('character management', () => {
       currency: { gp: 12 },
       features: [{ id: 'feature', name: 'Custom', description: 'Homebrew' }],
       notes: 'Keep watch.',
-      spells: 'User-entered spell text.',
+      spells: [
+        {
+          id: 'spell',
+          name: 'Fog Cloud',
+          level: 1,
+          school: 'Conjuration',
+          castingTime: '1 action',
+          range: '120 feet',
+          components: 'V, S',
+          duration: 'Up to 1 hour',
+          concentration: true,
+          ritual: false,
+          prepared: true,
+          description: 'Create an obscuring cloud of fog.',
+        },
+      ],
     };
     const updated = saveCharacter(repository, saved, edited);
     expect(
@@ -104,7 +119,7 @@ describe('character management', () => {
       savingThrows: [{ ability: 'strength', modifier: 5, proficient: true }],
       attacks: [{ name: 'Longsword', attackBonus: 9 }],
       notes: 'Keep watch.',
-      spells: 'User-entered spell text.',
+      spells: [{ name: 'Fog Cloud', level: 1, prepared: true }],
     });
     expect(() =>
       saveCharacter(repository, updated, { ...a, campaignId: second.id }),
@@ -185,5 +200,40 @@ describe('character management', () => {
       }),
     ).toThrow('nonnegative whole number');
     expect(repository.load()).toEqual(saved);
+  });
+
+  it('rejects blank spell names and spell levels outside 0 through 9', () => {
+    const { repository, data, first } = setup();
+    const character = { ...newCharacter(first.id), name: 'A' };
+    const spell = {
+      id: 'spell',
+      name: 'Light',
+      level: 0,
+      school: 'Evocation',
+      castingTime: '1 action',
+      range: 'Touch',
+      components: 'V, M',
+      duration: '1 hour',
+      concentration: false,
+      ritual: false,
+      prepared: false,
+      description: 'Make an object shed light.',
+    };
+
+    expect(() =>
+      saveCharacter(repository, data, {
+        ...character,
+        spells: [{ ...spell, name: ' ' }],
+      }),
+    ).toThrow('Spells need a name');
+    for (const level of [-1, 1.5, 10]) {
+      expect(() =>
+        saveCharacter(repository, data, {
+          ...character,
+          spells: [{ ...spell, level }],
+        }),
+      ).toThrow('Spell levels must be whole numbers from 0 to 9');
+    }
+    expect(repository.load()).toEqual(data);
   });
 });

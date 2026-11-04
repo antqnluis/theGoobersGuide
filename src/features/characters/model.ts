@@ -59,6 +59,21 @@ export interface CharacterFeature {
   category?: string;
 }
 
+export interface CharacterSpell {
+  id: string;
+  name: string;
+  level: number;
+  school: string;
+  castingTime: string;
+  range: string;
+  components: string;
+  duration: string;
+  concentration: boolean;
+  ritual: boolean;
+  prepared: boolean;
+  description: string;
+}
+
 export interface Character {
   id: string;
   campaignId: string;
@@ -79,7 +94,7 @@ export interface Character {
   currency: Record<string, number>;
   features: CharacterFeature[];
   notes?: string;
-  spells?: string;
+  spells: CharacterSpell[];
   createdAt: string;
   updatedAt: string;
 }

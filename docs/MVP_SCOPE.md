@@ -178,7 +178,7 @@ Character sheets must support quick edits to frequently changing values, particu
 
 **G. Additional Information**
 - Freeform character notes.
-- Optional spell information as user-entered text.
+- Optional structured spells with a name, level, school, casting time, range, components, duration, prepared state, concentration state, ritual state, and description.
 
 The MVP should prioritize manually editable information rather than implementing a full D&D rules engine.
 
@@ -193,6 +193,7 @@ The character system should allow custom feature descriptions and homebrew conte
 - Ability scores and modifiers are displayed correctly.
 - Inventory items can be added, edited, and removed.
 - Character features can be maintained.
+- Spells can be added, edited, removed, grouped by level, and read without parsing freeform text.
 - Character records persist after refreshing the application.
 - Deleting a character requires confirmation.
 

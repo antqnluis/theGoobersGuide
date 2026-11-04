@@ -12,6 +12,7 @@ import {
 } from './validation';
 
 export const APP_STORAGE_KEY = 'the-goobers-guide:data';
+const LEGACY_SCHEMA_VERSION = 1;
 
 export type StorageStatus =
   | { kind: 'ready' }
@@ -49,11 +50,20 @@ export class LocalStorageRepository implements AppRepository {
         this.status = { kind: 'ready' };
         return parsed;
       }
+      if (typeof parsed !== 'object' || parsed === null) {
+        this.status = {
+          kind: 'blocked',
+          message:
+            'Saved browser data cannot be read or uses another version. Existing data has not been changed. Restore or remove it before saving new changes.',
+        };
+        return emptyAppData();
+      }
+
+      const parsedVersion =
+        'schemaVersion' in parsed ? parsed.schemaVersion : undefined;
       if (
-        typeof parsed !== 'object' ||
-        parsed === null ||
-        !('schemaVersion' in parsed) ||
-        parsed.schemaVersion !== SCHEMA_VERSION
+        parsedVersion !== SCHEMA_VERSION &&
+        parsedVersion !== LEGACY_SCHEMA_VERSION
       ) {
         this.status = {
           kind: 'blocked',
@@ -62,6 +72,8 @@ export class LocalStorageRepository implements AppRepository {
         };
         return emptyAppData();
       }
+
+      const migratingLegacyData = parsedVersion === LEGACY_SCHEMA_VERSION;
 
       // Recover valid records from a damaged current-version payload.
       const record = parsed as Record<string, unknown>;
@@ -106,8 +118,9 @@ export class LocalStorageRepository implements AppRepository {
       this.recoveredRaw = stored;
       this.status = {
         kind: 'recovered',
-        message:
-          'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
+        message: migratingLegacyData
+          ? 'Saved data was upgraded. Existing spell text was not carried into the new spell format. The original data will be kept as a browser backup when you next save.'
+          : 'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
       };
       return { schemaVersion: SCHEMA_VERSION, campaigns, characters, notes };
     } catch {
@@ -130,6 +143,9 @@ export class LocalStorageRepository implements AppRepository {
       throw new TypeError('Cannot save invalid application data');
     }
     if (this.recoveredRaw !== null) {
+      const upgradedLegacyData =
+        this.status.kind === 'recovered' &&
+        this.status.message.startsWith('Saved data was upgraded.');
       this.storage.setItem(
         `${this.key}:recovery:${crypto.randomUUID()}`,
         this.recoveredRaw,
@@ -137,8 +153,9 @@ export class LocalStorageRepository implements AppRepository {
       this.recoveredRaw = null;
       this.status = {
         kind: 'recovered',
-        message:
-          'Some saved records could not be loaded. The original data is preserved as a browser backup.',
+        message: upgradedLegacyData
+          ? 'Saved data was upgraded. Existing spell text was not carried into the new spell format. The original data is preserved as a browser backup.'
+          : 'Some saved records could not be loaded. The original data is preserved as a browser backup.',
       };
     }
     this.storage.setItem(this.key, JSON.stringify(data));

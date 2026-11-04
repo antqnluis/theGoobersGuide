@@ -5,6 +5,7 @@ import {
   type Attack,
   type Character,
   type CharacterFeature,
+  type CharacterSpell,
   type CombatStats,
   type InventoryItem,
   type SavingThrow,
@@ -141,6 +142,25 @@ function isCharacterFeature(value: unknown): value is CharacterFeature {
   );
 }
 
+function isCharacterSpell(value: unknown): value is CharacterSpell {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    value.id.trim() !== '' &&
+    isString(value.name) &&
+    isNumber(value.level) &&
+    isString(value.school) &&
+    isString(value.castingTime) &&
+    isString(value.range) &&
+    isString(value.components) &&
+    isString(value.duration) &&
+    isBoolean(value.concentration) &&
+    isBoolean(value.ritual) &&
+    isBoolean(value.prepared) &&
+    isString(value.description)
+  );
+}
+
 export function isCharacter(value: unknown): value is Character {
   return (
     isRecord(value) &&
@@ -165,7 +185,7 @@ export function isCharacter(value: unknown): value is Character {
     isNumberRecord(value.currency) &&
     isArrayOf(value.features, isCharacterFeature) &&
     isOptionalString(value.notes) &&
-    isOptionalString(value.spells) &&
+    isArrayOf(value.spells, isCharacterSpell) &&
     isString(value.createdAt) &&
     isString(value.updatedAt)
   );
@@ -205,7 +225,9 @@ export function recoverCharacter(
       ? value.description
       : undefined,
     notes: isOptionalString(value.notes) ? value.notes : undefined,
-    spells: isOptionalString(value.spells) ? value.spells : undefined,
+    spells: Array.isArray(value.spells)
+      ? value.spells.filter(isCharacterSpell)
+      : [],
     abilityScores: Object.fromEntries(
       abilityNames.map((name) => {
         const entry = isRecord(abilities[name]) ? abilities[name] : {};

@@ -55,7 +55,22 @@ function characterDocument(overrides: Record<string, unknown> = {}) {
         },
       ],
       notes: 'Keeps watch at dusk.',
-      spells: 'Hunter’s Mark',
+      spells: [
+        {
+          id: 'source-spell',
+          name: 'Hunter’s Mark',
+          level: 1,
+          school: 'Divination',
+          castingTime: '1 bonus action',
+          range: '90 feet',
+          components: 'V',
+          duration: 'Up to 1 hour',
+          concentration: true,
+          ritual: false,
+          prepared: true,
+          description: 'Mark a creature and deal extra damage.',
+        },
+      ],
       id: 'source-character',
       campaignId: 'source-campaign',
       createdAt: '2000-01-01T00:00:00.000Z',
@@ -99,6 +114,7 @@ describe('character JSON import', () => {
       attacks: [{ id: 'new-2', name: 'Longbow' }],
       inventory: [{ id: 'new-3', name: 'Rope' }],
       features: [{ id: 'new-4', name: 'Trailwise' }],
+      spells: [{ id: 'new-5', name: 'Hunter’s Mark', prepared: true }],
       createdAt: '2026-11-04T00:00:00.000Z',
       updatedAt: '2026-11-04T00:00:00.000Z',
     });
@@ -124,14 +140,38 @@ describe('character JSON import', () => {
       parseCharacterImport(
         JSON.stringify({
           format: CHARACTER_IMPORT_FORMAT,
-          version: 2,
+          version: 3,
           character: {},
         }),
         'campaign',
       ),
-    ).toThrow('version 2 is not supported');
+    ).toThrow('version 3 is not supported');
     expect(() =>
       parseCharacterImport(characterDocument({ combat: null }), 'campaign'),
+    ).toThrow('incomplete or contains unsupported values');
+  });
+
+  it('rejects version 1 files with instructions to regenerate them', () => {
+    expect(() =>
+      parseCharacterImport(
+        JSON.stringify({
+          format: CHARACTER_IMPORT_FORMAT,
+          version: 1,
+          character: {},
+        }),
+        'campaign',
+      ),
+    ).toThrow('Regenerate it using the current conversion prompt');
+  });
+
+  it('rejects malformed structured spell entries', () => {
+    expect(() =>
+      parseCharacterImport(
+        characterDocument({
+          spells: [{ id: 'spell', name: 'Incomplete spell' }],
+        }),
+        'campaign',
+      ),
     ).toThrow('incomplete or contains unsupported values');
   });
 });
