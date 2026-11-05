@@ -88,11 +88,22 @@ Display:
 - Current location or status, if available.
 - Summaries for all campaign characters, with party members clearly marked.
 - Recent campaign notes.
+- A small preview of the campaign's static map image, when one is uploaded.
 - Shortcuts to main campaign features.
+
+Users can add, replace, or remove one campaign map image from the Overview. The
+map is stored locally with its campaign and shown in full within a compact
+preview frame. Players can zoom and pan within the frame and reset the view;
+these viewing adjustments do not change the stored map image.
 
 **Acceptance Criteria:**
 - Dashboard information reflects the selected campaign.
 - Changes to campaign details or characters appear on the dashboard.
+- Campaign map images remain associated with the selected campaign and persist
+  after refreshing the application.
+- Map panning stops at the image edges, while zooming keeps the map inside its
+  preview frame.
+- Campaigns without a map show a clear option to add one.
 - Empty campaigns display a useful empty state instead of broken or placeholder content.
 
 ### F03 — Party Roster
@@ -301,6 +312,7 @@ Use LocalStorage behind a dedicated persistence layer.
 
 Persist:
 - Campaigns.
+- Campaign map images attached to campaigns.
 - Characters and their associated records.
 - Campaign notes.
 - Relevant user preferences, if implemented.
@@ -389,6 +401,7 @@ interface Campaign {
   description?: string;
   currentLocation?: string;
   status?: string;
+  mapDataUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -517,7 +530,8 @@ The local prototype must not include:
 - Full character creation rule enforcement.
 - Automatic leveling and character progression.
 - Combat initiative trackers.
-- Interactive battle maps.
+- Interactive battle maps with tactical movement or map editing. Static campaign
+  map image upload and preview are included in F02.
 - Automated quest management.
 - Complex campaign permissions.
 - Full spellcasting rules automation.

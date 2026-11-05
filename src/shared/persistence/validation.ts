@@ -40,12 +40,22 @@ function isOptionalString(value: unknown): value is string | undefined {
 }
 
 const MAX_PORTRAIT_DATA_URL_LENGTH = 320_000;
+const MAX_CAMPAIGN_MAP_DATA_URL_LENGTH = 880_000;
 
 function isOptionalPortrait(value: unknown): value is string | undefined {
   return (
     value === undefined ||
     (isString(value) &&
       value.length <= MAX_PORTRAIT_DATA_URL_LENGTH &&
+      /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value))
+  );
+}
+
+function isOptionalCampaignMap(value: unknown): value is string | undefined {
+  return (
+    value === undefined ||
+    (isString(value) &&
+      value.length <= MAX_CAMPAIGN_MAP_DATA_URL_LENGTH &&
       /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value))
   );
 }
@@ -84,6 +94,7 @@ export function isCampaign(value: unknown): value is Campaign {
     isOptionalString(value.description) &&
     isOptionalString(value.currentLocation) &&
     isOptionalString(value.status) &&
+    isOptionalCampaignMap(value.mapDataUrl) &&
     isString(value.createdAt) &&
     isString(value.updatedAt)
   );
@@ -116,6 +127,9 @@ export function recoverCampaign(value: unknown): Campaign | null {
     description: value.description,
     currentLocation: value.currentLocation,
     status: value.status,
+    mapDataUrl: isOptionalCampaignMap(value.mapDataUrl)
+      ? value.mapDataUrl
+      : undefined,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };

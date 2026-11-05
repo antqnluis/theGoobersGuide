@@ -17,7 +17,8 @@ import {
 } from './model';
 import type { CharacterExportFormat } from './characterExport';
 import CharacterFeatures from './CharacterFeatures';
-import { processCharacterPortrait } from './characterPortrait';
+import CharacterPortraitCropDialog from './CharacterPortraitCropDialog';
+import { portraitFileError } from './characterPortrait';
 
 type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
 
@@ -121,6 +122,7 @@ export default function CharacterSheetPreview({
   );
   const [quickError, setQuickError] = useState<string | null>(null);
   const [portraitError, setPortraitError] = useState<string | null>(null);
+  const [portraitFile, setPortraitFile] = useState<File | null>(null);
   const portraitInput = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
@@ -145,21 +147,17 @@ export default function CharacterSheetPreview({
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  async function updatePortrait(event: ChangeEvent<HTMLInputElement>) {
+  function updatePortrait(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
-    try {
-      const portraitDataUrl = await processCharacterPortrait(file);
-      setDraft((current) => ({ ...current, portraitDataUrl }));
-      setPortraitError(null);
-    } catch (cause) {
-      setPortraitError(
-        cause instanceof Error
-          ? cause.message
-          : 'The portrait could not be saved.',
-      );
+    const fileError = portraitFileError(file);
+    if (fileError) {
+      setPortraitError(fileError);
+      return;
     }
+    setPortraitError(null);
+    setPortraitFile(file);
   }
 
   function updateCombat(key: keyof CombatStats, value: number) {
@@ -483,6 +481,18 @@ export default function CharacterSheetPreview({
               : 'Changes are saved when you select Save changes.'
             : 'Saved in this browser.')}
       </div>
+
+      {portraitFile && (
+        <CharacterPortraitCropDialog
+          file={portraitFile}
+          onCancel={() => setPortraitFile(null)}
+          onSave={(portraitDataUrl) => {
+            setDraft((current) => ({ ...current, portraitDataUrl }));
+            setPortraitError(null);
+            setPortraitFile(null);
+          }}
+        />
+      )}
 
       <div className="combat-band" aria-label="Combat information">
         <div className="hp-block">

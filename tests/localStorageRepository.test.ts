@@ -111,6 +111,40 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository(storage).load()).toEqual(data);
   });
 
+  it('persists a validated campaign map image', () => {
+    const storage = memoryStorage();
+    const repository = new LocalStorageRepository(storage);
+    const data = {
+      ...emptyAppData(),
+      campaigns: [{ ...campaign, mapDataUrl: 'data:image/jpeg;base64,YWJj' }],
+    };
+
+    repository.save(data);
+
+    expect(new LocalStorageRepository(storage).load()).toEqual(data);
+  });
+
+  it('recovers a campaign when its stored map image is invalid', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      APP_STORAGE_KEY,
+      JSON.stringify({
+        ...emptyAppData(),
+        campaigns: [
+          { ...campaign, mapDataUrl: 'data:image/png;base64,not-valid' },
+        ],
+      }),
+    );
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+
+    expect(loaded.campaigns).toHaveLength(1);
+    expect(loaded.campaigns[0].id).toBe(campaign.id);
+    expect(loaded.campaigns[0].mapDataUrl).toBeUndefined();
+    expect(repository.getStatus().kind).toBe('recovered');
+  });
+
   it('reports browser storage quota failures clearly', () => {
     const storage = memoryStorage();
     storage.setItem = () => {

@@ -5,6 +5,7 @@ import {
   createCampaign,
   deleteCampaign,
   updateCampaignContext,
+  updateCampaignMap,
   updateCampaign,
   type CampaignContextDetails,
   type CampaignDetails,
@@ -238,6 +239,22 @@ export default function App() {
     } catch {
       setError(
         'Campaign details could not be saved. Check browser storage and try again.',
+      );
+      return false;
+    }
+  }
+
+  function saveCampaignMap(id: string, mapDataUrl?: string): boolean {
+    try {
+      setData(updateCampaignMap(repository, data, id, mapDataUrl));
+      setFeedback(
+        mapDataUrl ? 'Saved the campaign map.' : 'Removed the campaign map.',
+      );
+      setError(null);
+      return true;
+    } catch {
+      setError(
+        'Campaign map could not be saved. Check browser storage and try again.',
       );
       return false;
     }
@@ -674,6 +691,9 @@ export default function App() {
                 viewerUserId={sessionUser.id}
                 onUpdateContext={(details) =>
                   saveCampaignContext(activeCampaign.id, details)
+                }
+                onUpdateMap={(mapDataUrl) =>
+                  saveCampaignMap(activeCampaign.id, mapDataUrl)
                 }
                 error={error}
                 feedback={feedback}

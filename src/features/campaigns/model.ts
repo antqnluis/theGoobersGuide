@@ -6,6 +6,7 @@ export interface Campaign {
   description?: string;
   currentLocation?: string;
   status?: string;
+  mapDataUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -37,7 +37,7 @@ export class LocalStorageRepository implements AppRepository {
           cause.name === 'NS_ERROR_DOM_QUOTA_REACHED')
       )
         throw new Error(
-          'Browser storage is full. Remove some saved data or use a smaller portrait, then try again.',
+          'Browser storage is full. Remove some saved data or use a smaller image, then try again.',
         );
       throw cause;
     }

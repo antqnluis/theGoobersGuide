@@ -65,6 +65,31 @@ export function updateCampaignContext(
   return next;
 }
 
+export function updateCampaignMap(
+  repository: AppRepository,
+  data: AppData,
+  id: string,
+  mapDataUrl?: string,
+): AppData {
+  if (!data.campaigns.some((campaign) => campaign.id === id)) {
+    throw new Error('Campaign no longer exists.');
+  }
+  const next = {
+    ...data,
+    campaigns: data.campaigns.map((campaign) =>
+      campaign.id === id
+        ? {
+            ...campaign,
+            mapDataUrl,
+            updatedAt: new Date().toISOString(),
+          }
+        : campaign,
+    ),
+  };
+  repository.save(next);
+  return next;
+}
+
 export function updateCampaign(
   repository: AppRepository,
   data: AppData,

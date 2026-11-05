@@ -4,6 +4,7 @@ import {
   createCampaign,
   deleteCampaign,
   updateCampaignContext,
+  updateCampaignMap,
   updateCampaign,
 } from '../src/features/campaigns/campaignService';
 import { LocalStorageRepository } from '../src/shared/persistence/localStorageRepository';
@@ -121,5 +122,35 @@ describe('campaign management', () => {
       }),
     ).toThrow();
     expect(repository.load()).toEqual(created.data);
+  });
+
+  it('saves a map only to its campaign and supports removing it', () => {
+    const { storage, repository } = setup();
+    const first = createCampaign(repository, emptyAppData(), {
+      name: 'First',
+    });
+    const second = createCampaign(repository, first.data, {
+      name: 'Second',
+    });
+    const mapDataUrl = 'data:image/jpeg;base64,YWJj';
+
+    const withMap = updateCampaignMap(
+      repository,
+      second.data,
+      first.campaign.id,
+      mapDataUrl,
+    );
+    expect(withMap.campaigns[0].mapDataUrl).toBe(mapDataUrl);
+    expect(withMap.campaigns[1]).toEqual(second.campaign);
+    expect(new LocalStorageRepository(storage).load()).toEqual(withMap);
+
+    const withoutMap = updateCampaignMap(
+      repository,
+      withMap,
+      first.campaign.id,
+    );
+    expect(withoutMap.campaigns[0].mapDataUrl).toBeUndefined();
+    expect(withoutMap.campaigns[1]).toEqual(second.campaign);
+    expect(new LocalStorageRepository(storage).load()).toEqual(withoutMap);
   });
 });

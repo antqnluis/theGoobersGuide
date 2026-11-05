@@ -2,6 +2,12 @@ export const MAX_PORTRAIT_UPLOAD_BYTES = 8 * 1024 * 1024;
 export const MAX_PORTRAIT_OUTPUT_BYTES = 220 * 1024;
 export const PORTRAIT_SIZE = 512;
 
+export interface PortraitCrop {
+  x: number;
+  y: number;
+  size: number;
+}
+
 const supportedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export function portraitFileError(
@@ -26,7 +32,10 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-export async function processCharacterPortrait(file: File): Promise<string> {
+export async function processCharacterPortrait(
+  file: File,
+  crop?: PortraitCrop,
+): Promise<string> {
   const fileError = portraitFileError(file);
   if (fileError) throw new Error(fileError);
 
@@ -44,9 +53,18 @@ export async function processCharacterPortrait(file: File): Promise<string> {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Image processing is unavailable.');
 
-    const cropSize = Math.min(bitmap.width, bitmap.height);
-    const cropX = (bitmap.width - cropSize) / 2;
-    const cropY = (bitmap.height - cropSize) / 2;
+    const shortSide = Math.min(bitmap.width, bitmap.height);
+    const cropSize = crop
+      ? Math.min(shortSide, Math.max(1, crop.size))
+      : shortSide;
+    const cropX = Math.min(
+      bitmap.width - cropSize,
+      Math.max(0, crop?.x ?? (bitmap.width - cropSize) / 2),
+    );
+    const cropY = Math.min(
+      bitmap.height - cropSize,
+      Math.max(0, crop?.y ?? (bitmap.height - cropSize) / 2),
+    );
     context.fillStyle = '#f8f9f5';
     context.fillRect(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE);
     context.drawImage(
