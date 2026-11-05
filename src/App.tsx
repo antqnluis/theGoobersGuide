@@ -5,7 +5,6 @@ import {
   createCampaign,
   deleteCampaign,
   updateCampaignContext,
-  updateCampaignMap,
   updateCampaign,
   type CampaignContextDetails,
   type CampaignDetails,
@@ -239,22 +238,6 @@ export default function App() {
     } catch {
       setError(
         'Campaign details could not be saved. Check browser storage and try again.',
-      );
-      return false;
-    }
-  }
-
-  function saveCampaignMap(id: string, mapDataUrl?: string): boolean {
-    try {
-      setData(updateCampaignMap(repository, data, id, mapDataUrl));
-      setFeedback(
-        mapDataUrl ? 'Saved the campaign map.' : 'Removed the campaign map.',
-      );
-      setError(null);
-      return true;
-    } catch {
-      setError(
-        'Campaign map could not be saved. Check browser storage and try again.',
       );
       return false;
     }
@@ -644,9 +627,15 @@ export default function App() {
                 <span />
                 <span />
               </button>
-              <span className="topbar-campaign">
-                {activeCampaign ? activeCampaign.name : 'Campaign library'}
-              </span>
+              <div className="topbar-context">
+                <span className="topbar-page">
+                  {navigation.find((item) => item.route === route)?.label ??
+                    'Campaign library'}
+                </span>
+                {activeCampaign && (
+                  <span className="topbar-campaign">{activeCampaign.name}</span>
+                )}
+              </div>
             </div>
             <div className="topbar-actions">
               <span className="account-name">{sessionUser.displayName}</span>
@@ -692,9 +681,6 @@ export default function App() {
                 onUpdateContext={(details) =>
                   saveCampaignContext(activeCampaign.id, details)
                 }
-                onUpdateMap={(mapDataUrl) =>
-                  saveCampaignMap(activeCampaign.id, mapDataUrl)
-                }
                 error={error}
                 feedback={feedback}
               />
@@ -724,6 +710,13 @@ export default function App() {
                 campaign={activeCampaign}
                 characters={characters}
                 viewerUserId={sessionUser.id}
+                draftKind={
+                  location.characterId === 'new'
+                    ? 'new'
+                    : location.characterId === 'import'
+                      ? 'import'
+                      : null
+                }
                 selectedCharacterId={
                   location.characterId &&
                   characters.some(

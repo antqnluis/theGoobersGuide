@@ -478,7 +478,9 @@ export default function CharacterSheetPreview({
           (editing
             ? importSource
               ? 'Imported values remain editable until you add this character.'
-              : 'Changes are saved when you select Save changes.'
+              : creating
+                ? 'This character is a draft. Choose Create character to save it.'
+                : 'Changes are saved when you select Save changes.'
             : 'Saved in this browser.')}
       </div>
 

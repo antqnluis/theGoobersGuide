@@ -165,7 +165,11 @@ export default function CampaignLibrary({
         <div className="library-list" aria-label="Saved campaigns">
           {campaigns.map((campaign) => (
             <div className="campaign-list-row" key={campaign.id}>
-              <a className="campaign-entry" href={`#/campaign/${campaign.id}`}>
+              <a
+                className="campaign-entry"
+                href={`#/campaign/${campaign.id}`}
+                aria-label={`Open ${campaign.name}`}
+              >
                 <span className="campaign-entry-mark" aria-hidden="true">
                   {campaign.name.charAt(0).toUpperCase()}
                 </span>
