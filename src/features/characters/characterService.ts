@@ -1,4 +1,5 @@
 import type { AppData, AppRepository } from '../../shared/persistence/model';
+import type { DemoUserId } from '../auth/demoAuth';
 import { abilityNames, type Character } from './model';
 
 export function abilityModifier(score: number): number {
@@ -8,16 +9,25 @@ export function abilityModifier(score: number): number {
 export function selectedCharacterId(
   data: AppData,
   campaignId: string,
+  ownerUserId?: DemoUserId,
 ): string | null {
   const selected = data.preferences.selectedCharacterByCampaign[campaignId];
   if (
     selected &&
     data.characters.some(
       (character) =>
-        character.id === selected && character.campaignId === campaignId,
+        character.id === selected &&
+        character.campaignId === campaignId &&
+        (!ownerUserId || character.ownerUserId === ownerUserId),
     )
   )
     return selected;
+  const owned = data.characters.find(
+    (character) =>
+      character.campaignId === campaignId &&
+      (!ownerUserId || character.ownerUserId === ownerUserId),
+  );
+  if (owned) return owned.id;
   return (
     data.characters.find((character) => character.campaignId === campaignId)
       ?.id ?? null
@@ -53,7 +63,10 @@ export function selectCharacter(
   return next;
 }
 
-export function newCharacter(campaignId: string): Character {
+export function newCharacter(
+  campaignId: string,
+  ownerUserId: DemoUserId = 'player-one',
+): Character {
   const now = new Date().toISOString();
   const standardSkills = [
     'Acrobatics',
@@ -78,6 +91,7 @@ export function newCharacter(campaignId: string): Character {
   return {
     id: crypto.randomUUID(),
     campaignId,
+    ownerUserId,
     name: '',
     className: '',
     species: '',
@@ -157,13 +171,17 @@ export function saveCharacter(
   repository: AppRepository,
   data: AppData,
   character: Character,
+  actorUserId: DemoUserId,
 ): AppData {
   validate(data, character);
   const existing = data.characters.find((c) => c.id === character.id);
   if (existing && existing.campaignId !== character.campaignId)
     throw new Error('Character belongs to another campaign.');
+  if (existing && existing.ownerUserId !== actorUserId)
+    throw new Error('You can only edit your own characters.');
   const saved = {
     ...character,
+    ownerUserId: existing?.ownerUserId ?? actorUserId,
     name: character.name.trim(),
     updatedAt: new Date().toISOString(),
   };
@@ -182,13 +200,14 @@ export function deleteCharacter(
   data: AppData,
   campaignId: string,
   characterId: string,
+  actorUserId: DemoUserId,
 ): AppData {
-  if (
-    !data.characters.some(
-      (c) => c.id === characterId && c.campaignId === campaignId,
-    )
-  )
-    throw new Error('Character not found in this campaign.');
+  const character = data.characters.find(
+    (c) => c.id === characterId && c.campaignId === campaignId,
+  );
+  if (!character) throw new Error('Character not found in this campaign.');
+  if (character.ownerUserId !== actorUserId)
+    throw new Error('You can only delete your own characters.');
   const selectedCharacterByCampaign = {
     ...data.preferences.selectedCharacterByCampaign,
   };
@@ -197,6 +216,16 @@ export function deleteCharacter(
   const next = {
     ...data,
     characters: data.characters.filter((c) => c.id !== characterId),
+    campaigns: data.campaigns.map((campaign) =>
+      campaign.id === campaignId
+        ? {
+            ...campaign,
+            partyMemberCharacterIds: campaign.partyMemberCharacterIds.filter(
+              (memberId) => memberId !== characterId,
+            ),
+          }
+        : campaign,
+    ),
     preferences: {
       ...data.preferences,
       selectedCharacterByCampaign,

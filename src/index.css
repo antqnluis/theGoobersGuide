@@ -22,7 +22,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
 }
 button,
 input,
@@ -49,6 +49,95 @@ a {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 32px 20px;
+  background: var(--forest);
+}
+.login-sheet {
+  width: min(100%, 460px);
+  padding: clamp(28px, 6vw, 48px);
+  border-left: 5px solid var(--brass);
+  background: var(--paper);
+  box-shadow: 0 14px 38px rgba(7, 25, 22, 0.22);
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  color: var(--forest);
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.login-rule {
+  height: 1px;
+  margin: 25px 0 23px;
+  background: var(--line);
+}
+.login-sheet h1 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(30px, 7vw, 38px);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.login-intro {
+  margin: 10px 0 25px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.login-form {
+  display: grid;
+  gap: 17px;
+}
+.login-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.login-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid #91a69c;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--ink);
+}
+.login-submit {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 2px;
+}
+.demo-credentials {
+  display: grid;
+  gap: 4px;
+  margin-top: 24px;
+  padding: 14px 15px;
+  border-left: 2px solid var(--brass);
+  background: #edf1eb;
+  color: var(--ink);
+  font-size: 13px;
+}
+.demo-credentials p {
+  margin: 0;
+  color: var(--muted);
+}
+.login-notice {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .app-shell {
@@ -168,6 +257,7 @@ a {
   align-items: center;
   gap: 16px;
   min-width: 0;
+  flex: 1;
 }
 .topbar-campaign {
   overflow: hidden;
@@ -198,6 +288,30 @@ a {
 .dice-trigger:hover {
   border-color: var(--forest);
   background: #f7faf6;
+}
+.topbar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+.account-name {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.account-logout {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid #8fa59a;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-logout:hover {
+  background: #e5ebe5;
 }
 .dice-trigger span {
   display: grid;
@@ -246,6 +360,54 @@ a {
 }
 .sheet-header-copy {
   min-width: 0;
+}
+.sheet-portrait-column {
+  display: grid;
+  flex: none;
+  justify-items: center;
+  align-content: center;
+  gap: 9px;
+  width: 132px;
+}
+.sheet-portrait,
+.sheet-portrait-fallback {
+  display: grid;
+  width: 116px;
+  height: 116px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #bdc9c1;
+  border-radius: 4px;
+  background: #dce7df;
+  color: var(--forest);
+  font-family: var(--display);
+  font-size: 54px;
+  object-fit: cover;
+}
+.portrait-controls {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  width: 100%;
+  text-align: center;
+}
+.portrait-controls .button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.portrait-remove {
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: #6d4238;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.portrait-controls .form-error {
+  font-size: 12px;
 }
 .sheet-context,
 .page-context {
@@ -1521,6 +1683,129 @@ a {
   grid-template-columns: 1fr 1fr;
   gap: 30px;
 }
+.character-gallery-section {
+  margin: 32px 0 30px;
+}
+.character-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 14px;
+}
+.character-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #cbd6cd;
+  border-radius: 4px;
+  background: #f7f8f3;
+  color: inherit;
+  text-decoration: none;
+}
+.character-card:hover,
+.character-card:focus-visible {
+  border-color: #718d7d;
+  outline: 2px solid #718d7d;
+  outline-offset: 2px;
+}
+.character-card-portrait-wrap {
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  background: #dce7df;
+}
+.character-card-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.character-card-initial {
+  color: #315449;
+  font-family: var(--display);
+  font-size: clamp(62px, 8vw, 104px);
+  line-height: 1;
+}
+.character-card-party-status {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 5px 9px;
+  border-radius: 3px;
+  background: #f4f6f1;
+  color: #425951;
+  font-size: 11px;
+  font-weight: 700;
+}
+.character-card-party-status.is-member {
+  background: var(--forest);
+  color: white;
+}
+.character-card-body {
+  padding: 14px 15px 13px;
+}
+.character-card-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.character-card-heading h3 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--forest);
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.character-card-heading p,
+.character-card-identity,
+.character-card-owner {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.character-card-heading p {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.character-card-identity {
+  min-height: 18px;
+  margin-top: 5px;
+  color: #304c46;
+  font-size: 13px;
+}
+.character-card-stats {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0 10px;
+  padding: 9px 0;
+  border-top: 1px solid #d4ddd6;
+  border-bottom: 1px solid #d4ddd6;
+}
+.character-card-stats span {
+  display: grid;
+  gap: 1px;
+}
+.character-card-stats small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.character-card-stats strong {
+  color: var(--forest);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.character-card-owner {
+  color: #405a52;
+  font-weight: 650;
+}
 .preview-section {
   min-width: 0;
 }
@@ -1558,6 +1843,10 @@ a {
   color: var(--muted);
   font-size: 12px;
 }
+.party-entry .party-entry-owner {
+  color: #405a52;
+  font-weight: 600;
+}
 .party-entry-hp {
   margin-left: auto;
   color: #466056;
@@ -1580,6 +1869,127 @@ a {
 .party-entry-link:hover strong,
 .party-entry-link:focus-visible strong {
   text-decoration: underline;
+}
+.overview-campaign-details {
+  margin-top: 20px;
+}
+.overview-campaign-details > .section-heading {
+  align-items: center;
+}
+.overview-summary a,
+.party-create-link {
+  width: fit-content;
+  color: #335d50;
+  font-size: 13px;
+  font-weight: 650;
+}
+.campaign-context-form,
+.party-name-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 22px 24px;
+  border: 1px solid #b6c7ba;
+  border-left: 5px solid var(--brass);
+  background: var(--paper);
+}
+.campaign-context-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.campaign-context-form label,
+.party-name-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+.campaign-context-form .campaign-actions,
+.party-name-form .campaign-actions {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.party-name-form .section-heading {
+  margin: 0;
+}
+.party-name-form .section-heading h2 {
+  margin: 0;
+  color: var(--forest);
+  font-family: var(--display);
+  font-size: 25px;
+  font-weight: 600;
+}
+.party-setup-empty {
+  max-width: 760px;
+}
+.party-name-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 25px;
+  padding: 20px 22px;
+  border: 1px solid #b6c7ba;
+  border-left: 5px solid var(--forest);
+  background: var(--paper);
+}
+.party-name-line > div {
+  display: grid;
+  gap: 4px;
+}
+.party-name-line span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.party-name-line h2 {
+  margin: 0;
+  color: var(--forest);
+  font-family: var(--display);
+  font-size: 27px;
+  font-weight: 600;
+}
+.party-management-section {
+  margin-top: 32px;
+}
+.party-management-section > .section-heading span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.party-management-list {
+  border-top: 1px solid #cbd6cd;
+}
+.party-management-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 82px;
+  padding: 10px 4px;
+  border-bottom: 1px solid #cbd6cd;
+}
+.party-management-row .party-entry-link {
+  min-height: 62px;
+  padding: 6px 0;
+}
+.party-membership-action {
+  flex: none;
+  min-height: 42px;
+  padding: 7px 12px;
+  border: 1px solid #9bafa1;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 650;
+}
+.party-membership-action:hover {
+  background: #edf2ec;
+}
+.party-membership-action.danger-link {
+  color: var(--danger);
+}
+.party-create-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .identity-fields {
   display: grid;
@@ -2062,8 +2472,16 @@ a {
     grid-column: auto;
   }
   .campaign-form,
-  .campaign-empty {
+  .campaign-empty,
+  .party-name-form {
     padding: 22px 20px;
+  }
+  .campaign-context-form {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+  .campaign-context-form .campaign-actions {
+    grid-column: auto;
   }
   .workspace-main {
     padding: 18px 12px 45px;
@@ -2072,6 +2490,21 @@ a {
     flex-direction: column;
     gap: 19px;
     padding: 27px 23px 24px;
+  }
+  .sheet-portrait-column {
+    grid-template-columns: 84px minmax(0, 1fr);
+    justify-items: start;
+    width: 100%;
+  }
+  .sheet-portrait,
+  .sheet-portrait-fallback {
+    width: 76px;
+    height: 76px;
+    font-size: 40px;
+  }
+  .portrait-controls {
+    justify-items: start;
+    text-align: left;
   }
   .sheet-header-actions {
     flex-direction: column;
@@ -2125,6 +2558,9 @@ a {
   .overview-columns {
     grid-template-columns: 1fr;
   }
+  .character-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .gear-layout {
     grid-template-columns: 1fr;
   }
@@ -2166,6 +2602,60 @@ a {
   }
 }
 
+@media (max-width: 560px) {
+  .character-gallery {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .character-card {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+  .character-card-portrait-wrap {
+    min-height: 100%;
+    aspect-ratio: auto;
+  }
+  .character-card-portrait {
+    position: absolute;
+    inset: 0;
+  }
+  .character-card-party-status {
+    right: 4px;
+    bottom: 5px;
+    max-width: calc(100% - 8px);
+    padding: 4px 5px;
+    font-size: 9px;
+  }
+  .character-card-body {
+    padding: 10px;
+  }
+  .character-card-heading {
+    display: block;
+  }
+  .character-card-heading h3 {
+    font-size: 19px;
+  }
+  .character-card-heading p {
+    max-width: 100%;
+    margin-top: 2px;
+  }
+  .character-card-identity {
+    min-height: 0;
+    font-size: 12px;
+  }
+  .character-card-stats {
+    gap: 20px;
+    margin: 8px 0 7px;
+    padding: 6px 0;
+  }
+  .character-card-stats strong {
+    font-size: 14px;
+  }
+  .character-card-owner {
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 520px) {
   .topbar {
     min-height: 62px;
@@ -2173,6 +2663,38 @@ a {
   }
   .topbar-campaign {
     font-size: 14px;
+  }
+  .party-name-line {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 17px 16px;
+  }
+  .party-management-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 7px 10px;
+  }
+  .party-management-row .party-entry-link {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .party-management-row .party-entry-link .party-entry-hp {
+    flex-basis: calc(100% - 56px);
+    margin-left: 56px;
+  }
+  .party-membership-action {
+    margin-left: 56px;
+  }
+  .topbar-actions {
+    gap: 5px;
+  }
+  .account-name {
+    display: none;
+  }
+  .account-logout {
+    min-height: 38px;
+    padding: 5px 7px;
+    font-size: 12px;
   }
   .dice-trigger {
     gap: 5px;

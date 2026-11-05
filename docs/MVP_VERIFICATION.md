@@ -1,7 +1,9 @@
 # MVP verification and readiness
 
-**Reviewed:** November 4, 2026  
-**Scope:** Required local MVP in [MVP_SCOPE.md](MVP_SCOPE.md)  
+**Reviewed:** November 5, 2026
+
+**Scope:** Required local MVP in [MVP_SCOPE.md](MVP_SCOPE.md)
+
 **Result:** Ready for local MVP use in the tested browser, with the limitations below.
 
 ## Evidence and test environment
@@ -9,20 +11,21 @@
 - **Browser:** Interactive test at `http://127.0.0.1:5175/`, a separate origin from the usual `localhost:5173` setup. It began with no saved campaigns. Test records were created only on that isolated origin.
 - **Journey:** Created Journey to Asterholm / The Bad Company and Western Reach / The Wayfarers; created multiple characters and notes; edited campaign, character, inventory, HP, and note values; switched campaigns; refreshed; deleted a note, a character, and Western Reach. Journey to Asterholm and its remaining records survived the cascade deletion.
 - **Responsive:** Inspected the library, overview, roster, My Character empty and saved states, sheet, structured spell reference, and journal at phone, tablet, and desktop widths. The dice panel was inspected at those widths. Document scroll width did not exceed the viewport's content width in the tested views. The five sheet tabs intentionally scroll within their own row on narrow screens.
-- **Automated:** `npm test` passed 39 of 39 tests; `npm run build`, `npm run format:check`, and `git diff --check` passed. Tests use Vitest from the repository root.
+- **Automated:** `npm test` passed 53 of 53 tests; `npm run build`, `npm run format:check`, and `git diff --check` passed. Tests use Vitest from the repository root.
+- **Party follow-up:** On November 5, the campaign/party workflow was checked at a separate `http://127.0.0.1:4173/` origin. The library uses only campaign name and description; party creation, owner-only membership, and location/status editing were exercised. Player Two saw Player One's member read-only and an add action only for their own unassigned character. At a 375 px viewport, page scroll width matched the viewport; the party name form accepted keyboard focus, Tab, and Enter. Follow-up data is isolated to that test origin.
 - **Methods:** “Browser” below means the interactive journey and accessibility tree inspection. “Tests” means Vitest. “Code” means direct inspection of the implementation. A Pass can rest on more than one method.
 
 ## Requirement-by-requirement acceptance checklist
 
 ### F01 — Campaign library
 
-| Requirement and acceptance criterion                                                                          | Status | Evidence                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Display all saved campaigns; create and open multiple campaigns independently.                                | Pass   | Browser: both campaigns appeared and opened from the library.                                                                                               |
-| Edit campaign details, including required name and party name and optional description, location, and status. | Pass   | Browser: edited Journey's description, location, and status; overview reflected them. Tests cover required fields and isolation.                            |
-| Store unique IDs and creation and modification timestamps.                                                    | Pass   | Code and tests: campaign service creates IDs and timestamps and preserves creation time on update.                                                          |
-| Save changes locally and preserve campaigns after refresh.                                                    | Pass   | Browser refresh and repository round-trip tests.                                                                                                            |
-| Confirm campaign deletion and remove only its associated characters and notes.                                | Pass   | Browser: confirmation appeared; Western Reach was removed while Journey remained. Tests assert both cascade removal and preservation of the other campaign. |
+| Requirement and acceptance criterion                                                                                                         | Status | Evidence                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Display all saved campaigns; create and open multiple campaigns independently.                                                               | Pass   | Browser: both campaigns appeared and opened from the library.                                                                                                                                                |
+| Edit campaign name and description in the library; create or rename its party inside the campaign; edit location and status in the overview. | Pass   | Follow-up browser: the library exposed only name and description; overview location/status remained intact after a campaign edit; party setup was available in the campaign. Tests cover field preservation. |
+| Store unique IDs and creation and modification timestamps.                                                                                   | Pass   | Code and tests: campaign service creates IDs and timestamps and preserves creation time on update.                                                                                                           |
+| Save changes locally and preserve campaigns after refresh.                                                                                   | Pass   | Browser refresh and repository round-trip tests.                                                                                                                                                             |
+| Confirm campaign deletion and remove only its associated characters and notes.                                                               | Pass   | Browser: confirmation appeared; Western Reach was removed while Journey remained. Tests assert both cascade removal and preservation of the other campaign.                                                  |
 
 ### F02 — Campaign dashboard
 
@@ -35,12 +38,12 @@
 
 ### F03 — Party roster
 
-| Requirement and acceptance criterion                                            | Status | Evidence                                                                                                                       |
-| ------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| Add characters through My Character and show only the active campaign's roster. | Pass   | Browser: Journey had Soren and Ceryn; Western Reach had Mira. Tests cover campaign isolation. Party remains a roster of links. |
-| Show name, class, level, species, HP, and AC in each summary.                   | Pass   | Browser and code: the values appeared; the phone layout now wraps HP and AC onto a visible line.                               |
-| Open the correct full sheet when a character is selected.                       | Pass   | Browser: selected Soren and Ceryn from the roster.                                                                             |
-| Reflect character edits and deletion in the roster.                             | Pass   | Browser: quick HP appeared in summaries and Ceryn was removed while Soren remained. Tests cover record-specific deletion.      |
+| Requirement and acceptance criterion                                                                        | Status | Evidence                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keep characters outside the party until their owner adds them; show only assigned characters in the roster. | Pass   | Follow-up browser: new characters appeared outside the party; each player saw only their own membership controls. Service tests reject another owner's changes and preserve characters after removal. |
+| Show name, class, level, species, HP, and AC in each summary.                                               | Pass   | Browser and code: the values appeared; the phone layout now wraps HP and AC onto a visible line.                                                                                                      |
+| Open the correct full sheet when a character is selected.                                                   | Pass   | Browser: selected Soren and Ceryn from the roster.                                                                                                                                                    |
+| Reflect character edits and deletion in the roster.                                                         | Pass   | Browser: quick HP appeared in summaries and Ceryn was removed while Soren remained. Tests cover record-specific deletion.                                                                             |
 
 ### F04 — Character management
 
@@ -78,19 +81,19 @@
 
 ### F07 — Local data persistence
 
-| Requirement and acceptance criterion                                                                                               | Status | Evidence                                                                                                                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Store campaigns, characters, notes, and character preferences through a dedicated LocalStorage adapter with schema version 3.      | Pass   | Code and repository tests. Version-2 data gains empty preferences; selected-character IDs are validated against their campaign.                                                          |
-| Initialize without saved data and retain edits after refresh.                                                                      | Pass   | Browser began empty, then retained records and quick edits after refresh. Tests cover empty and round-trip cases.                                                                        |
-| Preserve unrelated campaigns when editing, switching, or deleting.                                                                 | Pass   | Browser two-campaign journey and service/repository isolation tests.                                                                                                                     |
-| Handle missing, incomplete, malformed, duplicate, or unknown-version data without crashing or silently overwriting original bytes. | Pass   | Tests: malformed and future-version data blocks writes; damaged version-2 data recovers valid records; version-1 data upgrades without legacy spell text and is backed up on first save. |
-| Handle unavailable browser storage without crashing.                                                                               | Pass   | Code wraps storage access; test verifies a blocked, non-writable state.                                                                                                                  |
+| Requirement and acceptance criterion                                                                                                    | Status | Evidence                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Store campaigns, characters, notes, party membership, and character preferences through the LocalStorage adapter with schema version 5. | Pass   | Code and repository tests. Version-4 party rosters migrate with their characters and preserve the original-data backup; existing demo owners remain unchanged.                           |
+| Initialize without saved data and retain edits after refresh.                                                                           | Pass   | Browser began empty, then retained records and quick edits after refresh. Tests cover empty and round-trip cases.                                                                        |
+| Preserve unrelated campaigns when editing, switching, or deleting.                                                                      | Pass   | Browser two-campaign journey and service/repository isolation tests.                                                                                                                     |
+| Handle missing, incomplete, malformed, duplicate, or unknown-version data without crashing or silently overwriting original bytes.      | Pass   | Tests: malformed and future-version data blocks writes; damaged version-2 data recovers valid records; version-1 data upgrades without legacy spell text and is backed up on first save. |
+| Handle unavailable browser storage without crashing.                                                                                    | Pass   | Code wraps storage access; test verifies a blocked, non-writable state.                                                                                                                  |
 
 ### F08 — Navigation and responsive layout
 
 | Requirement and acceptance criterion                                                                                 | Status | Evidence                                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Navigate among library, overview, roster-only Party, My Character, notes, and the global dice roller.                | Pass   | Browser journey exercised every destination; the sidebar and overview now lead to My Character rather than a separate Character sheets destination.       |
+| Navigate among library, overview, Party management, My Character, notes, and the global dice roller.                 | Pass   | Browser journey and follow-up exercise the Party page's create, rename, add, and remove controls.                                                         |
 | Display active campaign context and a clear path back to the library.                                                | Pass   | Browser: sidebar/top bar and library links reflected the selected campaign.                                                                               |
 | Preserve saved data during navigation and warn before discarding unsaved campaign, character, or note drafts.        | Pass   | Browser: canceled navigation retained each draft; refresh and switching retained saved data.                                                              |
 | Keep essential controls accessible at desktop, tablet, and phone widths without overlapping or clipped page content. | Pass   | Browser screenshots and scroll-width checks; the five sheet tabs scroll inside their row and structured spell details reflow without page-level overflow. |

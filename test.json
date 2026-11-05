@@ -1,0 +1,848 @@
+{\
+&#x20; "format": "the-goobers-guide-character",\
+&#x20; "version": 2,\
+&#x20; "character": {\
+&#x20;   "name": "Kael Veylor",\
+&#x20;   "playerName": "",\
+&#x20;   "className": "Fighter",\
+&#x20;   "subclass": "Battle Master",\
+&#x20;   "species": "Human",\
+&#x20;   "level": 11,\
+&#x20;   "background": "Artisan — Blacksmith",\
+&#x20;   "description": "Kael Veylor is a 24-year-old human from Rookhaven, culturally Talarin, and a member of the Veylor Forge family. His parents are Daren and Mira Veylor. He is 5 ft 4 in (approximately 163 cm), Medium-sized, compact, powerfully built, and athletic, with brown skin, dark-brown eyes, short dark facial hair, and a traditional Talarin tattoo extending from his left pectoral over his left shoulder and down his entire left arm. His exact facial features, hair, and tattoo artwork follow his approved visual reference. His mechanical combat harness accommodates two full-sized greatswords. His established character tradition emphasizes the Ancestral Edge, personal craftsmanship, careful weapon maintenance, martial discipline, and exploration. The ancestral sword's personal and family significance does not itself establish magical properties.",\
+&#x20;   "abilityScores": {\
+&#x20;     "strength": {\
+&#x20;       "score": 20,\
+&#x20;       "modifier": 5\
+&#x20;
+            },\
+&#x20;     "dexterity": {\
+&#x20;       "score": 10,\
+&#x20;       "modifier": 0\
+&#x20;
+            },\
+&#x20;     "constitution": {\
+&#x20;       "score": 14,\
+&#x20;       "modifier": 2\
+&#x20;
+            },\
+&#x20;     "intelligence": {\
+&#x20;       "score": 13,\
+&#x20;       "modifier": 1\
+&#x20;
+            },\
+&#x20;     "wisdom": {\
+&#x20;       "score": 15,\
+&#x20;       "modifier": 2\
+&#x20;
+            },\
+&#x20;     "charisma": {\
+&#x20;       "score": 8,\
+&#x20;       "modifier": -1\
+&#x20;
+            }\
+&#x20;
+        },\
+&#x20;   "combat": {\
+&#x20;     "currentHp": 0,\
+&#x20;     "maximumHp": 90,\
+&#x20;     "temporaryHp": 0,\
+&#x20;     "armorClass": 16,\
+&#x20;     "initiativeModifier": 0,\
+&#x20;     "speed": 30,\
+&#x20;     "proficiencyBonus": 4\
+&#x20;
+        },\
+&#x20;   "skills": [\
+&#x20;     {\
+&#x20;       "name": "Acrobatics",\
+&#x20;       "modifier": 0,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Animal Handling",\
+&#x20;       "modifier": 2,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Arcana",\
+&#x20;       "modifier": 5,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Athletics",\
+&#x20;       "modifier": 9,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Deception",\
+&#x20;       "modifier": -1,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "History",\
+&#x20;       "modifier": 1,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Insight",\
+&#x20;       "modifier": 6,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Intimidation",\
+&#x20;       "modifier": -1,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Investigation",\
+&#x20;       "modifier": 5,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Medicine",\
+&#x20;       "modifier": 2,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Nature",\
+&#x20;       "modifier": 5,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Perception",\
+&#x20;       "modifier": 6,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Performance",\
+&#x20;       "modifier": -1,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Persuasion",\
+&#x20;       "modifier": 3,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Religion",\
+&#x20;       "modifier": 5,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Sleight of Hand",\
+&#x20;       "modifier": 0,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Stealth",\
+&#x20;       "modifier": 0,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "name": "Survival",\
+&#x20;       "modifier": 6,\
+&#x20;       "proficient": true\
+&#x20;
+            }\
+&#x20;
+        ],\
+&#x20;   "savingThrows": [\
+&#x20;     {\
+&#x20;       "ability": "strength",\
+&#x20;       "modifier": 9,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "ability": "dexterity",\
+&#x20;       "modifier": 0,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "ability": "constitution",\
+&#x20;       "modifier": 6,\
+&#x20;       "proficient": true\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "ability": "intelligence",\
+&#x20;       "modifier": 1,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "ability": "wisdom",\
+&#x20;       "modifier": 2,\
+&#x20;       "proficient": false\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "ability": "charisma",\
+&#x20;       "modifier": -1,\
+&#x20;       "proficient": false\
+&#x20;
+            }\
+&#x20;
+        ],\
+&#x20;   "attacks": [\
+&#x20;     {\
+&#x20;       "id": "attack-blood",\
+&#x20;       "name": "Blood — Ancestral Edge (RIGHT)",\
+&#x20;       "attackBonus": 9,\
+&#x20;       "damageExpression": "2d6+5 Slashing"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "attack-bleed",\
+&#x20;       "name": "Bleed — Magic Greatsword (LEFT)",\
+&#x20;       "attackBonus": 9,\
+&#x20;       "damageExpression": "2d6+5 Slashing"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "attack-flail",\
+&#x20;       "name": "Flail",\
+&#x20;       "attackBonus": 9,\
+&#x20;       "damageExpression": "1d8+5 Bludgeoning"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "attack-javelin",\
+&#x20;       "name": "Javelin",\
+&#x20;       "attackBonus": 9,\
+&#x20;       "damageExpression": "1d6+5 Piercing"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "attack-stoneford-scimitar",\
+&#x20;       "name": "Stoneford Scimitar (Strength)",\
+&#x20;       "attackBonus": 9,\
+&#x20;       "damageExpression": "1d6+5 Slashing"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "attack-stoneford-scimitar-dex",\
+&#x20;       "name": "Stoneford Scimitar (Dexterity)",\
+&#x20;       "attackBonus": 4,\
+&#x20;       "damageExpression": "1d6+0 Slashing"\
+&#x20;
+            }\
+&#x20;
+        ],\
+&#x20;   "inventory": [\
+&#x20;     {\
+&#x20;       "id": "item-chain-mail",\
+&#x20;       "name": "Chain Mail",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Owned armor. Normal unrestricted baseline AC 16. Imposes Disadvantage on Dexterity (Stealth) checks."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-combat-chassis",\
+&#x20;       "name": "Combat Chassis Prototype II",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Functioning nonmagical bilateral greatblade-gauntlet system, worn in the normal configuration. G1 RIGHT accommodates Blood, while G2 LEFT accommodates Bleed. Allows Kael to wield two full-sized 2d6 greatswords without reducing their damage dice. Compatible with Relentless Assault and Bleed's cascade-maintenance conditions. Grants no independent attack, action, Bonus Action, Reaction, AC, Strength, attack bonus, free energy, or enchantment. Swords normally retract into their respective forearm gauntlets when stowed."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-blood",\
+&#x20;       "name": "Blood — Ancestral Edge",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Kael's original self-forged ancestral full-sized greatsword, fitted to the RIGHT G1 gauntlet. NONMAGICAL. Attack +9, ordinary damage 2d6+5 Slashing. Eligible Attack-action Heavy-weapon hits gain Great Weapon Master's +4 damage. May qualify for Relentless Assault's separate +4 damage. Has Graze mastery. Can maintain Bleed's primed cascade through a successful greatsword hit, but cannot spend Bleed charges, advance powered stages, or deal Bleed Force damage. No +1 enhancement or independent impulse reservoir."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-bleed",\
+&#x20;       "name": "Bleed — Magic Greatsword",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Attuned magical full-sized greatsword fitted to the LEFT G2 gauntlet. NOT a +1 weapon. Attack +9 and ordinary damage 2d6+5 Slashing. Eligible Attack-action Heavy hits gain Great Weapon Master's +4; qualifying alternating hits may gain Relentless Assault's separate +4. Has Graze mastery. Maximum three charges, restored on a qualifying Long Rest; actual current remaining charges are unverified. Kael may voluntarily spend one charge on a successful Bleed hit for an additional powered Force-damage stage: first +1d6 Force, second +2d6 Force, third +3d6 Force and a conditional DC 15 Strength save against displacement. Powered-stage maintenance and reset follow the established cascade rules. Bleed requires attunement, and Kael is currently attuned."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-flail",\
+&#x20;       "name": "Flail",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Ordinary martial weapon, last certified carried. Attack +9, damage 1d8+5 Bludgeoning. Sap weapon mastery."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-javelins",\
+&#x20;       "name": "Javelin",\
+&#x20;       "quantity": 7,\
+&#x20;       "description": "Seven javelins last individually certified. Attack +9, damage 1d6+5 Piercing. Thrown range 30/120 ft. Slow weapon mastery. No unsupported later recount is assumed."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-nets",\
+&#x20;       "name": "Net",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Two ordinary nets. Possession does not grant an automatic extra or free attack."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-stoneford-scimitar",\
+&#x20;       "name": "Stoneford Scimitar",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Ordinary souvenir weapon. Strength-based attack +9, damage 1d6+5 Slashing; Dexterity-based attack +4, damage 1d6+0 Slashing. No selected Scimitar mastery or automatic offhand chassis attack."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-eyes-eagle",\
+&#x20;       "name": "Eyes of the Eagle",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Owned magic item requiring NO attunement. When worn, grants Advantage on Wisdom (Perception) checks relying on sight, increasing passive sight-based Perception from 16 to 21. Also supports clear-visibility long-distance detail observation under the 2024 item rules. Does not grant Darkvision, X-ray vision, or benefits to hearing and smell. Actual current wear state is not independently verified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-cloak-displacement",\
+&#x20;       "name": "Cloak of Displacement",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Owned and attuned magic item. Worn on the anatomical LEFT when dressed. While worn and operative, attacks against Kael have Disadvantage. Taking any damage suppresses the displacement illusion until the start of his next turn. The effect is also suppressed while his Speed is 0. Does not increase AC, grant resistance, or provide invisibility. Actual current wear state and suppression state are scene-dependent."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-wings-flying",\
+&#x20;       "name": "Wings of Flying",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Owned and attuned magic item. Worn on the anatomical RIGHT when dressed. While worn, a Magic action manifests wings, granting a 60-ft Fly Speed for up to one hour. Another Magic action can dismiss them early. After they disappear, they cannot manifest again for 1d12 hours. No concentration, hovering, extra attack, or free Action Surge Magic action. Completion, delivery, previous use, ownership, and attunement are confirmed. Current deployment and cooldown state are not established."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-behir-horn",\
+&#x20;       "name": "Behir Horn",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Special carried property weighing approximately 30 lb. Automatically vibrates when an actual Dragon-type creature is within one mile direct distance, becoming more intense at closer range. Includes qualifying wyverns and Dragon-type creatures in another form. Provides no directional indication, identity, exact distance, creature count, or guaranteed location. Requires no charge, action, attunement, or ability check. Its capability does not prove a Dragon is currently nearby."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-hamund-handbook",\
+&#x20;       "name": "Annotated Hamund's Harvesting Handbook",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Established annotated harvesting and appraisal reference, weighing approximately 5 lb. Consult for applicable specimen, appraisal, and harvesting procedures. Can grant Advantage on a qualifying appraisal check, not automatically on every Harvest check. Appraisal normally takes one minute. Successful appraisal may conditionally assist a later eligible harvest. Does not automatically create an item, guarantee material quality, or bypass harvesting requirements."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-manticore-mantle",\
+&#x20;       "name": "Manticore-Hide Mantle",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Mundane owned mantle. Last certified ordinary loadout identifies it as carried but NOT worn. No magical enhancement is established."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-storeroom-key",\
+&#x20;       "name": "Gilded Pike Storeroom C Key",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Key to Kael's rented locked Storeroom C at the Gilded Pike North Quay Annex in Darsenne. The original rental was 8 gp for 30 days, with a separate refundable 2 gp key deposit. Live rental expiry is not independently certified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-new-rations",\
+&#x20;       "name": "Rations — Newly Purchased",\
+&#x20;       "quantity": 9,\
+&#x20;       "description": "Nine newly purchased ration-days, weighing 18 lb total. Earlier ration stock is separately qualified and its remaining quantity is not recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-smith-tools",\
+&#x20;       "name": "Smith's Tools",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "One physical set established as owned. Kael is proficient. Example modifiers when appropriate: Intelligence +5 or Strength +9, subject to the actual ability and check."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-jeweler-tools",\
+&#x20;       "name": "Jeweler's Tools",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "One physical set established through actual played use. Kael is proficient. Example Intelligence-based modifier +5 when appropriate."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-backpack",\
+&#x20;       "name": "Backpack",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Previously owned adventuring equipment. Exact present packing location and any subsequent changes are not freshly recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-crowbar",\
+&#x20;       "name": "Crowbar",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Previously owned ordinary adventuring equipment. Exact current location and use history are not freshly recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-rope",\
+&#x20;       "name": "Rope",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Previously owned adventuring equipment. Exact current location, length, and any use-related changes are not freshly recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-tinderbox",\
+&#x20;       "name": "Tinderbox",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Previously owned ordinary adventuring equipment; precise present packing location not recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-waterskin",\
+&#x20;       "name": "Waterskin",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Previously owned adventuring equipment. Current contents and location are not recertified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-caltrops",\
+&#x20;       "name": "Caltrops",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Previously owned ordinary caltrops from the original Dungeoneer's Pack. Precise remaining amount is unverified; quantity 0 represents an unspecified count, not confirmed absence."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-travelers-clothes",\
+&#x20;       "name": "Traveler's Clothes",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Earlier established personal clothing. Exact currently remaining number or arrangement is unverified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-pouches",\
+&#x20;       "name": "Pouch",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Two original pouches were historically owned. Current status is subject to subsequent actual use and has not been freshly recounted."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-torches",\
+&#x20;       "name": "Torches",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Originally ten torches were included in the Dungeoneer's Pack. Precise current remainder is unverified. Quantity 0 is an unknown-count placeholder and must not be treated as proof that no torches remain."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-oil-flasks",\
+&#x20;       "name": "Oil Flasks",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Originally two oil flasks were included in the Dungeoneer's Pack. Precise current remaining quantity is unverified; do not restore original stock by assumption."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-victory-bell",\
+&#x20;       "name": "Ordinary Bronze Victory Bell",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Bulky detached mundane bronze bell acquired in CP40. No enchantment, healing effect, or special power established. Physical weight not certified."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-galeb-cores",\
+&#x20;       "name": "Galeb Duhr Cores",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Kael-owned specimen materials weighing 50 lb total. Stored in locked Gilded Pike North Quay Annex Storeroom C in Darsenne. NOT carried. Part of the separately recorded 58 lb Galeb Duhr material subtotal."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-enchanted-pumice",\
+&#x20;       "name": "Enchanted Pumice",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Kael-owned material weighing 4 lb total. Stored in locked Storeroom C in Darsenne, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-motes-earth",\
+&#x20;       "name": "Motes of Earth",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Two Kael-owned Motes of Earth, 4 lb total, each contained in its own occupied enchanted vial. Both stored in locked Storeroom C in Darsenne. Not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-umber-carp",\
+&#x20;       "name": "Umber Hulk Carapace",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Stored Umber Hulk carapace material weighing 70 lb. Exact individual piece count is unspecified. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-umber-mandibles",\
+&#x20;       "name": "Umber Hulk Mandibles",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Stored specimen material weighing 6 lb total. Exact individual piece count unspecified. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-umber-guts",\
+&#x20;       "name": "Umber Hulk Guts",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Stored specimen material weighing 10 lb. Quantity by separate container or piece not specified. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-umber-eyes",\
+&#x20;       "name": "Umber Hulk Eyes",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Two stored eyes weighing 3 lb total. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-behir-sack",\
+&#x20;       "name": "Behir Lightning Sack",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Stored Behir lightning sack weighing 10 lb. Located in locked Storeroom C, not carried. Distinct from the Behir Horn in Kael's carried property."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-hydra-blood",\
+&#x20;       "name": "Hydra Blood",\
+&#x20;       "quantity": 5,\
+&#x20;       "description": "Five vials of Hydra blood stored in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-mound-vines",\
+&#x20;       "name": "Shambling Mound Vines",\
+&#x20;       "quantity": 4,\
+&#x20;       "description": "Four stored Shambling Mound vines. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-mound-mulch",\
+&#x20;       "name": "Shambling Mound Mulch",\
+&#x20;       "quantity": 4,\
+&#x20;       "description": "Four pouches of Shambling Mound mulch. Stored in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-bulette-claws",\
+&#x20;       "name": "Bulette Claws",\
+&#x20;       "quantity": 4,\
+&#x20;       "description": "Four Bulette claws in locked Storeroom C. Earlier shared-title ownership issue remains unresolved. Do not silently treat the complete batch as Kael's exclusive property. Not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-boar-tusks",\
+&#x20;       "name": "Giant Boar Tusks",\
+&#x20;       "quantity": 2,\
+&#x20;       "description": "Two Giant Boar tusks stored in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-hide-section",\
+&#x20;       "name": "Hide Section",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Stored hide section weighing approximately 8 lb. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-owlbear-liver",\
+&#x20;       "name": "Owlbear Liver",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Stored Owlbear liver specimen weighing 6 lb. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-spider-gland",\
+&#x20;       "name": "Giant Spider Silk Gland",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "One stored Giant Spider silk gland. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-ettercap-poison",\
+&#x20;       "name": "Ettercap Poison",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "One stored dose of Ettercap poison. Located in locked Storeroom C, not carried."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-basilisk-teeth",\
+&#x20;       "name": "Old Saffron Basilisk Teeth",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Retained basilisk teeth stored in locked Storeroom C. Exact quantity is not certified; quantity 0 indicates unknown count, not absence."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-owlbear-feathers",\
+&#x20;       "name": "Owlbear Feathers — Beldrin Custody",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Earlier Owlbear feathers weighing approximately 5 lb remain under historical Beldrin Ashlace custody in Ridgegate. Exact piece count unknown. Not in Storeroom C and not carried by Kael."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-owlbear-neck",\
+&#x20;       "name": "Owlbear Neck Material — Beldrin Custody",\
+&#x20;       "quantity": 0,\
+&#x20;       "description": "Earlier Owlbear neck material weighing approximately 10 lb under historical Beldrin Ashlace custody in Ridgegate. Exact piece count unspecified. Not carried and not in Storeroom C."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-removed-g1-blade",\
+&#x20;       "name": "Historic Maker's Removed G1 Blade",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "Earlier removed G1 blade remains Kael-owned but Korga-held under the last certified custody record. Not currently equipped or included in carried combat statistics."\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "item-compact-b01",\
+&#x20;       "name": "Prepaid Compact B-01 Pair",\
+&#x20;       "quantity": 1,\
+&#x20;       "description": "One prepaid compact B-01 pair, Kael-owned but Korga-held under the last certified custody record. Not simultaneously equipped or providing combat benefits."\
+&#x20;
+            }\
+&#x20;
+        ],\
+&#x20;   "currency": {\
+&#x20;     "gp": 198,\
+&#x20;     "sp": 0,\
+&#x20;     "cp": 0\
+&#x20;
+        },\
+&#x20;   "features": [\
+&#x20;     {\
+&#x20;       "id": "feature-relentless-assault",\
+&#x20;       "name": "Relentless Assault",\
+&#x20;       "description": "CURRENT APPROVED HOMEBREW FIGHTING STYLE, replacing Great Weapon Fighting. Prerequisite: Fighting Style feature. While wielding two Greatswords using a compatible combat chassis, when Kael hits a creature with one of those weapons as part of the Attack action on his turn, that attack deals additional nonmagical Slashing damage equal to his Proficiency Bonus (+4) if his immediately preceding attack on that turn was a hit with the OTHER Greatsword made as part of an Attack action. Targets may differ. The benefit can occur multiple times, including across separate Attack actions on the same turn. Movement between attacks does not interrupt a valid chain. A missed attack interrupts it; a Graze result on a miss is not a hit. Attacking again with the same sword does not itself gain the bonus, though that hit can serve as the preceding attack for a subsequent opposite-sword hit. An intervening different attack can change the immediately preceding attack. Hew Bonus Action attacks, Riposte Reaction attacks, and Opportunity Attacks do not trigger or maintain the Attack-action-only chain. The +4 is flat nonmagical Slashing damage and does not double on a critical hit. Example: Blood hit, Bleed hit, Blood hit gives bonuses 0, +4, +4. Six consecutive alternating eligible Attack-action hits using Action Surge can yield five +4 bonuses, totaling +20. Grants no additional attacks, actions, reactions, AC, mobility, speed, magic, charges, or ability score increases. Kael does NOT retain the former Great Weapon Fighting damage-die floor.",\
+&#x20;       "category": "Fighting Style — Homebrew"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-second-wind",\
+&#x20;       "name": "Second Wind",\
+&#x20;       "description": "Fighter 11 normal maximum: 4 uses. As a Bonus Action, expend one available use to restore 1d10+11 Hit Points, up to the maximum HP of 90. Uses recover under the 2024 Fighter rest rules, including one expended use on a qualifying Short Rest and all uses on a qualifying Long Rest. Second Wind also fuels Tactical Mind. The actual remaining count at the current CP40 scene is not certified; four is the maximum, not proof that all uses remain.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-tactical-mind",\
+&#x20;       "name": "Tactical Mind",\
+&#x20;       "description": "After failing an ability check, Kael may expend one available Second Wind use to roll 1d10 and add it to that check. If the adjusted result still fails, the Second Wind use is not expended. Does not automatically apply to attacks or saving throws. Using Second Wind solely through Tactical Mind does not trigger Tactical Shift's Bonus Action movement.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-tactical-shift",\
+&#x20;       "name": "Tactical Shift",\
+&#x20;       "description": "When Kael activates Second Wind as a Bonus Action, he may move up to half his Speed, normally 15 ft, without provoking Opportunity Attacks, within the feature's applicable timing and limitations. Tactical Mind expenditure alone does not generate this movement.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-action-surge",\
+&#x20;       "name": "Action Surge",\
+&#x20;       "description": "Fighter 11 normal maximum: 1 use. On Kael's turn, take one additional action other than the Magic action. If that action is Attack, Extra Attack (2) permits three additional weapon attacks, potentially six across two eligible Attack actions. Recovers under the applicable Fighter rest rules. Actual remaining use at the current scene is unverified; maximum 1 does not establish availability. Does not grant an additional Bonus Action or Reaction.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-extra-attack-2",\
+&#x20;       "name": "Extra Attack (2)",\
+&#x20;       "description": "At Fighter 11, each Attack action Kael takes on his turn can include three attacks. He may independently choose Blood, Bleed, or another legally wielded weapon for each attack. A legal additional Attack action through Action Surge can provide three more attacks. The combat chassis does not add a separate offhand attack or Bonus Action attack.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-indomitable",\
+&#x20;       "name": "Indomitable",\
+&#x20;       "description": "Fighter 11 normal maximum: one use. After failing a saving throw, Kael may legally reroll it, adding +11 to the reroll, equal to his Fighter level, subject to the 2024 feature rules and applicable rest recovery. Current remaining use is not independently certified; do not assume the reference maximum is available.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-tactical-master",\
+&#x20;       "name": "Tactical Master",\
+&#x20;       "description": "On an eligible attack using a weapon whose mastery property Kael can use, he may replace that mastered property with Push, Sap, or Slow for that attack. Only one applicable mastery effect applies per attack. Graze, Push, Sap, and Slow do not stack automatically on a single attack.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-know-your-enemy",\
+&#x20;       "name": "Know Your Enemy",\
+&#x20;       "description": "Battle Master feature. Kael has one FREE Bonus Action use per qualifying Long Rest under his established Fighter 11 implementation. Gain only the combat-information categories actually permitted by the printed feature; the DM reveals no unsupported statistics. The free use requires no Superiority Die. Actual availability at the current scene is not independently certified; one is the normal maximum.",\
+&#x20;       "category": "Battle Master"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-combat-superiority",\
+&#x20;       "name": "Combat Superiority",\
+&#x20;       "description": "Battle Master resource maximum: five Superiority Dice, each a d10 (5d10). Expended dice recover on a qualifying Short or Long Rest. Maneuver save DC 17, calculated as 8 + proficiency bonus 4 + Strength modifier 5. Seven maneuvers are currently known: Tactical Assessment, Precision Attack, Evasive Footwork, Trip Attack, Riposte, Bait and Switch, Distracting Strike. Actual current remaining dice are unverified; the 5d10 is a maximum reference, not a free refresh. Each maneuver must meet its own trigger, action economy, and resource cost. On an eligible critical hit, maneuver dice added to attack damage double under ordinary critical-hit rules. A maneuver die added to an attack roll does not itself deal damage.",\
+&#x20;       "category": "Battle Master"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-tactical-assessment",\
+&#x20;       "name": "Tactical Assessment",\
+&#x20;       "description": "Spend one Superiority Die (d10) to add its result to an eligible Intelligence (History), Intelligence (Investigation), or Wisdom (Insight) check under the maneuver's established timing. Does not provide a general bonus to Arcana, Perception, Nature, or Religion. Uses the shared pool of five maximum Superiority Dice.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-precision-attack",\
+&#x20;       "name": "Precision Attack",\
+&#x20;       "description": "When an eligible attack roll misses, spend one Superiority Die (d10) and add it to the attack roll under the maneuver's timing. If the result converts the miss into a hit, it becomes a normal successful attack and may legally activate applicable on-hit mechanics. The maneuver does not itself create a new attack or add damage.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-evasive-footwork",\
+&#x20;       "name": "Evasive Footwork",\
+&#x20;       "description": "As a Bonus Action, expend one Superiority Die (d10) to take the Disengage action and add the die's result to Armor Class until the start of Kael's next turn, under the established 2024 maneuver. The Bonus Action competes with Second Wind, Great Weapon Master Hew, Know Your Enemy, and other Bonus Action choices.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-trip-attack",\
+&#x20;       "name": "Trip Attack",\
+&#x20;       "description": "When an eligible attack hits, spend one Superiority Die (d10) to add its result to the attack's damage. If the target meets the maneuver's applicable size conditions, it must succeed on a DC 17 Strength saving throw or fall Prone. Follow the legal trigger and timing. The added Superiority Die damage doubles on an applicable critical hit.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-riposte",\
+&#x20;       "name": "Riposte",\
+&#x20;       "description": "When a creature misses Kael with an eligible melee attack, Kael may use his Reaction and spend one Superiority Die (d10) to make a legal weapon attack against that creature. If the counterattack hits, add the die to damage. This is a Reaction attack, not an Attack-action strike; it does not trigger or maintain the Relentless Assault Attack-action chain. It competes with Opportunity Attacks and other Reaction options.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-bait-switch",\
+&#x20;       "name": "Bait and Switch",\
+&#x20;       "description": "Spend one Superiority Die (d10) to perform a legally permitted movement and positioning maneuver involving a willing creature. Apply the maneuver's movement restrictions and AC benefit under its established timing. Another player's character cannot be moved without that player's assent. No free extra attack or additional die is granted.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-distracting-strike",\
+&#x20;       "name": "Distracting Strike",\
+&#x20;       "description": "On a qualifying weapon hit, spend one Superiority Die (d10) and add its result to attack damage. The next qualifying allied attack against that target gains Advantage according to the maneuver's printed conditions and timing. The extra die is eligible for normal critical-hit doubling when applicable.",\
+&#x20;       "category": "Battle Master Maneuver"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-human-resourceful",\
+&#x20;       "name": "Resourceful",\
+&#x20;       "description": "Human species trait. Kael gains Heroic Inspiration when he completes his own qualifying Long Rest. Normally he can hold at most one Heroic Inspiration at a time. Additional legitimate awards may follow applicable rules. The source confirms the normal maximum, not the actual present count.",\
+&#x20;       "category": "Human"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-human-skillful",\
+&#x20;       "name": "Skillful",\
+&#x20;       "description": "Human species trait granting proficiency in Perception. Current Perception modifier +6 and normal Passive Perception 16.",\
+&#x20;       "category": "Human"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-human-versatile",\
+&#x20;       "name": "Versatile",\
+&#x20;       "description": "Human species trait granting an additional origin feat. Kael selected Skilled, which grants Arcana, Nature, and Religion proficiency.",\
+&#x20;       "category": "Human"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-crafter",\
+&#x20;       "name": "Crafter",\
+&#x20;       "description": "Current origin feat from the Artisan background. Grants proficiency with Leatherworker's Tools, Tinker's Tools, and Woodcarver's Tools. Provides a 20% purchasing discount on eligible nonmagical items, subject to the feat's applicable purchasing restrictions. Fast Crafting allows Kael, after a Long Rest, to use an eligible proficient Artisan's Tool to create a listed temporary nonmagical equipment item under the 2024 feat. The crafted item remains valid until the next Long Rest under the feat's conditions. No current Fast-Crafted item is established; do not generate one automatically.",\
+&#x20;       "category": "Origin Feat"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-skilled",\
+&#x20;       "name": "Skilled",\
+&#x20;       "description": "Additional current origin feat granted by Human Versatile. Explicitly selected proficiencies are Arcana, Nature, and Religion. Each currently has a +5 skill modifier.",\
+&#x20;       "category": "Origin Feat"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-great-weapon-master",\
+&#x20;       "name": "Great Weapon Master",\
+&#x20;       "description": "Current 2024 feat. Heavy Weapon Mastery: Eligible hits with a Heavy weapon made as part of the Attack action gain extra damage equal to Kael's Proficiency Bonus, currently +4. For Blood and Bleed, ordinary 2d6+5 Slashing becomes 2d6+9 Slashing on an eligible Attack-action hit before any separately qualifying Relentless Assault or Bleed Force damage. This feat has no legacy -5 to hit/+10 damage option. Hew: After an eligible critical hit with a melee weapon or reducing a creature to 0 HP with a qualifying melee weapon, Kael may make the permitted Bonus Action melee attack under the feat's restrictions. Hew is not an Attack-action attack and cannot trigger or maintain Relentless Assault.",\
+&#x20;       "category": "General Feat"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-weapon-mastery",\
+&#x20;       "name": "Weapon Mastery",\
+&#x20;       "description": "Five currently selected weapon mastery choices: Greatsword — Graze, Flail — Sap, Javelin — Slow, Maul — Topple, Greataxe — Cleave. Blood and Bleed are Greatswords mounted in the functioning chassis. Flail and seven Javelins were last certified carried. Maul and Greataxe mastery choices do not establish ownership or physical possession of either weapon. Tactical Master may replace an eligible weapon's normal mastery with Push, Sap, or Slow for an attack.",\
+&#x20;       "category": "Fighter"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-graze",\
+&#x20;       "name": "Greatsword — Graze",\
+&#x20;       "description": "On an eligible missed attack with a mastered Greatsword, deal Slashing damage equal to Kael's Strength modifier, currently 5, according to the Graze mastery. This is damage from a miss, not an actual hit. Graze does not trigger Relentless Assault, maintain a successful-hit chain, or maintain Bleed's cascade. Tactical Master may legally substitute a different eligible mastery for an attack.",\
+&#x20;       "category": "Weapon Mastery"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-bleed-cascade",\
+&#x20;       "name": "Bleed — Powered Force Cascade",\
+&#x20;       "description": "Established homebrew mechanics for Kael's attuned magical greatsword Bleed. Maximum three charges; replenish on a qualifying Long Rest. Current remaining charges and powered stage are not independently certified by this permanent base sheet. When Kael successfully hits with Bleed, he MAY voluntarily expend one charge to produce the current powered-stage effect. First consecutive powered stage: +1d6 Force damage, then stage 2 is primed. Second: +2d6 Force, then stage 3 is primed. Third: +3d6 Force; if the target is Large or smaller, it must succeed on a DC 15 Strength saving throw or Kael may push it up to 10 ft directly away. The cascade then resets to stage 1. While Kael wears a functioning Combat Chassis Prototype II in its established dual-greatsword configuration, the powered cascade remains primed if he lands at least one hit with either Blood or Bleed on each of his turns. A Blood hit may maintain the stage but cannot spend a charge, deal Force damage, or advance the stage. Missing with one sword does not reset it if the other greatsword hits on that turn. Ending a turn without a successful hit from either greatsword resets the cascade to stage 1. The cascade also resets after the third powered hit or loss or ending of a valid attuned operating state. Only charge-spending Bleed hits advance the powered stage. Normal Bleed hits do not automatically spend charges. The added Force damage dice double on an applicable critical hit, while ordinary flat modifiers do not. Normal legal expenditure within the three-charge maximum does not require an invented automatic wear check. Bleed is magical; Blood is nonmagical.",\
+&#x20;       "category": "Magic Item — Homebrew"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-dual-greatsword-chassis",\
+&#x20;       "name": "Combat Chassis Prototype II — Dual Greatsword Handling",\
+&#x20;       "description": "Approved functioning bilateral nonmagical gauntlet system. G1 RIGHT mounts Blood; G2 LEFT mounts Bleed. Permits wielding both full-sized 2d6 greatswords without reducing their damage dice and supports approved Relentless Assault and Bleed cascade interactions. Kael may choose which legal weapon makes each Attack-action attack. Deployment and retraction are established mechanical handling visuals, not additional attacks. The chassis does not provide an offhand attack, independent attack, additional action, Bonus Action, Reaction, AC, Strength, attack bonus, energy charge, or +1 enchantment. Kael's removed original G1 blade and prepaid compact B-01 pair remain separately Korga-held under the last certified custody record.",\
+&#x20;       "category": "Homebrew Equipment"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-cloak-displacement",\
+&#x20;       "name": "Cloak of Displacement",\
+&#x20;       "description": "Owned magic item requiring attunement; Kael is attuned. When worn and operative, attacks against Kael have Disadvantage. Taking any damage suppresses the illusion until the start of Kael's next turn. The effect is also suppressed while his Speed is 0. Does not increase AC, grant resistance, or produce invisibility. Worn on anatomical LEFT when dressed. Attunement and ownership are confirmed, but actual scene-specific wear and suppression states must be checked before applying benefits.",\
+&#x20;       "category": "Magic Item"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-wings-flying",\
+&#x20;       "name": "Wings of Flying",\
+&#x20;       "description": "Owned and attuned magic item. When worn, Kael may use a Magic action to manifest wings, gaining a 60-ft Fly Speed for up to one hour. He may dismiss the wings early with another Magic action. Once the wings disappear, they cannot manifest again for 1d12 hours. No concentration, hovering, additional attack, or free Action Surge Magic action. Worn on anatomical RIGHT when dressed. Actual active deployment, remaining duration, and cooldown state are not certified by the base sheet.",\
+&#x20;       "category": "Magic Item"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-eyes-eagle",\
+&#x20;       "name": "Eyes of the Eagle",\
+&#x20;       "description": "Owned magic item requiring no attunement. While worn, Kael has Advantage on Wisdom (Perception) checks relying on sight, with passive sight-based Perception increasing from 16 to 21. Also permits special clear-visibility long-distance detail observation under the 2024 item rules. Does not provide Darkvision, vision through walls, or bonuses to hearing or smell. Actual current wear state is unverified.",\
+&#x20;       "category": "Magic Item"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-behir-horn",\
+&#x20;       "name": "Behir Horn — Dragon-Type Detection",\
+&#x20;       "description": "Established current property of Kael's carried Behir Horn. An actual creature of Dragon type within one mile direct distance makes the horn vibrate automatically, with intensity increasing as a qualifying creature gets closer. Includes qualifying wyverns and creatures whose underlying type remains Dragon while appearing in another form. Does not activate solely because a creature of another type looks draconic. Gives no directional cue, creature identity, exact distance, number of Dragons, or guaranteed location. Requires no action, ability check, attunement, or charge. Having this ability does not prove that a qualifying creature is nearby.",\
+&#x20;       "category": "Special Equipment"\
+&#x20;
+            },\
+&#x20;     {\
+&#x20;       "id": "feature-harvesting-handbook",\
+&#x20;       "name": "Annotated Hamund's Harvesting Handbook — Appraisal",\
+&#x20;       "description": "Established specimen appraisal and harvesting reference. Consulting the handbook can grant Advantage on a qualifying appraisal check under its defined requirements; this does not grant unconditional Advantage on every Harvest check. Appraisal normally takes one minute. Successful appraisal may conditionally assist a later legal harvest, subject to actual creature parts, tools, specimen quality, and source-specific requirements. No automatic materials or harvest success are created.",\
+&#x20;       "category": "Special Equipment"\
+&#x20;
+            }\
+&#x20;
+        ],\
+&#x20;   "notes": "SOURCE AND SCOPE: This conversion represents Kael Veylor's permanent, unrestricted Fighter 11 base character sheet from the owner-approved CP40-qualified record. It does NOT represent a temporary scene-specific character profile, suppressed ability set, altered level, reduced maximum HP, or current initiative tracker. The underlying CP40 and some recent checkpoint sources are SOURCE-COVERAGE PARTIAL / EVIDENCE-LIMITED. Actual subsequent gameplay changes take precedence. Creating or importing this record does not create a rest, restore resources, activate equipment, move the character, or advance game time.\n\nCURRENT HP WARNING: Maximum HP is confirmed as 90. The source's 90/90 is explicitly a FULL-HEALTH REFERENCE BASELINE, not certification of the actual HP remaining after CP40 events. Therefore currentHp 0 is an unknown-value placeholder, NOT a claim that Kael is unconscious, dying, or at zero HP. The exact present HP must be obtained from the controlling live scene. Likewise temporaryHp 0 is a placeholder because no present Temporary HP amount is certified, not proof of the current live amount.\n\nHIT DICE: Maximum 11d10 at Fighter 11. Actual remaining or spent Hit Dice are not independently established in this base sheet. Follow the applicable 2024 Long Rest recovery rules. Do not infer that all eleven Hit Dice are available.\n\nNORMAL RESOURCE MAXIMUMS, NOT CURRENT COUNTS: Second Wind maximum 4 uses; Action Surge maximum 1; Superiority Dice maximum 5d10; Indomitable maximum 1; Know Your Enemy free use maximum 1 per Long Rest; Heroic Inspiration normally maximum 1; Bleed maximum 3 charges; attunement capacity 3, all occupied. Actual remaining Second Wind uses, Action Surge, Superiority Dice, Indomitable use, Know Your Enemy use, Heroic Inspiration, Bleed charges, and active cascade stage are NOT certified by this base document. The reference values 4/4, 1/1, 5/5, 1/1, 1/1, and 3/3 are FULLY RESTORED EXAMPLES, not evidence of a completed rest or current availability. Short and Long Rest recharge must follow actual played time and the applicable feature rules. Bleed charges recover on qualifying Long Rests; Superiority Dice recover on Short or Long Rests; Know Your Enemy has one free use per Long Rest; Human Resourceful grants Heroic Inspiration after Kael's own Long Rest.\n\nPASSIVE SCORES: Normal Passive Perception 16; Passive Insight 16; Passive Investigation 15. Passive sight-based Perception is 21 only while Eyes of the Eagle are actually worn and their benefits apply.\n\nSAVING THROWS: Strength +9 proficient; Constitution +6 proficient; Dexterity +0, Intelligence +1, Wisdom +2, and Charisma -1 not proficient.\n\nSKILL PROFICIENCIES: Arcana +5, Athletics +9, Insight +6, Investigation +5, Nature +5, Perception +6, Persuasion +3, Religion +5, Survival +6. No Expertise is established. Human Skillful provides Perception; Human Versatile and Skilled provide Arcana, Nature, Religion; Student of War provides Insight. Other proficiencies come from the established class/background build. Chain Mail imposes Disadvantage on Stealth checks even though Stealth's ordinary modifier remains +0.\n\nWEAPON AND ARMOR PROFICIENCIES: All Simple and Martial weapons. Light, Medium, and Heavy Armor and Shields.\n\nTOOL PROFICIENCIES: Five confirmed: Smith's Tools, Leatherworker's Tools, Tinker's Tools, Woodcarver's Tools, and Jeweler's Tools. Smith's Tools example check modifiers include Intelligence +5 and Strength +9 when applicable; Jeweler's Tools Intelligence +5 when applicable; the other named proficient tools use the relevant ability modifier plus proficiency bonus +4. Mason's Tools proficiency is explicitly NOT established. Smith's Tools and Jeweler's Tools have certified physical sets. The other three Crafter tool proficiencies do NOT automatically create physical equipment.\n\nLANGUAGES: Common, Talarin, Dwarvish.\n\nCARRYING CAPACITY: Kael's normal Medium-creature Strength 20 carrying capacity is 300 lb. Push, drag, or lift capacity is 600 lb under the same general rule unless additional restrictions apply. These are physical capacity limits, not proof that all owned items or stored materials are being carried.\n\nCOMBAT DCs: Battle Master maneuver save DC 17. Normal Strength-based 2024 Unarmed Grapple and Shove save DC 17, subject to legal reach, free-hand, target-size, and saving throw requirements. Grappling or shoving does not automatically deal weapon attack damage.\n\nATTACK ACTION ECONOMY: Three attacks per Attack action at Fighter 11. Action Surge may grant another eligible non-Magic action, potentially producing three additional attacks. Ordinary greatsword damage on hit is 2d6+5 Slashing with +9 attack bonus. For qualifying Attack-action Heavy hits, Great Weapon Master increases this to 2d6+9 Slashing. A separately qualifying Relentless Assault follow-up hit increases it by another +4, giving 2d6+13 Slashing. Bleed may additionally spend a charge for the relevant powered-stage Force damage. None of these situational bonuses is automatically added to every attack. The attack entries record ordinary damage to avoid counting conditional bonuses twice. A normal critical hit doubles applicable damage dice, including greatsword weapon dice, relevant Superiority damage dice, and Bleed Force dice, but not flat Strength, Great Weapon Master, or Relentless Assault modifiers.\n\nRELENTLESS ASSAULT QUALIFICATIONS: The CURRENT Fighting Style is Relentless Assault, an approved campaign homebrew replacement for Great Weapon Fighting. The old Great Weapon Fighting damage-die floor is not active. A successful alternating Blood/Bleed Attack-action sequence can accumulate separate +4 Slashing bonuses only if the immediately preceding attack on the same turn hit with the other greatsword as part of an Attack action. A miss interrupts the sequence; Graze on a miss remains a miss. Same-sword repeated hits do not themselves trigger the bonus, though they can serve as the immediately preceding hit for a later other-sword attack. Hew, Riposte, and Opportunity Attacks do not trigger or maintain the chain. The bonus is nonmagical, flat, and not doubled on critical hits.\n\nBLEED MECHANICS AND ATTUNEMENT: Blood is Kael's NONMAGICAL ancestral greatsword. Bleed is a separate MAGICAL greatsword with maximum three Long Rest-recharging charges, a voluntary charge-spending Force cascade, and an established conditional DC 15 Strength save after the third powered hit against a Large-or-smaller target. Bleed is not a +1 weapon. Blood hits can preserve the powered cascade but do not advance it or deal Force damage. Both require the functioning dual-greatsword chassis configuration for the established cascade-maintenance interaction. No independent chassis attacks, offhand attacks, or energy are created.\n\nATTUNEMENT: All three normal attunement slots are occupied by Bleed, Cloak of Displacement, and Wings of Flying. Eyes of the Eagle does NOT require attunement. The four magic items are owned and physically retained/restored through the CP40 record. Ownership and attunement do not automatically certify that the Cloak is currently worn, Wings are actively deployed, Eyes are currently worn, or any scene-specific item effect is currently functioning. Do not break or change attunement because a temporary event held or suppressed an owned object.\n\nEQUIPMENT WEAR AND ACTIVATION: Chain Mail provides normal AC 16 and Stealth Disadvantage. Cloak of Displacement requires actual wear and operative status for its defensive illusion. Wings of Flying require actual wear and a Magic action for activation, with a 60-ft Fly Speed for up to an hour and a 1d12-hour reactivation delay after disappearance. Eyes of the Eagle require actual wear for sight-related benefits. Their current wear, deployment, suppression, and cooldown states must be confirmed from live play.\n\nSTOREROOM C CUSTODY: Kael has a rented, locked compartment, Storeroom C, at the Gilded Pike North Quay Annex in Darsenne. The original rental payment was 8 gp for a 30-day term with a separate 2 gp refundable key deposit. The current live rental expiration is NOT independently certified. Stored materials are separate from carried encumbrance. Stored Galeb Duhr materials total 58 lb: two cores weighing 50 lb, two pieces of enchanted pumice totaling 4 lb, and two Motes of Earth totaling 4 lb in enchanted vials. Other stored material includes Umber Hulk parts, Behir lightning sack, Hydra blood, Shambling Mound parts, Bulette claws, Giant Boar tusks, hide, Owlbear liver, Giant Spider silk gland, Ettercap poison, and Old Saffron basilisk teeth. The four Bulette claws have a historically unresolved shared-title ownership issue; exclusive Kael ownership must not be assumed. Earlier Owlbear feathers and neck material are under separate historical Beldrin Ashlace custody in Ridgegate. The removed maker's G1 blade and prepaid compact B-01 pair remain separately Korga-held. None of these off-person possessions is automatically in Kael's carried inventory.\n\nHISTORICAL EQUIPMENT COUNTS: Original Dungeoneer's Pack contents were backpack, caltrops, crowbar, two oil flasks, ten ration-days, rope, tinderbox, ten torches, and waterskin. These are historical starting quantities, not a guaranteed current stock. Nine NEW ration-days totaling 18 lb are separately confirmed. The current remainder of previous rations, torches, oil, consumables, and some older gear is not freshly recertified. Inventory quantity 0 for a historically established but uncounted item indicates UNKNOWN current quantity, not confirmed non-possession. Do not silently restore starting consumables or assume omitted mundane possessions were lost.\n\nCURRENCY: Latest owner-approved CP40 personal purse is exactly 198 gp, 0 sp, 0 cp. Previously paid storeroom rental and separately refundable key deposit are historical transactions, not an instruction to subtract those amounts again. No further current debt is certified in this base handoff. Do not invent financial obligations or payments.\n\nABILITIES AND PROGRESSION: Fighter 4 selected Great Weapon Master with Strength increasing to 18 during established progression. Fighter 6 raised Strength by 2 to 20. Fighter 8 increased Wisdom from 13 to 15. Fighter 11 provided the third Attack-action strike and established Relentless Assault as the current Fighting Style. Seven known Battle Master maneuvers are retained. No additional Fighter 11 maneuver, feat, class, or unselected future option should be fabricated.\n\nSPELLCASTING: No spellcasting ability, spells, cantrips, or spell slots are provided by the established Fighter 11 build. Wings of Flying requires a Magic action, but this does not grant spell slots or permit Action Surge to take the Magic action. No spell entries are confirmed.\n\nSOURCE LIMITATIONS: The CP40 source is partly evidence-limited. This character record intentionally excludes temporary stage-specific suppression, unverified current remaining resources, undocumented new powers, a fabricated item-by-item current weight census, uncertain consumable balances, undocumented document custody, and unsupported new equipment. Later actually played events supersede this reference where properly documented. Permanent capabilities are not proof of active scene effects. No time, rest, healing, recovery, equipment movement, purchase, or progression occurs by generating this JSON.",\
+&#x20;   "spells": []\
+&#x20;
+    }\
+}

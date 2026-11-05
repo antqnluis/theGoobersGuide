@@ -91,7 +91,7 @@ DM-specific tools are not required for the initial MVP.
 
 A central location displaying all campaigns available to a user.
 
-Each campaign should maintain independent information, including its title, party name, description, characters, and notes.
+Each campaign should maintain independent information, including its title, description, optional party, characters, and notes. Campaign creation and campaign library entries focus on the name and description; party setup happens after opening the campaign.
 
 Users should be able to switch between campaigns without mixing data from unrelated adventures.
 
@@ -103,7 +103,7 @@ It should provide an overview of the campaign, including:
 
 - Campaign name and description.
 - Current party or group name.
-- Party roster.
+- Gallery of all campaign characters with party membership, portraits, and key combat details.
 - Current location or relevant campaign status, if recorded.
 - Recent campaign notes.
 - Shortcuts to character sheets and gameplay tools.
@@ -112,13 +112,13 @@ The dashboard should prioritize information players frequently need during sessi
 
 ### 5.3 Party Management
 
-A dedicated view showing the characters participating in a campaign.
+A dedicated view for creating or renaming a campaign's single party and choosing which campaign characters belong to it. Characters may remain in My Character without joining the party.
 
 Each member should have a summary displaying information such as their name, class, level, and selected combat statistics.
 
 Selecting a party member opens their character profile.
 
-The party roster should provide a quick understanding of who belongs to the group without requiring users to open individual character sheets.
+The party roster should provide a quick understanding of who belongs to the group without requiring users to open individual character sheets. Only a character's owner can add or remove that character from the party.
 
 ### 5.4 Character Management
 
@@ -177,6 +177,14 @@ A player may participate in several campaigns, each with different characters, p
 
 Switching campaigns should update the application context without carrying unrelated information between campaigns.
 
+### 5.8 Prototype Sign-In & Character Ownership
+
+The local prototype provides two fixed demo sign-ins so players can try the ownership flow. Each character belongs to one campaign and one demo user. A signed-in user may own multiple characters in the same campaign.
+
+All campaign characters remain visible in My Character. The party roster shows only characters assigned to that campaign's party. A character's owner controls whether it belongs to the party and can edit or delete it; other sheets are read-only. Campaigns and notes remain shared between demo users.
+
+This is a client-side demonstration only. It has no real authentication, secure authorization, or data protection; records remain in browser LocalStorage.
+
 ## 6. Primary User Experience
 
 A typical user journey follows this sequence:
@@ -185,11 +193,12 @@ A typical user journey follows this sequence:
 2. View the campaign library.
 3. Select an existing campaign.
 4. Arrive at the campaign dashboard.
-5. Review the current party and campaign information.
-6. Open their character sheet.
-7. Update statistics, resources, or inventory as needed.
-8. Roll dice during gameplay.
-9. Record important information in the campaign journal.
+5. Review campaign information and create a party when ready.
+6. Create or select a character in My Character, then add it to the party if appropriate.
+7. Open their character sheet.
+8. Update statistics, resources, or inventory as needed.
+9. Roll dice during gameplay.
+10. Record important information in the campaign journal.
 
 The application should make this process intuitive and minimize unnecessary navigation.
 
@@ -230,6 +239,7 @@ Players should be able to maintain their own campaign information independently 
 ### Campaign Separation
 
 Characters, party rosters, and notes must remain associated with their respective campaigns.
+Each campaign may have one party; its roster is a subset of that campaign's characters. New characters are not party members until their owner adds them.
 
 ### Modularity
 
@@ -253,17 +263,16 @@ Campaign records should be treated as player-provided information rather than au
 
 The application must not assume access to a Dungeon Master's private files, notes, or ChatGPT project.
 
-In the initial prototype, all information is stored locally without authentication or secure access restrictions.
+In the initial prototype, records are stored locally. Two fixed demo identities and client-side owner checks demonstrate character editing boundaries. They do not provide secure authentication or protect data from anyone with access to the browser or its storage.
 
 A future shared version may support:
 
-- Individual user accounts.
+- Real individual user accounts and authentication.
 - Campaign membership and permissions.
-- Character ownership.
 - Private character inventories or notes.
 - Shared and personal campaign records.
 
-These capabilities require a proper authentication and authorization system and are not part of the initial MVP.
+These capabilities require server-side authentication and authorization and are not part of the local prototype.
 
 ## 10. Long-Term Product Opportunities
 

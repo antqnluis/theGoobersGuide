@@ -6,13 +6,14 @@ import {
 } from './model';
 import {
   isAppData,
-  isCampaign,
   isCampaignNote,
+  recoverCampaign,
   recoverCharacter,
 } from './validation';
+import { DEFAULT_DEMO_USER_ID } from '../../features/auth/demoAuth';
 
 export const APP_STORAGE_KEY = 'the-goobers-guide:data';
-const LEGACY_SCHEMA_VERSIONS = [1, 2] as const;
+const LEGACY_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
 
 export type StorageStatus =
   | { kind: 'ready' }
@@ -25,6 +26,22 @@ export class LocalStorageRepository implements AppRepository {
   private status: StorageStatus = { kind: 'ready' };
   private recoveredRaw: string | null = null;
   private loaded = false;
+
+  private write(key: string, value: string): void {
+    try {
+      this.storage.setItem(key, value);
+    } catch (cause) {
+      if (
+        cause instanceof Error &&
+        (cause.name === 'QuotaExceededError' ||
+          cause.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+      )
+        throw new Error(
+          'Browser storage is full. Remove some saved data or use a smaller portrait, then try again.',
+        );
+      throw cause;
+    }
+  }
 
   constructor(
     private readonly storage: StoragePort,
@@ -75,25 +92,37 @@ export class LocalStorageRepository implements AppRepository {
 
       const migratingLegacySpells = parsedVersion === 1;
       const migratingPreferences = parsedVersion === 2;
+      const migratingCharacterOwners =
+        parsedVersion === 1 || parsedVersion === 2 || parsedVersion === 3;
+      const migratingPartyMembership = parsedVersion !== SCHEMA_VERSION;
 
       // Recover valid records from a damaged current-version payload.
       const record = parsed as Record<string, unknown>;
       const seenCampaigns = new Set<string>();
       const campaigns = Array.isArray(record.campaigns)
-        ? record.campaigns.filter(
-            (value: unknown): value is AppData['campaigns'][number] => {
-              if (!isCampaign(value) || seenCampaigns.has(value.id))
-                return false;
+        ? record.campaigns
+            .map(recoverCampaign)
+            .filter((value): value is AppData['campaigns'][number] => {
+              if (value === null || seenCampaigns.has(value.id)) return false;
               seenCampaigns.add(value.id);
               return true;
-            },
-          )
+            })
         : [];
       const campaignIds = new Set(campaigns.map((campaign) => campaign.id));
       const seenCharacters = new Set<string>();
       const characters = Array.isArray(record.characters)
         ? record.characters
-            .map((value: unknown) => recoverCharacter(value, campaignIds))
+            .map((value: unknown) =>
+              recoverCharacter(
+                migratingCharacterOwners &&
+                  typeof value === 'object' &&
+                  value !== null &&
+                  !Array.isArray(value)
+                  ? { ...value, ownerUserId: DEFAULT_DEMO_USER_ID }
+                  : value,
+                campaignIds,
+              ),
+            )
             .filter((value): value is AppData['characters'][number] => {
               if (value === null || seenCharacters.has(value.id)) return false;
               seenCharacters.add(value.id);
@@ -118,6 +147,22 @@ export class LocalStorageRepository implements AppRepository {
       const characterById = new Map(
         characters.map((character) => [character.id, character]),
       );
+      const campaignsWithMembers = campaigns.map((campaign) => {
+        const partyMemberCharacterIds = migratingPartyMembership
+          ? characters
+              .filter((character) => character.campaignId === campaign.id)
+              .map((character) => character.id)
+          : campaign.partyMemberCharacterIds.filter(
+              (characterId) =>
+                characterById.get(characterId)?.campaignId === campaign.id,
+            );
+        return {
+          ...campaign,
+          partyMemberCharacterIds: campaign.partyName
+            ? partyMemberCharacterIds
+            : [],
+        };
+      });
       const preferenceSource =
         record.preferences &&
         typeof record.preferences === 'object' &&
@@ -143,17 +188,27 @@ export class LocalStorageRepository implements AppRepository {
       }
 
       this.recoveredRaw = stored;
+      const migrationDetails = [
+        migratingLegacySpells
+          ? 'legacy spell text was not carried into the structured spell format'
+          : null,
+        migratingPreferences ? 'character preferences were added' : null,
+        migratingCharacterOwners
+          ? 'character ownership was added and existing characters were assigned to Player One'
+          : null,
+        migratingPartyMembership
+          ? 'party membership was added and existing campaign characters were kept in their party'
+          : null,
+      ].filter((detail): detail is string => detail !== null);
       this.status = {
         kind: 'recovered',
-        message: migratingLegacySpells
-          ? 'Saved data was upgraded. Existing spell text was not carried into the new spell format. The original data will be kept as a browser backup when you next save.'
-          : migratingPreferences
-            ? 'Saved data was upgraded with character preferences. The original data will be kept as a browser backup when you next save.'
-            : 'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
+        message: migrationDetails.length
+          ? `Saved data was upgraded: ${migrationDetails.join('; ')}. The original data will be kept as a browser backup when you next save.`
+          : 'Some saved records could not be loaded. Valid records were recovered. The original data will be kept as a browser backup when you next save.',
       };
       return {
         schemaVersion: SCHEMA_VERSION,
-        campaigns,
+        campaigns: campaignsWithMembers,
         characters,
         notes,
         preferences: { selectedCharacterByCampaign },
@@ -178,22 +233,27 @@ export class LocalStorageRepository implements AppRepository {
       throw new TypeError('Cannot save invalid application data');
     }
     if (this.recoveredRaw !== null) {
+      const upgradeMessage =
+        this.status.kind === 'recovered' ? this.status.message : null;
       const upgradedLegacyData =
-        this.status.kind === 'recovered' &&
-        this.status.message.startsWith('Saved data was upgraded.');
-      this.storage.setItem(
+        upgradeMessage?.startsWith('Saved data was upgraded') ?? false;
+      this.write(
         `${this.key}:recovery:${crypto.randomUUID()}`,
         this.recoveredRaw,
       );
       this.recoveredRaw = null;
       this.status = {
         kind: 'recovered',
-        message: upgradedLegacyData
-          ? 'Saved data was upgraded. The original data is preserved as a browser backup.'
-          : 'Some saved records could not be loaded. The original data is preserved as a browser backup.',
+        message:
+          upgradedLegacyData && upgradeMessage
+            ? upgradeMessage.replace(
+                'The original data will be kept as a browser backup when you next save.',
+                'The original data is preserved as a browser backup.',
+              )
+            : 'Some saved records could not be loaded. The original data is preserved as a browser backup.',
       };
     }
-    this.storage.setItem(this.key, JSON.stringify(data));
+    this.write(this.key, JSON.stringify(data));
   }
 }
 

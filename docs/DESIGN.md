@@ -1,6 +1,6 @@
 # The Goober's Guide: interface direction
 
-This is the proposed visual and interaction system for the local MVP. [PRODUCT.md](PRODUCT.md) and [MVP_SCOPE.md](MVP_SCOPE.md) remain authoritative for product behavior and scope. Campaign, character, and note management use saved local records. Dice rolls and recent history are kept in the current page session.
+This is the proposed visual and interaction system for the local MVP. [PRODUCT.md](PRODUCT.md) and [MVP_SCOPE.md](MVP_SCOPE.md) remain authoritative for product behavior and scope. Campaign, character, and note management use saved local records. The two fixed demo sign-ins use a tab session and do not secure stored data. Dice rolls and recent history are kept in the current page session.
 
 ## Design idea
 
@@ -55,6 +55,8 @@ Mobile
 
 The campaign library is always reachable from the index. Within a selected campaign, the index shows overview, party, My Character, and campaign notes. My Character remembers one selected character per campaign and returns to it after navigation or refresh. Show the active campaign name in both the index and top bar so context is never ambiguous. The mobile menu overlays the page and closes after a destination is selected. The dice roller opens in a side dialog from any page and returns the player to the same view when closed. Use the same names for destinations and page headings.
 
+Unauthenticated visits open a focused sign-in sheet on a forest background. The form uses the existing paper surface, display type, and focus treatment. The top bar shows the current demo player and a sign-out action. The screen states that demo sign-in does not secure browser data.
+
 The application opens at the campaign library. Campaign-aware hash links carry the selected campaign ID across views and browser refreshes. Character links also carry the character ID.
 
 ## Character sheet
@@ -84,13 +86,13 @@ Combat values stay above the tabs because they are frequently consulted. The HP 
 - **Notes:** background, character description, and personal notes.
 - **Spells:** full-width level groups with compact expandable rows for casting details, states, and user-entered descriptions. Edit mode uses labeled fields rather than a raw text area.
 
-All gameplay values remain manually adjustable, including skills, saves, attack bonuses, and ability modifiers. The design does not assume a rules engine. Character records remain attached to one campaign; there is no character privacy or ownership control in this MVP.
+All gameplay values remain manually adjustable, including skills, saves, attack bonuses, and ability modifiers. The design does not assume a rules engine. Character records remain attached to one campaign and one demo owner. Owners can add a local portrait in edit mode; it appears on the sheet and campaign gallery and is excluded from portable exports. All sheets remain visible; sheets owned by another demo player show a read-only status and do not expose editing, quick HP, or delete controls.
 
 ## Other core views
 
-- **Campaign library:** one row per saved campaign with name, party, and optional location/status. The whole row opens the campaign. Creation, editing, and confirmed deletion are available alongside each row.
-- **Campaign overview:** a short title and description, a narrow summary line for party and location, then party members and recent notes. It should direct players to their sheet in one step.
-- **Party:** compact, read-only character rows with class, level, HP, and AC where available. Selecting a row opens that character in My Character. Creation, import, editing, exporting, and deletion remain in My Character.
+- **Campaign library:** one row per saved campaign with only its name and description. The whole row opens the campaign. Creation, editing, and confirmed deletion are available alongside each row.
+- **Campaign overview:** a short title and description, a campaign summary for party, location, and status, then a responsive gallery of every campaign character and recent notes. Character portraits, identity, ownership, party membership, HP, and AC are visible at a glance; selecting a portrait card opens its sheet. Location and status are editable here; party setup and renaming stay on the Party page.
+- **Party:** create or rename one party, review assigned members, and add or remove characters owned by the current demo player. Selecting a row opens that character in My Character. Character creation, import, editing, exporting, and deletion remain in My Character; only the owner can edit/delete sheets and party membership.
 - **Campaign notes:** a readable list of titles, categories, and excerpts, scoped to the active campaign. Full note editing follows the MVP scope.
 - **Dice roller:** a persistent top-bar entry opens a focused side panel with standard dice, count, modifier, individual results, total, and recent history.
 

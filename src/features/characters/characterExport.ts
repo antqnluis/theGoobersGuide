@@ -6,7 +6,12 @@ import { abilityNames, type Character } from './model';
 
 export type PortableCharacter = Omit<
   Character,
-  'id' | 'campaignId' | 'createdAt' | 'updatedAt'
+  | 'id'
+  | 'campaignId'
+  | 'ownerUserId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'portraitDataUrl'
 >;
 
 export interface CharacterExportDocument {
@@ -64,11 +69,21 @@ function slug(name: string): string {
 export function characterExportDocument(
   character: Character,
 ): CharacterExportDocument {
-  const { id, campaignId, createdAt, updatedAt, ...portable } = character;
+  const {
+    id,
+    campaignId,
+    ownerUserId,
+    createdAt,
+    updatedAt,
+    portraitDataUrl,
+    ...portable
+  } = character;
   void id;
   void campaignId;
+  void ownerUserId;
   void createdAt;
   void updatedAt;
+  void portraitDataUrl;
   return {
     format: CHARACTER_IMPORT_FORMAT,
     version: CHARACTER_IMPORT_VERSION,

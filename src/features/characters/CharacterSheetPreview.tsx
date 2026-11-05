@@ -1,4 +1,10 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from 'react';
 import type { Campaign } from '../campaigns/model';
 import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import { abilityModifier } from './characterService';
@@ -11,6 +17,7 @@ import {
 } from './model';
 import type { CharacterExportFormat } from './characterExport';
 import CharacterFeatures from './CharacterFeatures';
+import { processCharacterPortrait } from './characterPortrait';
 
 type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
 
@@ -84,6 +91,8 @@ export default function CharacterSheetPreview({
   creating = false,
   onSave,
   onDelete,
+  readOnly = false,
+  ownerName,
   error,
   feedback,
   importSource,
@@ -93,8 +102,10 @@ export default function CharacterSheetPreview({
   campaign: Campaign;
   character: Character;
   creating?: boolean;
-  onSave: (character: Character) => boolean;
+  onSave?: (character: Character) => boolean;
   onDelete?: (character: Character) => void;
+  readOnly?: boolean;
+  ownerName?: string;
   error: string | null;
   feedback: string | null;
   importSource?: string;
@@ -109,6 +120,8 @@ export default function CharacterSheetPreview({
     String(initial.combat.temporaryHp),
   );
   const [quickError, setQuickError] = useState<string | null>(null);
+  const [portraitError, setPortraitError] = useState<string | null>(null);
+  const portraitInput = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
   const dirty =
@@ -130,6 +143,23 @@ export default function CharacterSheetPreview({
 
   function updateField(key: keyof Character, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  async function updatePortrait(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    try {
+      const portraitDataUrl = await processCharacterPortrait(file);
+      setDraft((current) => ({ ...current, portraitDataUrl }));
+      setPortraitError(null);
+    } catch (cause) {
+      setPortraitError(
+        cause instanceof Error
+          ? cause.message
+          : 'The portrait could not be saved.',
+      );
+    }
   }
 
   function updateCombat(key: keyof CombatStats, value: number) {
@@ -184,7 +214,7 @@ export default function CharacterSheetPreview({
 
   function savePreview() {
     allowNavigation.current = true;
-    if (!onSave(draft)) {
+    if (!onSave || !onSave(draft)) {
       allowNavigation.current = false;
       return;
     }
@@ -194,6 +224,7 @@ export default function CharacterSheetPreview({
   }
 
   function saveQuick(key: 'currentHp' | 'temporaryHp', raw: string) {
+    if (!onSave) return;
     const value = Number(raw);
     if (raw.trim() === '' || !Number.isInteger(value) || value < 0) {
       setQuickError('Enter a nonnegative whole number for hit points.');
@@ -316,6 +347,60 @@ export default function CharacterSheetPreview({
             <p className="character-description">{character.description}</p>
           )}
         </div>
+        <div className="sheet-portrait-column">
+          {character.portraitDataUrl ? (
+            <img
+              className="sheet-portrait"
+              src={character.portraitDataUrl}
+              alt={`${character.name || 'Character'} portrait`}
+            />
+          ) : (
+            <span className="sheet-portrait-fallback" aria-hidden="true">
+              {character.name.trim().charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
+          {editing && (
+            <div className="portrait-controls">
+              <input
+                ref={portraitInput}
+                className="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="Upload character portrait"
+                onChange={updatePortrait}
+              />
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => portraitInput.current?.click()}
+              >
+                {character.portraitDataUrl
+                  ? 'Replace portrait'
+                  : 'Add portrait'}
+              </button>
+              {character.portraitDataUrl && (
+                <button
+                  type="button"
+                  className="portrait-remove"
+                  onClick={() => {
+                    setDraft((current) => ({
+                      ...current,
+                      portraitDataUrl: undefined,
+                    }));
+                    setPortraitError(null);
+                  }}
+                >
+                  Remove portrait
+                </button>
+              )}
+              {portraitError && (
+                <span className="form-error" role="alert">
+                  {portraitError}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         <div className="sheet-header-actions">
           {!editing && (
             <div className="sheet-secondary-actions">
@@ -369,6 +454,10 @@ export default function CharacterSheetPreview({
                     : 'Save changes'}
               </button>
             </div>
+          ) : readOnly ? (
+            <p className="read-only-notice">
+              Read-only for you{ownerName ? ` · ${ownerName}'s character` : ''}
+            </p>
           ) : (
             <button
               type="button"
@@ -385,6 +474,9 @@ export default function CharacterSheetPreview({
         {error ||
           quickError ||
           feedback ||
+          (readOnly
+            ? `Only ${ownerName ?? 'the owner'} can change this character.`
+            : null) ||
           (editing
             ? importSource
               ? 'Imported values remain editable until you add this character.'
@@ -417,6 +509,12 @@ export default function CharacterSheetPreview({
                     className="hp-input"
                   />
                 </label>
+              </>
+            ) : readOnly ? (
+              <>
+                <strong>{character.combat.currentHp}</strong>
+                <span className="hp-divider">/</span>
+                <span>{character.combat.maximumHp}</span>
               </>
             ) : (
               <>
@@ -453,6 +551,8 @@ export default function CharacterSheetPreview({
                 onChange={(value) => updateCombat('temporaryHp', value)}
                 className="inline-number"
               />
+            ) : readOnly ? (
+              <strong>{character.combat.temporaryHp}</strong>
             ) : (
               <input
                 className="field-input field-input-number inline-number"

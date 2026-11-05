@@ -110,6 +110,7 @@ describe('character JSON import', () => {
     expect(imported).toMatchObject({
       id: 'new-1',
       campaignId: 'active-campaign',
+      ownerUserId: 'player-one',
       name: 'Arlen Vale',
       attacks: [{ id: 'new-2', name: 'Longbow' }],
       inventory: [{ id: 'new-3', name: 'Rope' }],
@@ -118,6 +119,26 @@ describe('character JSON import', () => {
       createdAt: '2026-11-04T00:00:00.000Z',
       updatedAt: '2026-11-04T00:00:00.000Z',
     });
+    expect(imported).not.toHaveProperty('partyMemberCharacterIds');
+  });
+
+  it('assigns the importing demo user instead of trusting imported ownership', () => {
+    const imported = parseCharacterImport(
+      characterDocument({ ownerUserId: 'player-one' }),
+      'active-campaign',
+      { ownerUserId: 'player-two' },
+    );
+
+    expect(imported.ownerUserId).toBe('player-two');
+  });
+
+  it('drops portraits supplied by an import document', () => {
+    const imported = parseCharacterImport(
+      characterDocument({ portraitDataUrl: 'data:image/jpeg;base64,YWJj' }),
+      'campaign-1',
+    );
+
+    expect(imported).not.toHaveProperty('portraitDataUrl');
   });
 
   it('rejects malformed JSON and non-character documents', () => {

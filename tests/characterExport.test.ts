@@ -95,8 +95,22 @@ describe('character export', () => {
     });
     expect(document.character).not.toHaveProperty('id');
     expect(document.character).not.toHaveProperty('campaignId');
+    expect(document.character).not.toHaveProperty('ownerUserId');
     expect(document.character).not.toHaveProperty('createdAt');
     expect(document.character).not.toHaveProperty('updatedAt');
+    expect(document.character).not.toHaveProperty('portraitDataUrl');
+  });
+
+  it('does not include local portraits in either export format', () => {
+    const character = {
+      ...completeCharacter(),
+      portraitDataUrl: 'data:image/jpeg;base64,YWJj',
+    };
+
+    expect(characterExportDocument(character).character).not.toHaveProperty(
+      'portraitDataUrl',
+    );
+    expect(characterToMarkdown(character)).not.toContain('data:image/jpeg');
   });
 
   it('round trips JSON through import while regenerating owned IDs and campaign data', () => {
@@ -112,6 +126,7 @@ describe('character export', () => {
     expect(imported).toMatchObject({
       id: 'new-1',
       campaignId: 'campaign-2',
+      ownerUserId: 'player-one',
       name: 'Éowyn / Shield?',
       attacks: [{ id: 'new-2', name: 'Longsword' }],
       inventory: [{ id: 'new-3', name: 'Rope' }],

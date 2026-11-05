@@ -5,10 +5,7 @@ import type { CampaignDetails } from './campaignService';
 
 const blank: CampaignDetails = {
   name: '',
-  partyName: '',
   description: '',
-  currentLocation: '',
-  status: '',
 };
 
 interface Props {
@@ -42,10 +39,7 @@ export default function CampaignLibrary({
     const values = campaign
       ? {
           name: campaign.name,
-          partyName: campaign.partyName,
           description: campaign.description ?? '',
-          currentLocation: campaign.currentLocation ?? '',
-          status: campaign.status ?? '',
         }
       : { ...blank };
     setOriginal(values);
@@ -56,8 +50,8 @@ export default function CampaignLibrary({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft) return;
-    if (!draft.name.trim() || !draft.partyName.trim()) {
-      setFormError('Enter a campaign name and party name.');
+    if (!draft.name.trim()) {
+      setFormError('Enter a campaign name.');
       return;
     }
     const saved = editingId ? onUpdate(editingId, draft) : onCreate(draft);
@@ -120,16 +114,6 @@ export default function CampaignLibrary({
                 autoFocus
               />
             </label>
-            <label>
-              Party name <span>Required</span>
-              <input
-                className="field-input"
-                value={draft.partyName}
-                onChange={(event) => field('partyName', event.target.value)}
-                required
-                maxLength={120}
-              />
-            </label>
             <label className="campaign-field-wide">
               Description
               <textarea
@@ -137,26 +121,6 @@ export default function CampaignLibrary({
                 value={draft.description ?? ''}
                 onChange={(event) => field('description', event.target.value)}
                 rows={3}
-              />
-            </label>
-            <label>
-              Current location
-              <input
-                className="field-input"
-                value={draft.currentLocation ?? ''}
-                onChange={(event) =>
-                  field('currentLocation', event.target.value)
-                }
-                maxLength={160}
-              />
-            </label>
-            <label>
-              Status
-              <input
-                className="field-input"
-                value={draft.status ?? ''}
-                onChange={(event) => field('status', event.target.value)}
-                maxLength={120}
               />
             </label>
           </div>
@@ -206,17 +170,9 @@ export default function CampaignLibrary({
                   {campaign.name.charAt(0).toUpperCase()}
                 </span>
                 <span className="campaign-entry-copy">
-                  {campaign.status && (
-                    <span className="entry-status">{campaign.status}</span>
-                  )}
                   <strong>{campaign.name}</strong>
-                  <span>{campaign.partyName}</span>
+                  <span>{campaign.description || 'No description added.'}</span>
                 </span>
-                {campaign.currentLocation && (
-                  <span className="campaign-entry-location">
-                    {campaign.currentLocation}
-                  </span>
-                )}
                 <span className="entry-chevron" aria-hidden="true">
                   ›
                 </span>

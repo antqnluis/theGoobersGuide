@@ -1,11 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react';
 import type { Campaign } from '../campaigns/model';
+import { demoUserById, type DemoUserId } from '../auth/demoAuth';
 import { CHARACTER_CONVERSION_PROMPT } from './characterConversionPrompt';
 import type { Character } from './model';
 
 export default function CharacterWorkspace({
   campaign,
   characters,
+  viewerUserId,
   selectedCharacterId,
   onImportFile,
   onImportText,
@@ -14,6 +16,7 @@ export default function CharacterWorkspace({
 }: {
   campaign: Campaign;
   characters: Character[];
+  viewerUserId: DemoUserId;
   selectedCharacterId: string | null;
   onImportFile: (file: File) => Promise<boolean>;
   onImportText: (source: string) => boolean;
@@ -44,8 +47,8 @@ export default function CharacterWorkspace({
           <p className="page-context">{campaign.name}</p>
           <h1>My Character</h1>
           <p>
-            Keep one character ready for play, or switch between this
-            campaign&apos;s saved characters.
+            Create multiple characters for this campaign. You can edit your own;
+            other players&apos; sheets are read-only.
           </p>
         </div>
         <label className="character-switcher">
@@ -66,6 +69,9 @@ export default function CharacterWorkspace({
             {characters.map((character) => (
               <option key={character.id} value={character.id}>
                 {character.name}
+                {character.ownerUserId === viewerUserId
+                  ? ' (yours)'
+                  : ` (${demoUserById(character.ownerUserId)?.displayName ?? 'Another player'} · read-only)`}
               </option>
             ))}
           </select>

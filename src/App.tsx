@@ -4,10 +4,17 @@ import CampaignOverview from './features/campaigns/CampaignOverview';
 import {
   createCampaign,
   deleteCampaign,
+  updateCampaignContext,
   updateCampaign,
+  type CampaignContextDetails,
   type CampaignDetails,
 } from './features/campaigns/campaignService';
 import type { Campaign } from './features/campaigns/model';
+import {
+  addPartyMember,
+  removePartyMember,
+  savePartyName as savePartyNameService,
+} from './features/campaigns/partyService';
 import {
   deleteCharacter,
   newCharacter,
@@ -22,7 +29,7 @@ import {
 import type { Character } from './features/characters/model';
 import CharacterSheetPreview from './features/characters/CharacterSheetPreview';
 import CharacterWorkspace from './features/characters/CharacterWorkspace';
-import PartyReadOnly from './features/characters/PartyReadOnly';
+import PartyWorkspace from './features/characters/PartyWorkspace';
 import {
   createCharacterExport,
   type CharacterExportFormat,
@@ -35,11 +42,20 @@ import {
   type NoteDetails,
 } from './features/notes/noteService';
 import type { CampaignNote } from './features/notes/model';
+import LoginScreen from './features/auth/LoginScreen';
+import {
+  clearDemoSession,
+  demoUserById,
+  readDemoSession,
+  writeDemoSession,
+  type DemoUser,
+} from './features/auth/demoAuth';
 import { browserLocalStorageRepository } from './shared/persistence/localStorageRepository';
 import type { AppData } from './shared/persistence/model';
 import { NavigationGuardContext } from './shared/ui/useUnsavedChanges';
 
-type Route = 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
+type Route =
+  'login' | 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
 type Location = {
   route: Route;
   campaignId: string | null;
@@ -58,6 +74,8 @@ function currentLocation(): Location {
   const [route, campaignId, characterId] = window.location.hash
     .replace(/^#\/?/, '')
     .split('/');
+  if (route === 'login')
+    return { route: 'login', campaignId: null, characterId: null };
   if (
     route !== 'campaign' &&
     route !== 'party' &&
@@ -77,6 +95,10 @@ export default function App() {
   const repository = useMemo(browserLocalStorageRepository, []);
   const [data, setData] = useState<AppData>(() => repository.load());
   const [location, setLocation] = useState<Location>(currentLocation);
+  const [sessionUser, setSessionUser] = useState<DemoUser | null>(
+    readDemoSession,
+  );
+  const [authError, setAuthError] = useState<string | null>(null);
   const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -110,7 +132,7 @@ export default function App() {
     ? data.notes.filter((note) => note.campaignId === activeCampaign.id)
     : [];
   const preferredCharacterId = activeCampaign
-    ? selectedCharacterId(data, activeCampaign.id)
+    ? selectedCharacterId(data, activeCampaign.id, sessionUser?.id)
     : null;
 
   useEffect(() => {
@@ -134,6 +156,13 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (!sessionUser && location.route !== 'login')
+      window.location.hash = '#/login';
+    else if (sessionUser && location.route === 'login')
+      window.location.hash = '#/campaigns';
+  }, [location.route, sessionUser]);
 
   useEffect(() => {
     if (
@@ -197,6 +226,85 @@ export default function App() {
     }
   }
 
+  function saveCampaignContext(
+    id: string,
+    details: CampaignContextDetails,
+  ): boolean {
+    try {
+      setData(updateCampaignContext(repository, data, id, details));
+      setFeedback('Saved campaign details.');
+      setError(null);
+      return true;
+    } catch {
+      setError(
+        'Campaign details could not be saved. Check browser storage and try again.',
+      );
+      return false;
+    }
+  }
+
+  function savePartyName(campaignId: string, name: string): boolean {
+    try {
+      const hadParty = Boolean(
+        data.campaigns.find((campaign) => campaign.id === campaignId)
+          ?.partyName,
+      );
+      setData(savePartyNameService(repository, data, campaignId, name));
+      setFeedback(hadParty ? 'Saved the party name.' : 'Created the party.');
+      setError(null);
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Party could not be saved.',
+      );
+      return false;
+    }
+  }
+
+  function changePartyMembership(
+    campaignId: string,
+    characterId: string,
+    add: boolean,
+  ): boolean {
+    if (!sessionUser) return false;
+    try {
+      const character = data.characters.find(
+        (item) => item.id === characterId && item.campaignId === campaignId,
+      );
+      if (!character) throw new Error('Character not found in this campaign.');
+      const next = add
+        ? addPartyMember(
+            repository,
+            data,
+            campaignId,
+            characterId,
+            sessionUser.id,
+          )
+        : removePartyMember(
+            repository,
+            data,
+            campaignId,
+            characterId,
+            sessionUser.id,
+          );
+      setData(next);
+      setFeedback(
+        add
+          ? `Added ${character.name} to the party.`
+          : `Removed ${character.name} from the party.`,
+      );
+      setError(null);
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Party membership could not be changed.',
+      );
+      return false;
+    }
+  }
+
   function confirmDelete(campaign: Campaign) {
     if (
       !window.confirm(
@@ -225,9 +333,40 @@ export default function App() {
       ?.focus();
   }
 
+  function signIn(user: DemoUser) {
+    if (!writeDemoSession(user.id)) {
+      setAuthError(
+        'Browser session storage is unavailable. Sign-in cannot be retained.',
+      );
+      return;
+    }
+    setAuthError(null);
+    setSessionUser(user);
+    setError(null);
+    setFeedback(null);
+    window.location.hash = '#/campaigns';
+  }
+
+  function signOut() {
+    if (navigationGuard.current && !navigationGuard.current()) return;
+    const cleared = clearDemoSession();
+    setAuthError(
+      cleared
+        ? null
+        : 'The browser could not clear the demo session. Close this tab to end it.',
+    );
+    setSessionUser(null);
+    setCharacterImport(null);
+    setError(null);
+    setFeedback(null);
+    setMenuOpen(false);
+    window.location.hash = '#/login';
+  }
+
   function saveSheet(character: Character): boolean {
+    if (!sessionUser) return false;
     try {
-      let next = saveCharacter(repository, data, character);
+      let next = saveCharacter(repository, data, character, sessionUser.id);
       const importing = location.characterId === 'import';
       const creating = location.characterId === 'new';
       if (creating || importing)
@@ -270,7 +409,10 @@ export default function App() {
       return false;
     }
     try {
-      const character = parseCharacterImport(source, campaignId);
+      if (!sessionUser) return false;
+      const character = parseCharacterImport(source, campaignId, {
+        ownerUserId: sessionUser.id,
+      });
       setCharacterImport({ campaignId, character, sourceLabel });
       window.location.hash = `#/characters/${campaignId}/import`;
       return true;
@@ -326,6 +468,7 @@ export default function App() {
   }
 
   function confirmCharacterDelete(character: Character) {
+    if (!sessionUser) return;
     if (!window.confirm(`Delete “${character.name}”? This cannot be undone.`))
       return;
     try {
@@ -334,8 +477,13 @@ export default function App() {
         data,
         character.campaignId,
         character.id,
+        sessionUser.id,
       );
-      const fallback = selectedCharacterId(next, character.campaignId);
+      const fallback = selectedCharacterId(
+        next,
+        character.campaignId,
+        sessionUser.id,
+      );
       if (fallback)
         next = selectCharacter(
           repository,
@@ -390,6 +538,13 @@ export default function App() {
     }
   }
 
+  if (!sessionUser)
+    return (
+      <NavigationGuardContext.Provider value={registerGuard}>
+        <LoginScreen onSignIn={signIn} storageError={authError} />
+      </NavigationGuardContext.Provider>
+    );
+
   return (
     <NavigationGuardContext.Provider value={registerGuard}>
       <div className="app-shell">
@@ -421,7 +576,7 @@ export default function App() {
               <>
                 <span>Current campaign</span>
                 <strong>{activeCampaign.name}</strong>
-                <small>{activeCampaign.partyName}</small>
+                <small>{activeCampaign.partyName ?? 'No party created'}</small>
               </>
             ) : (
               <>
@@ -476,14 +631,24 @@ export default function App() {
                 {activeCampaign ? activeCampaign.name : 'Campaign library'}
               </span>
             </div>
-            <button
-              type="button"
-              className="dice-trigger"
-              ref={diceTrigger}
-              onClick={openDice}
-            >
-              <span aria-hidden="true">d20</span> Dice roller
-            </button>
+            <div className="topbar-actions">
+              <span className="account-name">{sessionUser.displayName}</span>
+              <button
+                type="button"
+                className="account-logout"
+                onClick={signOut}
+              >
+                Sign out
+              </button>
+              <button
+                type="button"
+                className="dice-trigger"
+                ref={diceTrigger}
+                onClick={openDice}
+              >
+                <span aria-hidden="true">d20</span> Dice roller
+              </button>
+            </div>
           </header>
           <main className="workspace-main">
             {storageStatus.kind !== 'ready' && (
@@ -506,12 +671,31 @@ export default function App() {
                 campaign={activeCampaign}
                 characters={characters}
                 notes={notes}
+                viewerUserId={sessionUser.id}
+                onUpdateContext={(details) =>
+                  saveCampaignContext(activeCampaign.id, details)
+                }
+                error={error}
+                feedback={feedback}
               />
             )}
             {activeCampaign && route === 'party' && (
-              <PartyReadOnly
+              <PartyWorkspace
+                key={activeCampaign.id}
                 campaign={activeCampaign}
                 characters={characters}
+                viewerUserId={sessionUser.id}
+                onSavePartyName={(name) =>
+                  savePartyName(activeCampaign.id, name)
+                }
+                onAddMember={(characterId) =>
+                  changePartyMembership(activeCampaign.id, characterId, true)
+                }
+                onRemoveMember={(characterId) =>
+                  changePartyMembership(activeCampaign.id, characterId, false)
+                }
+                error={error}
+                feedback={feedback}
               />
             )}
             {activeCampaign && route === 'characters' && (
@@ -519,6 +703,7 @@ export default function App() {
                 key={activeCampaign.id}
                 campaign={activeCampaign}
                 characters={characters}
+                viewerUserId={sessionUser.id}
                 selectedCharacterId={
                   location.characterId &&
                   characters.some(
@@ -539,7 +724,7 @@ export default function App() {
                   <CharacterSheetPreview
                     key={`${activeCampaign.id}-new`}
                     campaign={activeCampaign}
-                    character={newCharacter(activeCampaign.id)}
+                    character={newCharacter(activeCampaign.id, sessionUser.id)}
                     creating
                     onCancel={() => {
                       window.location.hash = `#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`;
@@ -570,20 +755,30 @@ export default function App() {
                       character.id ===
                       (location.characterId ?? preferredCharacterId),
                   ) ? (
-                  <CharacterSheetPreview
-                    key={location.characterId ?? preferredCharacterId}
-                    campaign={activeCampaign}
-                    character={characters.find(
-                      (character) =>
-                        character.id ===
+                  (() => {
+                    const character = characters.find(
+                      (candidate) =>
+                        candidate.id ===
                         (location.characterId ?? preferredCharacterId),
-                    )!}
-                    onSave={saveSheet}
-                    onDelete={confirmCharacterDelete}
-                    onExport={exportCharacter}
-                    error={error}
-                    feedback={feedback}
-                  />
+                    )!;
+                    const isOwner = character.ownerUserId === sessionUser.id;
+                    return (
+                      <CharacterSheetPreview
+                        key={character.id}
+                        campaign={activeCampaign}
+                        character={character}
+                        readOnly={!isOwner}
+                        ownerName={
+                          demoUserById(character.ownerUserId)?.displayName
+                        }
+                        onSave={isOwner ? saveSheet : undefined}
+                        onDelete={isOwner ? confirmCharacterDelete : undefined}
+                        onExport={exportCharacter}
+                        error={error}
+                        feedback={feedback}
+                      />
+                    );
+                  })()
                 ) : location.characterId ? (
                   <div className="campaign-empty">
                     <h2>Character not found</h2>

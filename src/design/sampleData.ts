@@ -6,6 +6,7 @@ export const sampleCampaign: Campaign = {
   id: 'sample-asterholm',
   name: 'Journey to Asterholm',
   partyName: 'The Bad Company',
+  partyMemberCharacterIds: ['sample-mara'],
   description:
     'A winding road through old borderlands and the mysteries beyond them.',
   currentLocation: 'Dunmar Pass',
@@ -17,6 +18,7 @@ export const sampleCampaign: Campaign = {
 export const sampleCharacter: Character = {
   id: 'sample-mara',
   campaignId: sampleCampaign.id,
+  ownerUserId: 'player-one',
   name: 'Mara Vell',
   playerName: 'Sample player',
   className: 'Ranger',

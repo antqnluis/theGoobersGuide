@@ -2,7 +2,7 @@ import type { Campaign } from '../../features/campaigns/model';
 import type { Character } from '../../features/characters/model';
 import type { CampaignNote } from '../../features/notes/model';
 
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 export interface AppPreferences {
   selectedCharacterByCampaign: Record<string, string>;

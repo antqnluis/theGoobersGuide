@@ -9,8 +9,12 @@ import {
   newCharacter,
   selectCharacter,
   selectedCharacterId,
-  saveCharacter,
+  saveCharacter as saveCharacterForUser,
+  deleteCharacter as deleteCharacterForUser,
 } from '../src/features/characters/characterService';
+import type { DemoUserId } from '../src/features/auth/demoAuth';
+import type { AppData, AppRepository } from '../src/shared/persistence/model';
+import type { Character } from '../src/features/characters/model';
 import {
   LocalStorageRepository,
   APP_STORAGE_KEY,
@@ -27,11 +31,9 @@ function setup() {
   });
   const first = createCampaign(repository, emptyAppData(), {
     name: 'First',
-    partyName: 'One',
   });
   const second = createCampaign(repository, first.data, {
     name: 'Second',
-    partyName: 'Two',
   });
   return {
     store,
@@ -40,6 +42,31 @@ function setup() {
     second: second.campaign,
     data: second.data,
   };
+}
+
+function saveCharacter(
+  repository: AppRepository,
+  data: AppData,
+  character: Character,
+  actorUserId: DemoUserId = 'player-one',
+) {
+  return saveCharacterForUser(repository, data, character, actorUserId);
+}
+
+function deleteCharacter(
+  repository: AppRepository,
+  data: AppData,
+  campaignId: string,
+  characterId: string,
+  actorUserId: DemoUserId = 'player-one',
+) {
+  return deleteCharacterForUser(
+    repository,
+    data,
+    campaignId,
+    characterId,
+    actorUserId,
+  );
 }
 
 describe('character management', () => {
@@ -136,6 +163,69 @@ describe('character management', () => {
     expect([1, 9, 10, 11, 17, 20].map(abilityModifier)).toEqual([
       -5, -1, 0, 0, 3, 5,
     ]);
+  });
+
+  it('assigns character ownership and rejects edits or deletion by another demo user', () => {
+    const { repository, data, first } = setup();
+    const spoofedOwner = {
+      ...newCharacter(first.id, 'player-two'),
+      name: 'Arlen',
+    };
+    const afterFirst = saveCharacter(
+      repository,
+      data,
+      spoofedOwner,
+      'player-one',
+    );
+    const firstCharacter = afterFirst.characters[0];
+    expect(firstCharacter.ownerUserId).toBe('player-one');
+
+    const secondCharacter = {
+      ...newCharacter(first.id, 'player-two'),
+      name: 'Mara',
+    };
+    const bothSaved = saveCharacter(
+      repository,
+      afterFirst,
+      secondCharacter,
+      'player-two',
+    );
+    const updatedFirst = saveCharacter(
+      repository,
+      bothSaved,
+      { ...firstCharacter, ownerUserId: 'player-two', name: 'Arlen Vale' },
+      'player-one',
+    );
+
+    expect(
+      updatedFirst.characters.find(
+        (character) => character.id === firstCharacter.id,
+      ),
+    ).toMatchObject({ name: 'Arlen Vale', ownerUserId: 'player-one' });
+    expect(() =>
+      saveCharacter(
+        repository,
+        updatedFirst,
+        { ...firstCharacter, name: 'Changed by another player' },
+        'player-two',
+      ),
+    ).toThrow('only edit your own characters');
+    expect(() =>
+      deleteCharacter(
+        repository,
+        updatedFirst,
+        first.id,
+        firstCharacter.id,
+        'player-two',
+      ),
+    ).toThrow('only delete your own characters');
+    expect(
+      selectedCharacterId(
+        selectCharacter(repository, updatedFirst, first.id, firstCharacter.id),
+        first.id,
+        'player-two',
+      ),
+    ).toBe(secondCharacter.id);
   });
 
   it('remembers one valid selected character per campaign and falls back after deletion', () => {

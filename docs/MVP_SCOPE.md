@@ -20,6 +20,8 @@ It should demonstrate reliable data management, intuitive navigation, and a flex
 
 No cloud backend, online hosting, or multi-user synchronization is required.
 
+The prototype includes two fixed, browser-local demo sign-ins to demonstrate per-player character editing. This mock flow is not real authentication and does not secure or encrypt browser data.
+
 ## 2. Technical Approach
 
 The proposed technology stack is:
@@ -30,7 +32,8 @@ The proposed technology stack is:
 | Language | TypeScript |
 | Development Server | Vite |
 | Styling | Tailwind CSS |
-| Persistence | Browser LocalStorage |
+| Persistent records | Browser LocalStorage |
+| Demo sign-in session | Browser sessionStorage |
 | Hosting | None; local development only |
 
 The application should run locally through the Vite development environment.
@@ -59,10 +62,11 @@ Required functionality:
 Each campaign must contain:
 - Unique identifier.
 - Campaign name.
-- Party/group name.
 - Description (optional).
 - Current location or status (optional).
 - Creation and modification timestamps.
+
+Campaign creation and library rows use only the campaign name and description. An optional party is created or renamed after opening the campaign. Current location and status remain editable campaign details in the overview.
 
 **Acceptance Criteria:**
 - Multiple campaigns can be created.
@@ -79,10 +83,10 @@ The campaign dashboard must provide a readable summary of a selected campaign.
 
 Display:
 - Campaign title.
-- Party/group name.
 - Campaign description.
+- Party/group name, when created.
 - Current location or status, if available.
-- Party member summaries.
+- Summaries for all campaign characters, with party members clearly marked.
 - Recent campaign notes.
 - Shortcuts to main campaign features.
 
@@ -95,7 +99,7 @@ Display:
 
 **Priority:** Required
 
-Each campaign must have a roster of participating characters.
+Each campaign may have one party and a roster of characters assigned to it. Characters can exist in the campaign without being party members.
 
 Each character summary should display:
 - Name.
@@ -108,12 +112,14 @@ Each character summary should display:
 Users should be able to select a character to access its full profile.
 
 **Acceptance Criteria:**
-- Characters can be added to campaigns.
-- Each campaign displays only its own characters.
+- A party can be created or renamed inside its campaign.
+- The owner can add or remove their campaign characters from the party.
+- New and imported characters are not automatically party members.
+- The roster displays only assigned characters; My Character still shows every character in the campaign.
 - Selecting a character opens the correct character sheet.
 - Character changes are reflected in the roster.
 
-For this MVP, roster membership is based on character records. A separate system for player accounts is unnecessary.
+All party characters remain visible to every signed-in demo user. Other users cannot change a character's party membership, edit its sheet, or delete it; ownership and editing behavior are defined in F04 and F09.
 
 ### F04 — Character Management
 
@@ -123,7 +129,7 @@ Users must be able to create, view, edit, and delete character profiles.
 
 The character sheet should be divided into clearly organized sections.
 
-Each character belongs to exactly one campaign. Characters cannot be shared across campaigns in the MVP.
+Each character belongs to exactly one campaign and one fixed demo user. A demo user may own multiple characters in a campaign. Characters cannot be shared across campaigns in the MVP.
 
 All character information is manually entered and edited by users. No automatic synchronization, character-sheet parsing, or external data integration is required.
 
@@ -131,6 +137,7 @@ Character sheets must support quick edits to frequently changing values, particu
 
 **A. Identity**
 - Character name.
+- Optional locally stored portrait (JPEG, PNG, or WebP); portraits are excluded from character exports.
 - Player name (optional).
 - Class.
 - Subclass (optional).
@@ -188,6 +195,9 @@ The character system should allow custom feature descriptions and homebrew conte
 
 **Acceptance Criteria:**
 - Characters can be created and assigned to campaigns.
+- New characters and imports belong to the signed-in demo user; imported ownership data is ignored.
+- Owners can edit and delete their own characters. Other users can view every sheet but cannot change or delete it.
+- Multiple owned characters can exist for the same user in one campaign.
 - Character information remains editable.
 - Current HP can be updated without recreating a character.
 - Ability scores and modifiers are displayed correctly.
@@ -302,6 +312,7 @@ Data handling should include:
 - Safe handling of absent optional fields.
 - Graceful behavior when saved data is missing or invalid.
 - A basic schema version for future migration.
+- Schema version 5 separates party membership from campaign characters; version 4 saves migrate their existing party rosters and retain the original-data backup behavior.
 
 **Acceptance Criteria:**
 - Creating or editing information saves it locally.
@@ -310,6 +321,8 @@ Data handling should include:
 - Missing or invalid stored data does not crash the application.
 
 LocalStorage is not a secure mechanism for protecting sensitive information and must not be treated as one.
+
+The mock sign-in stores only the fixed demo user ID in `sessionStorage`. It is a prototype UI flow, not an authorization boundary.
 
 ### F08 — Navigation & Responsive Layout
 
@@ -342,6 +355,25 @@ The initial visual style should draw inspiration from fantasy adventure journals
 - Empty screens provide clear actions.
 - Layouts do not contain overlapping or clipped essential content.
 
+### F09 — Prototype Sign-In & Character Ownership
+
+**Priority:** Required for the local prototype
+
+Provide a login screen for two fixed demo accounts: `player-one` / `demo` and `player-two` / `demo`. Display these credentials on the screen. Retain the signed-in demo user ID in `sessionStorage` until logout or tab closure, and redirect signed-out users away from application routes.
+
+Every character record includes its owning demo user ID. A signed-in player can create, import, edit, and delete their own characters, and can add or remove their characters from the campaign party. All characters remain visible in My Character and can be opened read-only by other players. Campaigns and notes remain shared and editable by either signed-in demo user.
+
+This feature is only for local interaction testing. It must not be described as secure authentication or data protection.
+
+**Acceptance Criteria:**
+- Correct fixed credentials open the campaign library; incorrect credentials remain on the login screen with clear feedback.
+- Refresh keeps the current demo session; logout clears it; signed-out deep links return to login.
+- Each demo user can own multiple characters in one campaign.
+- Character creation and import assign the current demo owner, ignoring ownership values in imported data.
+- UI controls and character services prevent editing or deleting another user’s character, including through a direct sheet URL.
+- Other users can view those sheets as read-only, including HP and temporary HP.
+- Campaigns and notes remain shared between both demo users.
+
 ## 4. Initial Data Model
 
 The application should center on three main entities.
@@ -352,7 +384,8 @@ The application should center on three main entities.
 interface Campaign {
   id: string;
   name: string;
-  partyName: string;
+  partyName?: string;
+  partyMemberCharacterIds: string[];
   description?: string;
   currentLocation?: string;
   status?: string;
@@ -366,6 +399,7 @@ interface Campaign {
 Character records must include:
 - Unique ID.
 - Campaign ID.
+- Owner demo user ID (`player-one` or `player-two`).
 - Character identity.
 - Level, class, and species.
 - Ability scores.
@@ -394,9 +428,13 @@ interface CampaignNote {
 **Data Relationship Rules:**
 
 - One campaign can have many characters.
+- A campaign can have one optional party. Its member IDs refer only to characters in that campaign.
 - One campaign can have many notes.
 - Every character belongs to one campaign in the initial model.
+- Every character belongs to one fixed demo user; demo users are code-defined and are not stored as accounts.
+- New characters start outside the party. Only the character owner may add or remove it; removing a character does not delete it.
 - Every note belongs to one campaign.
+- Deleting a character removes its party membership.
 - Deleting a campaign removes its associated characters and notes after confirmation.
 - Dice rolls do not need permanent campaign associations in the MVP.
 
@@ -406,18 +444,19 @@ interface CampaignNote {
 
 1. Open the campaign library.
 2. Select Create Campaign.
-3. Enter the campaign name and party name.
+3. Enter the campaign name and optional description.
 4. Save the campaign.
 5. Open its dashboard.
+6. Create a party from the Party page when ready.
 
 ### Flow B — Create a Character
 
 1. Open a campaign.
-2. Navigate to the party roster.
-3. Select Add Character.
+2. Navigate to My Character.
+3. Select Create Character.
 4. Enter character information.
-5. Save the character.
-6. View the character in the roster.
+5. Save the character; it remains outside the party.
+6. Open Party and add the character if it should join the roster.
 7. Open and edit its character sheet.
 
 ### Flow C — Manage Gameplay Resources
@@ -454,11 +493,19 @@ interface CampaignNote {
 3. View its own dashboard, roster, and notes.
 4. Confirm the previous campaign's records remain independent.
 
+### Flow G — Sign In and Manage Owned Characters
+
+1. Sign in using either fixed demo account.
+2. Open a shared campaign and inspect the party roster.
+3. Create or import a character; verify it is assigned to the current demo user.
+4. Sign in as the other demo user and open that character; verify the sheet is read-only.
+5. Create a character as the second user, then sign back in as the first and verify the second character is also read-only.
+
 ## 6. Explicitly Out of Scope
 
-The initial MVP must not include:
+The local prototype must not include:
 
-- User registration and login.
+- Real account registration or authentication.
 - Character passwords or secure private character sections.
 - Real-time synchronization between players.
 - Cloud databases.
@@ -476,9 +523,9 @@ The initial MVP must not include:
 - Full spellcasting rules automation.
 - External D&D platform integrations.
 
-All character information is accessible within the local application. Character-level authentication, passwords, and access restrictions are not required for the MVP.
+All character information remains visible within the local application. The mock owner check only hides edit and delete actions in the UI and rejects unauthorized client service calls. It does not protect LocalStorage from inspection or modification.
 
-The architecture should not unnecessarily prevent future privacy features, but no authentication infrastructure should be developed at this stage.
+Do not add server authentication, secure authorization, or cloud account infrastructure at this stage.
 
 These capabilities may be revisited after the main workflows are validated.
 
@@ -488,7 +535,6 @@ The following may be implemented only after all required features function corre
 
 - JSON backup export and import.
 - Campaign cover images.
-- Character portraits.
 - Quick HP adjustment buttons.
 - Dice advantage/disadvantage.
 - Saved dice roll presets.
@@ -504,6 +550,7 @@ Optional features must not delay core MVP completion.
 - Initialize the React and TypeScript project.
 - Configure Tailwind CSS.
 - Establish application navigation.
+- Implement the fixed local demo sign-in and protected application routes.
 - Define core data models.
 - Implement local persistence utilities.
 
@@ -517,6 +564,7 @@ Optional features must not delay core MVP completion.
 - Build party roster.
 - Create character profile views.
 - Implement character editing.
+- Assign character owners and enforce read-only views for other demo users.
 - Add statistics, inventory, and features.
 - Connect character records to campaigns.
 
@@ -542,9 +590,9 @@ Optional features must not delay core MVP completion.
 
 The MVP is complete when the following scenario works end to end:
 
-A user opens The Goober's Guide and creates a campaign named "Journey to Asterholm" with the party name "The Bad Company."
+A user opens The Goober's Guide and creates a campaign named "Journey to Asterholm" with a description. From the campaign's Party page, they create "The Bad Company."
 
-They add a character, enter its combat statistics and inventory, and save the character.
+They create a character in My Character, enter its combat statistics and inventory, and save it. The character remains outside the roster until its owner adds it to the party.
 
 They create a campaign note describing a recent event.
 
@@ -555,6 +603,8 @@ They create a second campaign with different characters and notes.
 They switch between both campaigns and verify that information remains independent.
 
 Finally, they refresh the application and confirm that all saved campaign, character, and note information remains available.
+
+They also sign in as both fixed demo users, verify each can own and edit multiple characters in the same campaign, and verify each other's sheets remain visible but read-only.
 
 The MVP must also:
 - Launch successfully in local development.
