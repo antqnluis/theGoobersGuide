@@ -2,13 +2,18 @@ import type { Campaign } from '../../features/campaigns/model';
 import type { Character } from '../../features/characters/model';
 import type { CampaignNote } from '../../features/notes/model';
 
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 5 as const;
+
+export interface AppPreferences {
+  selectedCharacterByCampaign: Record<string, string>;
+}
 
 export interface AppData {
   schemaVersion: typeof SCHEMA_VERSION;
   campaigns: Campaign[];
   characters: Character[];
   notes: CampaignNote[];
+  preferences: AppPreferences;
 }
 
 export interface AppRepository {
@@ -22,5 +27,6 @@ export function emptyAppData(): AppData {
     campaigns: [],
     characters: [],
     notes: [],
+    preferences: { selectedCharacterByCampaign: {} },
   };
 }

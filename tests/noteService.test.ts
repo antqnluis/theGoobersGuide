@@ -27,11 +27,9 @@ function setup() {
   });
   const first = createCampaign(repository, emptyAppData(), {
     name: 'First',
-    partyName: 'One',
   });
   const second = createCampaign(repository, first.data, {
     name: 'Second',
-    partyName: 'Two',
   });
   return {
     store,
@@ -146,6 +144,7 @@ describe('campaign notes', () => {
         campaign: first,
         characters: [],
         notes: dated,
+        viewerUserId: 'player-one',
       }),
     );
     expect(html).toContain(`#/notes/${first.id}/${dated[3].id}`);

@@ -14,17 +14,19 @@ Build a functioning local application covering every required feature in `docs/M
 
 All character and campaign information is entered and maintained manually. Support user-entered values and homebrew content. Ability modifiers may be derived from scores, but skills, saving throws, attacks, and other gameplay values must remain manually adjustable. Do not build a full D&D rules engine.
 
-Do not add login, user accounts, character passwords, character-level privacy, access control, cloud storage, synchronization, AI integrations, sheet import or parsing, DM tools, or the other excluded systems listed in `docs/MVP_SCOPE.md`. All character information is accessible in the local application. Optional enhancements in that document come only after the required MVP works end to end.
+The local prototype includes two fixed demo sign-ins and character ownership labels so the per-player editing flow can be demonstrated. This is client-side behavior only: do not describe it as secure authentication or data protection. Do not add real account registration, passwords for characters, cloud storage, synchronization, AI integrations, sheet parsing, DM tools, or other excluded systems listed in `docs/MVP_SCOPE.md`. Keep all character sheets visible in the local application, with sheets owned by another demo user read-only. Optional enhancements in that document come only after required MVP workflows work end to end.
 
 ## Technology and Architecture
 
 Use React, TypeScript, Vite, and Tailwind CSS. Run the MVP locally; deployment and a backend are not required. Prefer built-in browser and React capabilities over extra packages. Add a dependency only when it clearly simplifies a required feature, and avoid complex state frameworks and premature infrastructure.
 
-Organize `src/` by feature, with clear boundaries for campaigns, characters, notes, and dice. Keep shared UI and domain types in small, purpose-specific modules. Separate presentation and application behavior from persistence code. Use typed models and a dedicated LocalStorage adapter so a future storage implementation can replace it without rewriting feature UI. Keep the architecture modular without adding abstractions for hypothetical features.
+Organize `src/` by feature, with clear boundaries for authentication, campaigns, characters, notes, and dice. Keep shared UI and domain types in small, purpose-specific modules. Separate presentation and application behavior from persistence code. Use typed models and a dedicated LocalStorage adapter so a future storage implementation can replace it without rewriting feature UI. Keep the architecture modular without adding abstractions for hypothetical features.
 
-Model campaigns, characters, and campaign notes as the main persistent entities. Every character belongs to exactly one campaign, and every note belongs to exactly one campaign. Filter records by the active campaign in every relevant view. Confirm deletion of campaigns, characters, and notes; deleting a campaign also removes its associated local characters and notes. Dice rolls are client-side and need no permanent campaign association; recent roll history may last only for the current session.
+Model campaigns, characters, and campaign notes as the main persistent entities. Every campaign may have one optional party, with membership stored separately from its campaign characters. New characters remain in My Character until their owner adds them to the party; only the owner may add or remove their character. Every character belongs to exactly one campaign and one fixed demo user; every note belongs to exactly one campaign. Filter records by the active campaign in every relevant view. Confirm deletion of campaigns, characters, and notes; deleting a character also removes its party membership, and deleting a campaign removes its associated local characters and notes. Dice rolls are client-side and need no permanent campaign association; recent roll history may last only for the current session.
 
-Persist campaigns, characters, notes, and any implemented preferences locally. Include a basic schema version, validate data read from storage, handle missing or malformed data without crashing, and preserve unrelated campaigns when editing or switching. LocalStorage provides persistence, not secure data protection.
+Keep campaign creation and campaign library entries focused on campaign name and description. Create or rename a campaign's party inside that campaign. Current location and status are campaign details maintained from the overview.
+
+Persist campaigns, characters, notes, and any implemented preferences locally. Keep the mock signed-in user ID in `sessionStorage`. Include a basic schema version, validate data read from storage, handle missing or malformed data without crashing, and preserve unrelated campaigns when editing or switching. LocalStorage and the mock sign-in provide persistence and a UI demonstration, not secure data protection.
 
 ## Repository Structure and Tooling
 
@@ -36,7 +38,7 @@ From the repository root, run `npm install` to install dependencies, `npm run de
 
 Keep character statistics, HP, inventory, currency, and dice rolling quick to reach and edit. Make the dice roller accessible without losing the selected campaign context. Show clear empty states and basic feedback. Keep essential controls usable at desktop and mobile widths. A fantasy journal style may support the interface, but readability and accessibility take priority.
 
-When behavior is implemented, test its important paths and failure cases using one consistent test location and document the test command. Pay particular attention to campaign isolation, refresh persistence, invalid stored data, confirmed deletions, quick character edits, and dice ranges, modifiers, and totals. Verify the end-to-end scenario and definition of done in `docs/MVP_SCOPE.md` before calling the MVP complete.
+When behavior is implemented, test its important paths and failure cases using one consistent test location and document the test command. Pay particular attention to sign-in and logout, owner-only character edits and deletion, campaign isolation, refresh persistence, invalid stored data, confirmed deletions, quick character edits, and dice ranges, modifiers, and totals. Verify the end-to-end scenario and definition of done in `docs/MVP_SCOPE.md` before calling the MVP complete.
 
 ## Commits and Pull Requests
 

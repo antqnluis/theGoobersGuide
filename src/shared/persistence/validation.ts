@@ -12,6 +12,10 @@ import {
   type Skill,
 } from '../../features/characters/model';
 import type { CampaignNote } from '../../features/notes/model';
+import {
+  DEFAULT_DEMO_USER_ID,
+  isDemoUserId,
+} from '../../features/auth/demoAuth';
 import { SCHEMA_VERSION, type AppData } from './model';
 import { newCharacter } from '../../features/characters/characterService';
 
@@ -35,6 +39,27 @@ function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || isString(value);
 }
 
+const MAX_PORTRAIT_DATA_URL_LENGTH = 320_000;
+const MAX_CAMPAIGN_MAP_DATA_URL_LENGTH = 880_000;
+
+function isOptionalPortrait(value: unknown): value is string | undefined {
+  return (
+    value === undefined ||
+    (isString(value) &&
+      value.length <= MAX_PORTRAIT_DATA_URL_LENGTH &&
+      /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value))
+  );
+}
+
+function isOptionalCampaignMap(value: unknown): value is string | undefined {
+  return (
+    value === undefined ||
+    (isString(value) &&
+      value.length <= MAX_CAMPAIGN_MAP_DATA_URL_LENGTH &&
+      /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value))
+  );
+}
+
 function isArrayOf<T>(
   value: unknown,
   guard: (item: unknown) => item is T,
@@ -44,6 +69,10 @@ function isArrayOf<T>(
 
 function isNumberRecord(value: unknown): value is Record<string, number> {
   return isRecord(value) && Object.values(value).every(isNumber);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every(isString);
 }
 
 function hasUniqueIds(values: { id: string }[]): boolean {
@@ -57,14 +86,53 @@ export function isCampaign(value: unknown): value is Campaign {
     value.id.trim() !== '' &&
     isString(value.name) &&
     value.name.trim() !== '' &&
-    isString(value.partyName) &&
-    value.partyName.trim() !== '' &&
+    (value.partyName === undefined ||
+      (isString(value.partyName) && value.partyName.trim() !== '')) &&
+    isArrayOf(value.partyMemberCharacterIds, isString) &&
+    new Set(value.partyMemberCharacterIds).size ===
+      value.partyMemberCharacterIds.length &&
     isOptionalString(value.description) &&
     isOptionalString(value.currentLocation) &&
     isOptionalString(value.status) &&
+    isOptionalCampaignMap(value.mapDataUrl) &&
     isString(value.createdAt) &&
     isString(value.updatedAt)
   );
+}
+
+export function recoverCampaign(value: unknown): Campaign | null {
+  if (
+    !isRecord(value) ||
+    !isString(value.id) ||
+    value.id.trim() === '' ||
+    !isString(value.name) ||
+    value.name.trim() === '' ||
+    !isOptionalString(value.partyName) ||
+    !isOptionalString(value.description) ||
+    !isOptionalString(value.currentLocation) ||
+    !isOptionalString(value.status) ||
+    !isString(value.createdAt) ||
+    !isString(value.updatedAt)
+  )
+    return null;
+  const partyMemberCharacterIds = Array.isArray(value.partyMemberCharacterIds)
+    ? [...new Set(value.partyMemberCharacterIds.filter(isString))]
+    : [];
+  const partyName = value.partyName?.trim() || undefined;
+  return {
+    id: value.id,
+    name: value.name,
+    partyName,
+    partyMemberCharacterIds,
+    description: value.description,
+    currentLocation: value.currentLocation,
+    status: value.status,
+    mapDataUrl: isOptionalCampaignMap(value.mapDataUrl)
+      ? value.mapDataUrl
+      : undefined,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
 }
 
 function isAbilityScores(value: unknown): value is AbilityScores {
@@ -168,7 +236,9 @@ export function isCharacter(value: unknown): value is Character {
     value.id.trim() !== '' &&
     isString(value.campaignId) &&
     value.campaignId.trim() !== '' &&
+    isDemoUserId(value.ownerUserId) &&
     isString(value.name) &&
+    isOptionalPortrait(value.portraitDataUrl) &&
     isOptionalString(value.playerName) &&
     isString(value.className) &&
     isOptionalString(value.subclass) &&
@@ -210,7 +280,13 @@ export function recoverCharacter(
   return {
     ...base,
     id: value.id,
+    ownerUserId: isDemoUserId(value.ownerUserId)
+      ? value.ownerUserId
+      : DEFAULT_DEMO_USER_ID,
     name: isString(value.name) ? value.name : '',
+    portraitDataUrl: isOptionalPortrait(value.portraitDataUrl)
+      ? value.portraitDataUrl
+      : undefined,
     playerName: isOptionalString(value.playerName)
       ? value.playerName
       : undefined,
@@ -286,12 +362,17 @@ export function isAppData(value: unknown): value is AppData {
     value.schemaVersion !== SCHEMA_VERSION ||
     !isArrayOf(value.campaigns, isCampaign) ||
     !isArrayOf(value.characters, isCharacter) ||
-    !isArrayOf(value.notes, isCampaignNote)
+    !isArrayOf(value.notes, isCampaignNote) ||
+    !isRecord(value.preferences) ||
+    !isStringRecord(value.preferences.selectedCharacterByCampaign)
   ) {
     return false;
   }
 
   const campaignIds = new Set(value.campaigns.map((campaign) => campaign.id));
+  const charactersById = new Map(
+    value.characters.map((character) => [character.id, character]),
+  );
   return (
     hasUniqueIds(value.campaigns) &&
     hasUniqueIds(value.characters) &&
@@ -299,6 +380,20 @@ export function isAppData(value: unknown): value is AppData {
     value.characters.every((character) =>
       campaignIds.has(character.campaignId),
     ) &&
-    value.notes.every((note) => campaignIds.has(note.campaignId))
+    value.campaigns.every(
+      (campaign) =>
+        (campaign.partyName !== undefined ||
+          campaign.partyMemberCharacterIds.length === 0) &&
+        campaign.partyMemberCharacterIds.every(
+          (characterId) =>
+            charactersById.get(characterId)?.campaignId === campaign.id,
+        ),
+    ) &&
+    value.notes.every((note) => campaignIds.has(note.campaignId)) &&
+    Object.entries(value.preferences.selectedCharacterByCampaign).every(
+      ([campaignId, characterId]) =>
+        campaignIds.has(campaignId) &&
+        charactersById.get(characterId)?.campaignId === campaignId,
+    )
   );
 }

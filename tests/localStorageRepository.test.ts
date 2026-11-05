@@ -23,6 +23,7 @@ const campaign: Campaign = {
   id: 'campaign-1',
   name: 'Journey to Asterholm',
   partyName: 'The Bad Company',
+  partyMemberCharacterIds: [],
   createdAt: '2026-11-04T00:00:00.000Z',
   updatedAt: '2026-11-04T00:00:00.000Z',
 };
@@ -30,6 +31,7 @@ const campaign: Campaign = {
 const character: Character = {
   id: 'character-1',
   campaignId: campaign.id,
+  ownerUserId: 'player-one',
   name: 'Soren',
   className: 'Fighter',
   species: 'Human',
@@ -91,6 +93,70 @@ describe('LocalStorageRepository', () => {
     repository.save(data);
 
     expect(new LocalStorageRepository(storage).load()).toEqual(data);
+  });
+
+  it('persists a validated local character portrait', () => {
+    const storage = memoryStorage();
+    const repository = new LocalStorageRepository(storage);
+    const data = {
+      ...emptyAppData(),
+      campaigns: [campaign],
+      characters: [
+        { ...character, portraitDataUrl: 'data:image/jpeg;base64,YWJj' },
+      ],
+    };
+
+    repository.save(data);
+
+    expect(new LocalStorageRepository(storage).load()).toEqual(data);
+  });
+
+  it('persists a validated campaign map image', () => {
+    const storage = memoryStorage();
+    const repository = new LocalStorageRepository(storage);
+    const data = {
+      ...emptyAppData(),
+      campaigns: [{ ...campaign, mapDataUrl: 'data:image/jpeg;base64,YWJj' }],
+    };
+
+    repository.save(data);
+
+    expect(new LocalStorageRepository(storage).load()).toEqual(data);
+  });
+
+  it('recovers a campaign when its stored map image is invalid', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      APP_STORAGE_KEY,
+      JSON.stringify({
+        ...emptyAppData(),
+        campaigns: [
+          { ...campaign, mapDataUrl: 'data:image/png;base64,not-valid' },
+        ],
+      }),
+    );
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+
+    expect(loaded.campaigns).toHaveLength(1);
+    expect(loaded.campaigns[0].id).toBe(campaign.id);
+    expect(loaded.campaigns[0].mapDataUrl).toBeUndefined();
+    expect(repository.getStatus().kind).toBe('recovered');
+  });
+
+  it('reports browser storage quota failures clearly', () => {
+    const storage = memoryStorage();
+    storage.setItem = () => {
+      const error = new Error('quota reached');
+      error.name = 'QuotaExceededError';
+      throw error;
+    };
+    const repository = new LocalStorageRepository(storage);
+
+    expect(() =>
+      repository.save({ ...emptyAppData(), campaigns: [campaign] }),
+    ).toThrow('Browser storage is full');
   });
 
   it('recovers valid records and drops malformed or orphaned records', () => {
@@ -193,8 +259,10 @@ describe('LocalStorageRepository', () => {
     const repository = new LocalStorageRepository(storage);
 
     const loaded = repository.load();
-    expect(loaded.schemaVersion).toBe(2);
-    expect(loaded.campaigns).toEqual([campaign]);
+    expect(loaded.schemaVersion).toBe(5);
+    expect(loaded.campaigns).toEqual([
+      { ...campaign, partyMemberCharacterIds: [character.id] },
+    ]);
     expect(loaded.notes).toEqual([note]);
     expect(loaded.characters).toEqual([{ ...character, spells: [] }]);
     expect(repository.getStatus()).toMatchObject({
@@ -212,6 +280,138 @@ describe('LocalStorageRepository', () => {
     expect(repository.getStatus()).toMatchObject({
       kind: 'recovered',
       message: expect.stringContaining('Saved data was upgraded'),
+    });
+  });
+
+  it('migrates version 2 data with empty character preferences', () => {
+    const storage = memoryStorage();
+    const raw = JSON.stringify({
+      schemaVersion: 2,
+      campaigns: [campaign],
+      characters: [character],
+      notes: [note],
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+    expect(loaded).toMatchObject({
+      schemaVersion: 5,
+      campaigns: [{ ...campaign, partyMemberCharacterIds: [character.id] }],
+      characters: [character],
+      notes: [note],
+      preferences: { selectedCharacterByCampaign: {} },
+    });
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('character preferences'),
+    });
+
+    repository.save(loaded);
+    expect(
+      storage
+        .keys()
+        .some((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`)),
+    ).toBe(true);
+  });
+
+  it('migrates schema version 3 characters to Player One and backs up the source', () => {
+    const storage = memoryStorage();
+    const legacyCharacter = { ...character };
+    delete (legacyCharacter as Partial<Character>).ownerUserId;
+    const raw = JSON.stringify({
+      schemaVersion: 3,
+      campaigns: [campaign],
+      characters: [legacyCharacter],
+      notes: [note],
+      preferences: { selectedCharacterByCampaign: {} },
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+    expect(loaded.schemaVersion).toBe(5);
+    expect(loaded.campaigns).toEqual([
+      { ...campaign, partyMemberCharacterIds: [character.id] },
+    ]);
+    expect(loaded.characters).toMatchObject([
+      { id: character.id, ownerUserId: 'player-one' },
+    ]);
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('assigned to Player One'),
+    });
+
+    repository.save(loaded);
+    const backupKey = storage
+      .keys()
+      .find((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`));
+    expect(backupKey).toBeDefined();
+    expect(storage.getItem(backupKey!)).toBe(raw);
+  });
+
+  it('migrates version 4 party rosters while keeping demo character owners', () => {
+    const storage = memoryStorage();
+    const playerTwoCharacter = {
+      ...character,
+      id: 'character-two',
+      ownerUserId: 'player-two' as const,
+    };
+    const legacyCampaign = { ...campaign } as Partial<Campaign>;
+    delete legacyCampaign.partyMemberCharacterIds;
+    const raw = JSON.stringify({
+      schemaVersion: 4,
+      campaigns: [legacyCampaign],
+      characters: [character, playerTwoCharacter],
+      notes: [note],
+      preferences: { selectedCharacterByCampaign: {} },
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+    const repository = new LocalStorageRepository(storage);
+
+    const loaded = repository.load();
+
+    expect(loaded.schemaVersion).toBe(5);
+    expect(loaded.campaigns[0].partyMemberCharacterIds).toEqual([
+      character.id,
+      playerTwoCharacter.id,
+    ]);
+    expect(loaded.characters.map((item) => item.ownerUserId)).toEqual([
+      'player-one',
+      'player-two',
+    ]);
+    expect(repository.getStatus()).toMatchObject({
+      kind: 'recovered',
+      message: expect.stringContaining('existing campaign characters'),
+    });
+
+    repository.save(loaded);
+    const backupKey = storage
+      .keys()
+      .find((key) => key.startsWith(`${APP_STORAGE_KEY}:recovery:`));
+    expect(backupKey).toBeDefined();
+    expect(storage.getItem(backupKey!)).toBe(raw);
+  });
+
+  it('recovers only campaign-scoped character preferences', () => {
+    const storage = memoryStorage();
+    const secondCampaign = { ...campaign, id: 'campaign-2', name: 'Second' };
+    const raw = JSON.stringify({
+      ...emptyAppData(),
+      campaigns: [campaign, secondCampaign],
+      characters: [character],
+      preferences: {
+        selectedCharacterByCampaign: {
+          [campaign.id]: character.id,
+          [secondCampaign.id]: character.id,
+          missing: 'missing-character',
+        },
+      },
+    });
+    storage.setItem(APP_STORAGE_KEY, raw);
+
+    expect(new LocalStorageRepository(storage).load().preferences).toEqual({
+      selectedCharacterByCampaign: { [campaign.id]: character.id },
     });
   });
 

@@ -5,8 +5,8 @@ character inside the campaign from which the import was started.
 
 ## User flow
 
-1. Open a campaign and select **Party**.
-2. If the source is a Markdown handoff, open **Format guide**, copy the
+1. Open a campaign and select **My Character**.
+2. If the source is a Markdown handoff, open **Markdown guide**, copy the
    conversion prompt, and provide that prompt and the Markdown file to a text
    assistant.
 3. Select **Import JSON**, then paste the returned JSON directly. Alternatively,
@@ -14,6 +14,9 @@ character inside the campaign from which the import was started.
    than 1 MB.
 4. Review every character-sheet section and correct any values.
 5. Select **Import character** to save the character locally.
+
+The Party page is a roster only. Selecting a party member opens that saved
+character in My Character.
 
 Selecting a file does not save anything. Cancelling or leaving the review
 keeps the campaign unchanged. Imported character, attack, inventory, feature,
@@ -119,3 +122,18 @@ directly. The format guide provides a copyable conversion prompt. That prompt
 instructs the converter to treat the Markdown as source data, ignore embedded
 instructions, preserve only current confirmed values, and retain unsupported
 details in the character's features, spells, or notes.
+
+## Character export
+
+A saved character can be exported from My Character in either format:
+
+- **Export JSON** downloads the version-2 portable document described above.
+  Character, campaign, and timestamp IDs are excluded; importing the file
+  creates new IDs and attaches the character to the active campaign.
+- **Export Markdown** downloads a readable handoff containing identity,
+  abilities, combat values, skills, saves, attacks, inventory, currency,
+  features, spells, and notes. Markdown export is not imported directly; use
+  the conversion guide when bringing a Markdown handoff back into the app.
+
+Export controls appear only for a saved character. Save or cancel an active
+edit before exporting.

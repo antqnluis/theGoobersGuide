@@ -3,10 +3,13 @@ import { sampleCharacter, sampleNotes } from '../src/design/sampleData';
 import {
   createCampaign,
   deleteCampaign,
+  updateCampaignContext,
+  updateCampaignMap,
   updateCampaign,
 } from '../src/features/campaigns/campaignService';
 import { LocalStorageRepository } from '../src/shared/persistence/localStorageRepository';
 import { emptyAppData } from '../src/shared/persistence/model';
+import { savePartyName } from '../src/features/campaigns/partyService';
 
 function setup() {
   const values = new Map<string, string>();
@@ -24,26 +27,38 @@ describe('campaign management', () => {
     const { storage, repository } = setup();
     const first = createCampaign(repository, emptyAppData(), {
       name: ' Journey to Asterholm ',
-      partyName: ' The Bad Company ',
       description: 'A long road',
-      status: '',
-      currentLocation: '',
     });
     const second = createCampaign(repository, first.data, {
       name: 'Western Reach',
-      partyName: 'The Wayfarers',
     });
     expect(second.data.campaigns).toHaveLength(2);
     expect(first.campaign.name).toBe('Journey to Asterholm');
     expect(first.campaign.id).not.toBe(second.campaign.id);
 
-    const edited = updateCampaign(repository, second.data, first.campaign.id, {
+    const withParty = savePartyName(
+      repository,
+      second.data,
+      first.campaign.id,
+      'The Bad Company',
+    );
+    const withContext = updateCampaignContext(
+      repository,
+      withParty,
+      first.campaign.id,
+      { currentLocation: 'Dunmar Pass', status: 'Active' },
+    );
+    const edited = updateCampaign(repository, withContext, first.campaign.id, {
       name: 'Asterholm Return',
+      description: 'The road continues',
+    });
+    expect(edited.campaigns[0].description).toBe('The road continues');
+    expect(edited.campaigns[0]).toMatchObject({
       partyName: 'The Bad Company',
+      partyMemberCharacterIds: [],
       currentLocation: 'Dunmar Pass',
       status: 'Active',
     });
-    expect(edited.campaigns[0].currentLocation).toBe('Dunmar Pass');
     expect(edited.campaigns[1]).toEqual(second.campaign);
     expect(new LocalStorageRepository(storage).load()).toEqual(edited);
   });
@@ -52,11 +67,9 @@ describe('campaign management', () => {
     const { storage, repository } = setup();
     const first = createCampaign(repository, emptyAppData(), {
       name: 'First',
-      partyName: 'First party',
     });
     const second = createCampaign(repository, first.data, {
       name: 'Second',
-      partyName: 'Second party',
     });
     const linked = {
       ...second.data,
@@ -91,14 +104,53 @@ describe('campaign management', () => {
     expect(new LocalStorageRepository(storage).load()).toEqual(deleted);
   });
 
-  it('rejects missing required fields without saving', () => {
+  it('requires only a campaign name without creating a party', () => {
     const { repository } = setup();
+    const created = createCampaign(repository, emptyAppData(), {
+      name: 'A quiet beginning',
+      description: 'Party setup can wait.',
+    });
+    expect(created.campaign).toMatchObject({
+      name: 'A quiet beginning',
+      description: 'Party setup can wait.',
+      partyMemberCharacterIds: [],
+    });
+    expect(created.campaign.partyName).toBeUndefined();
     expect(() =>
       createCampaign(repository, emptyAppData(), {
         name: ' ',
-        partyName: 'Party',
       }),
     ).toThrow();
-    expect(repository.load()).toEqual(emptyAppData());
+    expect(repository.load()).toEqual(created.data);
+  });
+
+  it('saves a map only to its campaign and supports removing it', () => {
+    const { storage, repository } = setup();
+    const first = createCampaign(repository, emptyAppData(), {
+      name: 'First',
+    });
+    const second = createCampaign(repository, first.data, {
+      name: 'Second',
+    });
+    const mapDataUrl = 'data:image/jpeg;base64,YWJj';
+
+    const withMap = updateCampaignMap(
+      repository,
+      second.data,
+      first.campaign.id,
+      mapDataUrl,
+    );
+    expect(withMap.campaigns[0].mapDataUrl).toBe(mapDataUrl);
+    expect(withMap.campaigns[1]).toEqual(second.campaign);
+    expect(new LocalStorageRepository(storage).load()).toEqual(withMap);
+
+    const withoutMap = updateCampaignMap(
+      repository,
+      withMap,
+      first.campaign.id,
+    );
+    expect(withoutMap.campaigns[0].mapDataUrl).toBeUndefined();
+    expect(withoutMap.campaigns[1]).toEqual(second.campaign);
+    expect(new LocalStorageRepository(storage).load()).toEqual(withoutMap);
   });
 });

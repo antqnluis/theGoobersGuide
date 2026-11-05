@@ -4,13 +4,23 @@ import CampaignOverview from './features/campaigns/CampaignOverview';
 import {
   createCampaign,
   deleteCampaign,
+  updateCampaignContext,
+  updateCampaignMap,
   updateCampaign,
+  type CampaignContextDetails,
   type CampaignDetails,
 } from './features/campaigns/campaignService';
 import type { Campaign } from './features/campaigns/model';
 import {
+  addPartyMember,
+  removePartyMember,
+  savePartyName as savePartyNameService,
+} from './features/campaigns/partyService';
+import {
   deleteCharacter,
   newCharacter,
+  selectCharacter,
+  selectedCharacterId,
   saveCharacter,
 } from './features/characters/characterService';
 import {
@@ -19,7 +29,12 @@ import {
 } from './features/characters/characterImport';
 import type { Character } from './features/characters/model';
 import CharacterSheetPreview from './features/characters/CharacterSheetPreview';
-import PartyReadOnly from './features/characters/PartyReadOnly';
+import CharacterWorkspace from './features/characters/CharacterWorkspace';
+import PartyWorkspace from './features/characters/PartyWorkspace';
+import {
+  createCharacterExport,
+  type CharacterExportFormat,
+} from './features/characters/characterExport';
 import DiceRoller from './features/dice/DiceRoller';
 import CampaignJournal from './features/notes/CampaignJournal';
 import {
@@ -28,11 +43,20 @@ import {
   type NoteDetails,
 } from './features/notes/noteService';
 import type { CampaignNote } from './features/notes/model';
+import LoginScreen from './features/auth/LoginScreen';
+import {
+  clearDemoSession,
+  demoUserById,
+  readDemoSession,
+  writeDemoSession,
+  type DemoUser,
+} from './features/auth/demoAuth';
 import { browserLocalStorageRepository } from './shared/persistence/localStorageRepository';
 import type { AppData } from './shared/persistence/model';
 import { NavigationGuardContext } from './shared/ui/useUnsavedChanges';
 
-type Route = 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
+type Route =
+  'login' | 'campaigns' | 'campaign' | 'party' | 'characters' | 'notes';
 type Location = {
   route: Route;
   campaignId: string | null;
@@ -43,7 +67,7 @@ const navigation: { route: Route; label: string }[] = [
   { route: 'campaigns', label: 'Campaign library' },
   { route: 'campaign', label: 'Overview' },
   { route: 'party', label: 'Party' },
-  { route: 'characters', label: 'Character sheets' },
+  { route: 'characters', label: 'My Character' },
   { route: 'notes', label: 'Campaign notes' },
 ];
 
@@ -51,6 +75,8 @@ function currentLocation(): Location {
   const [route, campaignId, characterId] = window.location.hash
     .replace(/^#\/?/, '')
     .split('/');
+  if (route === 'login')
+    return { route: 'login', campaignId: null, characterId: null };
   if (
     route !== 'campaign' &&
     route !== 'party' &&
@@ -70,6 +96,10 @@ export default function App() {
   const repository = useMemo(browserLocalStorageRepository, []);
   const [data, setData] = useState<AppData>(() => repository.load());
   const [location, setLocation] = useState<Location>(currentLocation);
+  const [sessionUser, setSessionUser] = useState<DemoUser | null>(
+    readDemoSession,
+  );
+  const [authError, setAuthError] = useState<string | null>(null);
   const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -102,6 +132,9 @@ export default function App() {
   const notes = activeCampaign
     ? data.notes.filter((note) => note.campaignId === activeCampaign.id)
     : [];
+  const preferredCharacterId = activeCampaign
+    ? selectedCharacterId(data, activeCampaign.id, sessionUser?.id)
+    : null;
 
   useEffect(() => {
     const onHashChange = (event: HashChangeEvent) => {
@@ -124,6 +157,46 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (!sessionUser && location.route !== 'login')
+      window.location.hash = '#/login';
+    else if (sessionUser && location.route === 'login')
+      window.location.hash = '#/campaigns';
+  }, [location.route, sessionUser]);
+
+  useEffect(() => {
+    if (
+      !activeCampaign ||
+      location.route !== 'characters' ||
+      !location.characterId ||
+      location.characterId === 'new' ||
+      location.characterId === 'import' ||
+      !characters.some((character) => character.id === location.characterId) ||
+      data.preferences.selectedCharacterByCampaign[activeCampaign.id] ===
+        location.characterId
+    )
+      return;
+    try {
+      setData(
+        selectCharacter(
+          repository,
+          data,
+          activeCampaign.id,
+          location.characterId,
+        ),
+      );
+    } catch {
+      setError('The selected character could not be remembered.');
+    }
+  }, [
+    activeCampaign,
+    characters,
+    data,
+    location.characterId,
+    location.route,
+    repository,
+  ]);
 
   function saveCreate(details: CampaignDetails): boolean {
     try {
@@ -149,6 +222,101 @@ export default function App() {
     } catch {
       setError(
         'Campaign could not be saved. Check browser storage and try again.',
+      );
+      return false;
+    }
+  }
+
+  function saveCampaignContext(
+    id: string,
+    details: CampaignContextDetails,
+  ): boolean {
+    try {
+      setData(updateCampaignContext(repository, data, id, details));
+      setFeedback('Saved campaign details.');
+      setError(null);
+      return true;
+    } catch {
+      setError(
+        'Campaign details could not be saved. Check browser storage and try again.',
+      );
+      return false;
+    }
+  }
+
+  function saveCampaignMap(id: string, mapDataUrl?: string): boolean {
+    try {
+      setData(updateCampaignMap(repository, data, id, mapDataUrl));
+      setFeedback(
+        mapDataUrl ? 'Saved the campaign map.' : 'Removed the campaign map.',
+      );
+      setError(null);
+      return true;
+    } catch {
+      setError(
+        'Campaign map could not be saved. Check browser storage and try again.',
+      );
+      return false;
+    }
+  }
+
+  function savePartyName(campaignId: string, name: string): boolean {
+    try {
+      const hadParty = Boolean(
+        data.campaigns.find((campaign) => campaign.id === campaignId)
+          ?.partyName,
+      );
+      setData(savePartyNameService(repository, data, campaignId, name));
+      setFeedback(hadParty ? 'Saved the party name.' : 'Created the party.');
+      setError(null);
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : 'Party could not be saved.',
+      );
+      return false;
+    }
+  }
+
+  function changePartyMembership(
+    campaignId: string,
+    characterId: string,
+    add: boolean,
+  ): boolean {
+    if (!sessionUser) return false;
+    try {
+      const character = data.characters.find(
+        (item) => item.id === characterId && item.campaignId === campaignId,
+      );
+      if (!character) throw new Error('Character not found in this campaign.');
+      const next = add
+        ? addPartyMember(
+            repository,
+            data,
+            campaignId,
+            characterId,
+            sessionUser.id,
+          )
+        : removePartyMember(
+            repository,
+            data,
+            campaignId,
+            characterId,
+            sessionUser.id,
+          );
+      setData(next);
+      setFeedback(
+        add
+          ? `Added ${character.name} to the party.`
+          : `Removed ${character.name} from the party.`,
+      );
+      setError(null);
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Party membership could not be changed.',
       );
       return false;
     }
@@ -182,17 +350,57 @@ export default function App() {
       ?.focus();
   }
 
+  function signIn(user: DemoUser) {
+    if (!writeDemoSession(user.id)) {
+      setAuthError(
+        'Browser session storage is unavailable. Sign-in cannot be retained.',
+      );
+      return;
+    }
+    setAuthError(null);
+    setSessionUser(user);
+    setError(null);
+    setFeedback(null);
+    window.location.hash = '#/campaigns';
+  }
+
+  function signOut() {
+    if (navigationGuard.current && !navigationGuard.current()) return;
+    const cleared = clearDemoSession();
+    setAuthError(
+      cleared
+        ? null
+        : 'The browser could not clear the demo session. Close this tab to end it.',
+    );
+    setSessionUser(null);
+    setCharacterImport(null);
+    setError(null);
+    setFeedback(null);
+    setMenuOpen(false);
+    window.location.hash = '#/login';
+  }
+
   function saveSheet(character: Character): boolean {
+    if (!sessionUser) return false;
     try {
-      setData(saveCharacter(repository, data, character));
+      let next = saveCharacter(repository, data, character, sessionUser.id);
       const importing = location.characterId === 'import';
+      const creating = location.characterId === 'new';
+      if (creating || importing)
+        next = selectCharacter(
+          repository,
+          next,
+          character.campaignId,
+          character.id,
+        );
+      setData(next);
       setFeedback(
         importing
           ? `Imported ${character.name.trim()}.`
           : `Saved ${character.name.trim()}.`,
       );
       setError(null);
-      if (location.characterId === 'new' || importing)
+      if (creating || importing)
         window.location.hash = `#/characters/${character.campaignId}/${character.id}`;
       if (importing) setCharacterImport(null);
       return true;
@@ -210,51 +418,101 @@ export default function App() {
     campaignId: string,
     source: string,
     sourceLabel: string,
-  ) {
+  ): boolean {
     setFeedback(null);
     setError(null);
     if (!source.trim()) {
       setError('Paste character JSON before continuing.');
-      return;
+      return false;
     }
     try {
-      const character = parseCharacterImport(source, campaignId);
+      if (!sessionUser) return false;
+      const character = parseCharacterImport(source, campaignId, {
+        ownerUserId: sessionUser.id,
+      });
       setCharacterImport({ campaignId, character, sourceLabel });
       window.location.hash = `#/characters/${campaignId}/import`;
+      return true;
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
           : 'The character JSON could not be read.',
       );
+      return false;
     }
   }
 
-  async function importCharacterFile(campaignId: string, file: File) {
+  async function importCharacterFile(
+    campaignId: string,
+    file: File,
+  ): Promise<boolean> {
     setFeedback(null);
     setError(null);
     if (file.size > MAX_CHARACTER_IMPORT_BYTES) {
       setError('Choose a character JSON file smaller than 1 MB.');
-      return;
+      return false;
     }
     try {
-      stageCharacterImport(campaignId, await file.text(), file.name);
+      return stageCharacterImport(campaignId, await file.text(), file.name);
     } catch {
       setError('The character file could not be read.');
+      return false;
+    }
+  }
+
+  function exportCharacter(
+    character: Character,
+    format: CharacterExportFormat,
+  ) {
+    try {
+      const file = createCharacterExport(character, format);
+      const url = URL.createObjectURL(
+        new Blob([file.content], { type: `${file.mimeType};charset=utf-8` }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      setFeedback(
+        `Exported ${character.name} as ${format === 'json' ? 'JSON' : 'Markdown'}.`,
+      );
+      setError(null);
+    } catch {
+      setError('Character could not be exported.');
     }
   }
 
   function confirmCharacterDelete(character: Character) {
+    if (!sessionUser) return;
     if (!window.confirm(`Delete “${character.name}”? This cannot be undone.`))
       return;
     try {
-      setData(
-        deleteCharacter(repository, data, character.campaignId, character.id),
+      let next = deleteCharacter(
+        repository,
+        data,
+        character.campaignId,
+        character.id,
+        sessionUser.id,
       );
+      const fallback = selectedCharacterId(
+        next,
+        character.campaignId,
+        sessionUser.id,
+      );
+      if (fallback)
+        next = selectCharacter(
+          repository,
+          next,
+          character.campaignId,
+          fallback,
+        );
+      setData(next);
       setFeedback(`Deleted ${character.name}.`);
       setError(null);
       if (location.characterId === character.id)
-        window.location.hash = `#/party/${character.campaignId}`;
+        window.location.hash = `#/characters/${character.campaignId}${fallback ? `/${fallback}` : ''}`;
     } catch {
       setError('Character could not be deleted.');
     }
@@ -297,6 +555,13 @@ export default function App() {
     }
   }
 
+  if (!sessionUser)
+    return (
+      <NavigationGuardContext.Provider value={registerGuard}>
+        <LoginScreen onSignIn={signIn} storageError={authError} />
+      </NavigationGuardContext.Provider>
+    );
+
   return (
     <NavigationGuardContext.Provider value={registerGuard}>
       <div className="app-shell">
@@ -328,7 +593,7 @@ export default function App() {
               <>
                 <span>Current campaign</span>
                 <strong>{activeCampaign.name}</strong>
-                <small>{activeCampaign.partyName}</small>
+                <small>{activeCampaign.partyName ?? 'No party created'}</small>
               </>
             ) : (
               <>
@@ -347,7 +612,9 @@ export default function App() {
                   href={
                     item.route === 'campaigns'
                       ? '#/campaigns'
-                      : `#/${item.route}/${activeCampaign?.id}`
+                      : item.route === 'characters'
+                        ? `#/characters/${activeCampaign?.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`
+                        : `#/${item.route}/${activeCampaign?.id}`
                   }
                   aria-current={route === item.route ? 'page' : undefined}
                   onClick={() => setMenuOpen(false)}
@@ -381,14 +648,24 @@ export default function App() {
                 {activeCampaign ? activeCampaign.name : 'Campaign library'}
               </span>
             </div>
-            <button
-              type="button"
-              className="dice-trigger"
-              ref={diceTrigger}
-              onClick={openDice}
-            >
-              <span aria-hidden="true">d20</span> Dice roller
-            </button>
+            <div className="topbar-actions">
+              <span className="account-name">{sessionUser.displayName}</span>
+              <button
+                type="button"
+                className="account-logout"
+                onClick={signOut}
+              >
+                Sign out
+              </button>
+              <button
+                type="button"
+                className="dice-trigger"
+                ref={diceTrigger}
+                onClick={openDice}
+              >
+                <span aria-hidden="true">d20</span> Dice roller
+              </button>
+            </div>
           </header>
           <main className="workspace-main">
             {storageStatus.kind !== 'ready' && (
@@ -411,13 +688,50 @@ export default function App() {
                 campaign={activeCampaign}
                 characters={characters}
                 notes={notes}
+                viewerUserId={sessionUser.id}
+                onUpdateContext={(details) =>
+                  saveCampaignContext(activeCampaign.id, details)
+                }
+                onUpdateMap={(mapDataUrl) =>
+                  saveCampaignMap(activeCampaign.id, mapDataUrl)
+                }
+                error={error}
+                feedback={feedback}
               />
             )}
             {activeCampaign && route === 'party' && (
-              <PartyReadOnly
+              <PartyWorkspace
+                key={activeCampaign.id}
                 campaign={activeCampaign}
                 characters={characters}
-                onDelete={confirmCharacterDelete}
+                viewerUserId={sessionUser.id}
+                onSavePartyName={(name) =>
+                  savePartyName(activeCampaign.id, name)
+                }
+                onAddMember={(characterId) =>
+                  changePartyMembership(activeCampaign.id, characterId, true)
+                }
+                onRemoveMember={(characterId) =>
+                  changePartyMembership(activeCampaign.id, characterId, false)
+                }
+                error={error}
+                feedback={feedback}
+              />
+            )}
+            {activeCampaign && route === 'characters' && (
+              <CharacterWorkspace
+                key={activeCampaign.id}
+                campaign={activeCampaign}
+                characters={characters}
+                viewerUserId={sessionUser.id}
+                selectedCharacterId={
+                  location.characterId &&
+                  characters.some(
+                    (character) => character.id === location.characterId,
+                  )
+                    ? location.characterId
+                    : preferredCharacterId
+                }
                 onImportFile={(file) =>
                   importCharacterFile(activeCampaign.id, file)
                 }
@@ -425,66 +739,88 @@ export default function App() {
                   stageCharacterImport(activeCampaign.id, source, 'pasted JSON')
                 }
                 error={error}
-              />
+              >
+                {location.characterId === 'new' ? (
+                  <CharacterSheetPreview
+                    key={`${activeCampaign.id}-new`}
+                    campaign={activeCampaign}
+                    character={newCharacter(activeCampaign.id, sessionUser.id)}
+                    creating
+                    onCancel={() => {
+                      window.location.hash = `#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`;
+                    }}
+                    onSave={saveSheet}
+                    error={error}
+                    feedback={feedback}
+                  />
+                ) : location.characterId === 'import' &&
+                  characterImport?.campaignId === activeCampaign.id ? (
+                  <CharacterSheetPreview
+                    key={`${activeCampaign.id}-import-${characterImport.sourceLabel}`}
+                    campaign={activeCampaign}
+                    character={characterImport.character}
+                    creating
+                    importSource={characterImport.sourceLabel}
+                    onCancel={() => {
+                      setCharacterImport(null);
+                      window.location.hash = `#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`;
+                    }}
+                    onSave={saveSheet}
+                    error={error}
+                    feedback={feedback}
+                  />
+                ) : (location.characterId ?? preferredCharacterId) &&
+                  characters.some(
+                    (character) =>
+                      character.id ===
+                      (location.characterId ?? preferredCharacterId),
+                  ) ? (
+                  (() => {
+                    const character = characters.find(
+                      (candidate) =>
+                        candidate.id ===
+                        (location.characterId ?? preferredCharacterId),
+                    )!;
+                    const isOwner = character.ownerUserId === sessionUser.id;
+                    return (
+                      <CharacterSheetPreview
+                        key={character.id}
+                        campaign={activeCampaign}
+                        character={character}
+                        readOnly={!isOwner}
+                        ownerName={
+                          demoUserById(character.ownerUserId)?.displayName
+                        }
+                        onSave={isOwner ? saveSheet : undefined}
+                        onDelete={isOwner ? confirmCharacterDelete : undefined}
+                        onExport={exportCharacter}
+                        error={error}
+                        feedback={feedback}
+                      />
+                    );
+                  })()
+                ) : location.characterId ? (
+                  <div className="campaign-empty">
+                    <h2>Character not found</h2>
+                    <p>This character is not in the selected campaign.</p>
+                    <a
+                      className="button button-primary"
+                      href={`#/characters/${activeCampaign.id}${preferredCharacterId ? `/${preferredCharacterId}` : ''}`}
+                    >
+                      Return to My Character
+                    </a>
+                  </div>
+                ) : (
+                  <div className="campaign-empty">
+                    <h2>No character yet</h2>
+                    <p>
+                      Create a character manually, import JSON, or use the
+                      Markdown guide above to prepare a character file.
+                    </p>
+                  </div>
+                )}
+              </CharacterWorkspace>
             )}
-            {activeCampaign &&
-              route === 'characters' &&
-              (location.characterId === 'new' ? (
-                <CharacterSheetPreview
-                  key={`${activeCampaign.id}-new`}
-                  campaign={activeCampaign}
-                  character={newCharacter(activeCampaign.id)}
-                  creating
-                  onSave={saveSheet}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : location.characterId === 'import' &&
-                characterImport?.campaignId === activeCampaign.id ? (
-                <CharacterSheetPreview
-                  key={`${activeCampaign.id}-import-${characterImport.sourceLabel}`}
-                  campaign={activeCampaign}
-                  character={characterImport.character}
-                  creating
-                  importSource={characterImport.sourceLabel}
-                  onCancelImport={() => setCharacterImport(null)}
-                  onSave={saveSheet}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : location.characterId &&
-                characters.some((c) => c.id === location.characterId) ? (
-                <CharacterSheetPreview
-                  key={location.characterId}
-                  campaign={activeCampaign}
-                  character={characters.find(
-                    (c) => c.id === location.characterId,
-                  )!}
-                  onSave={saveSheet}
-                  onDelete={confirmCharacterDelete}
-                  error={error}
-                  feedback={feedback}
-                />
-              ) : (
-                <div className="campaign-empty">
-                  <h2>
-                    {location.characterId
-                      ? 'Character not found'
-                      : 'Choose a character'}
-                  </h2>
-                  <p>
-                    {location.characterId
-                      ? 'This character is not in the selected campaign.'
-                      : "Open a sheet from this campaign's party."}
-                  </p>
-                  <a
-                    className="button button-primary"
-                    href={`#/party/${activeCampaign.id}`}
-                  >
-                    View party
-                  </a>
-                </div>
-              ))}
             {activeCampaign && route === 'notes' && (
               <CampaignJournal
                 key={`${activeCampaign.id}-${location.characterId ?? 'index'}`}

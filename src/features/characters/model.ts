@@ -1,3 +1,5 @@
+import type { DemoUserId } from '../auth/demoAuth';
+
 export const abilityNames = [
   'strength',
   'dexterity',
@@ -77,7 +79,9 @@ export interface CharacterSpell {
 export interface Character {
   id: string;
   campaignId: string;
+  ownerUserId: DemoUserId;
   name: string;
+  portraitDataUrl?: string;
   playerName?: string;
   className: string;
   subclass?: string;

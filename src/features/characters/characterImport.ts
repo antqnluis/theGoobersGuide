@@ -1,4 +1,5 @@
 import { isCharacter } from '../../shared/persistence/validation';
+import { newCharacter } from './characterService';
 import type { Character } from './model';
 
 export const CHARACTER_IMPORT_FORMAT = 'the-goobers-guide-character';
@@ -8,6 +9,7 @@ export const MAX_CHARACTER_IMPORT_BYTES = 1024 * 1024;
 type ImportOptions = {
   createId?: () => string;
   now?: () => string;
+  ownerUserId?: import('../auth/demoAuth').DemoUserId;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,12 +50,19 @@ export function parseCharacterImport(
   if (!isRecord(document.character))
     throw new Error('The character data is missing from this file.');
 
+  const { portraitDataUrl: _ignoredPortrait, ...portableCharacter } =
+    document.character;
+  void _ignoredPortrait;
+
   const createId = options.createId ?? (() => crypto.randomUUID());
   const timestamp = (options.now ?? (() => new Date().toISOString()))();
+  const ownerUserId = options.ownerUserId ?? 'player-one';
   const imported = {
-    ...document.character,
+    ...newCharacter(campaignId, ownerUserId),
+    ...portableCharacter,
     id: createId(),
     campaignId,
+    ownerUserId,
     attacks: replaceEntryIds(document.character.attacks, createId),
     inventory: replaceEntryIds(document.character.inventory, createId),
     features: replaceEntryIds(document.character.features, createId),

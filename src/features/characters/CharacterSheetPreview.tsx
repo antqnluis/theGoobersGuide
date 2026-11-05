@@ -1,4 +1,10 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from 'react';
 import type { Campaign } from '../campaigns/model';
 import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import { abilityModifier } from './characterService';
@@ -9,6 +15,10 @@ import {
   type CharacterSpell,
   type CombatStats,
 } from './model';
+import type { CharacterExportFormat } from './characterExport';
+import CharacterFeatures from './CharacterFeatures';
+import CharacterPortraitCropDialog from './CharacterPortraitCropDialog';
+import { portraitFileError } from './characterPortrait';
 
 type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
 
@@ -82,20 +92,26 @@ export default function CharacterSheetPreview({
   creating = false,
   onSave,
   onDelete,
+  readOnly = false,
+  ownerName,
   error,
   feedback,
   importSource,
-  onCancelImport,
+  onCancel,
+  onExport,
 }: {
   campaign: Campaign;
   character: Character;
   creating?: boolean;
-  onSave: (character: Character) => boolean;
+  onSave?: (character: Character) => boolean;
   onDelete?: (character: Character) => void;
+  readOnly?: boolean;
+  ownerName?: string;
   error: string | null;
   feedback: string | null;
   importSource?: string;
-  onCancelImport?: () => void;
+  onCancel?: () => void;
+  onExport?: (character: Character, format: CharacterExportFormat) => void;
 }) {
   const [saved, setSaved] = useState<Character>(initial);
   const [draft, setDraft] = useState<Character>(initial);
@@ -104,8 +120,10 @@ export default function CharacterSheetPreview({
   const [quickTemp, setQuickTemp] = useState(
     String(initial.combat.temporaryHp),
   );
-  const [quickLevel, setQuickLevel] = useState(String(initial.level));
   const [quickError, setQuickError] = useState<string | null>(null);
+  const [portraitError, setPortraitError] = useState<string | null>(null);
+  const [portraitFile, setPortraitFile] = useState<File | null>(null);
+  const portraitInput = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
   const character = editing ? draft : saved;
   const dirty =
@@ -122,12 +140,24 @@ export default function CharacterSheetPreview({
       setDraft(initial);
       setQuickHp(String(initial.combat.currentHp));
       setQuickTemp(String(initial.combat.temporaryHp));
-      setQuickLevel(String(initial.level));
     }
   }, [initial]);
 
   function updateField(key: keyof Character, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePortrait(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    const fileError = portraitFileError(file);
+    if (fileError) {
+      setPortraitError(fileError);
+      return;
+    }
+    setPortraitError(null);
+    setPortraitFile(file);
   }
 
   function updateCombat(key: keyof CombatStats, value: number) {
@@ -173,28 +203,26 @@ export default function CharacterSheetPreview({
   function cancelEdit() {
     if (creating) {
       allowNavigation.current = true;
-      onCancelImport?.();
-      window.location.hash = `#/party/${campaign.id}`;
+      onCancel?.();
       return;
     }
     setDraft(structuredClone(saved));
-    setQuickLevel(String(saved.level));
     setEditing(false);
   }
 
   function savePreview() {
     allowNavigation.current = true;
-    if (!onSave(draft)) {
+    if (!onSave || !onSave(draft)) {
       allowNavigation.current = false;
       return;
     }
     setSaved(structuredClone(draft));
-    setQuickLevel(String(draft.level));
     setEditing(false);
     if (!creating) allowNavigation.current = false;
   }
 
   function saveQuick(key: 'currentHp' | 'temporaryHp', raw: string) {
+    if (!onSave) return;
     const value = Number(raw);
     if (raw.trim() === '' || !Number.isInteger(value) || value < 0) {
       setQuickError('Enter a nonnegative whole number for hit points.');
@@ -210,27 +238,6 @@ export default function CharacterSheetPreview({
     } else {
       if (key === 'currentHp') setQuickHp(String(saved.combat.currentHp));
       else setQuickTemp(String(saved.combat.temporaryHp));
-    }
-  }
-
-  function saveQuickLevel() {
-    const level = Number(quickLevel);
-    if (quickLevel.trim() === '' || !Number.isInteger(level) || level < 1) {
-      setQuickError('Level must be a whole number of at least 1.');
-      setQuickLevel(String(saved.level));
-      return;
-    }
-    if (level === saved.level) {
-      setQuickError(null);
-      return;
-    }
-    const next = { ...saved, level };
-    if (onSave(next)) {
-      setSaved(next);
-      setDraft(next);
-      setQuickError(null);
-    } else {
-      setQuickLevel(String(saved.level));
     }
   }
 
@@ -302,7 +309,7 @@ export default function CharacterSheetPreview({
               />
             </label>
           ) : (
-            <h1>{character.name}</h1>
+            <h2 className="sheet-title">{character.name}</h2>
           )}
           <p className="character-line">
             <label className="level-control">
@@ -317,36 +324,112 @@ export default function CharacterSheetPreview({
                   className="level-input"
                 />
               ) : (
-                <input
-                  className="field-input field-input-number level-input"
-                  type="number"
-                  min="1"
-                  step="1"
-                  aria-label="Level"
-                  value={quickLevel}
-                  onChange={(event) => setQuickLevel(event.target.value)}
-                  onBlur={saveQuickLevel}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') event.currentTarget.blur();
-                  }}
-                />
+                <span className="level-value">{character.level}</span>
               )}
             </label>{' '}
             {character.className}
             {character.subclass ? `, ${character.subclass}` : ''} /{' '}
             {character.species}
           </p>
-          <p className="character-description">{character.description}</p>
+          {editing ? (
+            <textarea
+              aria-label="Character description"
+              className="field-input field-textarea character-description-editor"
+              rows={3}
+              value={character.description ?? ''}
+              onChange={(event) =>
+                updateField('description', event.target.value)
+              }
+            />
+          ) : (
+            <p className="character-description">{character.description}</p>
+          )}
+        </div>
+        <div className="sheet-portrait-column">
+          {character.portraitDataUrl ? (
+            <img
+              className="sheet-portrait"
+              src={character.portraitDataUrl}
+              alt={`${character.name || 'Character'} portrait`}
+            />
+          ) : (
+            <span className="sheet-portrait-fallback" aria-hidden="true">
+              {character.name.trim().charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
+          {editing && (
+            <div className="portrait-controls">
+              <input
+                ref={portraitInput}
+                className="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="Upload character portrait"
+                onChange={updatePortrait}
+              />
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => portraitInput.current?.click()}
+              >
+                {character.portraitDataUrl
+                  ? 'Replace portrait'
+                  : 'Add portrait'}
+              </button>
+              {character.portraitDataUrl && (
+                <button
+                  type="button"
+                  className="portrait-remove"
+                  onClick={() => {
+                    setDraft((current) => ({
+                      ...current,
+                      portraitDataUrl: undefined,
+                    }));
+                    setPortraitError(null);
+                  }}
+                >
+                  Remove portrait
+                </button>
+              )}
+              {portraitError && (
+                <span className="form-error" role="alert">
+                  {portraitError}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="sheet-header-actions">
-          {onDelete && !editing && (
-            <button
-              className="button button-quiet"
-              type="button"
-              onClick={() => onDelete(saved)}
-            >
-              Delete character
-            </button>
+          {!editing && (
+            <div className="sheet-secondary-actions">
+              {onExport && (
+                <>
+                  <button
+                    className="button button-quiet"
+                    type="button"
+                    onClick={() => onExport(saved, 'json')}
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    type="button"
+                    onClick={() => onExport(saved, 'markdown')}
+                  >
+                    Export Markdown
+                  </button>
+                </>
+              )}
+              {onDelete && (
+                <button
+                  className="button button-quiet"
+                  type="button"
+                  onClick={() => onDelete(saved)}
+                >
+                  Delete character
+                </button>
+              )}
+            </div>
           )}
           {editing ? (
             <div className="edit-actions">
@@ -369,6 +452,10 @@ export default function CharacterSheetPreview({
                     : 'Save changes'}
               </button>
             </div>
+          ) : readOnly ? (
+            <p className="read-only-notice">
+              Read-only for you{ownerName ? ` · ${ownerName}'s character` : ''}
+            </p>
           ) : (
             <button
               type="button"
@@ -385,12 +472,27 @@ export default function CharacterSheetPreview({
         {error ||
           quickError ||
           feedback ||
+          (readOnly
+            ? `Only ${ownerName ?? 'the owner'} can change this character.`
+            : null) ||
           (editing
             ? importSource
               ? 'Imported values remain editable until you add this character.'
               : 'Changes are saved when you select Save changes.'
             : 'Saved in this browser.')}
       </div>
+
+      {portraitFile && (
+        <CharacterPortraitCropDialog
+          file={portraitFile}
+          onCancel={() => setPortraitFile(null)}
+          onSave={(portraitDataUrl) => {
+            setDraft((current) => ({ ...current, portraitDataUrl }));
+            setPortraitError(null);
+            setPortraitFile(null);
+          }}
+        />
+      )}
 
       <div className="combat-band" aria-label="Combat information">
         <div className="hp-block">
@@ -417,6 +519,12 @@ export default function CharacterSheetPreview({
                     className="hp-input"
                   />
                 </label>
+              </>
+            ) : readOnly ? (
+              <>
+                <strong>{character.combat.currentHp}</strong>
+                <span className="hp-divider">/</span>
+                <span>{character.combat.maximumHp}</span>
               </>
             ) : (
               <>
@@ -453,6 +561,8 @@ export default function CharacterSheetPreview({
                 onChange={(value) => updateCombat('temporaryHp', value)}
                 className="inline-number"
               />
+            ) : readOnly ? (
+              <strong>{character.combat.temporaryHp}</strong>
             ) : (
               <input
                 className="field-input field-input-number inline-number"
@@ -859,286 +969,197 @@ export default function CharacterSheetPreview({
         {activeTab === 'gear' && (
           <div className="sheet-panel-grid">
             <section
-              className="sheet-section"
+              className="sheet-section sheet-section-wide gear-section"
               aria-labelledby="inventory-heading"
             >
               <div className="section-heading">
                 <h2 id="inventory-heading">Inventory</h2>
                 <p>Gear carried into the next session</p>
               </div>
-              <div className="ledger-list">
-                {character.inventory.map((item, index) => (
-                  <div className="ledger-row inventory-row" key={item.id}>
-                    <div>
-                      {editing ? (
-                        <>
-                          <input
-                            className="field-input"
-                            aria-label="Item name"
-                            value={item.name}
-                            onChange={(e) =>
-                              setDraft((c) => ({
-                                ...c,
-                                inventory: c.inventory.map((i) =>
-                                  i.id === item.id
-                                    ? { ...i, name: e.target.value }
-                                    : i,
+              <div className="gear-layout">
+                <div className="gear-inventory">
+                  <div className="ledger-list">
+                    {character.inventory.map((item, index) => (
+                      <div className="ledger-row inventory-row" key={item.id}>
+                        <div>
+                          {editing ? (
+                            <>
+                              <input
+                                className="field-input"
+                                aria-label="Item name"
+                                value={item.name}
+                                onChange={(e) =>
+                                  setDraft((c) => ({
+                                    ...c,
+                                    inventory: c.inventory.map((i) =>
+                                      i.id === item.id
+                                        ? { ...i, name: e.target.value }
+                                        : i,
+                                    ),
+                                  }))
+                                }
+                              />
+                              <input
+                                className="field-input"
+                                aria-label="Item description"
+                                value={item.description ?? ''}
+                                onChange={(e) =>
+                                  setDraft((c) => ({
+                                    ...c,
+                                    inventory: c.inventory.map((i) =>
+                                      i.id === item.id
+                                        ? { ...i, description: e.target.value }
+                                        : i,
+                                    ),
+                                  }))
+                                }
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <strong>{item.name}</strong>
+                              {item.description && (
+                                <span>{item.description}</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {editing ? (
+                          <NumberEdit
+                            label={`${item.name} quantity`}
+                            value={item.quantity}
+                            onChange={(value) =>
+                              setDraft((current) => ({
+                                ...current,
+                                inventory: current.inventory.map(
+                                  (entry, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...entry, quantity: value }
+                                      : entry,
                                 ),
                               }))
                             }
                           />
-                          <input
-                            className="field-input"
-                            aria-label="Item description"
-                            value={item.description ?? ''}
-                            onChange={(e) =>
+                        ) : (
+                          <span className="row-value">× {item.quantity}</span>
+                        )}
+                        {editing && (
+                          <button
+                            type="button"
+                            className="button button-quiet"
+                            onClick={() =>
                               setDraft((c) => ({
                                 ...c,
-                                inventory: c.inventory.map((i) =>
-                                  i.id === item.id
-                                    ? { ...i, description: e.target.value }
-                                    : i,
+                                inventory: c.inventory.filter(
+                                  (i) => i.id !== item.id,
                                 ),
                               }))
                             }
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <strong>{item.name}</strong>
-                          {item.description && <span>{item.description}</span>}
-                        </>
-                      )}
-                    </div>
-                    {editing ? (
-                      <NumberEdit
-                        label={`${item.name} quantity`}
-                        value={item.quantity}
-                        onChange={(value) =>
-                          setDraft((current) => ({
-                            ...current,
-                            inventory: current.inventory.map(
-                              (entry, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...entry, quantity: value }
-                                  : entry,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : (
-                      <span className="row-value">× {item.quantity}</span>
-                    )}
-                    {editing && (
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() =>
-                          setDraft((c) => ({
-                            ...c,
-                            inventory: c.inventory.filter(
-                              (i) => i.id !== item.id,
-                            ),
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {editing && (
+                    <button
+                      type="button"
+                      className="button button-quiet gear-action"
+                      onClick={() =>
+                        setDraft((c) => ({
+                          ...c,
+                          inventory: [
+                            ...c.inventory,
+                            { id: crypto.randomUUID(), name: '', quantity: 1 },
+                          ],
+                        }))
+                      }
+                    >
+                      Add item
+                    </button>
+                  )}
+                </div>
+                <div
+                  className="gear-currency"
+                  aria-labelledby="currency-heading"
+                >
+                  <h3 className="subheading" id="currency-heading">
+                    Currency
+                  </h3>
+                  <div className="currency-row">
+                    {Object.entries(character.currency).map(
+                      ([denomination, amount]) => (
+                        <div key={denomination}>
+                          <span>{denomination}</span>
+                          {editing ? (
+                            <NumberEdit
+                              label={`${denomination} balance`}
+                              value={amount}
+                              onChange={(value) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  currency: {
+                                    ...current.currency,
+                                    [denomination]: value,
+                                  },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <strong>{amount}</strong>
+                          )}
+                          {editing && (
+                            <button
+                              type="button"
+                              aria-label={`Remove ${denomination}`}
+                              onClick={() =>
+                                setDraft((c) => {
+                                  const currency = { ...c.currency };
+                                  delete currency[denomination];
+                                  return { ...c, currency };
+                                })
+                              }
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ),
                     )}
                   </div>
-                ))}
-              </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() =>
-                    setDraft((c) => ({
-                      ...c,
-                      inventory: [
-                        ...c.inventory,
-                        { id: crypto.randomUUID(), name: '', quantity: 1 },
-                      ],
-                    }))
-                  }
-                >
-                  Add item
-                </button>
-              )}
-              <h3 className="subheading">Currency</h3>
-              <div className="currency-row">
-                {Object.entries(character.currency).map(
-                  ([denomination, amount]) => (
-                    <div key={denomination}>
-                      <span>{denomination}</span>
-                      {editing ? (
-                        <NumberEdit
-                          label={`${denomination} balance`}
-                          value={amount}
-                          onChange={(value) =>
-                            setDraft((current) => ({
-                              ...current,
-                              currency: {
-                                ...current.currency,
-                                [denomination]: value,
-                              },
-                            }))
-                          }
-                        />
-                      ) : (
-                        <strong>{amount}</strong>
-                      )}
-                      {editing && (
-                        <button
-                          type="button"
-                          aria-label={`Remove ${denomination}`}
-                          onClick={() =>
-                            setDraft((c) => {
-                              const currency = { ...c.currency };
-                              delete currency[denomination];
-                              return { ...c, currency };
-                            })
-                          }
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ),
-                )}
-              </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() => {
-                    const name = window
-                      .prompt('Currency name (for example, pp)')
-                      ?.trim();
-                    if (name)
-                      setDraft((c) => ({
-                        ...c,
-                        currency: {
-                          ...c.currency,
-                          [name]: c.currency[name] ?? 0,
-                        },
-                      }));
-                  }}
-                >
-                  Add currency
-                </button>
-              )}
-            </section>
-            <section
-              className="sheet-section"
-              aria-labelledby="features-heading"
-            >
-              <div className="section-heading">
-                <h2 id="features-heading">Features</h2>
-                <p>Custom and homebrew text is welcome</p>
-              </div>
-              <div className="feature-list">
-                {character.features.map((feature, index) => (
-                  <div className="feature-entry" key={feature.id}>
-                    {editing ? (
-                      <>
-                        <input
-                          className="field-input"
-                          aria-label="Feature category"
-                          placeholder="Category (optional)"
-                          value={feature.category ?? ''}
-                          onChange={(e) =>
-                            setDraft((c) => ({
-                              ...c,
-                              features: c.features.map((f) =>
-                                f.id === feature.id
-                                  ? { ...f, category: e.target.value }
-                                  : f,
-                              ),
-                            }))
-                          }
-                        />
-                        <input
-                          className="field-input"
-                          aria-label="Feature name"
-                          value={feature.name}
-                          onChange={(e) =>
-                            setDraft((c) => ({
-                              ...c,
-                              features: c.features.map((f) =>
-                                f.id === feature.id
-                                  ? { ...f, name: e.target.value }
-                                  : f,
-                              ),
-                            }))
-                          }
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <span className="feature-category">
-                          {feature.category}
-                        </span>
-                        <h3>{feature.name}</h3>
-                      </>
-                    )}
-                    {editing ? (
-                      <textarea
-                        aria-label={`${feature.name} description`}
-                        className="field-input field-textarea"
-                        rows={3}
-                        value={feature.description}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            features: current.features.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, description: event.target.value }
-                                : item,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : (
-                      <p>{feature.description}</p>
-                    )}
-                    {editing && (
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() =>
+                  {editing && (
+                    <button
+                      type="button"
+                      className="button button-quiet gear-action"
+                      onClick={() => {
+                        const name = window
+                          .prompt('Currency name (for example, pp)')
+                          ?.trim();
+                        if (name)
                           setDraft((c) => ({
                             ...c,
-                            features: c.features.filter(
-                              (f) => f.id !== feature.id,
-                            ),
-                          }))
-                        }
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
+                            currency: {
+                              ...c.currency,
+                              [name]: c.currency[name] ?? 0,
+                            },
+                          }));
+                      }}
+                    >
+                      Add currency
+                    </button>
+                  )}
+                </div>
               </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  onClick={() =>
-                    setDraft((c) => ({
-                      ...c,
-                      features: [
-                        ...c.features,
-                        { id: crypto.randomUUID(), name: '', description: '' },
-                      ],
-                    }))
-                  }
-                >
-                  Add feature
-                </button>
-              )}
             </section>
+            <CharacterFeatures
+              characterId={character.id}
+              features={character.features}
+              editing={editing}
+              onChange={(features) =>
+                setDraft((current) => ({ ...current, features }))
+              }
+            />
           </div>
         )}
 
@@ -1214,7 +1235,7 @@ export default function CharacterSheetPreview({
               <h3 className="subheading">Description</h3>
               {editing ? (
                 <textarea
-                  aria-label="Character description"
+                  aria-label="Character description in Notes"
                   className="field-input field-textarea"
                   rows={4}
                   value={character.description ?? ''}
