@@ -44,6 +44,17 @@ When behavior is implemented, test its important paths and failure cases using o
 
 There is no Git history or established commit convention. Use short, imperative commit subjects that describe the change. Keep pull requests focused, with a summary, checks performed, relevant issue links, screenshots for visible interface changes, and any setup changes.
 
+## Subagent Delegation
+
+Available project-scoped reviewers:
+
+- `qa_reviewer` reviews functional correctness, regressions, import and persistence behavior, data isolation, and test coverage after substantial behavior or data changes.
+- `ui_reviewer` reviews consistency, responsive behavior, interactions, and accessibility after substantial UI changes or roadmap phases.
+
+Invoke reviewers by the configured names `qa_reviewer` and `ui_reviewer`. Use only the reviewer relevant to the change; skip both for trivial changes unless requested. After a substantial UI phase, run both independent reviews in parallel when their scopes do not conflict. Reviewers are read-only: they report findings and never edit or fix implementation files. The main agent consolidates findings, resolves confirmed in-scope issues, and runs relevant checks; do not have agents edit the same files concurrently.
+
+After completing a UI roadmap phase and its checks, stop for the user's manual visual review and explicit approval before starting another phase.
+
 ## Agent-Specific Instructions
 
 Do not use emojis in repository documentation or contributor communication.

@@ -101,6 +101,13 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(
+    () => window.matchMedia('(max-width: 1050px)').matches,
+  );
+  const previousMenuOpen = useRef(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const firstMenuLink = useRef<HTMLAnchorElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [characterImport, setCharacterImport] = useState<{
@@ -134,6 +141,78 @@ export default function App() {
   const preferredCharacterId = activeCampaign
     ? selectedCharacterId(data, activeCampaign.id, sessionUser?.id)
     : null;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1050px)');
+    const updateCompactNavigation = () => {
+      setCompactNavigation(mediaQuery.matches);
+      if (!mediaQuery.matches) setMenuOpen(false);
+    };
+    mediaQuery.addEventListener('change', updateCompactNavigation);
+    return () =>
+      mediaQuery.removeEventListener('change', updateCompactNavigation);
+  }, []);
+
+  useEffect(() => {
+    const wasOpen = previousMenuOpen.current;
+    if (compactNavigation && menuOpen && !wasOpen)
+      firstMenuLink.current?.focus();
+    else if (compactNavigation && !menuOpen && wasOpen)
+      menuButton.current?.focus();
+    else if (
+      compactNavigation &&
+      !menuOpen &&
+      sidebar.current?.contains(document.activeElement)
+    )
+      menuButton.current?.focus();
+    previousMenuOpen.current = menuOpen;
+  }, [compactNavigation, menuOpen]);
+
+  useEffect(() => {
+    if (!compactNavigation || !menuOpen) return;
+
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        sidebar.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        menuButton.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const focusOutsideMenu = !sidebar.current?.contains(
+        document.activeElement,
+      );
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || focusOutsideMenu)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || focusOutsideMenu)
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleMenuKeyDown);
+    return () => document.removeEventListener('keydown', handleMenuKeyDown);
+  }, [compactNavigation, menuOpen]);
 
   useEffect(() => {
     const onHashChange = (event: HashChangeEvent) => {
@@ -553,12 +632,20 @@ export default function App() {
             type="button"
             className="mobile-scrim"
             aria-label="Close navigation"
+            aria-hidden="true"
+            tabIndex={-1}
             onClick={() => setMenuOpen(false)}
           />
         )}
         <aside
+          ref={sidebar}
+          id="primary-navigation"
           className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}
+          role={compactNavigation && menuOpen ? 'dialog' : undefined}
+          aria-modal={compactNavigation && menuOpen ? true : undefined}
           aria-label="Application navigation"
+          aria-hidden={compactNavigation && !menuOpen}
+          inert={compactNavigation && !menuOpen}
         >
           <a
             className="brand"
@@ -592,6 +679,7 @@ export default function App() {
               .map((item) => (
                 <a
                   key={item.route}
+                  ref={item.route === 'campaigns' ? firstMenuLink : undefined}
                   href={
                     item.route === 'campaigns'
                       ? '#/campaigns'
@@ -621,6 +709,8 @@ export default function App() {
                 className="menu-button"
                 aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
                 aria-expanded={menuOpen}
+                aria-controls="primary-navigation"
+                ref={menuButton}
                 onClick={() => setMenuOpen((open) => !open)}
               >
                 <span />

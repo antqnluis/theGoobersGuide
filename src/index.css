@@ -2816,6 +2816,9 @@ a {
     flex-direction: column;
     gap: 4px;
   }
+  .overview-campaign-details > .section-heading {
+    align-items: flex-start;
+  }
   .feature-section-heading {
     align-items: stretch;
     gap: 14px;
