@@ -512,7 +512,7 @@ export default function App() {
     setFeedback(null);
     setError(null);
     if (file.size > MAX_CHARACTER_IMPORT_BYTES) {
-      setError('Choose a character JSON file smaller than 1 MB.');
+      setError('Choose a character JSON file up to 1 MB.');
       return false;
     }
     try {

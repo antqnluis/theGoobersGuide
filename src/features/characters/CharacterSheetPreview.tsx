@@ -305,6 +305,7 @@ export default function CharacterSheetPreview({
               <input
                 className="field-input edit-heading"
                 value={character.name}
+                autoFocus={creating}
                 onChange={(event) => updateField('name', event.target.value)}
               />
             </label>

@@ -66,6 +66,7 @@ export default function CharacterWorkspace({
             Select a character
             <select
               id="character-selection"
+              aria-describedby="character-ownership"
               value={draftKind ? '' : (selectedCharacterId ?? '')}
               disabled={!characters.length}
               onChange={(event) => {
@@ -96,7 +97,11 @@ export default function CharacterWorkspace({
               ))}
             </select>
           </label>
-          <p className="character-ownership" aria-live="polite">
+          <p
+            className="character-ownership"
+            id="character-ownership"
+            aria-live="polite"
+          >
             {draftKind === 'new' ? (
               <>
                 {`New character draft. Owner: ${viewerName}. Nothing is saved yet.`}
@@ -200,7 +205,7 @@ export default function CharacterWorkspace({
             <div className="import-file-option">
               <div>
                 <strong>Upload a file</strong>
-                <span>Choose a .json file smaller than 1 MB.</span>
+                <span>Choose a .json file up to 1 MB.</span>
               </div>
               <button
                 className="button button-quiet"
@@ -215,6 +220,7 @@ export default function CharacterWorkspace({
                 type="file"
                 accept=".json,application/json"
                 aria-label="Choose a character JSON file"
+                tabIndex={-1}
                 onChange={async (event) => {
                   const file = event.target.files?.[0];
                   if (file && (await onImportFile(file))) setImportOpen(false);
