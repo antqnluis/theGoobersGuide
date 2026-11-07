@@ -9,6 +9,7 @@ export default function CharacterWorkspace({
   characters,
   viewerUserId,
   selectedCharacterId,
+  draftKind,
   onImportFile,
   onImportText,
   error,
@@ -18,6 +19,7 @@ export default function CharacterWorkspace({
   characters: Character[];
   viewerUserId: DemoUserId;
   selectedCharacterId: string | null;
+  draftKind: 'new' | 'import' | null;
   onImportFile: (file: File) => Promise<boolean>;
   onImportText: (source: string) => boolean;
   error: string | null;
@@ -27,16 +29,24 @@ export default function CharacterWorkspace({
   const [importOpen, setImportOpen] = useState(false);
   const [pastedJson, setPastedJson] = useState('');
   const [formatOpen, setFormatOpen] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const selectedCharacter = characters.find(
+    (character) => character.id === selectedCharacterId,
+  );
+  const viewerName = demoUserById(viewerUserId)?.displayName ?? 'you';
+  const [copyStatus, setCopyStatus] = useState<{
+    message: string;
+    success: boolean;
+  } | null>(null);
 
   async function copyConversionPrompt() {
     try {
       await navigator.clipboard.writeText(CHARACTER_CONVERSION_PROMPT);
-      setCopyStatus('Conversion prompt copied.');
+      setCopyStatus({ message: 'Conversion prompt copied.', success: true });
     } catch {
-      setCopyStatus(
-        'Copy failed. Select the prompt text and copy it manually.',
-      );
+      setCopyStatus({
+        message: 'Copy failed. Select the prompt text and copy it manually.',
+        success: false,
+      });
     }
   }
 
@@ -47,69 +57,110 @@ export default function CharacterWorkspace({
           <p className="page-context">{campaign.name}</p>
           <h1>My Character</h1>
           <p>
-            Create multiple characters for this campaign. You can edit your own;
-            other players&apos; sheets are read-only.
+            Choose a character to view, make a new one, or bring in a saved
+            character file.
           </p>
         </div>
-        <label className="character-switcher">
-          Character
-          <select
-            value={selectedCharacterId ?? ''}
-            disabled={!characters.length}
-            onChange={(event) => {
-              const nextCharacterId = event.target.value;
-              if (nextCharacterId)
-                window.location.hash = `#/characters/${campaign.id}/${nextCharacterId}`;
-              event.currentTarget.value = selectedCharacterId ?? '';
-            }}
-          >
-            {!characters.length && (
-              <option value="">No saved characters</option>
-            )}
-            {characters.map((character) => (
-              <option key={character.id} value={character.id}>
-                {character.name}
-                {character.ownerUserId === viewerUserId
-                  ? ' (yours)'
-                  : ` (${demoUserById(character.ownerUserId)?.displayName ?? 'Another player'} · read-only)`}
+        <div className="character-selection">
+          <label className="character-switcher" htmlFor="character-selection">
+            Select a character
+            <select
+              id="character-selection"
+              aria-describedby="character-ownership"
+              value={draftKind ? '' : (selectedCharacterId ?? '')}
+              disabled={!characters.length}
+              onChange={(event) => {
+                const nextCharacterId = event.target.value;
+                if (nextCharacterId)
+                  window.location.hash = `#/characters/${campaign.id}/${nextCharacterId}`;
+                event.currentTarget.value = draftKind
+                  ? ''
+                  : (selectedCharacterId ?? '');
+              }}
+            >
+              <option value="">
+                {draftKind === 'new'
+                  ? 'New character draft · not saved'
+                  : draftKind === 'import'
+                    ? 'Import review · not saved'
+                    : characters.length
+                      ? 'Choose a character'
+                      : 'No saved characters'}
               </option>
-            ))}
-          </select>
-        </label>
+              {characters.map((character) => (
+                <option key={character.id} value={character.id}>
+                  {character.name || 'Unnamed character'}
+                  {character.ownerUserId === viewerUserId
+                    ? ' (yours)'
+                    : ` (${demoUserById(character.ownerUserId)?.displayName ?? 'Another player'} · read-only)`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p
+            className="character-ownership"
+            id="character-ownership"
+            aria-live="polite"
+          >
+            {draftKind === 'new' ? (
+              <>
+                {`New character draft. Owner: ${viewerName}. Nothing is saved yet.`}
+              </>
+            ) : draftKind === 'import' ? (
+              <>
+                {`Import review. Owner: ${viewerName}. Save the reviewed sheet to add it to this campaign.`}
+              </>
+            ) : selectedCharacter?.ownerUserId === viewerUserId ? (
+              <>You own this character. You can edit its sheet.</>
+            ) : selectedCharacter ? (
+              <>
+                {`Read-only. Owner: ${demoUserById(selectedCharacter.ownerUserId)?.displayName ?? 'another player'}.`}
+              </>
+            ) : (
+              <>Your characters and other players&apos; sheets appear here.</>
+            )}
+          </p>
+        </div>
       </header>
-      <div className="character-workspace-actions">
+      <div
+        className="character-workspace-actions"
+        role="group"
+        aria-label="Character entry actions"
+      >
         <a
-          className="button button-primary"
+          className="button button-primary character-create-action"
           href={`#/characters/${campaign.id}/new`}
         >
           Create character
         </a>
-        <button
-          className="button button-quiet"
-          type="button"
-          aria-expanded={importOpen}
-          aria-controls="character-json-import"
-          onClick={() => {
-            setImportOpen((open) => !open);
-            setFormatOpen(false);
-            setCopyStatus(null);
-          }}
-        >
-          Import JSON
-        </button>
-        <button
-          className="button button-quiet"
-          type="button"
-          aria-expanded={formatOpen}
-          aria-controls="character-format-guide"
-          onClick={() => {
-            setFormatOpen((open) => !open);
-            setImportOpen(false);
-            setCopyStatus(null);
-          }}
-        >
-          Markdown guide
-        </button>
+        <div className="character-workspace-secondary-actions">
+          <button
+            className="button button-quiet"
+            type="button"
+            aria-expanded={importOpen}
+            aria-controls="character-json-import"
+            onClick={() => {
+              setImportOpen((open) => !open);
+              setFormatOpen(false);
+              setCopyStatus(null);
+            }}
+          >
+            Import JSON
+          </button>
+          <button
+            className="button button-quiet"
+            type="button"
+            aria-expanded={formatOpen}
+            aria-controls="character-format-guide"
+            onClick={() => {
+              setFormatOpen((open) => !open);
+              setImportOpen(false);
+              setCopyStatus(null);
+            }}
+          >
+            Markdown guide
+          </button>
+        </div>
       </div>
       {error && (importOpen || formatOpen) && (
         <p className="form-error" role="alert">
@@ -125,8 +176,8 @@ export default function CharacterWorkspace({
           <div className="import-workspace-heading">
             <h2 id="character-import-heading">Import a character</h2>
             <p>
-              Paste converted JSON directly, or choose a saved character file.
-              You will review everything before it is added.
+              Paste character JSON below or choose a saved file. Nothing is
+              added until you review the sheet and choose Save character.
             </p>
           </div>
           <div className="import-options">
@@ -148,13 +199,13 @@ export default function CharacterWorkspace({
                   if (onImportText(pastedJson)) setImportOpen(false);
                 }}
               >
-                Review pasted JSON
+                Review pasted character
               </button>
             </div>
             <div className="import-file-option">
               <div>
                 <strong>Upload a file</strong>
-                <span>Choose a .json file smaller than 1 MB.</span>
+                <span>Choose a .json file up to 1 MB.</span>
               </div>
               <button
                 className="button button-quiet"
@@ -169,6 +220,7 @@ export default function CharacterWorkspace({
                 type="file"
                 accept=".json,application/json"
                 aria-label="Choose a character JSON file"
+                tabIndex={-1}
                 onChange={async (event) => {
                   const file = event.target.files?.[0];
                   if (file && (await onImportFile(file))) setImportOpen(false);
@@ -213,8 +265,11 @@ export default function CharacterWorkspace({
             onFocus={(event) => event.currentTarget.select()}
           />
           {copyStatus && (
-            <p className="conversion-copy-status" role="status">
-              {copyStatus}
+            <p
+              className={`conversion-copy-status ${copyStatus.success ? 'is-success' : 'is-error'}`}
+              role={copyStatus.success ? 'status' : 'alert'}
+            >
+              {copyStatus.message}
             </p>
           )}
         </section>

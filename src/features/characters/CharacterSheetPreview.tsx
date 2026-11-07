@@ -305,6 +305,7 @@ export default function CharacterSheetPreview({
               <input
                 className="field-input edit-heading"
                 value={character.name}
+                autoFocus={creating}
                 onChange={(event) => updateField('name', event.target.value)}
               />
             </label>
@@ -331,6 +332,15 @@ export default function CharacterSheetPreview({
             {character.subclass ? `, ${character.subclass}` : ''} /{' '}
             {character.species}
           </p>
+          {ownerName && (
+            <p
+              className={`sheet-owner-status${readOnly ? ' is-read-only' : ''}`}
+            >
+              {readOnly
+                ? `Read-only for you. Owned by ${ownerName}.`
+                : 'Your character'}
+            </p>
+          )}
           {editing ? (
             <textarea
               aria-label="Character description"
@@ -452,11 +462,7 @@ export default function CharacterSheetPreview({
                     : 'Save changes'}
               </button>
             </div>
-          ) : readOnly ? (
-            <p className="read-only-notice">
-              Read-only for you{ownerName ? ` · ${ownerName}'s character` : ''}
-            </p>
-          ) : (
+          ) : readOnly ? null : (
             <button
               type="button"
               className="button button-primary"
@@ -468,7 +474,10 @@ export default function CharacterSheetPreview({
         </div>
       </header>
 
-      <div className="sheet-status" role="status">
+      <div
+        className={`sheet-status${error || quickError ? ' is-error' : ''}`}
+        role={error || quickError ? 'alert' : 'status'}
+      >
         {error ||
           quickError ||
           feedback ||
@@ -478,7 +487,9 @@ export default function CharacterSheetPreview({
           (editing
             ? importSource
               ? 'Imported values remain editable until you add this character.'
-              : 'Changes are saved when you select Save changes.'
+              : creating
+                ? 'This character is a draft. Choose Create character to save it.'
+                : 'Changes are saved when you select Save changes.'
             : 'Saved in this browser.')}
       </div>
 
@@ -636,9 +647,9 @@ export default function CharacterSheetPreview({
         aria-labelledby={`tab-${activeTab}`}
       >
         {activeTab === 'overview' && (
-          <div className="sheet-panel-grid">
+          <div className="sheet-panel-grid sheet-overview-grid">
             <section
-              className="sheet-section sheet-section-wide"
+              className="sheet-section"
               aria-labelledby="abilities-heading"
             >
               <div className="section-heading">
@@ -690,7 +701,7 @@ export default function CharacterSheetPreview({
             </section>
 
             <section
-              className="sheet-section sheet-section-wide"
+              className="sheet-section"
               aria-labelledby="attacks-heading"
             >
               <div className="section-heading">

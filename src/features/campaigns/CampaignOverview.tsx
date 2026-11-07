@@ -6,7 +6,6 @@ import { recentNotes as getRecentNotes } from '../notes/noteService';
 import { type CampaignContextDetails } from './campaignService';
 import { demoUserById, type DemoUserId } from '../auth/demoAuth';
 import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
-import CampaignMapPreview from './CampaignMapPreview';
 
 interface Props {
   campaign: Campaign;
@@ -14,7 +13,6 @@ interface Props {
   notes: CampaignNote[];
   viewerUserId: DemoUserId;
   onUpdateContext: (details: CampaignContextDetails) => boolean;
-  onUpdateMap: (mapDataUrl?: string) => boolean;
   error: string | null;
   feedback: string | null;
 }
@@ -25,7 +23,6 @@ export default function CampaignOverview({
   notes,
   viewerUserId,
   onUpdateContext,
-  onUpdateMap,
   error,
   feedback,
 }: Props) {
@@ -80,99 +77,109 @@ export default function CampaignOverview({
           {error}
         </p>
       )}
-      <div className="overview-context-grid">
-        <section className="overview-campaign-details">
-          <div className="section-heading">
-            <h2>Campaign details</h2>
-            {!editingContext && (
+      <section className="overview-campaign-details">
+        <div className="section-heading">
+          <h2>Campaign details</h2>
+          {!editingContext && (
+            <button
+              className="button button-quiet"
+              type="button"
+              onClick={() => setEditingContext(true)}
+            >
+              Edit details
+            </button>
+          )}
+        </div>
+        <div className="overview-summary">
+          <div>
+            <span>Party</span>
+            <strong>{campaign.partyName ?? 'No party created'}</strong>
+            {!campaign.partyName && (
+              <a href={`#/party/${campaign.id}`}>Create party</a>
+            )}
+          </div>
+          <div>
+            <span>Current location</span>
+            <strong>{campaign.currentLocation || 'Not set'}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{campaign.status || 'Not set'}</strong>
+          </div>
+        </div>
+        {editingContext && (
+          <form className="campaign-context-form" onSubmit={saveContext}>
+            <label>
+              Current location
+              <input
+                className="field-input"
+                value={contextDraft.currentLocation ?? ''}
+                maxLength={160}
+                onChange={(event) =>
+                  setContextDraft((current) => ({
+                    ...current,
+                    currentLocation: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Status
+              <input
+                className="field-input"
+                value={contextDraft.status ?? ''}
+                maxLength={120}
+                onChange={(event) =>
+                  setContextDraft((current) => ({
+                    ...current,
+                    status: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <div className="campaign-actions">
+              <button className="button button-primary" type="submit">
+                Save details
+              </button>
               <button
                 className="button button-quiet"
                 type="button"
-                onClick={() => setEditingContext(true)}
+                onClick={() => {
+                  if (
+                    !dirty ||
+                    window.confirm('Discard unsaved campaign details?')
+                  ) {
+                    setContextDraft({
+                      currentLocation: campaign.currentLocation ?? '',
+                      status: campaign.status ?? '',
+                    });
+                    setEditingContext(false);
+                  }
+                }}
               >
-                Edit details
+                Cancel
               </button>
-            )}
-          </div>
-          <div className="overview-summary">
-            <div>
-              <span>Party</span>
-              <strong>{campaign.partyName ?? 'No party created'}</strong>
-              {!campaign.partyName && (
-                <a href={`#/party/${campaign.id}`}>Create party</a>
-              )}
             </div>
-            <div>
-              <span>Current location</span>
-              <strong>{campaign.currentLocation || 'Not set'}</strong>
-            </div>
-            <div>
-              <span>Status</span>
-              <strong>{campaign.status || 'Not set'}</strong>
-            </div>
-          </div>
-          {editingContext && (
-            <form className="campaign-context-form" onSubmit={saveContext}>
-              <label>
-                Current location
-                <input
-                  className="field-input"
-                  value={contextDraft.currentLocation ?? ''}
-                  maxLength={160}
-                  onChange={(event) =>
-                    setContextDraft((current) => ({
-                      ...current,
-                      currentLocation: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label>
-                Status
-                <input
-                  className="field-input"
-                  value={contextDraft.status ?? ''}
-                  maxLength={120}
-                  onChange={(event) =>
-                    setContextDraft((current) => ({
-                      ...current,
-                      status: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <div className="campaign-actions">
-                <button className="button button-primary" type="submit">
-                  Save details
-                </button>
-                <button
-                  className="button button-quiet"
-                  type="button"
-                  onClick={() => {
-                    if (
-                      !dirty ||
-                      window.confirm('Discard unsaved campaign details?')
-                    ) {
-                      setContextDraft({
-                        currentLocation: campaign.currentLocation ?? '',
-                        status: campaign.status ?? '',
-                      });
-                      setEditingContext(false);
-                    }
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </section>
-        <CampaignMapPreview
-          campaignName={campaign.name}
-          mapDataUrl={campaign.mapDataUrl}
-          onSave={onUpdateMap}
-        />
-      </div>
+          </form>
+        )}
+      </section>
+      <nav className="overview-shortcuts" aria-label="Campaign shortcuts">
+        <a
+          className="button button-primary"
+          href={`#/characters/${campaign.id}`}
+        >
+          Open My Character
+        </a>
+        <a className="button button-quiet" href={`#/party/${campaign.id}`}>
+          Manage party
+        </a>
+        <a className="button button-quiet" href={`#/notes/${campaign.id}`}>
+          Campaign notes
+        </a>
+        <a className="button button-quiet" href="#/campaigns">
+          Campaign library
+        </a>
+      </nav>
       <section
         className="character-gallery-section"
         aria-labelledby="character-gallery-heading"
@@ -289,20 +296,6 @@ export default function CampaignOverview({
             </p>
           )}
         </section>
-      </div>
-      <div className="overview-shortcuts">
-        <a
-          className="button button-primary"
-          href={`#/characters/${campaign.id}`}
-        >
-          Open My Character
-        </a>
-        <a className="button button-quiet" href={`#/party/${campaign.id}`}>
-          Manage party
-        </a>
-        <a className="button button-quiet" href="#/campaigns">
-          Campaign library
-        </a>
       </div>
     </div>
   );

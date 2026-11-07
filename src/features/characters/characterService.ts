@@ -16,9 +16,7 @@ export function selectedCharacterId(
     selected &&
     data.characters.some(
       (character) =>
-        character.id === selected &&
-        character.campaignId === campaignId &&
-        (!ownerUserId || character.ownerUserId === ownerUserId),
+        character.id === selected && character.campaignId === campaignId,
     )
   )
     return selected;

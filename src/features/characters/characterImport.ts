@@ -73,7 +73,7 @@ export function parseCharacterImport(
 
   if (!isCharacter(imported))
     throw new Error(
-      'The character data is incomplete or contains unsupported values.',
+      'Character data is incomplete or uses unsupported values. Open the Markdown guide to check required fields, then correct the JSON and try again.',
     );
 
   return imported;

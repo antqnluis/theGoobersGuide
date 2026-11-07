@@ -219,13 +219,19 @@ describe('character management', () => {
         'player-two',
       ),
     ).toThrow('only delete your own characters');
-    expect(
-      selectedCharacterId(
-        selectCharacter(repository, updatedFirst, first.id, firstCharacter.id),
-        first.id,
-        'player-two',
-      ),
-    ).toBe(secondCharacter.id);
+    expect(selectedCharacterId(bothSaved, first.id, 'player-two')).toBe(
+      secondCharacter.id,
+    );
+
+    const selectedReadOnly = selectCharacter(
+      repository,
+      updatedFirst,
+      first.id,
+      firstCharacter.id,
+    );
+    expect(selectedCharacterId(selectedReadOnly, first.id, 'player-two')).toBe(
+      firstCharacter.id,
+    );
   });
 
   it('remembers one valid selected character per campaign and falls back after deletion', () => {

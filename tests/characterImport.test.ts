@@ -169,7 +169,7 @@ describe('character JSON import', () => {
     ).toThrow('version 3 is not supported');
     expect(() =>
       parseCharacterImport(characterDocument({ combat: null }), 'campaign'),
-    ).toThrow('incomplete or contains unsupported values');
+    ).toThrow('Open the Markdown guide to check required fields');
   });
 
   it('rejects version 1 files with instructions to regenerate them', () => {
@@ -193,6 +193,6 @@ describe('character JSON import', () => {
         }),
         'campaign',
       ),
-    ).toThrow('incomplete or contains unsupported values');
+    ).toThrow('Open the Markdown guide to check required fields');
   });
 });

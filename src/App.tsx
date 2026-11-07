@@ -5,7 +5,6 @@ import {
   createCampaign,
   deleteCampaign,
   updateCampaignContext,
-  updateCampaignMap,
   updateCampaign,
   type CampaignContextDetails,
   type CampaignDetails,
@@ -102,6 +101,13 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const locationRef = useRef(location);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(
+    () => window.matchMedia('(max-width: 1050px)').matches,
+  );
+  const previousMenuOpen = useRef(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const firstMenuLink = useRef<HTMLAnchorElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [characterImport, setCharacterImport] = useState<{
@@ -135,6 +141,78 @@ export default function App() {
   const preferredCharacterId = activeCampaign
     ? selectedCharacterId(data, activeCampaign.id, sessionUser?.id)
     : null;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1050px)');
+    const updateCompactNavigation = () => {
+      setCompactNavigation(mediaQuery.matches);
+      if (!mediaQuery.matches) setMenuOpen(false);
+    };
+    mediaQuery.addEventListener('change', updateCompactNavigation);
+    return () =>
+      mediaQuery.removeEventListener('change', updateCompactNavigation);
+  }, []);
+
+  useEffect(() => {
+    const wasOpen = previousMenuOpen.current;
+    if (compactNavigation && menuOpen && !wasOpen)
+      firstMenuLink.current?.focus();
+    else if (compactNavigation && !menuOpen && wasOpen)
+      menuButton.current?.focus();
+    else if (
+      compactNavigation &&
+      !menuOpen &&
+      sidebar.current?.contains(document.activeElement)
+    )
+      menuButton.current?.focus();
+    previousMenuOpen.current = menuOpen;
+  }, [compactNavigation, menuOpen]);
+
+  useEffect(() => {
+    if (!compactNavigation || !menuOpen) return;
+
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        sidebar.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        menuButton.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const focusOutsideMenu = !sidebar.current?.contains(
+        document.activeElement,
+      );
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || focusOutsideMenu)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || focusOutsideMenu)
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleMenuKeyDown);
+    return () => document.removeEventListener('keydown', handleMenuKeyDown);
+  }, [compactNavigation, menuOpen]);
 
   useEffect(() => {
     const onHashChange = (event: HashChangeEvent) => {
@@ -239,22 +317,6 @@ export default function App() {
     } catch {
       setError(
         'Campaign details could not be saved. Check browser storage and try again.',
-      );
-      return false;
-    }
-  }
-
-  function saveCampaignMap(id: string, mapDataUrl?: string): boolean {
-    try {
-      setData(updateCampaignMap(repository, data, id, mapDataUrl));
-      setFeedback(
-        mapDataUrl ? 'Saved the campaign map.' : 'Removed the campaign map.',
-      );
-      setError(null);
-      return true;
-    } catch {
-      setError(
-        'Campaign map could not be saved. Check browser storage and try again.',
       );
       return false;
     }
@@ -450,7 +512,7 @@ export default function App() {
     setFeedback(null);
     setError(null);
     if (file.size > MAX_CHARACTER_IMPORT_BYTES) {
-      setError('Choose a character JSON file smaller than 1 MB.');
+      setError('Choose a character JSON file up to 1 MB.');
       return false;
     }
     try {
@@ -570,12 +632,20 @@ export default function App() {
             type="button"
             className="mobile-scrim"
             aria-label="Close navigation"
+            aria-hidden="true"
+            tabIndex={-1}
             onClick={() => setMenuOpen(false)}
           />
         )}
         <aside
+          ref={sidebar}
+          id="primary-navigation"
           className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}
+          role={compactNavigation && menuOpen ? 'dialog' : undefined}
+          aria-modal={compactNavigation && menuOpen ? true : undefined}
           aria-label="Application navigation"
+          aria-hidden={compactNavigation && !menuOpen}
+          inert={compactNavigation && !menuOpen}
         >
           <a
             className="brand"
@@ -609,6 +679,7 @@ export default function App() {
               .map((item) => (
                 <a
                   key={item.route}
+                  ref={item.route === 'campaigns' ? firstMenuLink : undefined}
                   href={
                     item.route === 'campaigns'
                       ? '#/campaigns'
@@ -638,15 +709,23 @@ export default function App() {
                 className="menu-button"
                 aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
                 aria-expanded={menuOpen}
+                aria-controls="primary-navigation"
+                ref={menuButton}
                 onClick={() => setMenuOpen((open) => !open)}
               >
                 <span />
                 <span />
                 <span />
               </button>
-              <span className="topbar-campaign">
-                {activeCampaign ? activeCampaign.name : 'Campaign library'}
-              </span>
+              <div className="topbar-context">
+                <span className="topbar-page">
+                  {navigation.find((item) => item.route === route)?.label ??
+                    'Campaign library'}
+                </span>
+                {activeCampaign && (
+                  <span className="topbar-campaign">{activeCampaign.name}</span>
+                )}
+              </div>
             </div>
             <div className="topbar-actions">
               <span className="account-name">{sessionUser.displayName}</span>
@@ -692,9 +771,6 @@ export default function App() {
                 onUpdateContext={(details) =>
                   saveCampaignContext(activeCampaign.id, details)
                 }
-                onUpdateMap={(mapDataUrl) =>
-                  saveCampaignMap(activeCampaign.id, mapDataUrl)
-                }
                 error={error}
                 feedback={feedback}
               />
@@ -724,6 +800,13 @@ export default function App() {
                 campaign={activeCampaign}
                 characters={characters}
                 viewerUserId={sessionUser.id}
+                draftKind={
+                  location.characterId === 'new'
+                    ? 'new'
+                    : location.characterId === 'import'
+                      ? 'import'
+                      : null
+                }
                 selectedCharacterId={
                   location.characterId &&
                   characters.some(
