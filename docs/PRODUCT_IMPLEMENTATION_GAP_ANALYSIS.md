@@ -301,4 +301,8 @@ The approved implementation plan establishes `PRODUCT.md` as canonical v0.2 and 
 
 ## A1 implementation follow-up — November 7, 2026
 
-A1 is implemented at the separate development entry `/adventures-preview.html` with synthetic, memory-only state. The existing App, production persistence/schema/services, demo sessions, and map data remain unchanged. See [MVP_VERIFICATION.md](MVP_VERIFICATION.md#a1-adventures-preview-verification--november-7-2026) for dated checks, storage-isolation evidence, reviewer findings/resolutions, screenshots, and limits. A1 awaits manual visual approval; the A2–A6 table above remains proposed future scope.
+A1 is implemented at the separate development entry `/adventures-preview.html` with synthetic, memory-only state. The existing App, production persistence/schema/services, demo sessions, and map data remain unchanged. See [MVP_VERIFICATION.md](MVP_VERIFICATION.md#a1-adventures-preview-verification--november-7-2026) for dated checks, storage-isolation evidence, reviewer findings/resolutions, screenshots, and limits. The user confirmed A1 as verified and authorized A2 on November 7, 2026. A2 adds only synthetic participation workflows; A3–A6 remain future scope.
+
+## A2 implementation follow-up — November 7, 2026
+
+The user approved A1 and authorized A2. The isolated preview now models per-character invitation approvals, minimal invitation responses, collaborative editing and attributed updates, confirmed departure, and agreed removal. One membership request is active per thread; membership revisions invalidate stale decisions. The final accepted character stays until later lifecycle rules exist. Production state, sessions, schema, and persistence remain outside this change. See [MVP_VERIFICATION.md](MVP_VERIFICATION.md) for A2 checks and the outstanding manual visual gate before A3. Earlier review findings and authorization statements above describe their dated baseline.

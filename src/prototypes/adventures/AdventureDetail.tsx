@@ -1,4 +1,3 @@
-import { characters } from './fixtures';
 import type { Adventure } from './model';
 
 export default function AdventureDetail({
@@ -35,7 +34,7 @@ export default function AdventureDetail({
         </button>
       </div>
       {error && (
-        <p role="alert" className="ap-error">
+        <p role="alert" tabIndex={-1} className="ap-error">
           {error}
         </p>
       )}
@@ -52,20 +51,6 @@ export default function AdventureDetail({
           <p>{adventure.description}</p>
         </section>
       )}
-      <section>
-        <h2>Participants</h2>
-        <p>
-          {adventure.participantCharacterIds
-            .map(
-              (id) => characters.find((character) => character.id === id)?.name,
-            )
-            .filter(Boolean)
-            .join(', ')}
-        </p>
-        <p className="ap-muted">
-          Visible to the accounts owning these characters in this preview.
-        </p>
-      </section>
     </>
   );
 }

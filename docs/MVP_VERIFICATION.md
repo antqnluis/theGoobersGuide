@@ -127,7 +127,7 @@ All required MVP acceptance criteria above pass, and no known blocking defect re
 
 ## A1 Adventures preview verification — November 7, 2026
 
-**Status:** Implemented and checked; awaiting the user's manual visual review and explicit approval. A2 has not started. These results apply to a synthetic development preview, not to secure collaboration or production Adventures.
+**Status:** A1 confirmed and verified by the user on November 7, 2026; A2 separately authorized. These results apply to a synthetic development preview, not to secure collaboration or production Adventures.
 
 ### Automated and architectural evidence
 
@@ -157,4 +157,43 @@ Existing local app smoke checks used only the disposable origin after the storag
 
 Read-only `qa_reviewer` and `ui_reviewer` ran independently in parallel. Confirmed findings were fixed: dice history was lost on close, generic preview styles hid dice selection and overrode ledger styling, and duplicate same-route history entries could break draft restoration. Both reviewers confirmed their findings resolved in follow-up code review. The main agent repeated affected browser checks. Reviewer interaction/visual coverage is limited to code and supplied screenshots; browser execution evidence above comes from the main agent.
 
-Manual visual approval is pending as required by [AGENTS.md](../AGENTS.md). Do not start A2 or wire the preview into live persistence/navigation on the basis of these checks.
+The user subsequently confirmed A1 as verified and authorized A2 on November 7, 2026. This approval does not authorize live persistence/navigation or A3.
+
+## A2 Adventures participation verification — November 7, 2026
+
+**Status:** Implemented and checked; awaiting the user's manual visual review and explicit approval before A3. A1 was confirmed and verified by the user before A2 was authorized. This is a synthetic, memory-only UX demonstration, not secure privacy or real multiplayer collaboration.
+
+### Automated and architectural evidence
+
+- `npm test`: 95/95 tests across 15 files. The 15 A2 tests cover solo/duo/trio, per-character approvals including two owned characters, generic invitation projection, rejection/decline/cancellation, invalid targets and actors, viewer/campaign checks, collaboration and attribution, failed saves/retry, agreed/refused removal, creator departure, final-participant blocking, stale approvals/invitations, and reset isolation. Existing A1 and production tests continue to pass.
+- `npm run build`: type-check and production build pass. Boundary tests confirm the production graph stays independent of the preview; production output excludes its entry. No dependencies, production application modules, AppData/schema, adapters, or migrations changed.
+- `git diff --check` and targeted Prettier checks pass. Full `npm run format:check` still fails on the pre-existing malformed root `test.json`; that file is unchanged.
+
+### Browser evidence
+
+Exercised the standalone preview on port 5186 and a disposable test-only Vite harness on port 5198. The harness lives outside the repository and seeds three synthetic LocalStorage entries (application payload, recovery sentinel, unrelated sentinel) plus two sessionStorage entries (demo session and unrelated sentinel). After invitations, acceptance, approvals, collaborative edits, updates, failure/retry, viewer/campaign switching, removal, leaving, dice use, and reset, all keys and raw values compared **PASS, byte-for-byte unchanged**. The harness is not a preview dependency and is not shipped. Standalone refresh separately restored fixtures and cleared memberships/history/requests.
+
+Browser checks covered:
+
+- Solo → duo → trio with distinct accounts; no private details before acceptance and no invitation before unanimous approval. Same-account characters joined and approved separately, including an outside-party character.
+- Accepted collaborator field edits and completion/reopening; attributed updates; blank-update errors; failed update retained its text and succeeded on retry. Rejection, invitation decline, and proposer cancellation left membership unchanged.
+- Refused and agreed removal; creator departure without override; remaining participants retained contributions; pending proposals were canceled on departure; final participant was blocked with feedback.
+- Keep editing retained update text across viewer/campaign/reset attempts and canceled Back. Confirmed discard cleared text on character changes, failed membership actions, and same-adventure query changes. Back/Forward returned to the appropriate list/detail. Successful mutations focused current feedback; failures focused the error; keyboard acting-character selection retained selector focus. Native leave confirmation initially focused Stay. Dice opened from the thread and closed with Escape without leaving its context.
+- At 375, 768, and 1,440 px, document scroll width matched the viewport. A long unbroken title also stayed within the 375 px viewport. Approval states, invitations, and activity were readable in desktop/tablet/phone screenshots. The standalone preview produced no captured console warnings/errors during the final walkthrough.
+
+Screenshots:
+
+- [Desktop participation](review-evidence/adventures-a2/desktop-participation.jpg)
+- [Desktop approvals](review-evidence/adventures-a2/desktop-approvals.jpg)
+- [Tablet approvals](review-evidence/adventures-a2/tablet-approvals.jpg)
+- [Phone approvals](review-evidence/adventures-a2/phone-approvals.jpg)
+- [Minimal invitation](review-evidence/adventures-a2/minimal-invitation.jpg)
+- [Phone invitation](review-evidence/adventures-a2/phone-invitation.jpg)
+- [Long phone title](review-evidence/adventures-a2/phone-long-title.jpg)
+- [Storage comparison](review-evidence/adventures-a2/storage-comparison.jpg)
+
+### Independent reviews and limits
+
+Read-only `qa_reviewer` and `ui_reviewer` reviewed independently in parallel. Both found retained update text becoming falsely clean after accepted discard paths; fixes remount discarded notes on character and same-adventure route changes and after failed membership actions. The UI reviewer also identified stale feedback focus after acting-character selection; a separate mutation-result focus counter resolves it. Both reviewers verified code fixes. The UI reviewer inspected the supplied desktop/tablet/phone and complete invitation screenshots and reported no remaining actionable visual issues. Main-agent browser checks exercised the affected paths.
+
+Reviewers did not run tests or operate the browser. Physical-device, full screen-reader, native beforeunload cancellation, and real multiplayer/security testing were not performed. The 15 new tests exercise domain behavior; UI draft/history evidence comes from the browser walkthrough. A2 adds no A3 sharing, Main audience, archive/restore, handoff, or production integration. Stop here for manual visual approval.

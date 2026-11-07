@@ -17,12 +17,13 @@ import {
 } from '../src/prototypes/adventures/state';
 
 const now = '2026-11-07T12:00:00.000Z';
+let sequence = 0;
 const create = (overrides: Partial<AdventureDraft> = {}): PreviewAction => ({
   type: 'save',
   campaignId: 'lantern-coast',
   viewerId: 'preview-ari',
   draft: { ...blankDraft(), title: '  Visit the harbor  ', ...overrides },
-  newId: 'created-objective',
+  newId: `created-objective-${++sequence}`,
   now,
 });
 

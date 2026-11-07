@@ -59,7 +59,7 @@ export const characters: PreviewCharacter[] = [
   },
 ];
 const date = '2026-11-07T00:00:00.000Z';
-const seeds: Adventure[] = [
+const seeds: Omit<Adventure, 'membershipRevision'>[] = [
   {
     id: 'lighthouse-letter',
     campaignId: 'lantern-coast',
@@ -121,6 +121,7 @@ const seeds: Adventure[] = [
 export function fixtureAdventures(): Adventure[] {
   return seeds.map((adventure) => ({
     ...adventure,
+    membershipRevision: 0,
     participantCharacterIds: [...adventure.participantCharacterIds],
   }));
 }

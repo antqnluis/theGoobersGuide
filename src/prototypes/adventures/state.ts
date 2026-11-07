@@ -5,9 +5,19 @@ import {
   type AdventureDraft,
   type PreviewState,
 } from './model';
-import { accessibleAdventure, ownedCharacters } from './selectors';
+import {
+  accessibleAdventure,
+  acceptedOwnedCharacters,
+  ownedCharacters,
+} from './selectors';
+import {
+  activityEntry,
+  participationReducer,
+  type ParticipationAction,
+} from './participation';
 
 export type PreviewAction =
+  | ParticipationAction
   | {
       type: 'context';
       viewerId?: string;
@@ -24,12 +34,15 @@ export type PreviewAction =
       draft: AdventureDraft;
       newId: string;
       now: string;
+      actorCharacterId?: string;
     };
 
 export function initialState(campaignId = campaigns[0].id): PreviewState {
   const viewerId = accounts[0].id;
   return {
     adventures: fixtureAdventures(),
+    requests: [],
+    activity: [],
     viewerId,
     campaignId,
     selectedCharacterId: ownedCharacters(viewerId, campaignId)[0]?.id ?? null,
@@ -78,6 +91,7 @@ export function previewReducer(
     !campaigns.some((campaign) => campaign.id === state.campaignId)
   )
     return reject('This adventure is unavailable. Return to Adventures.');
+  if (action.type !== 'save') return participationReducer(state, action);
   const existing = action.id
     ? accessibleAdventure(state, action.id)
     : undefined;
@@ -87,6 +101,18 @@ export function previewReducer(
   const selected =
     owned.find((character) => character.id === state.selectedCharacterId) ??
     owned[0];
+  const actors = existing ? acceptedOwnedCharacters(state, existing) : [];
+  const actor = existing
+    ? action.actorCharacterId
+      ? actors.find((character) => character.id === action.actorCharacterId)
+      : (actors.find(
+          (character) => character.id === state.selectedCharacterId,
+        ) ?? actors[0])
+    : selected;
+  if (existing && !actor)
+    return reject(
+      'Choose an accepted character you own to edit this adventure.',
+    );
   if (!existing && !selected)
     return reject(
       'Choose a viewer with an owned character in this campaign to create an adventure.',
@@ -99,8 +125,10 @@ export function previewReducer(
   )
     return reject('Choose a valid type and player-tracked status.');
   if (
-    !existing &&
-    state.adventures.some((adventure) => adventure.id === action.newId)
+    (!existing &&
+      state.adventures.some((adventure) => adventure.id === action.newId)) ||
+    state.activity.some((item) => item.id === action.newId) ||
+    state.requests.some((item) => item.id === action.newId)
   )
     return reject('This preview ID is already in use. Try saving again.');
   if (state.failNextSave)
@@ -129,7 +157,15 @@ export function previewReducer(
         visibility: 'Participants only' as const,
         createdAt: action.now,
         updatedAt: action.now,
+        membershipRevision: 0,
       };
+  const fieldLabels: Record<keyof AdventureDraft, string> = {
+    title: 'title',
+    type: 'type',
+    status: 'player-tracked status',
+    description: 'description',
+    nextStep: 'next step',
+  };
   return {
     ...state,
     adventures: existing
@@ -137,6 +173,22 @@ export function previewReducer(
           item.id === existing.id ? adventure : item,
         )
       : [...state.adventures, adventure],
+    activity: [
+      ...state.activity,
+      activityEntry(
+        action,
+        adventure.id,
+        actor!.id,
+        existing
+          ? `Edited adventure fields: ${
+              (Object.keys(draft) as (keyof AdventureDraft)[])
+                .filter((key) => draft[key] !== existing[key])
+                .map((key) => fieldLabels[key])
+                .join(', ') || 'no changes'
+            }.`
+          : 'Created the adventure.',
+      ),
+    ],
     error: null,
     feedback: existing
       ? 'Adventure updated in this preview.'

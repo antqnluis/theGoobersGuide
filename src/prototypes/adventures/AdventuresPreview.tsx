@@ -3,11 +3,17 @@ import DiceRoller from '../../features/dice/DiceRoller';
 import AdventureDetail from './AdventureDetail';
 import AdventureForm from './AdventureForm';
 import AdventureList from './AdventureList';
+import ParticipationPanel, {
+  InvitationInbox,
+  type ParticipationInput,
+} from './ParticipationPanel';
 import { accounts, campaigns } from './fixtures';
 import type { AdventureDraft } from './model';
 import { readRoute, routeHash, type PreviewRoute } from './navigation';
 import {
   accessibleAdventure,
+  acceptedOwnedCharacters,
+  invitationInbox,
   ownedCharacters,
   visibleAdventures,
 } from './selectors';
@@ -21,6 +27,9 @@ export default function AdventuresPreview() {
     initialState,
   );
   const [editing, setEditing] = useState(false);
+  const [actingCharacter, setActingCharacter] = useState('');
+  const [panelVersion, setPanelVersion] = useState(0);
+  const [mutationResultVersion, setMutationResultVersion] = useState(0);
   const dirty = useRef(false);
   const routeRef = useRef(route);
   const historyIndex = useRef(0);
@@ -39,6 +48,13 @@ export default function AdventuresPreview() {
   const adventure = route.adventureId
     ? accessibleAdventure(state, route.adventureId)
     : undefined;
+  const acceptedOwned = adventure
+    ? acceptedOwnedCharacters(state, adventure)
+    : [];
+  const actorCharacterId =
+    acceptedOwned.find((item) => item.id === actingCharacter)?.id ??
+    acceptedOwned[0]?.id ??
+    '';
   const setDirty = useCallback((value: boolean) => {
     dirty.current = value;
   }, []);
@@ -68,6 +84,8 @@ export default function AdventuresPreview() {
   const applyRoute = useCallback((next: PreviewRoute) => {
     dirty.current = false;
     setEditing(false);
+    setActingCharacter('');
+    setPanelVersion((value) => value + 1);
     routeRef.current = next;
     setRoute(next);
     dispatch({ type: 'context', campaignId: next.campaignId });
@@ -154,6 +172,14 @@ export default function AdventuresPreview() {
     )?.focus();
   }, [route, editing, state.viewerId, state.selectedCharacterId]);
 
+  useEffect(() => {
+    if (mutationResultVersion > 0) {
+      content.current
+        ?.querySelector<HTMLElement>('[role="status"], [role="alert"]')
+        ?.focus();
+    }
+  }, [mutationResultVersion]);
+
   function navigate(next: PreviewRoute, replace = false) {
     if (!replace && routeHash(next) === routeHash(routeRef.current)) return;
     requestDiscard(() => {
@@ -178,6 +204,7 @@ export default function AdventuresPreview() {
     requestDiscard(() => {
       dirty.current = false;
       setEditing(false);
+      setActingCharacter('');
       dispatch({ type: 'context', viewerId });
     });
   }
@@ -185,6 +212,7 @@ export default function AdventuresPreview() {
     requestDiscard(() => {
       dirty.current = false;
       setEditing(false);
+      setPanelVersion((value) => value + 1);
       dispatch({ type: 'context', characterId });
     });
   }
@@ -198,6 +226,7 @@ export default function AdventuresPreview() {
       campaignId: state.campaignId,
       viewerId: state.viewerId,
       now: new Date().toISOString(),
+      actorCharacterId: id ? actorCharacterId : undefined,
     };
     const result = previewReducer(state, action);
     dispatch(action);
@@ -219,6 +248,45 @@ export default function AdventuresPreview() {
       routeRef.current = next;
       setRoute(next);
     }
+  }
+  function participate(input: ParticipationInput) {
+    const discardNote = input.type !== 'note' && dirty.current;
+    const run = () => {
+      const action: PreviewAction = {
+        ...input,
+        viewerId: state.viewerId,
+        campaignId: state.campaignId,
+        now: new Date().toISOString(),
+        newId: crypto.randomUUID(),
+      };
+      const result = previewReducer(state, action);
+      dispatch(action);
+      setMutationResultVersion((value) => value + 1);
+      if (discardNote) {
+        dirty.current = false;
+        setPanelVersion((value) => value + 1);
+      }
+      if (!result.error) {
+        dirty.current = false;
+        if (!discardNote) setPanelVersion((value) => value + 1);
+        if (adventure && !accessibleAdventure(result, adventure.id)) {
+          const next: PreviewRoute = {
+            ...route,
+            page: 'list',
+            adventureId: undefined,
+          };
+          window.history.replaceState(
+            { adventuresPreviewIndex: historyIndex.current },
+            '',
+            routeHash(next),
+          );
+          routeRef.current = next;
+          setRoute(next);
+        }
+      }
+    };
+    if (input.type === 'note') run();
+    else requestDiscard(run);
   }
   function cancel() {
     requestDiscard(() => {
@@ -259,7 +327,7 @@ export default function AdventuresPreview() {
       </a>
       <header className="ap-masthead">
         <span>The Goober’s Guide</span>
-        <span>A1 Adventures preview</span>
+        <span>A2 Adventures preview</span>
       </header>
       <aside
         className="ap-preview-tools"
@@ -372,8 +440,13 @@ export default function AdventuresPreview() {
           ref={content}
         >
           {state.feedback && (
-            <p role="status" className="ap-feedback">
+            <p role="status" tabIndex={-1} className="ap-feedback">
               {state.feedback}
+            </p>
+          )}
+          {route.page === 'list' && state.error && (
+            <p role="alert" tabIndex={-1} className="ap-error">
+              {state.error}
             </p>
           )}
           {route.page !== 'list' && (
@@ -392,18 +465,27 @@ export default function AdventuresPreview() {
               <p>This adventure is unavailable. Return to Adventures.</p>
             </>
           ) : route.page === 'list' ? (
-            <AdventureList
-              adventures={visibleAdventures(state)}
-              view={route.view}
-              canCreate={owned.length > 0}
-              onView={(view) => navigate({ ...route, view })}
-              onCreate={() =>
-                navigate({ ...route, page: 'new', adventureId: undefined })
-              }
-              onOpen={(item) =>
-                navigate({ ...route, page: 'detail', adventureId: item.id })
-              }
-            />
+            <>
+              <AdventureList
+                adventures={visibleAdventures(state)}
+                view={route.view}
+                canCreate={owned.length > 0}
+                onView={(view) => navigate({ ...route, view })}
+                onCreate={() =>
+                  navigate({ ...route, page: 'new', adventureId: undefined })
+                }
+                onOpen={(item) =>
+                  navigate({ ...route, page: 'detail', adventureId: item.id })
+                }
+              />
+              <InvitationInbox
+                state={state}
+                invitations={invitationInbox(state)}
+                onAnswer={(requestId, accept) =>
+                  participate({ type: 'answer-invitation', requestId, accept })
+                }
+              />
+            </>
           ) : route.page === 'new' ? (
             <>
               <h1 tabIndex={-1}>New adventure</h1>
@@ -432,45 +514,86 @@ export default function AdventuresPreview() {
               )}
             </>
           ) : (
-            adventure &&
-            (editing ? (
+            adventure && (
               <>
-                <h1 tabIndex={-1}>Edit adventure</h1>
-                <p className="ap-muted">
-                  Participants only. Changes stay within this preview.
-                </p>
-                <AdventureForm
-                  key={`${adventure.id}/${state.viewerId}`}
-                  initial={adventure}
-                  creating={false}
-                  error={state.error}
-                  onSave={(draft) => save(draft, adventure.id)}
-                  onCancel={cancel}
-                  onDirty={setDirty}
-                />
+                <label className="ap-acting-character">
+                  Acting character
+                  <select
+                    value={actorCharacterId}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      requestDiscard(() => {
+                        dirty.current = false;
+                        setEditing(false);
+                        setActingCharacter(value);
+                        setPanelVersion((version) => version + 1);
+                      });
+                    }}
+                  >
+                    {acceptedOwned.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {editing ? (
+                  <>
+                    <h1 tabIndex={-1}>Edit adventure</h1>
+                    <p className="ap-muted">
+                      Participants only. Changes stay within this preview.
+                    </p>
+                    <AdventureForm
+                      key={`${adventure.id}/${state.viewerId}`}
+                      initial={adventure}
+                      creating={false}
+                      error={state.error}
+                      onSave={(draft) => save(draft, adventure.id)}
+                      onCancel={cancel}
+                      onDirty={setDirty}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <AdventureDetail
+                      adventure={adventure}
+                      error={state.error}
+                      onEdit={() => {
+                        requestDiscard(() => {
+                          dirty.current = false;
+                          dispatch({ type: 'context' });
+                          setEditing(true);
+                        });
+                      }}
+                      onStatus={() =>
+                        requestDiscard(() => {
+                          dirty.current = false;
+                          save(
+                            {
+                              ...adventure,
+                              status:
+                                adventure.status === 'Completed'
+                                  ? 'In progress'
+                                  : 'Completed',
+                            },
+                            adventure.id,
+                          );
+                          setPanelVersion((value) => value + 1);
+                        })
+                      }
+                    />
+                    <ParticipationPanel
+                      key={`${adventure.id}/${state.viewerId}/${actorCharacterId}/${panelVersion}`}
+                      state={state}
+                      adventure={adventure}
+                      actorCharacterId={actorCharacterId}
+                      onAction={participate}
+                      onDirty={setDirty}
+                    />
+                  </>
+                )}
               </>
-            ) : (
-              <AdventureDetail
-                adventure={adventure}
-                error={state.error}
-                onEdit={() => {
-                  dispatch({ type: 'context' });
-                  setEditing(true);
-                }}
-                onStatus={() =>
-                  save(
-                    {
-                      ...adventure,
-                      status:
-                        adventure.status === 'Completed'
-                          ? 'In progress'
-                          : 'Completed',
-                    },
-                    adventure.id,
-                  )
-                }
-              />
-            ))
+            )
           )}
         </main>
       </div>

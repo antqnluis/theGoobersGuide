@@ -39,9 +39,33 @@ export interface Adventure extends AdventureDraft {
   visibility: 'Participants only';
   createdAt: string;
   updatedAt: string;
+  membershipRevision: number;
+}
+export interface MembershipRequest {
+  id: string;
+  adventureId: string;
+  campaignId: string;
+  kind: 'invite' | 'remove';
+  targetCharacterId: string;
+  proposerCharacterId: string;
+  membershipRevision: number;
+  approvedCharacterIds: string[];
+  status:
+    'approving' | 'invited' | 'accepted' | 'declined' | 'rejected' | 'canceled';
+}
+export interface AdventureActivity {
+  id: string;
+  adventureId: string;
+  actorId: string;
+  characterId: string;
+  at: string;
+  message: string;
+  note?: string;
 }
 export interface PreviewState {
   adventures: Adventure[];
+  requests: MembershipRequest[];
+  activity: AdventureActivity[];
   viewerId: string;
   campaignId: string;
   selectedCharacterId: string | null;
