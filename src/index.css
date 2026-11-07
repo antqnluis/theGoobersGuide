@@ -370,6 +370,7 @@ a {
   padding: 35px 42px 30px;
 }
 .sheet-header-copy {
+  flex: 1;
   min-width: 0;
 }
 .sheet-portrait-column {
@@ -403,12 +404,16 @@ a {
   text-align: center;
 }
 .portrait-controls .button {
-  min-height: 36px;
+  min-height: 40px;
   padding: 7px 10px;
   font-size: 12px;
 }
 .portrait-remove {
-  padding: 3px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 6px;
   border: 0;
   background: transparent;
   color: #6d4238;
@@ -543,6 +548,28 @@ a {
   font-size: 16px;
   font-weight: 650;
 }
+.sheet-owner-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 0 0;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 650;
+}
+.sheet-owner-status::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  content: '';
+}
+.sheet-owner-status.is-read-only {
+  color: #465c54;
+}
+.sheet-owner-status.is-read-only::before {
+  background: var(--brass);
+}
 .level-control {
   display: inline-flex;
   align-items: center;
@@ -651,6 +678,10 @@ a {
   background: #eef2eb;
   color: #486056;
   font-size: 12px;
+}
+.sheet-status.is-error {
+  background: #f7e9e7;
+  color: #7a332e;
 }
 
 .combat-band {
@@ -779,6 +810,9 @@ a {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 32px 42px;
 }
+.sheet-overview-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+}
 .sheet-section {
   min-width: 0;
 }
@@ -833,8 +867,12 @@ a {
   border-right: 0;
 }
 .ability-name {
+  max-width: 100%;
+  min-height: 2.4em;
+  overflow-wrap: anywhere;
   color: #52685e;
   font-size: 12px;
+  line-height: 1.2;
 }
 .ability-cell strong {
   margin-top: 6px;
@@ -2832,6 +2870,15 @@ a {
   }
   .spell-editor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ability-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ability-cell:nth-child(3) {
+    border-right: 0;
+  }
+  .ability-cell:nth-child(-n + 3) {
+    border-bottom: 1px solid #d6dfd6;
   }
 }
 
