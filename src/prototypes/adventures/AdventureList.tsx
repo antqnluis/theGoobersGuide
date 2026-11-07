@@ -1,4 +1,6 @@
-import type { Adventure } from './model';
+import type { Adventure, PreviewState } from './model';
+import { effectiveAudience } from './consent';
+import { acceptedOwnedCharacters } from './selectors';
 
 export default function AdventureList({
   adventures,
@@ -7,6 +9,9 @@ export default function AdventureList({
   onView,
   onCreate,
   onOpen,
+  state,
+  audience,
+  onAudience,
 }: {
   adventures: Adventure[];
   view: 'active' | 'completed';
@@ -14,15 +19,27 @@ export default function AdventureList({
   onView: (view: 'active' | 'completed') => void;
   onCreate: () => void;
   onOpen: (adventure: Adventure) => void;
+  state: PreviewState;
+  audience: 'mine' | 'shared';
+  onAudience: (audience: 'mine' | 'shared') => void;
 }) {
-  const shown = adventures.filter(
+  const inAudience = (value: 'mine' | 'shared') =>
+    adventures.filter((adventure) =>
+      value === 'mine'
+        ? acceptedOwnedCharacters(state, adventure).length > 0
+        : effectiveAudience(state, adventure) === 'Party',
+    );
+  const available = inAudience(audience);
+  const shown = available.filter(
     (item) => (item.status === 'Completed') === (view === 'completed'),
   );
   return (
     <>
       <div className="ap-heading">
         <div>
-          <h1 tabIndex={-1}>My Adventures</h1>
+          <h1 tabIndex={-1}>
+            {audience === 'mine' ? 'My Adventures' : 'Shared with party'}
+          </h1>
           <p className="ap-muted">
             Keep a goal close. Leave yourself a next step.
           </p>
@@ -37,7 +54,19 @@ export default function AdventureList({
           character in Preview controls to create an adventure.
         </p>
       )}
-      <div className="ap-tabs" aria-label="Adventure views">
+      <div className="ap-tabs" role="group" aria-label="Adventure audience">
+        {(['mine', 'shared'] as const).map((value) => (
+          <button
+            key={value}
+            aria-pressed={audience === value}
+            onClick={() => onAudience(value)}
+          >
+            {value === 'mine' ? 'Mine' : 'Shared with party'}{' '}
+            <span>{inAudience(value).length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="ap-tabs" role="group" aria-label="Adventure progress">
         {(['active', 'completed'] as const).map((value) => (
           <button
             key={value}
@@ -47,7 +76,7 @@ export default function AdventureList({
             {value === 'active' ? 'Active' : 'Completed'}{' '}
             <span>
               {
-                adventures.filter(
+                available.filter(
                   (item) =>
                     (item.status === 'Completed') === (value === 'completed'),
                 ).length
@@ -73,7 +102,12 @@ export default function AdventureList({
                 </span>
                 <span className="ap-row-meta">
                   <span className="ap-status">{adventure.status}</span>
-                  <span>{adventure.type} · Participants only</span>
+                  <span>
+                    {adventure.type} ·{' '}
+                    {effectiveAudience(state, adventure) === 'Party'
+                      ? 'Shared with party'
+                      : 'Participants only'}
+                  </span>
                 </span>
               </button>
             </li>
@@ -82,16 +116,20 @@ export default function AdventureList({
       ) : (
         <div className="ap-empty">
           <h2>
-            {view === 'completed'
-              ? 'Nothing completed yet'
-              : 'A place for your next objective'}
+            {audience === 'shared'
+              ? 'No shared adventures here'
+              : view === 'completed'
+                ? 'Nothing completed yet'
+                : 'A place for your next objective'}
           </h2>
           <p>
-            {view === 'completed'
-              ? 'Completed adventures remain here so you can return or reopen them.'
-              : 'Record something your character wants to do. A title is all you need.'}
+            {audience === 'shared'
+              ? 'Adventures appear here only while every accepted character has approved party sharing and you have access.'
+              : view === 'completed'
+                ? 'Completed adventures remain here so you can return or reopen them.'
+                : 'Record something your character wants to do. A title is all you need.'}
           </p>
-          {canCreate && view === 'active' && (
+          {canCreate && view === 'active' && audience === 'mine' && (
             <button onClick={onCreate}>Create an adventure</button>
           )}
         </div>

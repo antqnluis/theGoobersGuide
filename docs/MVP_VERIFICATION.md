@@ -197,3 +197,51 @@ Screenshots:
 Read-only `qa_reviewer` and `ui_reviewer` reviewed independently in parallel. Both found retained update text becoming falsely clean after accepted discard paths; fixes remount discarded notes on character and same-adventure route changes and after failed membership actions. The UI reviewer also identified stale feedback focus after acting-character selection; a separate mutation-result focus counter resolves it. Both reviewers verified code fixes. The UI reviewer inspected the supplied desktop/tablet/phone and complete invitation screenshots and reported no remaining actionable visual issues. Main-agent browser checks exercised the affected paths.
 
 Reviewers did not run tests or operate the browser. Physical-device, full screen-reader, native beforeunload cancellation, and real multiplayer/security testing were not performed. The 15 new tests exercise domain behavior; UI draft/history evidence comes from the browser walkthrough. A2 adds no A3 sharing, Main audience, archive/restore, handoff, or production integration. Stop here for manual visual approval.
+
+## A3 party-sharing consent verification — November 7, 2026
+
+**Status:** Consent-only A3 implemented and checked; stopped for the user's manual visual and functional review. The user confirmed A1 and A2 complete and approved the consent-only plan. Main audience and archive/restore from the broader proposed A3 row are explicitly deferred; A4–A6 are not implemented. This remains a synthetic, memory-only UX demonstration, not secure privacy or real multiplayer collaboration.
+
+### Completed behavior
+
+- Sharing starts with a proposal and zero approvals, including solo threads. Every accepted character separately approves, even when several belong to one account. Only current unanimity grants party visibility.
+- Pending, Approved, Declined, Withdrawn, Canceled, and membership-invalidated proposal states are explicit. Decline or withdrawal closes the proposal and prevents/removes party access. Only the proposing character cancels a pending proposal; renewed proposals collect fresh approvals.
+- Accepted-character joins, departures, and agreed removals invalidate pending/active sharing in the same reducer transition. Sharing resumes only after a fresh proposal and unanimous current-participant consent. An invitation proposal or declined invitation does not change accepted membership or sharing.
+- Current party-character owners can read shared content, participants, updates, and history without editing, consent, completion, invitation, or removal powers. Accepted participants retain those powers independently of roster membership. Organizer status supplies no override. No-party threads stay private.
+- Mine/Shared with party filters retain Active/Completed views and URL history. Authorization precedes lists, counts, and direct-detail access. Revoked/private records disappear without revealing titles or placeholders to unauthorized viewers. The panel explains whole-thread/history/future-update sharing, future current roster members, and the inability to recall previously copied information.
+
+### Automated checks
+
+- `npm test`: **121/121 tests across 16 files pass**. The 26 new A3 tests cover solo/duo/trio unanimity; separate same-account characters; outside-party participants; decline; pending/active withdrawal; cancellation/reproposal; joins, departures, agreed removals and fresh consent; stale revisions/IDs; direct read-only mutation attempts; wrong actor/viewer/campaign; failed save atomicity; current-roster eligibility; invalid approval metadata; no party; reset; ordinary-edit preservation; rendered read-only controls; and old/new URL round trips.
+- Existing A1/A2, production behavior, and transitive import/storage boundary tests pass. Production application modules, AppData/schema, persistence adapters, sessions, dependencies, HTML entries, and production routes are unchanged.
+- `npm run build`: type-check and default production build pass. Production output still excludes the preview, with the same production asset names as the pre-change baseline.
+- `npm run format:check`: blocked solely by the existing invalid `test.json` syntax. That unrelated file is unchanged. Separate Prettier checks of changed supported text files pass; `docs/PRODUCT.md` remains intentionally ignored by repository configuration.
+- `git diff --check`: pass.
+
+### Browser, layout, and storage evidence
+
+The standalone preview at `http://127.0.0.1:5186/adventures-preview.html` was exercised through solo proposal/explicit approval, read-only party viewing, withdrawal and generic unavailability; duo acceptance, partial approval/decline and fresh consent; and trio acceptance revoking active sharing followed by fresh 3/3 approval. Participant-change feedback, list filtering/counts, audience Back/Forward, dice roll/close with focus and route return, dirty update protection, explicit discard, failed approval/retry, no-party creation, refresh, and Reset preview were checked. No captured console warnings/errors were present in the final walkthrough. Keyboard Enter activated approval; focus moved to status/error feedback and returned from the dice dialog.
+
+At measured document widths of **375, 768, and 1,440 px**, document scroll width equaled the viewport. A long unbroken title also fit the 375 px layout. Browser viewport overrides were calibrated against actual DOM dimensions because the test browser used 120% device scaling; screenshot bounds were adjusted to include the full measured width. Temporary overrides were reset after checks.
+
+A disposable test-only Vite harness at `http://127.0.0.1:5201/__a3_probe` seeded three synthetic LocalStorage entries (application payload, recovery sentinel, unrelated sentinel) and two sessionStorage entries (demo session and unrelated sentinel). After sharing, approval, party-reader viewing, withdrawal, decline, cancellation, invitations/acceptance, duo consent, agreed removal/revalidation, viewer switches, and reset, all keys and raw values compared **PASS, byte-for-byte unchanged**. The harness is outside the repository and is not shipped. Standalone refresh separately restored fixtures and removed consent, accepted memberships, activity, and the edited long title.
+
+Screenshots:
+
+- [Desktop trio approved](review-evidence/adventures-a3/desktop-trio-approved.jpg)
+- [Desktop party reader](review-evidence/adventures-a3/desktop-party-reader.jpg)
+- [Desktop reader overview, cropped to omit long history](review-evidence/adventures-a3/desktop-reader-overview.jpg)
+- [Tablet trio pending](review-evidence/adventures-a3/tablet-trio-pending.jpg)
+- [Tablet membership invalidated](review-evidence/adventures-a3/tablet-membership-invalidated.jpg)
+- [Phone pending](review-evidence/adventures-a3/phone-pending.jpg)
+- [Phone declined](review-evidence/adventures-a3/phone-declined.jpg)
+- [Phone long title](review-evidence/adventures-a3/phone-long-title.jpg)
+- [Storage comparison](review-evidence/adventures-a3/storage-comparison.jpg)
+
+### Independent reviews, limitations, and stop gate
+
+Read-only `qa_reviewer` and `ui_reviewer` ran independently in parallel. Two confirmed wording issues were fixed: a next-step prompt incorrectly encouraged read-only viewers to edit, and the leave confirmation incorrectly suggested party access could survive the consent invalidation. Both reviewers confirmed the fixes and reported no remaining actionable findings. The UI reviewer inspected final phone Pending/Declined, tablet Pending/Invalidated, and desktop Approved/party-reader screenshots; initial cropped/mislabeled screenshot evidence was recaptured correctly.
+
+Reviewers did not operate the browser or run tests. Parent-agent browser execution and automated checks provide the evidence above. Full screen-reader, physical-device, native beforeunload cancellation, adversarial production privacy, and real multiplayer checks were not performed. Roster-change eligibility is covered by domain tests with temporary synthetic roster changes; no new roster-editing UI is included. The existing v0.1 app was covered by its automated suite and unchanged production import/build output, not a new full manual MVP certification.
+
+There are no additional deviations from the approved consent-only plan. The broader roadmap's Main audience and archive/restore remain deliberately deferred. No authentication, backend/MongoDB, persistence, synchronization, import, or A4 integration was added. **Stop here for manual visual and functional review; no later milestone is authorized by this result.**

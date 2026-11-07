@@ -10,7 +10,7 @@ The Goober's Guide is a local D&D campaign companion. The character sheet is its
 
 ## Target product and isolated Adventures preview
 
-`docs/PRODUCT.md` is the canonical v0.2 target product. `docs/MVP_SCOPE.md` remains authoritative for the existing local application. The approved Stage A addition covers A1 and A2: a separate development entry at `/adventures-preview.html`, using synthetic accounts/campaigns/characters and memory-only Adventures state under `src/prototypes/adventures/`. Never mount the production App, access browser persistence or production sessions, seed live records, change AppData/schema/migrations, or claim secure privacy. A3–A6, live Adventures persistence, backend/authentication work, and production navigation integration require separate scope approval. Historical product snapshots do not override these boundaries.
+`docs/PRODUCT.md` is the canonical v0.2 target product. `docs/MVP_SCOPE.md` remains authoritative for the existing local application. The approved Stage A addition covers A1, A2, and consent-only A3: a separate development entry at `/adventures-preview.html`, using synthetic accounts/campaigns/characters and memory-only Adventures state under `src/prototypes/adventures/`. Never mount the production App, access browser persistence or production sessions, seed live records, change AppData/schema/migrations, or claim secure privacy. A3 Main audience and archive/restore, A4–A6, live Adventures persistence, backend/authentication work, and production navigation integration require separate scope approval. Historical product snapshots do not override these boundaries.
 
 ## MVP Priorities and Boundaries
 

@@ -18,12 +18,14 @@ export default function ParticipationPanel({
   actorCharacterId,
   onAction,
   onDirty,
+  readOnly = false,
 }: {
   state: PreviewState;
   adventure: Adventure;
   actorCharacterId: string;
   onAction: (action: ParticipationInput) => void;
   onDirty: (value: boolean) => void;
+  readOnly?: boolean;
 }) {
   const [candidate, setCandidate] = useState('');
   const [note, setNote] = useState('');
@@ -48,8 +50,8 @@ export default function ParticipationPanel({
       <section aria-labelledby="participants-heading">
         <h2 id="participants-heading">Participants</h2>
         <p className="ap-muted">
-          Only accounts owning accepted characters can view and edit. Each
-          character approves invitations separately.
+          Accepted participants can edit. Shared adventures also allow read-only
+          party access. Each character approves invitations separately.
         </p>
         <ul className="ap-participants">
           {adventure.participantCharacterIds.map((id) => (
@@ -67,7 +69,7 @@ export default function ParticipationPanel({
                   }
                 </span>
               </span>
-              {id !== actorCharacterId && !request && (
+              {!readOnly && id !== actorCharacterId && !request && (
                 <button
                   onClick={() =>
                     onAction({
@@ -84,196 +86,205 @@ export default function ParticipationPanel({
             </li>
           ))}
         </ul>
-        {request ? (
-          <div className="ap-request" aria-labelledby="membership-heading">
-            <h3 id="membership-heading">
-              {request.kind === 'remove'
-                ? 'Removal agreement'
-                : request.status === 'approving'
-                  ? 'Invitation proposal'
-                  : 'Invitation sent'}
-            </h3>
-            <p>
-              {characterName(request.targetCharacterId)}
-              {request.kind === 'remove'
-                ? ' can agree or decline. Membership stays unchanged until agreement.'
-                : request.status === 'approving'
-                  ? ' will receive an invitation only after every accepted character approves.'
-                  : ' has not joined yet. Their owner must accept.'}
-            </p>
-            {request.kind === 'invite' && (
-              <ul className="ap-approval-list">
-                {adventure.participantCharacterIds.map((id) => (
-                  <li key={id}>
-                    {characterName(id)}:{' '}
-                    {request.approvedCharacterIds.includes(id)
-                      ? 'Approved'
-                      : 'Awaiting approval'}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="ap-actions">
-              {request.kind === 'invite' &&
-                request.status === 'approving' &&
-                !request.approvedCharacterIds.includes(actorCharacterId) && (
-                  <>
-                    <button
-                      onClick={() =>
-                        onAction({
-                          ...common,
-                          type: 'decide',
-                          requestId: request.id,
-                          approve: true,
-                        })
-                      }
-                    >
-                      Approve invitation
-                    </button>
-                    <button
-                      onClick={() =>
-                        onAction({
-                          ...common,
-                          type: 'decide',
-                          requestId: request.id,
-                          approve: false,
-                        })
-                      }
-                    >
-                      Reject invitation
-                    </button>
-                  </>
+        {!readOnly && (
+          <>
+            {request ? (
+              <div className="ap-request" aria-labelledby="membership-heading">
+                <h3 id="membership-heading">
+                  {request.kind === 'remove'
+                    ? 'Removal agreement'
+                    : request.status === 'approving'
+                      ? 'Invitation proposal'
+                      : 'Invitation sent'}
+                </h3>
+                <p>
+                  {characterName(request.targetCharacterId)}
+                  {request.kind === 'remove'
+                    ? ' can agree or decline. Membership stays unchanged until agreement.'
+                    : request.status === 'approving'
+                      ? ' will receive an invitation only after every accepted character approves.'
+                      : ' has not joined yet. Their owner must accept.'}
+                </p>
+                {request.kind === 'invite' && (
+                  <ul className="ap-approval-list">
+                    {adventure.participantCharacterIds.map((id) => (
+                      <li key={id}>
+                        {characterName(id)}:{' '}
+                        {request.approvedCharacterIds.includes(id)
+                          ? 'Approved'
+                          : 'Awaiting approval'}
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              {request.kind === 'remove' &&
-                request.targetCharacterId === actorCharacterId && (
-                  <>
+                <div className="ap-actions">
+                  {request.kind === 'invite' &&
+                    request.status === 'approving' &&
+                    !request.approvedCharacterIds.includes(
+                      actorCharacterId,
+                    ) && (
+                      <>
+                        <button
+                          onClick={() =>
+                            onAction({
+                              ...common,
+                              type: 'decide',
+                              requestId: request.id,
+                              approve: true,
+                            })
+                          }
+                        >
+                          Approve invitation
+                        </button>
+                        <button
+                          onClick={() =>
+                            onAction({
+                              ...common,
+                              type: 'decide',
+                              requestId: request.id,
+                              approve: false,
+                            })
+                          }
+                        >
+                          Reject invitation
+                        </button>
+                      </>
+                    )}
+                  {request.kind === 'remove' &&
+                    request.targetCharacterId === actorCharacterId && (
+                      <>
+                        <button
+                          onClick={() =>
+                            onAction({
+                              ...common,
+                              type: 'decide',
+                              requestId: request.id,
+                              approve: true,
+                            })
+                          }
+                        >
+                          Agree to leave
+                        </button>
+                        <button
+                          onClick={() =>
+                            onAction({
+                              ...common,
+                              type: 'decide',
+                              requestId: request.id,
+                              approve: false,
+                            })
+                          }
+                        >
+                          Decline removal
+                        </button>
+                      </>
+                    )}
+                  {request.proposerCharacterId === actorCharacterId && (
                     <button
                       onClick={() =>
                         onAction({
                           ...common,
-                          type: 'decide',
+                          type: 'cancel-request',
                           requestId: request.id,
-                          approve: true,
                         })
                       }
                     >
-                      Agree to leave
+                      Cancel request
                     </button>
-                    <button
-                      onClick={() =>
-                        onAction({
-                          ...common,
-                          type: 'decide',
-                          requestId: request.id,
-                          approve: false,
-                        })
-                      }
-                    >
-                      Decline removal
-                    </button>
-                  </>
-                )}
-              {request.proposerCharacterId === actorCharacterId && (
-                <button
-                  onClick={() =>
-                    onAction({
-                      ...common,
-                      type: 'cancel-request',
-                      requestId: request.id,
-                    })
-                  }
-                >
-                  Cancel request
-                </button>
-              )}
-            </div>
-          </div>
-        ) : candidates.length > 0 ? (
-          <form
-            className="ap-invite-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onAction({
-                ...common,
-                type: 'propose',
-                kind: 'invite',
-                targetCharacterId: candidate || candidates[0].id,
-              });
-            }}
-          >
-            <label>
-              Character to invite
-              <select
-                value={candidate || candidates[0].id}
-                onChange={(event) => setCandidate(event.target.value)}
+                  )}
+                </div>
+              </div>
+            ) : candidates.length > 0 ? (
+              <form
+                className="ap-invite-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onAction({
+                    ...common,
+                    type: 'propose',
+                    kind: 'invite',
+                    targetCharacterId: candidate || candidates[0].id,
+                  });
+                }}
               >
-                {candidates.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} —{' '}
-                    {
-                      accounts.find((account) => account.id === item.ownerId)
-                        ?.name
-                    }
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit">Propose invitation</button>
-          </form>
-        ) : (
-          <p className="ap-muted">
-            Every character in this campaign is already participating.
-          </p>
-        )}
-        <button
-          ref={leaveTrigger}
-          className="ap-back"
-          onClick={() => leaveDialog.current?.showModal()}
-        >
-          Leave as {characterName(actorCharacterId)}
-        </button>
-        {adventure.participantCharacterIds.length === 1 && (
-          <p className="ap-muted">
-            Keep at least one accepted participant. The final character cannot
-            leave in this preview.
-          </p>
+                <label>
+                  Character to invite
+                  <select
+                    value={candidate || candidates[0].id}
+                    onChange={(event) => setCandidate(event.target.value)}
+                  >
+                    {candidates.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} —{' '}
+                        {
+                          accounts.find(
+                            (account) => account.id === item.ownerId,
+                          )?.name
+                        }
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit">Propose invitation</button>
+              </form>
+            ) : (
+              <p className="ap-muted">
+                Every character in this campaign is already participating.
+              </p>
+            )}
+            <button
+              ref={leaveTrigger}
+              className="ap-back"
+              onClick={() => leaveDialog.current?.showModal()}
+            >
+              Leave as {characterName(actorCharacterId)}
+            </button>
+            {adventure.participantCharacterIds.length === 1 && (
+              <p className="ap-muted">
+                Keep at least one accepted participant. The final character
+                cannot leave in this preview.
+              </p>
+            )}
+          </>
         )}
       </section>
       <section aria-labelledby="updates-heading">
         <h2 id="updates-heading">Updates and activity</h2>
-        <form
-          className="ap-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onAction({ ...common, type: 'note', text: note });
-          }}
-        >
-          <label>
-            Short update
-            <textarea
-              rows={3}
-              value={note}
-              onChange={(event) => {
-                setNote(event.target.value);
-                onDirty(Boolean(event.target.value));
-              }}
-            />
-          </label>
-          <div className="ap-actions">
-            <button type="submit">Post update</button>
-            {note && (
-              <button
-                type="button"
-                onClick={() => {
-                  setNote('');
-                  onDirty(false);
+        {!readOnly && (
+          <form
+            className="ap-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onAction({ ...common, type: 'note', text: note });
+            }}
+          >
+            <label>
+              Short update
+              <textarea
+                rows={3}
+                value={note}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                  onDirty(Boolean(event.target.value));
                 }}
-              >
-                Discard update
-              </button>
-            )}
-          </div>
-        </form>
+              />
+            </label>
+            <div className="ap-actions">
+              <button type="submit">Post update</button>
+              {note && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNote('');
+                    onDirty(false);
+                  }}
+                >
+                  Discard update
+                </button>
+              )}
+            </div>
+          </form>
+        )}
         <ol className="ap-activity">
           {[...history].reverse().map((item) => (
             <li key={item.id}>
@@ -315,7 +326,10 @@ export default function ParticipationPanel({
         <p id="leave-description">
           {characterName(actorCharacterId)} will leave. Your contributions
           remain. You lose access unless another character you own still
-          participates. Pending membership requests will be canceled.
+          participates. Party access also stops until the remaining participants
+          approve a fresh sharing proposal. Pending membership requests will be
+          canceled. Party-sharing consent will be invalidated and require fresh
+          approval from everyone.
         </p>
         <div className="ap-actions">
           <button autoFocus onClick={closeLeave}>

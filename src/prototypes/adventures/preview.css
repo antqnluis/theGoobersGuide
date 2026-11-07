@@ -471,3 +471,44 @@
   padding-top: 24px;
   border-top: 1px solid var(--line);
 }
+.adventures-preview .ap-sharing {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 24px 0;
+}
+.adventures-preview .ap-sharing-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.adventures-preview .ap-sharing-heading h2 {
+  margin: 0;
+}
+.adventures-preview .ap-consent-ledger {
+  border-left: 3px solid var(--brass);
+  padding-left: 20px;
+  margin-top: 24px;
+}
+.adventures-preview .ap-consent-ledger h3 {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.adventures-preview .ap-sharing .ap-approval-list {
+  list-style: none;
+  padding: 0;
+  max-width: 540px;
+}
+.adventures-preview .ap-sharing .ap-approval-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 20px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  overflow-wrap: anywhere;
+}
+.adventures-preview .ap-sharing .ap-approval-list li span {
+  min-width: 0;
+}

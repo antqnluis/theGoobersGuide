@@ -62,10 +62,37 @@ export interface AdventureActivity {
   message: string;
   note?: string;
 }
+export interface SharingDecision {
+  characterId: string;
+  actorId: string;
+  at: string;
+  state: 'Approved' | 'Declined' | 'Withdrawn';
+}
+export interface SharingProposal {
+  id: string;
+  adventureId: string;
+  campaignId: string;
+  proposerCharacterId: string;
+  actorId: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  membershipRevision: number;
+  participantCharacterIds: string[];
+  decisions: SharingDecision[];
+  status:
+    | 'Pending'
+    | 'Approved'
+    | 'Declined'
+    | 'Withdrawn'
+    | 'Canceled'
+    | 'Invalidated';
+}
 export interface PreviewState {
   adventures: Adventure[];
   requests: MembershipRequest[];
   activity: AdventureActivity[];
+  sharing: SharingProposal[];
   viewerId: string;
   campaignId: string;
   selectedCharacterId: string | null;

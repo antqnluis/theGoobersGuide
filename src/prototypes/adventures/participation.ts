@@ -1,4 +1,5 @@
 import { characters } from './fixtures';
+import { invalidateSharing } from './consent';
 import type {
   AdventureActivity,
   MembershipRequest,
@@ -99,7 +100,8 @@ export function participationReducer(
     return reject();
   if (
     state.activity.some((item) => item.id === action.newId) ||
-    state.requests.some((item) => item.id === action.newId)
+    state.requests.some((item) => item.id === action.newId) ||
+    state.sharing.some((item) => item.id === action.newId)
   )
     return reject('This preview ID is already in use. Try again.');
   let requests = state.requests;
@@ -266,11 +268,14 @@ export function participationReducer(
         : item,
     ),
     requests,
+    sharing: membershipChanged
+      ? invalidateSharing(state.sharing, adventure.id, action.now)
+      : state.sharing,
     activity: [
       ...state.activity,
       activityEntry(action, adventure.id, actor.id, message, note),
     ],
     error: null,
-    feedback: `${message} Preview only.`,
+    feedback: `${message}${membershipChanged && state.sharing.some((item) => item.adventureId === adventure.id && ['Pending', 'Approved'].includes(item.status)) ? ' Membership changed: party sharing is private again. Propose sharing again for fresh consent from every accepted character.' : ''} Preview only.`,
   };
 }

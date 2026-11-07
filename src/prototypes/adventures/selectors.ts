@@ -1,5 +1,6 @@
-import { characters } from './fixtures';
+import { campaigns, characters } from './fixtures';
 import type { Adventure, PreviewState } from './model';
+import { effectiveAudience } from './consent';
 
 export function ownedCharacters(viewerId: string, campaignId: string) {
   return characters.filter(
@@ -11,22 +12,36 @@ export function canAccess(
   adventure: Adventure,
   viewerId: string,
   campaignId: string,
+  sharing: PreviewState['sharing'] = [],
 ): boolean {
   return (
     adventure.campaignId === campaignId &&
-    adventure.participantCharacterIds.some((id) =>
+    (adventure.participantCharacterIds.some((id) =>
       characters.some(
         (character) =>
           character.id === id &&
           character.ownerId === viewerId &&
           character.campaignId === campaignId,
       ),
-    )
+    ) ||
+      (effectiveAudience({ sharing }, adventure) === 'Party' &&
+        Boolean(
+          campaigns
+            .find((campaign) => campaign.id === campaignId)
+            ?.partyCharacterIds.some((id) =>
+              characters.some(
+                (character) =>
+                  character.id === id &&
+                  character.ownerId === viewerId &&
+                  character.campaignId === campaignId,
+              ),
+            ),
+        )))
   );
 }
 export function visibleAdventures(state: PreviewState): Adventure[] {
   return state.adventures.filter((adventure) =>
-    canAccess(adventure, state.viewerId, state.campaignId),
+    canAccess(adventure, state.viewerId, state.campaignId, state.sharing),
   );
 }
 export function accessibleAdventure(
@@ -40,6 +55,7 @@ export function acceptedOwnedCharacters(
   state: PreviewState,
   adventure: Adventure,
 ) {
+  if (adventure.campaignId !== state.campaignId) return [];
   return ownedCharacters(state.viewerId, state.campaignId).filter((character) =>
     adventure.participantCharacterIds.includes(character.id),
   );

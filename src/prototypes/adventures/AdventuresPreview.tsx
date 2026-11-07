@@ -3,6 +3,9 @@ import DiceRoller from '../../features/dice/DiceRoller';
 import AdventureDetail from './AdventureDetail';
 import AdventureForm from './AdventureForm';
 import AdventureList from './AdventureList';
+import SharingPanel from './SharingPanel';
+import { effectiveAudience } from './consent';
+import type { SharingInput } from './sharing';
 import ParticipationPanel, {
   InvitationInbox,
   type ParticipationInput,
@@ -249,7 +252,7 @@ export default function AdventuresPreview() {
       setRoute(next);
     }
   }
-  function participate(input: ParticipationInput) {
+  function participate(input: ParticipationInput | SharingInput) {
     const discardNote = input.type !== 'note' && dirty.current;
     const run = () => {
       const action: PreviewAction = {
@@ -327,7 +330,7 @@ export default function AdventuresPreview() {
       </a>
       <header className="ap-masthead">
         <span>The Goober’s Guide</span>
-        <span>A2 Adventures preview</span>
+        <span>A3 Adventures preview</span>
       </header>
       <aside
         className="ap-preview-tools"
@@ -468,11 +471,19 @@ export default function AdventuresPreview() {
             <>
               <AdventureList
                 adventures={visibleAdventures(state)}
+                state={state}
+                audience={route.audience ?? 'mine'}
+                onAudience={(audience) => navigate({ ...route, audience })}
                 view={route.view}
                 canCreate={owned.length > 0}
                 onView={(view) => navigate({ ...route, view })}
                 onCreate={() =>
-                  navigate({ ...route, page: 'new', adventureId: undefined })
+                  navigate({
+                    ...route,
+                    page: 'new',
+                    adventureId: undefined,
+                    audience: 'mine',
+                  })
                 }
                 onOpen={(item) =>
                   navigate({ ...route, page: 'detail', adventureId: item.id })
@@ -516,32 +527,37 @@ export default function AdventuresPreview() {
           ) : (
             adventure && (
               <>
-                <label className="ap-acting-character">
-                  Acting character
-                  <select
-                    value={actorCharacterId}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      requestDiscard(() => {
-                        dirty.current = false;
-                        setEditing(false);
-                        setActingCharacter(value);
-                        setPanelVersion((version) => version + 1);
-                      });
-                    }}
-                  >
-                    {acceptedOwned.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {editing ? (
+                {acceptedOwned.length > 0 && (
+                  <label className="ap-acting-character">
+                    Acting character
+                    <select
+                      value={actorCharacterId}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        requestDiscard(() => {
+                          dirty.current = false;
+                          setEditing(false);
+                          setActingCharacter(value);
+                          setPanelVersion((version) => version + 1);
+                        });
+                      }}
+                    >
+                      {acceptedOwned.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {editing && acceptedOwned.length > 0 ? (
                   <>
                     <h1 tabIndex={-1}>Edit adventure</h1>
                     <p className="ap-muted">
-                      Participants only. Changes stay within this preview.
+                      {effectiveAudience(state, adventure) === 'Party'
+                        ? 'Shared with party.'
+                        : 'Participants only.'}{' '}
+                      Changes stay within this preview.
                     </p>
                     <AdventureForm
                       key={`${adventure.id}/${state.viewerId}`}
@@ -557,6 +573,8 @@ export default function AdventuresPreview() {
                   <>
                     <AdventureDetail
                       adventure={adventure}
+                      audience={effectiveAudience(state, adventure)}
+                      canEdit={acceptedOwned.length > 0}
                       error={state.error}
                       onEdit={() => {
                         requestDiscard(() => {
@@ -582,11 +600,20 @@ export default function AdventuresPreview() {
                         })
                       }
                     />
+                    {acceptedOwned.length > 0 && (
+                      <SharingPanel
+                        state={state}
+                        adventure={adventure}
+                        actorCharacterId={actorCharacterId}
+                        onAction={participate}
+                      />
+                    )}
                     <ParticipationPanel
                       key={`${adventure.id}/${state.viewerId}/${actorCharacterId}/${panelVersion}`}
                       state={state}
                       adventure={adventure}
                       actorCharacterId={actorCharacterId}
+                      readOnly={acceptedOwned.length === 0}
                       onAction={participate}
                       onDirty={setDirty}
                     />

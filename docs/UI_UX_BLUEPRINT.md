@@ -16,7 +16,7 @@ The application is a player-maintained companion. It does not read a DM's privat
 
 [PRODUCT.md](PRODUCT.md) is the canonical v0.2 target. [MVP_SCOPE.md](MVP_SCOPE.md) remains the existing local runtime contract. The existing app still has Library, Overview, Party, My Character, Notes, and global Dice; it has no live Adventures destination. The Overview map UI is dormant, while its stored data and supporting code remain intact. Older map walkthrough instructions below are historical requirements, not evidence of current rendering.
 
-The proposed campaign navigation adds Adventures, connecting characters, party context, and player-maintained objectives. Notes remain optional support. Invitations, unanimous consent, and party sharing are target workflows, not existing secure capabilities. A1–A2 expose Adventures capture/detail/return, invitations, and collaborative participation inside a separate synthetic preview. It does not change live navigation, persistence, or the MVP contract.
+The proposed campaign navigation adds Adventures, connecting characters, party context, and player-maintained objectives. Notes remain optional support. Invitations, unanimous consent, and party sharing are target workflows, not existing secure capabilities. A1–A2 and consent-only A3 expose Adventures capture/detail/return, invitations, collaborative participation, and simulated unanimous party sharing inside a separate synthetic preview. It does not change live navigation, persistence, or the MVP contract.
 
 ## 1. Existing local information architecture
 
@@ -45,7 +45,7 @@ The Goober's Guide
 
 The shared shell provides the campaign library link, active-campaign context, campaign navigation, signed-in demo-player identity, sign-out, and the global dice entry. Campaign creation and editing remain actions in the library; party creation and renaming remain in Party; current location and status remain in Overview. Character selection, import, and editing are parts of My Character. Note selection and editing are parts of Campaign notes. These are workflows within existing destinations, not new navigation items.
 
-For the existing local baseline, no separate Settings, Session, or Character List destination is proposed. The target Adventures destination described above is preview-only during A1–A2. During-session actions should be placed in My Character, Overview, Campaign notes, and the global dice dialog. The dice dialog closes back to the same route and campaign context.
+For the existing local baseline, no separate Settings, Session, or Character List destination is proposed. The target Adventures destination described above is preview-only during A1–A2 and consent-only A3. During-session actions should be placed in My Character, Overview, Campaign notes, and the global dice dialog. The dice dialog closes back to the same route and campaign context.
 
 ## 2. Shared design and interaction rules
 

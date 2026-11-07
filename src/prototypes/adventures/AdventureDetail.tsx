@@ -5,34 +5,47 @@ export default function AdventureDetail({
   error,
   onEdit,
   onStatus,
+  audience,
+  canEdit,
 }: {
   adventure: Adventure;
   error: string | null;
   onEdit: () => void;
   onStatus: () => void;
+  audience: 'Participants only' | 'Party';
+  canEdit: boolean;
 }) {
   return (
     <>
       <div className="ap-heading">
         <div>
           <p className="ap-muted">
-            {adventure.type} adventure · Participants only
+            {adventure.type} adventure ·{' '}
+            {audience === 'Party' ? 'Shared with party' : audience}
           </p>
           <h1 tabIndex={-1}>{adventure.title}</h1>
         </div>
-        <button onClick={onEdit}>Edit adventure</button>
+        {canEdit && <button onClick={onEdit}>Edit adventure</button>}
       </div>
       <div className="ap-detail-summary">
         <div>
           <span className="ap-status">{adventure.status}</span>
           <p className="ap-muted">Player-tracked progress, not a DM ruling.</p>
         </div>
-        <button onClick={onStatus}>
-          {adventure.status === 'Completed'
-            ? 'Reopen adventure'
-            : 'Mark completed'}
-        </button>
+        {canEdit && (
+          <button onClick={onStatus}>
+            {adventure.status === 'Completed'
+              ? 'Reopen adventure'
+              : 'Mark completed'}
+          </button>
+        )}
       </div>
+      {!canEdit && (
+        <p className="ap-notice">
+          Read-only party view. Only accepted participants can edit or manage
+          this adventure.
+        </p>
+      )}
       {error && (
         <p role="alert" tabIndex={-1} className="ap-error">
           {error}
@@ -42,7 +55,9 @@ export default function AdventureDetail({
         <h2>Next step</h2>
         <p>
           {adventure.nextStep ||
-            'No next step yet. Edit this adventure to leave yourself a reminder.'}
+            (canEdit
+              ? 'No next step yet. Edit this adventure to leave yourself a reminder.'
+              : 'No next step recorded yet.')}
         </p>
       </section>
       {adventure.description && (

@@ -15,9 +15,11 @@ import {
   participationReducer,
   type ParticipationAction,
 } from './participation';
+import { sharingReducer, type SharingAction } from './sharing';
 
 export type PreviewAction =
   | ParticipationAction
+  | SharingAction
   | {
       type: 'context';
       viewerId?: string;
@@ -43,6 +45,7 @@ export function initialState(campaignId = campaigns[0].id): PreviewState {
     adventures: fixtureAdventures(),
     requests: [],
     activity: [],
+    sharing: [],
     viewerId,
     campaignId,
     selectedCharacterId: ownedCharacters(viewerId, campaignId)[0]?.id ?? null,
@@ -91,6 +94,13 @@ export function previewReducer(
     !campaigns.some((campaign) => campaign.id === state.campaignId)
   )
     return reject('This adventure is unavailable. Return to Adventures.');
+  if (
+    action.type === 'propose-sharing' ||
+    action.type === 'decide-sharing' ||
+    action.type === 'withdraw-sharing' ||
+    action.type === 'cancel-sharing'
+  )
+    return sharingReducer(state, action);
   if (action.type !== 'save') return participationReducer(state, action);
   const existing = action.id
     ? accessibleAdventure(state, action.id)
@@ -128,7 +138,8 @@ export function previewReducer(
     (!existing &&
       state.adventures.some((adventure) => adventure.id === action.newId)) ||
     state.activity.some((item) => item.id === action.newId) ||
-    state.requests.some((item) => item.id === action.newId)
+    state.requests.some((item) => item.id === action.newId) ||
+    state.sharing.some((item) => item.id === action.newId)
   )
     return reject('This preview ID is already in use. Try saving again.');
   if (state.failNextSave)
