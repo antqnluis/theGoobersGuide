@@ -8,6 +8,10 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the proposed interface system. It guide
 
 The Goober's Guide is a local D&D campaign companion. The character sheet is its centerpiece: after selecting a campaign, players should reach and update their character's gameplay information quickly. The campaign dashboard is the entry point, and the party roster, campaign notes, and dice roller support that experience.
 
+## Target product and isolated Adventures preview
+
+`docs/PRODUCT.md` is the canonical v0.2 target product. `docs/MVP_SCOPE.md` remains authoritative for the existing local application. The approved Stage A addition is A1 only: a separate development entry at `/adventures-preview.html`, using synthetic accounts/campaigns/characters and memory-only Adventures state under `src/prototypes/adventures/`. Never mount the production App, access browser persistence or production sessions, seed live records, change AppData/schema/migrations, or claim secure privacy. A2–A6, live Adventures persistence, backend/authentication work, and production navigation integration require separate scope approval. Historical product snapshots do not override these boundaries.
+
 ## MVP Priorities and Boundaries
 
 Build a functioning local application covering every required feature in `docs/MVP_SCOPE.md`: campaign library and dashboard, party roster, editable character sheets, campaign notes, dice roller, local persistence, and responsive navigation. Prioritize the character sheet experience, campaign management and separation, and dice rolling while completing the other required flows.

@@ -126,4 +126,10 @@ The review led to a shorter phone header so combat values and abilities appear s
 
 ## Design review
 
-Review the forest/paper palette and serif/sans pairing; the compact combat band; the four sheet tabs; the mobile menu; and the side-panel dice placement. Also confirm whether the sample character's information density feels right for a live session. These are design proposals, not changes to the product requirements. Campaign management uses the existing shell and visual tokens.
+Review the forest/paper palette and serif/sans pairing; the compact combat band; the five sheet tabs; the mobile menu; and the side-panel dice placement. Also confirm whether the sample character's information density feels right for a live session. These are design proposals, not changes to the product requirements. Campaign management uses the existing shell and visual tokens.
+
+## A1 Adventures preview
+
+The v0.2 target is defined in [PRODUCT.md](PRODUCT.md); current local behavior remains governed by [MVP_SCOPE.md](MVP_SCOPE.md). The separate A1 preview uses the existing forest/paper palette, serif display headings, sans-serif labels, thin ledger rules, and restrained brass accent. Keep prototype viewer/campaign controls in a distinct labeled region above player actions. The list emphasizes objective, next step, type, and player-tracked status. Detail uses one paper reading surface, explicit participants-only text, and labeled Save/Cancel fields. Active/Completed controls use text and visible selected states. Status never implies DM adjudication.
+
+Use wrapping titles, stacked fields on phones, visible focus and labels, inline error feedback, and focus return from dialogs. The Overview map UI is dormant; do not restore it or alter stored map data during A1. Invitations, sharing, and handoff controls belong to later milestones.

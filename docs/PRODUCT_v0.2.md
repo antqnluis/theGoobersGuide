@@ -1,4 +1,7 @@
+> Historical v0.2 snapshot. [PRODUCT.md](PRODUCT.md) is now the canonical maintained target product document. This snapshot does not override the local scope in [MVP_SCOPE.md](MVP_SCOPE.md).
+
 # The Goober's Guide
+
 ## Product Vision & Requirements
 
 **Project:** The Goober's Guide  
@@ -14,11 +17,11 @@
 
 The Goober's Guide is a **player-centered, collaborative adventuring platform** for D&D groups. It combines interactive character management, a shared view of the party, and lightweight adventure coordination in a single campaign workspace.
 
-Players use it to manage their characters during gameplay and to coordinate the *personal, duo, trio, and other side adventures* that take place alongside the group's main storyline. They can record an objective, invite collaborators, track what remains pending, and optionally attach a summary supplied by their AI Dungeon Master (DM).
+Players use it to manage their characters during gameplay and to coordinate the _personal, duo, trio, and other side adventures_ that take place alongside the group's main storyline. They can record an objective, invite collaborators, track what remains pending, and optionally attach a summary supplied by their AI Dungeon Master (DM).
 
 **The Goober's Guide is not a second DM campaign database.** The DM remains authoritative for the game world, narrative outcomes, and official character changes. The app is a player-facing interaction and coordination layer that works even when players have no direct access to the DM's private files or AI project.
 
-**Proposed product promise:** *Your character, your party, your adventures — connected in one place.*
+**Proposed product promise:** _Your character, your party, your adventures — connected in one place._
 
 ## 2. Problem and Opportunity
 
@@ -28,7 +31,7 @@ The group's curated AI DM tracks the authoritative campaign and character inform
 
 A conventional character sheet viewer helps with character reference, but does not provide an easy way to coordinate or revisit player-led activities. Conversely, requiring players to re-document all DM-managed events would create duplicate data entry and discourage adoption.
 
-**Opportunity:** Give players a low-friction place to use their character information and coordinate *only the adventures and objectives they choose to maintain*, with private-by-default collaboration and optional DM-provided handoffs.
+**Opportunity:** Give players a low-friction place to use their character information and coordinate _only the adventures and objectives they choose to maintain_, with private-by-default collaboration and optional DM-provided handoffs.
 
 ## 3. Vision and Positioning
 
@@ -58,13 +61,13 @@ The app supports homebrew rules and should not silently rewrite user-confirmed m
 
 ## 4. Target Users and Responsibilities
 
-| Actor | Primary need | Scope of authority |
-|---|---|---|
-| Player / character owner | Use a character and track personally relevant objectives | Controls their character's editable data and their participation in adventures |
-| Adventure participant | Coordinate a solo or group thread | Contributes to an accepted adventure and approves changes to its audience |
-| Party member | See approved party information | Views main and explicitly shared adventures, never undisclosed private threads |
-| Campaign organizer | Maintain campaign shell and party roster | Organizes the workspace but has **no automatic override** to read private adventures |
-| AI Dungeon Master (external) | Run and remember the campaign | Remains authoritative for narrative outcomes and official game state; has no assumed connection to the app |
+| Actor                        | Primary need                                             | Scope of authority                                                                                         |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Player / character owner     | Use a character and track personally relevant objectives | Controls their character's editable data and their participation in adventures                             |
+| Adventure participant        | Coordinate a solo or group thread                        | Contributes to an accepted adventure and approves changes to its audience                                  |
+| Party member                 | See approved party information                           | Views main and explicitly shared adventures, never undisclosed private threads                             |
+| Campaign organizer           | Maintain campaign shell and party roster                 | Organizes the workspace but has **no automatic override** to read private adventures                       |
+| AI Dungeon Master (external) | Run and remember the campaign                            | Remains authoritative for narrative outcomes and official game state; has no assumed connection to the app |
 
 DM-facing features may be considered in a later release, but are not required for the defined player workflows.
 
@@ -130,20 +133,20 @@ The **target shared product** requires real accounts, campaign membership, serve
 
 The first creation form should request as little information as possible. Some required data can be inferred from the current context.
 
-| Field | Requirement | Default / behavior |
-|---|---|---|
-| Title | Required user input | Short plain-language objective |
-| Campaign | Required, inferred | Current campaign |
-| Creator / owner account | Required, inferred | Signed-in user |
-| Type | Required | Personal or Side for a private thread; Main for party-wide context |
-| Participating character(s) | Required | Start with creator's selected character; invite others separately |
-| Status | Required | `Pending` by default; other options: `In progress`, `On hold`, `Completed` |
-| Visibility | Required, inferred | `Participants only` for Personal/Side; `Party` for Main |
-| Description | Optional | Blank |
-| Next step | Optional | Blank |
-| NPC or location reference | Optional | Free text initially; structured links can come later |
-| Updates / handoffs | Optional | Added after creation |
-| Timestamps / source provenance | Required system metadata | Generated automatically |
+| Field                          | Requirement              | Default / behavior                                                         |
+| ------------------------------ | ------------------------ | -------------------------------------------------------------------------- |
+| Title                          | Required user input      | Short plain-language objective                                             |
+| Campaign                       | Required, inferred       | Current campaign                                                           |
+| Creator / owner account        | Required, inferred       | Signed-in user                                                             |
+| Type                           | Required                 | Personal or Side for a private thread; Main for party-wide context         |
+| Participating character(s)     | Required                 | Start with creator's selected character; invite others separately          |
+| Status                         | Required                 | `Pending` by default; other options: `In progress`, `On hold`, `Completed` |
+| Visibility                     | Required, inferred       | `Participants only` for Personal/Side; `Party` for Main                    |
+| Description                    | Optional                 | Blank                                                                      |
+| Next step                      | Optional                 | Blank                                                                      |
+| NPC or location reference      | Optional                 | Free text initially; structured links can come later                       |
+| Updates / handoffs             | Optional                 | Added after creation                                                       |
+| Timestamps / source provenance | Required system metadata | Generated automatically                                                    |
 
 **Important distinctions:** `type` describes the activity; `visibility` determines who may view it; `participants` identifies the characters involved. These must not be the same field or derived permanently from one another.
 
@@ -265,18 +268,18 @@ Display a title, category, player-tracked status, visibility, approved participa
 
 ## 10. Conceptual Data Responsibilities (Not Yet a Physical Schema)
 
-| Concept | Core responsibility | Important relationship |
-|---|---|---|
-| User | Authenticated account and ownership | May own several characters |
-| Campaign | Independent workspace | Has characters, party, adventures |
-| Campaign membership | Defines membership and general workspace access | User ↔ Campaign |
-| Party | The campaign's one optional party | Includes a subset of its characters |
-| Character | Player-facing gameplay identity and state | Owned by user, belongs to campaign |
-| Adventure | Title, type, status, audience, next step | Belongs to one campaign; creator account |
-| Adventure participant | Invitation, acceptance, consent, role | Adventure ↔ Character (many-to-many) |
-| Sharing approval | Explicit agreement to party visibility | Tied to adventure, accepted participant, and consent state |
-| Adventure update | Attributed short progress note/change | Belongs to adventure; author user |
-| Handoff import | Source, parser proposal, reviewed application | References one adventure and importing actor |
+| Concept               | Core responsibility                             | Important relationship                                     |
+| --------------------- | ----------------------------------------------- | ---------------------------------------------------------- |
+| User                  | Authenticated account and ownership             | May own several characters                                 |
+| Campaign              | Independent workspace                           | Has characters, party, adventures                          |
+| Campaign membership   | Defines membership and general workspace access | User ↔ Campaign                                            |
+| Party                 | The campaign's one optional party               | Includes a subset of its characters                        |
+| Character             | Player-facing gameplay identity and state       | Owned by user, belongs to campaign                         |
+| Adventure             | Title, type, status, audience, next step        | Belongs to one campaign; creator account                   |
+| Adventure participant | Invitation, acceptance, consent, role           | Adventure ↔ Character (many-to-many)                       |
+| Sharing approval      | Explicit agreement to party visibility          | Tied to adventure, accepted participant, and consent state |
+| Adventure update      | Attributed short progress note/change           | Belongs to adventure; author user                          |
+| Handoff import        | Source, parser proposal, reviewed application   | References one adventure and importing actor               |
 
 **Data flow boundary:** AI DM → player-provided export (if available) → reviewed import → player-managed adventure/character records. No assumed API connection or automatic synchronization.
 
@@ -286,18 +289,18 @@ Display a title, category, player-tracked status, visibility, approved participa
 
 These are **target product priorities**, not claims about what has already shipped.
 
-| Priority | Capability | Rationale |
-|---|---|---|
-| **Must** | Campaign separation and party roster | Reliable context for everything else |
-| **Must** | Editable interactive character workspace and core dice tools | Everyday gameplay utility |
-| **Must** | Quick private adventure creation, status, next step, and viewer-filtered dashboard | Minimal useful Adventures experience |
-| **Must** | Account-backed participant invitations, collaborative editing, server-side access controls, unanimous sharing approval for a shared deployment | Collaboration cannot be shipped safely without real privacy |
-| **Should** | DM Markdown/text handoff import with review and source provenance | Chosen second creation path; can follow the basic manual vertical slice |
-| **Should** | Character update comparison/reconciliation | Makes recurring DM character handoffs easier |
-| **Should** | Search/filter adventures and browse short updates | Useful as stories accumulate |
-| **Could** | Structured NPC references, item-to-adventure links, party capability comparisons | Richer cross-feature integration |
-| **Could** | Notifications, transfer workflows, export/backup, richer adventure history | Adds convenience after core collaboration works |
-| **Won't yet** | Direct private AI DM project access, automated lore capture, mandatory campaign chronicle, autonomous quest resolution, full virtual tabletop | Outside current problem and permissions |
+| Priority      | Capability                                                                                                                                     | Rationale                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Must**      | Campaign separation and party roster                                                                                                           | Reliable context for everything else                                    |
+| **Must**      | Editable interactive character workspace and core dice tools                                                                                   | Everyday gameplay utility                                               |
+| **Must**      | Quick private adventure creation, status, next step, and viewer-filtered dashboard                                                             | Minimal useful Adventures experience                                    |
+| **Must**      | Account-backed participant invitations, collaborative editing, server-side access controls, unanimous sharing approval for a shared deployment | Collaboration cannot be shipped safely without real privacy             |
+| **Should**    | DM Markdown/text handoff import with review and source provenance                                                                              | Chosen second creation path; can follow the basic manual vertical slice |
+| **Should**    | Character update comparison/reconciliation                                                                                                     | Makes recurring DM character handoffs easier                            |
+| **Should**    | Search/filter adventures and browse short updates                                                                                              | Useful as stories accumulate                                            |
+| **Could**     | Structured NPC references, item-to-adventure links, party capability comparisons                                                               | Richer cross-feature integration                                        |
+| **Could**     | Notifications, transfer workflows, export/backup, richer adventure history                                                                     | Adds convenience after core collaboration works                         |
+| **Won't yet** | Direct private AI DM project access, automated lore capture, mandatory campaign chronicle, autonomous quest resolution, full virtual tabletop  | Outside current problem and permissions                                 |
 
 ## 12. Proposed Development and Validation Stages
 
@@ -365,4 +368,4 @@ The Goober's Guide is not an AI Dungeon Master and is not intended to reconstruc
 
 It is a **player-owned, privacy-conscious adventuring companion**: a place to use characters during sessions and to coordinate the personal and shared stories that unfold around the main adventure.
 
-**Guiding principle:** *Spend less time managing the adventure, and more time being part of it.*
+**Guiding principle:** _Spend less time managing the adventure, and more time being part of it._

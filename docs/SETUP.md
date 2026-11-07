@@ -1,6 +1,6 @@
 # Local setup
 
-The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open **My Character** to select, create, import, edit, export, or delete a campaign character; Party is a read-only roster that links back to those saved sheets. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Spells use structured entries in their own tab and remain manually editable for homebrew content. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
+The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open **My Character** to select, create, import, edit, export, or delete a campaign character; Party manages an optional roster and links back to saved sheets; only owners change membership. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Spells use structured entries in their own tab and remain manually editable for homebrew content. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
 
 Use Node.js 22.12+, 24+, or 26+ and npm. From the repository root:
 
@@ -25,4 +25,14 @@ Open the local address printed by Vite, usually `http://localhost:5173/`.
 
 LocalStorage is scoped to the browser profile and origin. It is not a secure or shared data store. Feature code should depend on the `AppRepository` interface, not call `window.localStorage` directly.
 
-Schema version 3 adds the remembered My Character selection for each campaign. Version-2 data is upgraded with empty character preferences. Version-1 data is also upgraded: campaigns, notes, and non-spell character data are retained, legacy spell text is discarded, and the original payload is saved under a recovery key before the first subsequent save.
+Schema version 5 separates party membership from campaign characters. Version-4 saves migrate their roster membership; version 3 introduced remembered character selections, and version 4 introduced demo ownership. Earlier versions retain the adapter's validated recovery and original-data backup behavior. A1 does not change the schema or execute migrations.
+
+## Isolated A1 Adventures preview
+
+Run `npm run dev` and open `/adventures-preview.html` on the address printed by Vite. This separate development entry is excluded from the default production build. The normal `/` entry remains the existing local application.
+
+Choose synthetic viewers Ari, Bea, Cato (party reader), or Dena (organizer) in Preview controls. They are independent of the two production demo sign-ins. Ari owns two characters in Lantern Coast, including one outside its party. Quiet Reach has no party, and Dena has no character there to demonstrate blocked creation. Personal and Side Adventures are participants-only; viewer filtering demonstrates UX, not secure privacy.
+
+Create with a title, save, leave and return, edit the next step, complete, and reopen. Use Fail next save to demonstrate a retained draft and retry. Reset preview or refresh restores synthetic fixtures. Edits last only while this preview page remains loaded; newly created direct links become unavailable after refresh. No browser storage, production session, recovery key, or saved campaign is read or written. Notes, handoffs, invitations, party sharing, and deletion are outside A1.
+
+Run `npm test` for behavioral and import-boundary checks, `npm run build` for type checking/build exclusion, and `npm run format:check` for formatting. See [MVP_VERIFICATION.md](MVP_VERIFICATION.md) for dated evidence and pending manual approval.

@@ -1,5 +1,7 @@
 # MVP verification and readiness
 
+> Historical local-MVP verification follows. Canonical v0.2 documentation and the isolated A1 preview do not extend these results to target collaboration/privacy features. The Overview map UI is now dormant; historical map checks are not current rendering evidence. A1 verification is recorded separately below once performed.
+
 **Reviewed:** November 5, 2026
 
 **Scope:** Required local MVP in [MVP_SCOPE.md](MVP_SCOPE.md)
@@ -122,3 +124,37 @@
 - Native deletion prompts were observed in the browser. Cancellation was checked for unsaved-draft prompts; deletion cancellation was not separately exercised. The services have record-specific deletion tests and the UI uses `window.confirm` before calling them.
 
 All required MVP acceptance criteria above pass, and no known blocking defect remains. The app is **ready for local MVP use in the tested browser**. This assessment does not claim full screen-reader or physical-device verification.
+
+## A1 Adventures preview verification — November 7, 2026
+
+**Status:** Implemented and checked; awaiting the user's manual visual review and explicit approval. A2 has not started. These results apply to a synthetic development preview, not to secure collaboration or production Adventures.
+
+### Automated and architectural evidence
+
+- `npm test`: 80/80 tests across 14 files, including 14 new A1 behavior/boundary tests. Cases cover title-only defaults, no-party/outside-party capture, invalid input, owner/campaign access, direct mutation rejection, statuses, failed-save retry, route parsing, and independent fixture reset. Draft cancellation/history are covered by browser checks rather than claimed as reducer UI tests.
+- `npm run build`: type-check and default production build pass. Production imports remain independent of the preview; its HTML entry and code are excluded from `dist`. No dependencies, production application code, schema, persistence adapters, or migrations changed.
+- `git diff --check`: passes. Changed files pass targeted Prettier checks (canonical product/MVP files retain their repository formatting exclusions). Full `npm run format:check` remains blocked by pre-existing malformed root `test.json`; that file is unchanged.
+
+### Browser evidence
+
+The preview was exercised at `http://127.0.0.1:5186/adventures-preview.html` and through a disposable test-only proxy origin on port 5187. A temporary probe outside the repository seeded three synthetic LocalStorage keys (application payload, recovery sentinel, unrelated sentinel) and two sessionStorage keys (demo session and unrelated sentinel). After preview creation, viewer switching, editing, navigation, refresh, and reset, the probe compared all keys and raw values: **PASS, byte-for-byte unchanged**. The probe itself performs test setup/comparison; it is not a preview dependency and is not shipped.
+
+Checked title-only creation, blank-title validation, simulated failure with retained draft and successful retry, description/next-step editing, completion/reopen, Active/Completed lists, no-party creation, no-owned-character feedback, and organizer denial without a leaked title or count. Refresh restores fixtures; temporary records disappear. Back/Forward work within the preview. Keep editing retains URL/context/draft after canceled Back, viewer switching, and campaign switching; accepted discard and reset clear the draft. Repeated Active navigation does not create duplicate route entries. Creation after an accepted viewer switch uses the new viewer's owned character.
+
+Keyboard checks confirmed title focus on form entry, Tab to Type, safe initial focus in the discard dialog, and dice-trigger focus return. Dice selection remains visibly forest/white and rolled results survive close/reopen. The dialog's Escape cancellation is implemented with native HTML dialog events; a full screen-reader session, physical device session, and native beforeunload cancellation were not performed.
+
+Reviewed at 375, 768, and 1,440 px; document content stayed within the viewport, including a long unbroken title. Screenshots reflect the final scoped ledger styles:
+
+- [Desktop list](review-evidence/adventures-a1/desktop-list.jpg)
+- [Phone list](review-evidence/adventures-a1/phone-list.jpg)
+- [Phone edit](review-evidence/adventures-a1/phone-edit.jpg)
+- [Tablet detail](review-evidence/adventures-a1/tablet-detail.jpg)
+- [Storage comparison](review-evidence/adventures-a1/storage-comparison.jpg)
+
+Existing local app smoke checks used only the disposable origin after the storage comparison: created a campaign and owned character, saved a note and confirmed it after refresh, rolled dice without losing the sheet route, signed out/in, and opened the second user's saved character read-only. This is a regression smoke check, not a new full MVP certification.
+
+### Independent reviews and remaining gate
+
+Read-only `qa_reviewer` and `ui_reviewer` ran independently in parallel. Confirmed findings were fixed: dice history was lost on close, generic preview styles hid dice selection and overrode ledger styling, and duplicate same-route history entries could break draft restoration. Both reviewers confirmed their findings resolved in follow-up code review. The main agent repeated affected browser checks. Reviewer interaction/visual coverage is limited to code and supplied screenshots; browser execution evidence above comes from the main agent.
+
+Manual visual approval is pending as required by [AGENTS.md](../AGENTS.md). Do not start A2 or wire the preview into live persistence/navigation on the basis of these checks.

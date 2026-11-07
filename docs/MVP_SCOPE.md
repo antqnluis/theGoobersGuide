@@ -1,4 +1,6 @@
 # The Goober's Guide
+
+> **Scope boundary (November 7, 2026):** This document remains the existing local runtime contract. [PRODUCT.md](PRODUCT.md) defines the broader v0.2 target; its future collaboration requirements do not expand this MVP. A1 is authorized only as a separate synthetic, memory-only development preview; see [UI_PROTOTYPE_ROADMAP.md](UI_PROTOTYPE_ROADMAP.md). No live Adventures persistence, schema migration, or backend is authorized. The Overview map UI is currently dormant; existing map storage and supporting code remain intact. This status does not silently remove the historical F02 requirement.
 ## Initial MVP Scope & Requirements
 
 **Version:** 0.1.0  

@@ -12,7 +12,13 @@ The current MVP is ready for local use in the tested browser. The verification r
 
 The application is a player-maintained companion. It does not read a DM's private campaign material or infer hidden information. LocalStorage and the two demo sign-ins demonstrate local persistence and ownership flows; they are not secure shared storage or authentication.
 
-## 1. Information architecture
+## Adventures direction and current baseline (November 7, 2026)
+
+[PRODUCT.md](PRODUCT.md) is the canonical v0.2 target. [MVP_SCOPE.md](MVP_SCOPE.md) remains the existing local runtime contract. The existing app still has Library, Overview, Party, My Character, Notes, and global Dice; it has no live Adventures destination. The Overview map UI is dormant, while its stored data and supporting code remain intact. Older map walkthrough instructions below are historical requirements, not evidence of current rendering.
+
+The proposed campaign navigation adds Adventures, connecting characters, party context, and player-maintained objectives. Notes remain optional support. Invitations, unanimous consent, and party sharing are target workflows, not existing secure capabilities. A1 exposes only Adventures capture/detail/return inside a separate synthetic preview. It does not change live navigation, persistence, or the MVP contract.
+
+## 1. Existing local information architecture
 
 ```text
 The Goober's Guide
@@ -39,7 +45,7 @@ The Goober's Guide
 
 The shared shell provides the campaign library link, active-campaign context, campaign navigation, signed-in demo-player identity, sign-out, and the global dice entry. Campaign creation and editing remain actions in the library; party creation and renaming remain in Party; current location and status remain in Overview. Character selection, import, and editing are parts of My Character. Note selection and editing are parts of Campaign notes. These are workflows within existing destinations, not new navigation items.
 
-No separate Settings, Session, or Character List destination is proposed. During-session actions should be placed in My Character, Overview, Campaign notes, and the global dice dialog. The dice dialog closes back to the same route and campaign context.
+For the existing local baseline, no separate Settings, Session, or Character List destination is proposed. The target Adventures destination described above is preview-only during A1. During-session actions should be placed in My Character, Overview, Campaign notes, and the global dice dialog. The dice dialog closes back to the same route and campaign context.
 
 ## 2. Shared design and interaction rules
 
@@ -94,7 +100,7 @@ The latest browser checks found no page-level horizontal overflow at 375, 768, o
 
 ### 3.4 Campaign overview
 
-- **Current:** Shows campaign name and description; party, current location, and status; edit controls for location/status; map preview with local image add/replace/remove, zoom, pan, and reset; a gallery of all campaign characters with identity, ownership, party status, HP, and AC; recent notes; shortcuts to My Character, Party, and Campaign library.
+- **Current:** Shows campaign name and description; party, current location, and status; edit controls for location/status; dormant map support without a rendered map; a gallery of all campaign characters with identity, ownership, party status, HP, and AC; recent notes; shortcuts to My Character, Party, and Campaign library.
 - **Recommended hierarchy:** Campaign title and description; compact campaign context (party/location/status); top-level actions to open My Character, Party, and Campaign notes; character gallery; map and recent notes as reference sections. Preserve a useful empty campaign overview instead of presenting blank modules.
 - **Retain:** Campaign-scoped summaries, clear party setup link, all-character gallery, party membership and owner labels, recent notes, editable location/status, local map preview, and existing shortcuts.
 - **Proposed additions:** Surface a short “recently used” character shortcut using existing character records. A later mock prototype may show player-entered objectives beside recent notes, but it must identify them as player-maintained and should not imply DM-provided facts.
@@ -224,7 +230,7 @@ Do not propose DM file access, hidden-information discovery, automatic session s
 
 ## 7. Blueprint acceptance checklist
 
-- The sitemap contains only the existing library and campaign destinations, in-page sheet sections, and global dice dialog.
+- The existing local sitemap retains its library and campaign destinations, in-page sheet sections, and global dice dialog. Adventures is proposed separately in the synthetic preview.
 - Every current screen and the shared shell has current behavior, recommended hierarchy, retained elements, proposed additions, actions, states, and desktop/mobile guidance.
 - Sign-in and ownership are accurately described as local demo behavior, and other players' character sheets remain read-only.
 - Before-, during-, and after-session workflows identify current friction and place improvements in existing destinations.
