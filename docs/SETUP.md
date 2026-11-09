@@ -2,6 +2,8 @@
 
 The Goober's Guide includes local campaign, character, and journal management. Create, edit, open, switch, and delete campaigns in the campaign library. Open **My Character** to select, create, import, edit, export, or delete a campaign character; Party manages an optional roster and links back to saved sheets; only owners change membership. The sheet saves to this browser's LocalStorage; current and temporary HP can be changed directly in the combat band. Full sheet edits require Save changes. Spells use structured entries in their own tab and remain manually editable for homebrew content. Campaign notes also persist locally. Open the dice roller from the top bar on any page; its recent rolls last until the page is refreshed. See [DESIGN.md](DESIGN.md) for the interface system.
 
+In **Edit sheet**, drag a tab's grip to reorder the sheet sections, or select a tab and use **Move left**, **Move right**, or **Alt + Left / Right**. Tab labels still scroll horizontally on phones. **Save changes** remembers the order for that character in both edit and view mode; **Cancel** restores the saved order. Tab order stays local and is excluded from character exports and gameplay update imports.
+
 Use Node.js 22.12+, 24+, or 26+ and npm. From the repository root:
 
 | Task                 | Command                |

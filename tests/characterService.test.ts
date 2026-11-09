@@ -9,6 +9,7 @@ import {
   newCharacter,
   selectCharacter,
   selectedCharacterId,
+  reloadCharacterDataForSave,
   saveCharacter as saveCharacterForUser,
   deleteCharacter as deleteCharacterForUser,
 } from '../src/features/characters/characterService';
@@ -70,6 +71,52 @@ function deleteCharacter(
 }
 
 describe('character management', () => {
+  it('reloads current data, preserves unrelated changes and detects stale targets', () => {
+    const { repository, data, first } = setup();
+    const character = { ...newCharacter(first.id), name: 'A' };
+    const snapshot = saveCharacter(repository, data, character);
+    const externalCampaign = createCampaign(repository, snapshot, {
+      name: 'Added in another tab',
+    }).data;
+
+    const latest = reloadCharacterDataForSave(
+      repository,
+      snapshot,
+      character.id,
+    );
+    expect(latest.characterChanged).toBe(false);
+    expect(latest.data.campaigns).toEqual(externalCampaign.campaigns);
+
+    const locallySaved = saveCharacter(repository, latest.data, {
+      ...character,
+      description: 'Updated locally',
+    });
+    expect(locallySaved.campaigns).toEqual(externalCampaign.campaigns);
+
+    const latestCharacter = locallySaved.characters.find(
+      (entry) => entry.id === character.id,
+    )!;
+    const externallyEdited = saveCharacter(repository, locallySaved, {
+      ...latestCharacter,
+      name: 'Changed in another tab',
+    });
+    const stale = reloadCharacterDataForSave(
+      repository,
+      locallySaved,
+      character.id,
+    );
+    expect(stale.characterChanged).toBe(true);
+    expect(
+      stale.data.characters.find((entry) => entry.id === character.id)?.name,
+    ).toBe('Changed in another tab');
+
+    deleteCharacter(repository, externallyEdited, first.id, character.id);
+    expect(
+      reloadCharacterDataForSave(repository, externallyEdited, character.id)
+        .characterChanged,
+    ).toBe(true);
+  });
+
   it('creates, updates and deletes only the selected campaign character across reloads', () => {
     const { repository, data, first, second } = setup();
     const a = { ...newCharacter(first.id), name: 'A' };

@@ -23,11 +23,7 @@ function replaceEntryIds(value: unknown, createId: () => string): unknown {
   );
 }
 
-export function parseCharacterImport(
-  source: string,
-  campaignId: string,
-  options: ImportOptions = {},
-): Character {
+function parseCharacterDocument(source: string): Record<string, unknown> {
   let document: unknown;
   try {
     document = JSON.parse(source);
@@ -50,9 +46,21 @@ export function parseCharacterImport(
   if (!isRecord(document.character))
     throw new Error('The character data is missing from this file.');
 
-  const { portraitDataUrl: _ignoredPortrait, ...portableCharacter } =
-    document.character;
+  return document.character;
+}
+
+function createImportedCharacter(
+  sourceCharacter: Record<string, unknown>,
+  campaignId: string,
+  options: ImportOptions,
+): Character {
+  const {
+    portraitDataUrl: _ignoredPortrait,
+    sheetTabOrder: _ignoredTabOrder,
+    ...portableCharacter
+  } = sourceCharacter;
   void _ignoredPortrait;
+  void _ignoredTabOrder;
 
   const createId = options.createId ?? (() => crypto.randomUUID());
   const timestamp = (options.now ?? (() => new Date().toISOString()))();
@@ -63,10 +71,10 @@ export function parseCharacterImport(
     id: createId(),
     campaignId,
     ownerUserId,
-    attacks: replaceEntryIds(document.character.attacks, createId),
-    inventory: replaceEntryIds(document.character.inventory, createId),
-    features: replaceEntryIds(document.character.features, createId),
-    spells: replaceEntryIds(document.character.spells, createId),
+    attacks: replaceEntryIds(sourceCharacter.attacks, createId),
+    inventory: replaceEntryIds(sourceCharacter.inventory, createId),
+    features: replaceEntryIds(sourceCharacter.features, createId),
+    spells: replaceEntryIds(sourceCharacter.spells, createId),
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -77,4 +85,16 @@ export function parseCharacterImport(
     );
 
   return imported;
+}
+
+export function parseCharacterImport(
+  source: string,
+  campaignId: string,
+  options: ImportOptions = {},
+): Character {
+  return createImportedCharacter(
+    parseCharacterDocument(source),
+    campaignId,
+    options,
+  );
 }

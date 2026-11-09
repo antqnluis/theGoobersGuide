@@ -12,6 +12,7 @@ export type PortableCharacter = Omit<
   | 'createdAt'
   | 'updatedAt'
   | 'portraitDataUrl'
+  | 'sheetTabOrder'
 >;
 
 export interface CharacterExportDocument {
@@ -76,6 +77,7 @@ export function characterExportDocument(
     createdAt,
     updatedAt,
     portraitDataUrl,
+    sheetTabOrder,
     ...portable
   } = character;
   void id;
@@ -84,6 +86,7 @@ export function characterExportDocument(
   void createdAt;
   void updatedAt;
   void portraitDataUrl;
+  void sheetTabOrder;
   return {
     format: CHARACTER_IMPORT_FORMAT,
     version: CHARACTER_IMPORT_VERSION,

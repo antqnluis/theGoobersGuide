@@ -18,6 +18,10 @@ import {
 } from '../../features/auth/demoAuth';
 import { SCHEMA_VERSION, type AppData } from './model';
 import { newCharacter } from '../../features/characters/characterService';
+import {
+  isSheetTabOrder,
+  normalizeSheetTabOrder,
+} from '../../features/characters/sheetTabOrder';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -238,6 +242,8 @@ export function isCharacter(value: unknown): value is Character {
     value.campaignId.trim() !== '' &&
     isDemoUserId(value.ownerUserId) &&
     isString(value.name) &&
+    (value.sheetTabOrder === undefined ||
+      isSheetTabOrder(value.sheetTabOrder)) &&
     isOptionalPortrait(value.portraitDataUrl) &&
     isOptionalString(value.playerName) &&
     isString(value.className) &&
@@ -273,13 +279,22 @@ export function recoverCharacter(
     !campaignIds.has(value.campaignId)
   )
     return null;
-  if (isCharacter(value)) return value;
+  const normalized = {
+    ...value,
+    ...(value.sheetTabOrder !== undefined
+      ? { sheetTabOrder: normalizeSheetTabOrder(value.sheetTabOrder) }
+      : {}),
+  };
+  if (isCharacter(normalized)) return normalized;
   const base = newCharacter(value.campaignId);
   const combat = isRecord(value.combat) ? value.combat : {};
   const abilities = isRecord(value.abilityScores) ? value.abilityScores : {};
   return {
     ...base,
     id: value.id,
+    ...(value.sheetTabOrder !== undefined
+      ? { sheetTabOrder: normalizeSheetTabOrder(value.sheetTabOrder) }
+      : {}),
     ownerUserId: isDemoUserId(value.ownerUserId)
       ? value.ownerUserId
       : DEFAULT_DEMO_USER_ID,

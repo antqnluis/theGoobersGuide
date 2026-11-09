@@ -1,6 +1,7 @@
 import type { AppData, AppRepository } from '../../shared/persistence/model';
 import type { DemoUserId } from '../auth/demoAuth';
 import { abilityNames, type Character } from './model';
+import { isSheetTabOrder } from './sheetTabOrder';
 
 export function abilityModifier(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -30,6 +31,28 @@ export function selectedCharacterId(
     data.characters.find((character) => character.campaignId === campaignId)
       ?.id ?? null
   );
+}
+
+export function reloadCharacterDataForSave(
+  repository: AppRepository,
+  snapshot: AppData,
+  characterId: string,
+): { data: AppData; characterChanged: boolean } {
+  const data = repository.load();
+  const previousCharacter = snapshot.characters.find(
+    (character) => character.id === characterId,
+  );
+  const latestCharacter = data.characters.find(
+    (character) => character.id === characterId,
+  );
+  return {
+    data,
+    characterChanged: Boolean(
+      previousCharacter &&
+      (!latestCharacter ||
+        JSON.stringify(latestCharacter) !== JSON.stringify(previousCharacter)),
+    ),
+  };
 }
 
 export function selectCharacter(
@@ -126,12 +149,18 @@ export function newCharacter(
   };
 }
 
-function validate(data: AppData, character: Character) {
-  if (!data.campaigns.some((c) => c.id === character.campaignId))
-    throw new Error('Campaign no longer exists.');
-  if (!character.name.trim()) throw new Error('Enter a character name.');
+export function characterSaveIssues(character: Character): string[] {
+  const issues: string[] = [];
+  if (
+    character.sheetTabOrder !== undefined &&
+    !isSheetTabOrder(character.sheetTabOrder)
+  )
+    issues.push(
+      'Tab order must contain each character sheet tab exactly once.',
+    );
+  if (!character.name.trim()) issues.push('Enter a character name.');
   if (!Number.isInteger(character.level) || character.level < 1)
-    throw new Error('Level must be at least 1.');
+    issues.push('Level must be at least 1.');
   if (
     [
       character.combat.maximumHp,
@@ -139,30 +168,42 @@ function validate(data: AppData, character: Character) {
       character.combat.currentHp,
     ].some((value) => !Number.isInteger(value) || value < 0)
   )
-    throw new Error('HP must be a nonnegative whole number.');
+    issues.push('HP must be a nonnegative whole number.');
   if (
     character.inventory.some(
       (i) => !i.name.trim() || !Number.isInteger(i.quantity) || i.quantity < 0,
     )
   )
-    throw new Error('Items need a name and a nonnegative whole quantity.');
+    issues.push('Items need a name and a nonnegative whole quantity.');
   if (character.attacks.some((a) => !a.name.trim()))
-    throw new Error('Attacks need a name.');
+    issues.push('Attacks need a name.');
   if (character.features.some((f) => !f.name.trim()))
-    throw new Error('Features need a name.');
+    issues.push('Features need a name.');
   if (character.spells.some((spell) => !spell.name.trim()))
-    throw new Error('Spells need a name.');
+    issues.push('Spells need a name.');
   if (
     character.spells.some(
       (spell) =>
         !Number.isInteger(spell.level) || spell.level < 0 || spell.level > 9,
     )
   )
-    throw new Error('Spell levels must be whole numbers from 0 to 9.');
+    issues.push('Spell levels must be whole numbers from 0 to 9.');
   if (
     Object.values(character.currency).some((v) => !Number.isInteger(v) || v < 0)
   )
-    throw new Error('Currency must be a nonnegative whole number.');
+    issues.push('Currency must be a nonnegative whole number.');
+  return issues;
+}
+
+export function validateCharacterForSave(character: Character) {
+  const [issue] = characterSaveIssues(character);
+  if (issue) throw new Error(issue);
+}
+
+function validate(data: AppData, character: Character) {
+  if (!data.campaigns.some((c) => c.id === character.campaignId))
+    throw new Error('Campaign no longer exists.');
+  validateCharacterForSave(character);
 }
 
 export function saveCharacter(

@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Campaign } from '../campaigns/model';
 import { useUnsavedChanges } from '../../shared/ui/useUnsavedChanges';
 import { abilityModifier } from './characterService';
@@ -14,21 +8,18 @@ import {
   type Character,
   type CharacterSpell,
   type CombatStats,
+  type SheetTab,
 } from './model';
 import type { CharacterExportFormat } from './characterExport';
 import CharacterFeatures from './CharacterFeatures';
+import CharacterInventory, { type InventoryView } from './CharacterInventory';
+import { withInventoryQuantity } from './inventoryQuantity';
 import CharacterPortraitCropDialog from './CharacterPortraitCropDialog';
+import CharacterUpdateImportReview from './CharacterUpdateImportReview';
 import { portraitFileError } from './characterPortrait';
 
-type SheetTab = 'overview' | 'skills' | 'gear' | 'notes' | 'spells';
-
-const tabs: { id: SheetTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'skills', label: 'Skills & saves' },
-  { id: 'gear', label: 'Gear & features' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'spells', label: 'Spells' },
-];
+import CharacterSheetTabs from './CharacterSheetTabs';
+import { normalizeSheetTabOrder } from './sheetTabOrder';
 
 const abilityLabels: Record<AbilityName, string> = {
   strength: 'Strength',
@@ -123,9 +114,18 @@ export default function CharacterSheetPreview({
   const [quickError, setQuickError] = useState<string | null>(null);
   const [portraitError, setPortraitError] = useState<string | null>(null);
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
+  const [updateImportOpen, setUpdateImportOpen] = useState(false);
+  const updateImportTrigger = useRef<HTMLButtonElement>(null);
+  const updateImportWasOpen = useRef(false);
   const portraitInput = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SheetTab>('overview');
+  const [inventoryView, setInventoryView] = useState<InventoryView>({
+    height: 360,
+    showAll: false,
+  });
   const character = editing ? draft : saved;
+  const inventoryCharacter = useRef(character);
+  inventoryCharacter.current = character;
   const dirty =
     editing &&
     (Boolean(importSource) || JSON.stringify(draft) !== JSON.stringify(saved));
@@ -133,6 +133,12 @@ export default function CharacterSheetPreview({
     dirty,
     'Discard unsaved character changes?',
   );
+
+  useEffect(() => {
+    if (updateImportWasOpen.current && !updateImportOpen)
+      updateImportTrigger.current?.focus();
+    updateImportWasOpen.current = updateImportOpen;
+  }, [updateImportOpen]);
 
   useEffect(() => {
     setSaved(initial);
@@ -221,6 +227,17 @@ export default function CharacterSheetPreview({
     if (!creating) allowNavigation.current = false;
   }
 
+  function saveImportedUpdates(updated: Character): boolean {
+    if (!onSave || !onSave(updated)) return false;
+    setSaved(structuredClone(updated));
+    setDraft(structuredClone(updated));
+    setQuickHp(String(updated.combat.currentHp));
+    setQuickTemp(String(updated.combat.temporaryHp));
+    setQuickError(null);
+    setUpdateImportOpen(false);
+    return true;
+  }
+
   function saveQuick(key: 'currentHp' | 'temporaryHp', raw: string) {
     if (!onSave) return;
     const value = Number(raw);
@@ -241,30 +258,19 @@ export default function CharacterSheetPreview({
     }
   }
 
-  function handleTabKeyDown(
-    event: KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) {
-    let nextIndex: number;
-    switch (event.key) {
-      case 'ArrowRight':
-        nextIndex = (index + 1) % tabs.length;
-        break;
-      case 'ArrowLeft':
-        nextIndex = (index - 1 + tabs.length) % tabs.length;
-        break;
-      case 'Home':
-        nextIndex = 0;
-        break;
-      case 'End':
-        nextIndex = tabs.length - 1;
-        break;
-      default:
-        return;
+  function commitInventoryQuantity(id: string, raw: string): boolean {
+    if (readOnly || updateImportOpen || (!editing && !onSave)) return false;
+    try {
+      const next = withInventoryQuantity(inventoryCharacter.current, id, raw);
+      if (next === inventoryCharacter.current) return true;
+      if (!editing && !onSave?.(next)) return false;
+      inventoryCharacter.current = next;
+      setDraft(next);
+      if (!editing) setSaved(next);
+      return true;
+    } catch {
+      return false;
     }
-    event.preventDefault();
-    setActiveTab(tabs[nextIndex].id);
-    document.getElementById(`tab-${tabs[nextIndex].id}`)?.focus();
   }
 
   const spellGroups = [...character.spells]
@@ -430,7 +436,21 @@ export default function CharacterSheetPreview({
                   </button>
                 </>
               )}
-              {onDelete && (
+              {!creating && !readOnly && onSave && (
+                <button
+                  ref={updateImportTrigger}
+                  className="button button-quiet"
+                  type="button"
+                  aria-expanded={updateImportOpen}
+                  aria-controls={
+                    updateImportOpen ? 'character-update-import' : undefined
+                  }
+                  onClick={() => setUpdateImportOpen((open) => !open)}
+                >
+                  Import updates
+                </button>
+              )}
+              {onDelete && !updateImportOpen && (
                 <button
                   className="button button-quiet"
                   type="button"
@@ -462,7 +482,7 @@ export default function CharacterSheetPreview({
                     : 'Save changes'}
               </button>
             </div>
-          ) : readOnly ? null : (
+          ) : readOnly || updateImportOpen ? null : (
             <button
               type="button"
               className="button button-primary"
@@ -473,6 +493,15 @@ export default function CharacterSheetPreview({
           )}
         </div>
       </header>
+
+      {updateImportOpen && !readOnly && onSave && (
+        <CharacterUpdateImportReview
+          character={saved}
+          error={error}
+          onApply={saveImportedUpdates}
+          onCancel={() => setUpdateImportOpen(false)}
+        />
+      )}
 
       <div
         className={`sheet-status${error || quickError ? ' is-error' : ''}`}
@@ -543,6 +572,7 @@ export default function CharacterSheetPreview({
                   className="field-input field-input-number hp-input"
                   type="number"
                   min="0"
+                  disabled={updateImportOpen}
                   aria-label="Current hit points"
                   value={quickHp}
                   onChange={(e) => setQuickHp(e.target.value)}
@@ -579,6 +609,7 @@ export default function CharacterSheetPreview({
                 className="field-input field-input-number inline-number"
                 type="number"
                 min="0"
+                disabled={updateImportOpen}
                 aria-label="Temporary hit points"
                 value={quickTemp}
                 onChange={(e) => setQuickTemp(e.target.value)}
@@ -618,27 +649,15 @@ export default function CharacterSheetPreview({
         ))}
       </div>
 
-      <div
-        className="sheet-tabs"
-        role="tablist"
-        aria-label="Character sheet sections"
-      >
-        {tabs.map((tab, index) => (
-          <button
-            key={tab.id}
-            id={`tab-${tab.id}`}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            aria-controls="sheet-panel"
-            tabIndex={activeTab === tab.id ? 0 : -1}
-            onClick={() => setActiveTab(tab.id)}
-            onKeyDown={(event) => handleTabKeyDown(event, index)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <CharacterSheetTabs
+        order={normalizeSheetTabOrder(character.sheetTabOrder)}
+        activeTab={activeTab}
+        onSelect={setActiveTab}
+        editable={editing && !readOnly && !updateImportOpen}
+        onReorder={(sheetTabOrder) =>
+          setDraft((current) => ({ ...current, sheetTabOrder }))
+        }
+      />
 
       <div
         id="sheet-panel"
@@ -977,7 +996,7 @@ export default function CharacterSheetPreview({
           </div>
         )}
 
-        {activeTab === 'gear' && (
+        {activeTab === 'inventory' && (
           <div className="sheet-panel-grid">
             <section
               className="sheet-section sheet-section-wide gear-section"
@@ -988,109 +1007,18 @@ export default function CharacterSheetPreview({
                 <p>Gear carried into the next session</p>
               </div>
               <div className="gear-layout">
-                <div className="gear-inventory">
-                  <div className="ledger-list">
-                    {character.inventory.map((item, index) => (
-                      <div className="ledger-row inventory-row" key={item.id}>
-                        <div>
-                          {editing ? (
-                            <>
-                              <input
-                                className="field-input"
-                                aria-label="Item name"
-                                value={item.name}
-                                onChange={(e) =>
-                                  setDraft((c) => ({
-                                    ...c,
-                                    inventory: c.inventory.map((i) =>
-                                      i.id === item.id
-                                        ? { ...i, name: e.target.value }
-                                        : i,
-                                    ),
-                                  }))
-                                }
-                              />
-                              <input
-                                className="field-input"
-                                aria-label="Item description"
-                                value={item.description ?? ''}
-                                onChange={(e) =>
-                                  setDraft((c) => ({
-                                    ...c,
-                                    inventory: c.inventory.map((i) =>
-                                      i.id === item.id
-                                        ? { ...i, description: e.target.value }
-                                        : i,
-                                    ),
-                                  }))
-                                }
-                              />
-                            </>
-                          ) : (
-                            <>
-                              <strong>{item.name}</strong>
-                              {item.description && (
-                                <span>{item.description}</span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        {editing ? (
-                          <NumberEdit
-                            label={`${item.name} quantity`}
-                            value={item.quantity}
-                            onChange={(value) =>
-                              setDraft((current) => ({
-                                ...current,
-                                inventory: current.inventory.map(
-                                  (entry, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...entry, quantity: value }
-                                      : entry,
-                                ),
-                              }))
-                            }
-                          />
-                        ) : (
-                          <span className="row-value">× {item.quantity}</span>
-                        )}
-                        {editing && (
-                          <button
-                            type="button"
-                            className="button button-quiet"
-                            onClick={() =>
-                              setDraft((c) => ({
-                                ...c,
-                                inventory: c.inventory.filter(
-                                  (i) => i.id !== item.id,
-                                ),
-                              }))
-                            }
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {editing && (
-                    <button
-                      type="button"
-                      className="button button-quiet gear-action"
-                      onClick={() =>
-                        setDraft((c) => ({
-                          ...c,
-                          inventory: [
-                            ...c.inventory,
-                            { id: crypto.randomUUID(), name: '', quantity: 1 },
-                          ],
-                        }))
-                      }
-                    >
-                      Add item
-                    </button>
-                  )}
-                </div>
+                <CharacterInventory
+                  items={character.inventory}
+                  editing={editing}
+                  readOnly={readOnly}
+                  disabled={updateImportOpen || (!editing && !onSave)}
+                  view={inventoryView}
+                  onViewChange={setInventoryView}
+                  onChange={(inventory) =>
+                    setDraft((current) => ({ ...current, inventory }))
+                  }
+                  onQuantityCommit={commitInventoryQuantity}
+                />
                 <div
                   className="gear-currency"
                   aria-labelledby="currency-heading"
@@ -1163,6 +1091,11 @@ export default function CharacterSheetPreview({
                 </div>
               </div>
             </section>
+          </div>
+        )}
+
+        {activeTab === 'features' && (
+          <div className="sheet-panel-grid">
             <CharacterFeatures
               characterId={character.id}
               features={character.features}

@@ -11,6 +11,17 @@ export const abilityNames = [
 
 export type AbilityName = (typeof abilityNames)[number];
 
+export const sheetTabIds = [
+  'overview',
+  'skills',
+  'inventory',
+  'features',
+  'notes',
+  'spells',
+] as const;
+
+export type SheetTab = (typeof sheetTabIds)[number];
+
 export interface AbilityValue {
   score: number;
   modifier: number;
@@ -81,6 +92,7 @@ export interface Character {
   campaignId: string;
   ownerUserId: DemoUserId;
   name: string;
+  sheetTabOrder?: SheetTab[];
   portraitDataUrl?: string;
   playerName?: string;
   className: string;

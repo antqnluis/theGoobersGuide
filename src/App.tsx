@@ -20,6 +20,7 @@ import {
   newCharacter,
   selectCharacter,
   selectedCharacterId,
+  reloadCharacterDataForSave,
   saveCharacter,
 } from './features/characters/characterService';
 import {
@@ -445,7 +446,24 @@ export default function App() {
   function saveSheet(character: Character): boolean {
     if (!sessionUser) return false;
     try {
-      let next = saveCharacter(repository, data, character, sessionUser.id);
+      const latest = reloadCharacterDataForSave(repository, data, character.id);
+      if (latest.characterChanged) {
+        const latestData = latest.data;
+        setData(latestData);
+        setError(
+          'This character changed in another tab. The latest version has been loaded; review the changes again before saving.',
+        );
+        setFeedback(null);
+        return false;
+      }
+
+      const latestData = latest.data;
+      let next = saveCharacter(
+        repository,
+        latestData,
+        character,
+        sessionUser.id,
+      );
       const importing = location.characterId === 'import';
       const creating = location.characterId === 'new';
       if (creating || importing)

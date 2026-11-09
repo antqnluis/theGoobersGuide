@@ -1,7 +1,9 @@
 # Character JSON import
 
-Character JSON import is the first post-MVP feature. It creates one new
-character inside the campaign from which the import was started.
+Character JSON import is the first post-MVP feature. Its full-document flow
+creates one new character inside the campaign from which the import was
+started. Owners can also apply selected changes to a saved character through
+the changes-only update flow below.
 
 ## User flow
 
@@ -122,6 +124,80 @@ directly. The format guide provides a copyable conversion prompt. That prompt
 instructs the converter to treat the Markdown as source data, ignore embedded
 instructions, preserve only current confirmed values, and retain unsupported
 details in the character's features, spells, or notes.
+
+## Changes-only character updates
+
+The full JSON import above still creates a new character. To update an existing
+saved character, its owner can open **Import updates** on that character sheet.
+Select **Copy update prompt** and provide the copied prompt and new handoff to a
+writing assistant. The prompt includes the selected character's portable JSON
+only as comparison reference, marks a place for the new handoff, and asks for a
+changes-only patch. Copying is manual; the application does not contact an AI
+service.
+
+Paste the returned patch or upload it as a JSON file. The patch uses the separate
+`the-goobers-guide-character-update` format at version `1`. It contains only
+changed fields and item operations. Omitted values and unmentioned collection
+entries remain unchanged. An explicitly supplied empty string, zero, or false
+value is applied if selected. Clearing or removing data requires an explicit
+operation.
+
+```json
+{
+  "format": "the-goobers-guide-character-update",
+  "version": 1,
+  "changes": {
+    "fields": {
+      "set": {
+        "name": "Arlen Vale II",
+        "abilityScores": {
+          "strength": { "score": 18, "modifier": 4 }
+        },
+        "combat": { "currentHp": 0 }
+      },
+      "clear": ["description"]
+    },
+    "collections": {
+      "inventory": [
+        { "op": "update", "id": "portable-item-id", "set": { "quantity": 2 } },
+        { "op": "add", "entry": { "name": "Torch", "quantity": 2 } },
+        { "op": "remove", "id": "another-item-id" }
+      ],
+      "skills": [
+        { "op": "update", "key": "Survival", "set": { "modifier": 5 } }
+      ],
+      "currency": { "set": { "gp": 20 }, "remove": ["cp"] }
+    }
+  },
+  "issues": []
+}
+```
+
+`fields.set` accepts changed identity text and level values, individual combat
+values, and ability score updates. Each ability update must supply both `score`
+and `modifier`. Character-level `fields.clear` is limited to optional
+`playerName`, `subclass`, `background`, `description`, and `notes` fields.
+
+The supported collections are `skills`, `savingThrows`, `attacks`, `inventory`,
+`features`, `spells`, and `currency`. Collection entries use individual `add`,
+`update`, and `remove` operations. Existing attacks, inventory items, features,
+and spells are matched by their exported `id`; new entries omit the `id` because
+the app assigns one. Skills use an exact, unique `name` in the operation's
+`key`; saving throws use an exact, unique ability key. Updates contain only
+changed properties in `set`. Entry-level `clear` is limited to an inventory
+item's `description` or a feature's `category`, and a property cannot appear in
+both `set` and `clear`.
+
+Currency uses `set` for changed amounts, including an explicit zero, and
+`remove` for explicitly removed currency names. A non-empty `issues` array or an
+unresolved/ambiguous target blocks the entire patch. Values that fail the
+character's save rules are shown on their individual changes and cannot be
+selected; other valid changes remain selectable. Review starts with no changes
+selected. The owner must select each field or item operation and apply it to
+save. Applying an update uses the normal owner-checked save path and preserves
+the character's ID, campaign, owner, creation time, portrait, and campaign party
+membership. If the character changed in another tab during review, the latest
+version is loaded and the update must be reviewed again.
 
 ## Character export
 
