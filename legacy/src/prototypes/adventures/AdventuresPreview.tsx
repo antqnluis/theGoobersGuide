@@ -22,11 +22,16 @@ import {
 } from './selectors';
 import { initialState, previewReducer, type PreviewAction } from './state';
 
-export default function AdventuresPreview() {
+export interface LocalAdventuresViewProps {
+  campaignId?: string;
+}
+
+export default function AdventuresPreview({ campaignId }: LocalAdventuresViewProps = {}) {
+  const initialCampaignId = campaignId ?? (campaigns[0]?.id ?? 'lantern-coast');
   const [route, setRoute] = useState(() => readRoute(window.location.hash));
   const [state, dispatch] = useReducer(
     previewReducer,
-    route.campaignId,
+    route.campaignId || initialCampaignId,
     initialState,
   );
   const [editing, setEditing] = useState(false);
@@ -183,7 +188,7 @@ export default function AdventuresPreview() {
     }
   }, [mutationResultVersion]);
 
-  function navigate(next: PreviewRoute, replace = false) {
+  function navigate(next: PreviewRoute, replace = false, campaignId?: string) {
     if (!replace && routeHash(next) === routeHash(routeRef.current)) return;
     requestDiscard(() => {
       if (replace)
@@ -201,6 +206,9 @@ export default function AdventuresPreview() {
         );
       }
       applyRoute(next);
+      if (campaignId && campaignId !== state.campaignId) {
+        dispatch({ type: 'context', campaignId });
+      }
     });
   }
   function switchViewer(viewerId: string) {
@@ -242,7 +250,6 @@ export default function AdventuresPreview() {
         adventureId: id ?? newId,
         view: draft.status === 'Completed' ? 'completed' : 'active',
       };
-      // Retain save feedback: route adoption here must not clear reducer feedback.
       window.history.replaceState(
         { adventuresPreviewIndex: historyIndex.current },
         '',
@@ -329,7 +336,7 @@ export default function AdventuresPreview() {
         Skip to Adventures
       </a>
       <header className="ap-masthead">
-        <span>The Goober’s Guide</span>
+        <span>The Goober's Guide</span>
         <span>A3 Adventures preview</span>
       </header>
       <aside
@@ -476,14 +483,17 @@ export default function AdventuresPreview() {
                 onAudience={(audience) => navigate({ ...route, audience })}
                 view={route.view}
                 canCreate={owned.length > 0}
-                onView={(view) => navigate({ ...route, view })}
+                onView={(view) => navigate({ ...route, view }, false)}
                 onCreate={() =>
-                  navigate({
-                    ...route,
-                    page: 'new',
-                    adventureId: undefined,
-                    audience: 'mine',
-                  })
+                  navigate(
+                    {
+                      ...route,
+                      page: 'new',
+                      adventureId: undefined,
+                      audience: 'mine',
+                    },
+                    false,
+                  )
                 }
                 onOpen={(item) =>
                   navigate({ ...route, page: 'detail', adventureId: item.id })
