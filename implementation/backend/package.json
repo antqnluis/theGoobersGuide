@@ -1,14 +1,15 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "The backend for the new implementation belongs in this directory.",
-  "main": "index.js",
+  "description": "Local Supabase configuration and migrations for The Goober's Guide.",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "db:migrate": "supabase migration up --local",
+    "db:reset": "supabase db reset --local"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
     "supabase": "^3.1.0"
