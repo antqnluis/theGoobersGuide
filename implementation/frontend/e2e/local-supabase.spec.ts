@@ -82,24 +82,24 @@ test('registers and signs in by username or email and enforces profile and campa
   }
 
   await register(emailUsername.toUpperCase(), email)
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await expect(page.getByText(emailUsername, { exact: true })).toBeVisible()
   await signOut()
   await signIn(emailUsername.toUpperCase())
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await page.reload()
   await expect(page.getByText(emailUsername, { exact: true })).toBeVisible()
   await signOut()
   await signIn(email)
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await signOut()
 
   await register(usernameOnly)
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await expect(page.getByText(usernameOnly, { exact: true })).toBeVisible()
   await signOut()
   await signIn(usernameOnly.toUpperCase())
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await signOut()
 
   const credentialsMessage =
@@ -148,6 +148,48 @@ test('registers and signs in by username or email and enforces profile and campa
   const campaignIds: string[] = []
 
   try {
+    await test.step('persists campaign management through the browser', async () => {
+      await page.goto('/login')
+      await signIn(emailUsername)
+      await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+      await expect(
+        page.getByRole('heading', { name: 'Your next story starts here.' }),
+      ).toBeVisible()
+
+      const campaignName = `Browser campaign ${run}`
+      await page.getByRole('link', { name: 'Create campaign', exact: true }).click()
+      await page.getByLabel('Campaign name').fill(campaignName)
+      await page
+        .getByLabel('Description (optional)')
+        .fill('Created through the local browser flow.')
+      await page.getByRole('button', { name: 'Create campaign', exact: true }).click()
+      await expect(page).toHaveURL(/\/app\/campaigns\/[0-9a-f-]+$/)
+      await expect(page.getByRole('heading', { name: campaignName })).toBeVisible()
+      await expect(page.getByRole('status').filter({ hasText: 'Campaign created.' })).toBeVisible()
+
+      const campaignId = new URL(page.url()).pathname.split('/').at(-1)
+      expect(campaignId).toBeTruthy()
+      campaignIds.push(campaignId!)
+      await expect(page.getByText(emailUsername, { exact: true }).last()).toBeVisible()
+
+      await page.reload()
+      await expect(page.getByRole('heading', { name: campaignName })).toBeVisible()
+      await page.getByRole('button', { name: 'Edit details' }).click()
+      await page.getByLabel('Campaign name').fill(`${campaignName} updated`)
+      await page.getByRole('button', { name: 'Save changes' }).click()
+      await expect(page.getByRole('heading', { name: `${campaignName} updated` })).toBeVisible()
+
+      await page.reload()
+      await expect(page.getByRole('heading', { name: `${campaignName} updated` })).toBeVisible()
+      await page.getByRole('button', { name: 'Delete campaign' }).click()
+      await page.getByRole('button', { name: 'Yes, delete campaign' }).click()
+      await expect(page).toHaveURL(/\/app\/campaigns$/)
+      await expect(
+        page.getByRole('heading', { name: 'Your next story starts here.' }),
+      ).toBeVisible()
+      campaignIds.splice(campaignIds.indexOf(campaignId!), 1)
+    })
+
     await test.step('creates private profiles and limits profile updates', async () => {
       for (const [client, id, username] of [
         [owner, ownerId, emailUsername],

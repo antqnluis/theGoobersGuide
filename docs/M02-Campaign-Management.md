@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 1 verified by the user. Phase 2 implementation is ready for acceptance verification.**
+**Phase 1 verified by the user. Phase 2 and Phase 3 acceptance checks passed; awaiting the user's M02 verification.**
 
 This document tracks the campaign management milestone, its decisions, acceptance criteria, and verification results. Update the status and record actual command results as each phase is completed.
 
@@ -67,41 +67,46 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ### Work
 
-- [ ] Run real local Supabase flows with two users and an anonymous client. Test campaign creation, owner membership, listing, update, deletion, and cross-user isolation.
-- [ ] Verify an authorized member can read a campaign while non-members cannot; verify denial of forged ownership, membership insertion, unauthorized updates, and role escalation. If member enrollment is not exposed yet, use controlled test setup rather than adding a joining feature.
-- [ ] Verify existing M01 authentication and username flows are not broken, including login, registration, session restoration, sign-out, and private username lookup permissions.
-- [ ] Test dashboard and workspace navigation, direct-link refresh, form validation, empty/loading/error states, and delete confirmation.
-- [ ] Inspect accessibility, focus, contrast, and responsive behavior at 375px, 768px, and 1440px. Record Impeccable detector/finish-review outcomes for affected UI surfaces.
-- [ ] Run frontend lint, formatting, build, unit tests, browser tests, and local Supabase integration tests using the actual repository commands.
-- [ ] Update this document with the commands run, actual results, failures, and any deferred issues. Update database or design documentation if implementation changes their documented contracts.
+- [x] Run real local Supabase flows with two users and an anonymous client. Test campaign creation, owner membership, listing, update, deletion, and cross-user isolation.
+- [x] Verify an authorized member can read a campaign while non-members cannot; verify denial of forged ownership, membership insertion, unauthorized updates, and role escalation. If member enrollment is not exposed yet, use controlled test setup rather than adding a joining feature.
+- [x] Verify existing M01 authentication and username flows are not broken, including login, registration, session restoration, sign-out, and private username lookup permissions.
+- [x] Test dashboard and workspace navigation, direct-link refresh, form validation, empty/loading/error states, and delete confirmation.
+- [x] Inspect accessibility, focus, contrast, and responsive behavior at 375px, 768px, and 1440px. Record Impeccable detector/finish-review outcomes for affected UI surfaces.
+- [x] Run frontend lint, formatting, build, unit tests, browser tests, and local Supabase integration tests using the actual repository commands.
+- [x] Update this document with the commands run, actual results, failures, and any deferred issues. Update database or design documentation if implementation changes their documented contracts.
 
 ### Acceptance
 
-- [ ] All required campaign management flows pass against local Supabase and remain functional across refreshes.
-- [ ] Campaign and membership RLS tests demonstrate owner, member, non-member, and anonymous boundaries; browser code contains no service-role credentials.
-- [ ] Existing M01 authentication flows remain functional and no invitation, character, party-management, note, adventure, or dice feature is introduced.
-- [ ] Verification results are recorded below; the phase stops for user verification before further milestone work.
+- [x] All required campaign management flows pass against local Supabase and remain functional across refreshes.
+- [x] Campaign and membership RLS tests demonstrate owner, member, non-member, and anonymous boundaries; browser code contains no service-role credentials.
+- [x] Existing M01 authentication flows remain functional and no invitation, character, party-management, note, adventure, or dice feature is introduced.
+- [x] Verification results are recorded below; the phase stops for user verification before further milestone work.
 
 ## Verification log
 
-| Check | Result |
-| --- | --- |
-| `npm run db:migrate` (`implementation/backend`) | Passed on the running local stack. Before-and-after row counts and content fingerprints matched for profiles, campaigns, and memberships. The database contained one profile and no campaigns or memberships before migration. The name constraint validated with no legacy names to correct. |
-| Campaign CRUD, roster, and RLS checks | Passed in the real local API suite. Verified owner enrollment, campaign and roster isolation, read-only membership access, username visibility, whitespace validation, and deletion cascades. |
-| M01 authentication and username regression checks | Passed in the real local suite, including registration, case-insensitive username sign-in, email sign-in, session restoration, sign-out, and private lookup permissions. |
-| `npm run lint` (`implementation/frontend`) | Passed. |
-| `npm run format:check` (`implementation/frontend`) | Passed. |
-| `npm run build` (`implementation/frontend`) | Passed. Vite reported a chunk larger than 500 kB after minification. |
-| `npm test` (`implementation/frontend`) | Passed, 20 tests. |
-| `npm run test:e2e` (`implementation/frontend`) | Passed, 5 tests. |
-| `npm run test:local-supabase` (`implementation/frontend`) | Passed, 2 tests. The suite cleaned up its campaigns and their memberships. Test accounts remain in local Auth. |
-| `npm run lint` (`implementation/frontend`, Phase 2) | Passed. |
-| `npm run format:check` (`implementation/frontend`, Phase 2) | Passed. |
-| `npm run build` (`implementation/frontend`, Phase 2) | Passed. Vite reported a 538.26 kB minified JavaScript chunk, above its 500 kB advisory threshold. |
-| Campaign Vitest and Playwright coverage | Added; not run in this implementation pass. |
-| Responsive and accessibility review (375px, 768px, 1440px) | Pending rendered campaign screens. |
-| Impeccable detector and finish review | The design hook reported no deterministic issues for changed UI files. Full campaign-screen capture and finish review remain pending. |
-| `npm run supabase:status` (`implementation/backend`) | Could not inspect the local stack: access to `/Users/ton/.docker/run/docker.sock` was denied. No database command or mutation was run. |
+| Check                                                     | Result                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run db:migrate` (`implementation/backend`)           | Passed on the running local stack. Before-and-after row counts and content fingerprints matched for profiles, campaigns, and memberships. The database contained one profile and no campaigns or memberships before migration. The name constraint validated with no legacy names to correct.                                                   |
+| Campaign CRUD, roster, and RLS checks                     | Passed in the real local API suite. Verified owner enrollment, campaign and roster isolation, read-only membership access, username visibility, whitespace validation, and deletion cascades.                                                                                                                                                   |
+| M01 authentication and username regression checks         | Passed in the real local suite, including registration, case-insensitive username sign-in, email sign-in, session restoration, sign-out, and private lookup permissions.                                                                                                                                                                        |
+| `npm run lint` (`implementation/frontend`)                | Passed.                                                                                                                                                                                                                                                                                                                                         |
+| `npm run format:check` (`implementation/frontend`)        | Passed.                                                                                                                                                                                                                                                                                                                                         |
+| `npm run build` (`implementation/frontend`)               | Passed. Vite reported a chunk larger than 500 kB after minification.                                                                                                                                                                                                                                                                            |
+| `npm test` (`implementation/frontend`)                    | Passed, 20 tests.                                                                                                                                                                                                                                                                                                                               |
+| `npm run test:e2e` (`implementation/frontend`)            | Passed, 5 tests.                                                                                                                                                                                                                                                                                                                                |
+| `npm run test:local-supabase` (`implementation/frontend`) | Passed, 2 tests. The suite cleaned up its campaigns and their memberships. Test accounts remain in local Auth.                                                                                                                                                                                                                                  |
+| `npm run supabase:start` (`implementation/backend`)       | Passed without resetting the local database. The stack was left running for development.                                                                                                                                                                                                                                                        |
+| `npm run lint` (`implementation/frontend`)                | Passed.                                                                                                                                                                                                                                                                                                                                         |
+| `npm run format:check` (`implementation/frontend`)        | Passed.                                                                                                                                                                                                                                                                                                                                         |
+| `npm run build` (`implementation/frontend`)               | Passed. Vite reported a 540.27 kB minified JavaScript chunk, above its 500 kB advisory threshold.                                                                                                                                                                                                                                               |
+| `npm test` (`implementation/frontend`)                    | Passed, 22 tests.                                                                                                                                                                                                                                                                                                                               |
+| `npm run test:e2e` (`implementation/frontend`)            | Passed, 14 tests, including dashboard/workspace flows, loading/error recovery, keyboard skip-link focus, and responsive checks.                                                                                                                                                                                                                 |
+| `npm run test:local-supabase` (`implementation/frontend`) | Passed, 2 tests against local Supabase. Covered browser CRUD across refreshes, M01 Auth/username flows, and owner/member/non-member/anonymous RLS paths. The suite cleaned up its campaigns; one orphan from an earlier failed run was removed, and zero generated campaign fixtures remain. Randomly named test accounts remain in local Auth. |
+| Responsive review (375px, 768px, 1440px)                  | Captured dashboard, create form, and workspace at all three widths. No horizontal overflow; visual finish review found the layouts consistent with the margin-index design. Captures are in ignored `implementation/frontend/test-results/m02-*.png`.                                                                                           |
+| Accessibility and focus review                            | Labels, status/error announcements, keyboard focus styling, and responsive controls reviewed. Text contrast across normal and disabled states measured 4.55:1–12.20:1; the focus ring measured 5.96:1 against paper. The skip link now focuses the campaign `<main>`.                                                                           |
+| Impeccable detector and finish review                     | Detector returned no findings for the campaign surfaces and authenticated shell. Rendered captures were manually reviewed at all three widths.                                                                                                                                                                                                  |
+| Browser credential scan                                   | No service-role or secret-key references found in frontend source.                                                                                                                                                                                                                                                                              |
+| `npm run supabase:status` (`implementation/backend`)      | An initial attempt was blocked because the CLI could not write its telemetry file in the home directory. The local stack was subsequently started successfully and its Auth API and database flows passed integration checks.                                                                                                                   |
 
 ## Risks and safeguards
 
@@ -114,5 +119,5 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ## Unresolved issues
 
-- Phase 2 acceptance is not yet verified. Campaign flow tests were added but not executed, and visual review needs an accessible local Supabase/Docker stack or another permitted campaign session.
-- Phase 1 verification used the running local stack. A clean stack startup was not exercised.
+- Vite continues to report the minified JavaScript bundle above its 500 kB advisory threshold.
+- The local integration suite leaves its randomly named test accounts in local Auth; campaign data is cleaned up after each run.

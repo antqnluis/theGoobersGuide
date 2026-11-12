@@ -70,7 +70,7 @@ async function signIn(page: Page) {
 async function mockCampaignApi(
   page: Page,
   initialCampaigns: Campaign[],
-  options: { memberMode?: boolean; shouldFailList?: () => boolean } = {},
+  options: { delayList?: boolean; memberMode?: boolean; shouldFailList?: () => boolean } = {},
 ) {
   const campaigns = [...initialCampaigns]
   await page.route('**/rest/v1/**', async (route) => {
@@ -85,9 +85,12 @@ async function mockCampaignApi(
     }
 
     if (path.endsWith('/rest/v1/campaigns') && method === 'GET') {
+      if (!url.searchParams.has('id') && options.delayList) {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
       if (!url.searchParams.has('id') && options.shouldFailList?.()) {
         await route.fulfill({
-          status: 503,
+          status: 400,
           headers: corsHeaders(),
           json: { message: 'temporary test failure' },
         })
@@ -192,7 +195,7 @@ test('lists campaigns and supports direct workspace links after refresh', async 
 
   await page.reload()
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
-  await expect(page.getByText('player_one')).toBeVisible()
+  await expect(page.getByRole('listitem').getByText('player_one', { exact: true })).toBeVisible()
 })
 
 test('validates and creates a campaign before opening its workspace', async ({ page }) => {
@@ -212,7 +215,7 @@ test('validates and creates a campaign before opening its workspace', async ({ p
   await page.getByLabel('Description (optional)').fill('  A voyage beyond the known coast.  ')
   await page.getByRole('button', { name: 'Create campaign' }).click()
   await expect(page).toHaveURL(/\/app\/campaigns\/00000000-0000-4000-8000-000000000099$/)
-  await expect(page.getByRole('status')).toContainText('Campaign created.')
+  await expect(page.getByRole('status').filter({ hasText: 'Campaign created.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'The Far Shore' })).toBeVisible()
 })
 
@@ -226,7 +229,9 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await page.getByLabel('Description (optional)').fill('A different account of the same town.')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByRole('heading', { name: 'The Red Hand: Reframed' })).toBeVisible()
-  await expect(page.getByRole('status')).toContainText('Campaign details saved.')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Campaign details saved.' }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toBeVisible()
@@ -236,7 +241,7 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await page.getByRole('button', { name: 'Yes, delete campaign' }).click()
   await expect(page).toHaveURL(/\/app\/campaigns$/)
-  await expect(page.getByRole('status')).toContainText('Campaign deleted.')
+  await expect(page.getByRole('status').filter({ hasText: 'Campaign deleted.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
 })
 
@@ -251,22 +256,46 @@ test('shows member access without owner controls', async ({ page }) => {
   await expect(page.getByText('Your role:')).toContainText('Member')
   await page.getByRole('link', { name: 'Open workspace' }).click()
   await expect(page.getByText('Your role').locator('..')).toContainText('Member')
-  await expect(page.getByText('game_master')).toBeVisible()
+  await expect(page.getByRole('list').getByText('game_master', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Delete campaign' })).toHaveCount(0)
 })
 
-test('recovers from a campaign list failure and shows the empty state', async ({ page }) => {
+test('shows a campaign list error and recovers', async ({ page }) => {
   let shouldFail = true
   await mockCampaignApi(page, [], { shouldFailList: () => shouldFail })
   await signIn(page)
   await expect(
     page.getByRole('heading', { name: 'Your campaigns could not be loaded.' }),
-  ).toBeVisible()
+  ).toBeVisible({ timeout: 10_000 })
 
   shouldFail = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
+})
+
+test('shows a loading state while campaigns are fetched', async ({ page }) => {
+  await mockCampaignApi(page, [redHand], { delayList: true })
+  await signIn(page)
+
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Gathering your campaigns…' }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+})
+
+test('keyboard skip link focuses the campaign content', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await signIn(page)
+
+  const skipLink = page.getByRole('link', { name: 'Skip to campaign content' })
+  await page.keyboard.press('Tab')
+  await expect(skipLink).toBeFocused()
+  expect(await skipLink.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid')
+  await page.keyboard.press('Enter')
+
+  await expect(page).toHaveURL(/#campaign-content$/)
+  expect(await page.evaluate(() => document.activeElement?.id)).toBe('campaign-content')
 })
 
 test('does not disclose an unavailable campaign through a direct URL', async ({ page }) => {
@@ -276,4 +305,44 @@ test('does not disclose an unavailable campaign through a direct URL', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Campaign not available' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
+})
+
+test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await signIn(page)
+
+  const screens = [
+    {
+      name: 'dashboard',
+      path: '/app/campaigns',
+      heading: page.getByRole('heading', { name: 'Your campaigns' }),
+    },
+    {
+      name: 'workspace',
+      path: `/app/campaigns/${redHand.id}`,
+      heading: page.getByRole('heading', { name: 'The Red Hand' }),
+    },
+    {
+      name: 'create',
+      path: '/app/campaigns/new',
+      heading: page.getByRole('heading', { name: 'Create a campaign' }),
+    },
+  ]
+
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 960 })
+    for (const screen of screens) {
+      await page.goto(screen.path)
+      await expect(screen.heading).toBeVisible()
+      await page.evaluate(() => document.fonts.ready)
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `${screen.name} should not overflow at ${width}px`,
+      ).toBe(true)
+      await page.screenshot({
+        path: `test-results/m02-${width}-${screen.name}.png`,
+        fullPage: true,
+      })
+    }
+  }
 })

@@ -43,7 +43,7 @@ export function AuthAppShell() {
   }
 
   return (
-    <main className="workspace-page">
+    <div className="workspace-page">
       <div className="workspace-page__frame">
         <a className="workspace-skip-link" href="#campaign-content">
           Skip to campaign content
@@ -75,14 +75,14 @@ export function AuthAppShell() {
             {error}
           </p>
         )}
-        <div className="campaign-app-main" id="campaign-content">
+        <main className="campaign-app-main" id="campaign-content" tabIndex={-1}>
           <Outlet />
-        </div>
+        </main>
         <footer className="auth-footer">
           <span>Account session active</span>
           <Link to="/dev/status">Development status</Link>
         </footer>
       </div>
-    </main>
+    </div>
   )
 }
