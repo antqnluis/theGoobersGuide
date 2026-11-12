@@ -48,7 +48,7 @@ cd implementation/frontend
 npm run dev
 ```
 
-Open <http://localhost:5173>. The setup screen reports React and Tailwind initialization and checks the local Supabase Auth health endpoint. The browser client is in `frontend/src/lib/supabase.ts`.
+Open <http://localhost:5173>. Signed-out visitors reach the account screen for signing in with a username or email and password; authenticated visitors reach the protected `/app` shell. `/dev/status` keeps the React, Tailwind, and local Supabase Auth diagnostics available. The browser client is in `frontend/src/lib/supabase.ts`.
 
 ## Local Supabase and database migrations
 
@@ -62,6 +62,8 @@ npm run supabase:stop
 ```
 
 The first `supabase start` applies pending migrations automatically. `db:migrate` applies any migrations added while the stack is running. Migration files live in `backend/supabase/migrations/`.
+
+Account creation requires a unique username and supports an optional email. Accounts without an email use an internal Supabase Auth address. Players sign in to those accounts with their username. Existing email-only accounts continue to sign in with their email. The `sign-in-with-username` Edge Function runs on the local Supabase stack and uses its built-in server environment. If the stack was already running when the function was added, run `npm run supabase:stop` and `npm run supabase:start` from the backend directory to load the function while preserving local data.
 
 To rebuild the local database from migrations, run `npm run db:reset`. This deletes local database data before recreating the schema. Local Supabase uses Docker containers and does not connect to a hosted project.
 
@@ -79,7 +81,7 @@ npm run test:e2e
 npm run test:local-supabase       # requires the local Supabase stack and .env.local
 ```
 
-`npm run format` formats the frontend files. `npm run test:watch` starts Vitest in watch mode. The end-to-end smoke test starts Vite itself and stubs the Auth health endpoint. `npm run test:local-supabase` uses the values in `.env.local` and checks the running local Auth API from Chromium.
+`npm run format` formats the frontend files. `npm run test:watch` starts Vitest in watch mode. The end-to-end smoke test starts Vite itself and stubs the Auth health endpoint. `npm run test:local-supabase` uses the values in `.env.local` and checks the running local Auth API, username and email account flows, and campaign access rules. It creates local test accounts and removes its test campaign.
 
 ## Environment variables
 

@@ -1,3 +1,36 @@
 {
-  "buildPath": "code"
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/*.html"
+        ],
+        "createdAt": "2026-11-11T18:01:13.757Z",
+        "reason": "Agent: saved direction sketches use Arial for generic control comparisons; production typography is Source Serif 4 and system UI sans in DESIGN.md."
+      },
+      {
+        "rule": "overused-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/*.html"
+        ],
+        "createdAt": "2026-11-11T18:01:13.840Z",
+        "reason": "Agent: Arial appears only in saved direction sketches as a generic control face, not in the production app."
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/*.html"
+        ],
+        "createdAt": "2026-11-11T18:01:13.923Z",
+        "reason": "Agent: these saved option sketches retain their distinct concept palettes; the selected warm field-guide paper and earth-tone mood were user confirmed."
+      }
+    ]
+  }
 }

@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T17:59:54Z",
+  "title": "Design System: The Goober's Guide",
+  "extensions": {
+    "colorMeta": {
+      "warm-paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#eee8d9",
+        "tonalRamp": [
+          "oklch(15% 0.012 90)",
+          "oklch(25% 0.018 90)",
+          "oklch(35% 0.022 90)",
+          "oklch(48% 0.024 90)",
+          "oklch(62% 0.025 90)",
+          "oklch(76% 0.023 90)",
+          "oklch(88% 0.018 90)",
+          "oklch(95% 0.009 90)"
+        ]
+      },
+      "charcoal-ink": {
+        "role": "neutral",
+        "displayName": "Charcoal Ink",
+        "canonical": "#222922",
+        "tonalRamp": [
+          "oklch(15% 0.012 145)",
+          "oklch(25% 0.018 145)",
+          "oklch(35% 0.02 145)",
+          "oklch(48% 0.022 145)",
+          "oklch(62% 0.022 145)",
+          "oklch(76% 0.02 145)",
+          "oklch(88% 0.016 145)",
+          "oklch(95% 0.008 145)"
+        ]
+      },
+      "oxblood-folio": {
+        "role": "primary",
+        "displayName": "Oxblood Folio",
+        "canonical": "#7a2932",
+        "tonalRamp": [
+          "oklch(15% 0.035 20)",
+          "oklch(25% 0.065 20)",
+          "oklch(35% 0.095 20)",
+          "oklch(48% 0.12 20)",
+          "oklch(62% 0.13 20)",
+          "oklch(76% 0.105 20)",
+          "oklch(88% 0.065 20)",
+          "oklch(95% 0.03 20)"
+        ]
+      },
+      "stone-rule": {
+        "role": "neutral",
+        "displayName": "Stone Rule",
+        "canonical": "#a89f8c",
+        "tonalRamp": [
+          "oklch(15% 0.012 85)",
+          "oklch(25% 0.018 85)",
+          "oklch(35% 0.022 85)",
+          "oklch(48% 0.026 85)",
+          "oklch(62% 0.03 85)",
+          "oklch(76% 0.028 85)",
+          "oklch(88% 0.02 85)",
+          "oklch(95% 0.01 85)"
+        ]
+      },
+      "light-paper": {
+        "role": "neutral",
+        "displayName": "Light Paper",
+        "canonical": "#f7f3e9",
+        "tonalRamp": [
+          "oklch(15% 0.01 90)",
+          "oklch(25% 0.015 90)",
+          "oklch(35% 0.018 90)",
+          "oklch(48% 0.02 90)",
+          "oklch(62% 0.021 90)",
+          "oklch(76% 0.02 90)",
+          "oklch(88% 0.015 90)",
+          "oklch(95% 0.007 90)"
+        ]
+      },
+      "soft-ink": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "#4e554e",
+        "tonalRamp": [
+          "oklch(15% 0.012 145)",
+          "oklch(25% 0.018 145)",
+          "oklch(35% 0.02 145)",
+          "oklch(48% 0.022 145)",
+          "oklch(62% 0.022 145)",
+          "oklch(76% 0.02 145)",
+          "oklch(88% 0.016 145)",
+          "oklch(95% 0.008 145)"
+        ]
+      },
+      "forest-green": {
+        "role": "secondary",
+        "displayName": "Forest Green",
+        "canonical": "#315b44",
+        "tonalRamp": [
+          "oklch(15% 0.025 150)",
+          "oklch(25% 0.045 150)",
+          "oklch(35% 0.065 150)",
+          "oklch(48% 0.08 150)",
+          "oklch(62% 0.085 150)",
+          "oklch(76% 0.07 150)",
+          "oklch(88% 0.045 150)",
+          "oklch(95% 0.02 150)"
+        ]
+      },
+      "focus-blue": {
+        "role": "secondary",
+        "displayName": "Focus Blue",
+        "canonical": "#235c7a",
+        "tonalRamp": [
+          "oklch(15% 0.025 240)",
+          "oklch(25% 0.045 240)",
+          "oklch(35% 0.065 240)",
+          "oklch(48% 0.08 240)",
+          "oklch(62% 0.085 240)",
+          "oklch(76% 0.07 240)",
+          "oklch(88% 0.045 240)",
+          "oklch(95% 0.02 240)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Large page headings and the brand wordmark."
+      },
+      "headline": {
+        "displayName": "Form Headline",
+        "purpose": "Section headings inside the paired account routes."
+      },
+      "button": {
+        "displayName": "Button Text",
+        "purpose": "Primary and secondary account actions."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory copy and feedback."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Compact field labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "auth-panel-lift",
+        "value": "0 8px 18px rgb(34 41 34 / 10%)",
+        "purpose": "A restrained lift beneath the shared auth panel."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-feedback",
+        "value": "140ms ease-out",
+        "purpose": "Color and border transitions for buttons and account navigation when motion is allowed."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "tablet",
+        "value": "900px"
+      },
+      {
+        "name": "mobile",
+        "value": "680px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main account action, with a clear hover and keyboard focus state.",
+      "html": "<button class=\"ds-button-primary\" type=\"button\">Sign in</button>",
+      "css": ".ds-button-primary{min-height:48px;border:1px solid var(--color-oxblood);border-radius:var(--radius-control);padding:11px 22px;color:var(--color-paper-light);background:var(--color-oxblood);font:700 0.9rem/1.25 var(--font-body);transition:background-color 140ms ease-out,border-color 140ms ease-out,color 140ms ease-out}.ds-button-primary:hover:not(:disabled){border-color:#5d1f27;background:#5d1f27}.ds-button-primary:focus-visible{outline:3px solid var(--color-focus);outline-offset:3px}.ds-button-primary:disabled{border-color:#62685f;color:#fffdf8;background:#62685f}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A lower emphasis account action, used for signing out.",
+      "html": "<button class=\"ds-button-secondary\" type=\"button\">Sign out</button>",
+      "css": ".ds-button-secondary{min-height:48px;border:1px solid #606b60;border-radius:var(--radius-control);padding:11px 22px;color:var(--color-ink);background:transparent;font:700 0.9rem/1.25 var(--font-body);transition:background-color 140ms ease-out,border-color 140ms ease-out,color 140ms ease-out}.ds-button-secondary:hover:not(:disabled){border-color:var(--color-ink);color:var(--color-paper-light);background:var(--color-ink)}.ds-button-secondary:focus-visible{outline:3px solid var(--color-focus);outline-offset:3px}.ds-button-secondary:disabled{border-color:#62685f;color:#fffdf8;background:#62685f}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "A standard labeled email or password field with visible focus.",
+      "html": "<label class=\"ds-field\" for=\"ds-email\">Email address</label><input class=\"ds-input\" id=\"ds-email\" type=\"email\" placeholder=\"\" />",
+      "css": ".ds-field{display:block;margin-bottom:7px;color:#344138;font:700 0.82rem/1.4 var(--font-body)}.ds-input{display:block;width:100%;min-height:48px;border:1px solid #747c70;border-radius:var(--radius-control);padding:10px 13px;color:var(--color-ink);background:#fffdf8;font:400 1rem/1.5 var(--font-body)}.ds-input::placeholder{color:#5a625a;opacity:1}.ds-input:focus-visible{border-color:var(--color-focus);outline:3px solid var(--color-focus);outline-offset:2px}.ds-input:disabled{color:#424b42;background:#e9e5da}"
+    },
+    {
+      "name": "Account Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-link",
+      "description": "Compact sign-in and create-account links with a clear current route.",
+      "html": "<nav class=\"ds-account-nav\" aria-label=\"Account access\"><a href=\"#sign-in\" aria-current=\"page\">Sign in</a><a href=\"#register\">Create account</a></nav>",
+      "css": ".ds-account-nav{display:flex;align-items:center;gap:26px}.ds-account-nav a{padding:8px 0;border-bottom:2px solid transparent;color:var(--color-ink-soft);font:400 0.9rem/1.4 var(--font-body);text-decoration:none}.ds-account-nav a:hover{color:var(--color-oxblood);text-decoration:underline;text-underline-offset:4px}.ds-account-nav a[aria-current=page]{border-color:var(--color-oxblood);color:var(--color-ink);font-weight:700}.ds-account-nav a:focus-visible{outline:3px solid var(--color-focus);outline-offset:4px}"
+    },
+    {
+      "name": "Auth Panel",
+      "kind": "card",
+      "refersTo": "auth-panel",
+      "description": "The shared light-paper surface for the two equal account routes.",
+      "html": "<section class=\"ds-auth-panel\"><h2>Sign in</h2><p>Open your player account.</p></section>",
+      "css": ".ds-auth-panel{position:relative;min-width:0;background:var(--color-paper-light);box-shadow:var(--shadow-panel)}.ds-auth-panel:before{position:absolute;top:-1px;right:0;left:0;height:3px;background:var(--color-oxblood);content:''}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Adventure Ledger",
+    "overview": "A calm, personal player record for quick use during and between sessions. The visual language takes the form of a contemporary player handbook spread: warm uncoated paper, charcoal serif display type, narrow folio rules, and restrained oxblood accents.\n\nThe mood is a personal campaign journal with softer earth tones and lightly lifted sections. Familiar web controls stay clear and central; the forms share equal weight and stack in reading order on small screens.",
+    "keyCharacteristics": [
+      "Warm paper and charcoal ink establish a quiet reading surface.",
+      "Serif display type and sans-serif interface text balance print character with quick scanning.",
+      "Oxblood folios mark primary actions and active routes; supporting colors stay tied to states.",
+      "Light paper panels receive a restrained lift, and form controls remain conventional."
+    ],
+    "rules": [
+      {
+        "name": "The Oxblood Folio Rule",
+        "body": "Use oxblood for the main route and action cues; keep focus blue and success green tied to their specific states.",
+        "section": "colors"
+      },
+      {
+        "name": "The Quiet Lift Rule",
+        "body": "Keep the shadow on the auth panel and let paper contrast and rules do the remaining work.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep sign-in and account creation equally weighted in the current auth layout.",
+      "**Do** retain standard labeled fields, visible keyboard focus, and clear text states.",
+      "**Do** stack the account panels in reading order on small screens.",
+      "**Do** reserve the panel shadow for the auth panel and use paper tones and rules for surrounding structure."
+    ],
+    "donts": [
+      "**Don't** turn standard form controls into decorative props.",
+      "**Don't** let fantasy ornament or surface decoration compete with the form labels and actions.",
+      "**Don't** use the focus and success colors as general-purpose accents."
+    ]
+  }
+}

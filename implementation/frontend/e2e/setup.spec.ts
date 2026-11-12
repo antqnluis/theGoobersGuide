@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('renders the setup screen and reaches the local Supabase API', async ({ page }) => {
+test('renders development diagnostics and reaches the local Supabase API', async ({ page }) => {
   let healthCheckReceived = false
   await page.route('**/auth/v1/health', async (route) => {
     healthCheckReceived = true
@@ -11,7 +11,7 @@ test('renders the setup screen and reaches the local Supabase API', async ({ pag
     })
   })
 
-  await page.goto('/')
+  await page.goto('/dev/status')
 
   await expect(page.getByRole('heading', { name: "The Goober's Guide" })).toBeVisible()
   await expect(page.getByText('Connected to the local Supabase Auth API.')).toBeVisible()

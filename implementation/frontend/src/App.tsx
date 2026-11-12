@@ -1,15 +1,57 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router'
+import { AuthAppShell } from './features/auth/AuthAppShell'
+import { AuthPage } from './features/auth/AuthPage'
+import { AuthProvider } from './features/auth/AuthProvider'
+import { AuthStatus } from './features/auth/AuthStatus'
+import { useAuth } from './features/auth/useAuth'
 import { AppProviders } from './providers/AppProviders'
 import { DevelopmentStatusPage } from './pages/DevelopmentStatusPage'
 
+function HomeRoute() {
+  const { error, isLoading, retrySessionCheck, session } = useAuth()
+
+  if (isLoading || error) {
+    return <AuthStatus error={error} isLoading={isLoading} onRetry={retrySessionCheck} />
+  }
+
+  return <Navigate to={session ? '/app' : '/login'} replace />
+}
+
+function GuestRoute() {
+  const { error, isLoading, retrySessionCheck, session } = useAuth()
+  const { pathname } = useLocation()
+
+  if (isLoading || error) {
+    return <AuthStatus error={error} isLoading={isLoading} onRetry={retrySessionCheck} />
+  }
+
+  if (session) {
+    return <Navigate to="/app" replace />
+  }
+
+  return <AuthPage mode={pathname === '/register' ? 'register' : 'sign-in'} />
+}
+
+function ProtectedRoute() {
+  const { error, isLoading, retrySessionCheck, session } = useAuth()
+
+  if (isLoading || error) {
+    return <AuthStatus error={error} isLoading={isLoading} onRetry={retrySessionCheck} />
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <AuthAppShell />
+}
+
 function NotFoundPage() {
   return (
-    <main className="grid min-h-screen place-items-center bg-stone-950 p-6 text-stone-100">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Page not found</h1>
-        <a className="mt-4 inline-block text-amber-300 underline" href="/">
-          Return to the setup screen
-        </a>
+    <main className="not-found-page">
+      <div>
+        <h1>Page not found</h1>
+        <Link to="/">Return to account access</Link>
       </div>
     </main>
   )
@@ -19,11 +61,19 @@ export default function App() {
   return (
     <AppProviders>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<DevelopmentStatusPage />} />
-          <Route path="/not-found" element={<NotFoundPage />} />
-          <Route path="*" element={<Navigate to="/not-found" replace />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<HomeRoute />} />
+            <Route element={<GuestRoute />}>
+              <Route path="/login" element={<></>} />
+              <Route path="/register" element={<></>} />
+            </Route>
+            <Route path="/app" element={<ProtectedRoute />} />
+            <Route path="/dev/status" element={<DevelopmentStatusPage />} />
+            <Route path="/not-found" element={<NotFoundPage />} />
+            <Route path="*" element={<Navigate to="/not-found" replace />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </AppProviders>
   )
