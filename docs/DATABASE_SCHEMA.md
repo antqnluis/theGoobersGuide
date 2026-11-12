@@ -6,7 +6,7 @@ Supabase Auth supplies the account ID. PostgreSQL uses that ID for profile owner
 
 `public.profiles.id` is the primary key and references `auth.users.id` with `ON DELETE CASCADE`. An Auth insert trigger creates one profile per account. The migration preserves usernames from the previous registry and backfills profiles for accounts that had no registry entry.
 
-`username` is the unique, lowercase sign-in name. It is null for email-only accounts. The app's registration form still asks for a username. The username sign-in Edge Function uses the service-role-only `resolve_username_email` RPC to find the Auth address, then delegates password verification to Supabase Auth.
+`username` is the unique, lowercase sign-in name. The database enforces uniqueness on its lowercase value and resolves sign-in names without regard to letter case. It is null for email-only accounts. The app's registration form still asks for a username. The username sign-in Edge Function uses the service-role-only `resolve_username_email` RPC to find the Auth address, then delegates password verification to Supabase Auth.
 
 An authenticated user can read their own profile and update `display_name` and `avatar_url`. The database manages `id`, `username`, `created_at`, and `updated_at`.
 
