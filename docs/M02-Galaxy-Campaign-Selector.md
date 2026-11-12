@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phases 1–3 implemented and verified. Awaiting user verification before Phase 4.**
+**Phase 4 implemented and verified. Awaiting user verification before Phase 5.**
 
 The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign from its planet or the list displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
 
@@ -63,12 +63,13 @@ Verification passed for lint, formatting, the TypeScript and Vite build, 27 unit
 
 ### Work
 
-- [ ] Interpolate camera position and look target from the current pose to a radius-aware view of the selected planet. Retarget from the current pose on rapid switching. Use the same controller for the overview action and keep per-frame changes outside React state.
-- [ ] Respect `prefers-reduced-motion` by snapping the camera and disabling ambient motion. Provide a pause control for continuous scene animation.
+- [x] Coordinate camera position, look target, and orbital slots in one Canvas controller. Direct handoffs take 600 ms, and returning to overview takes 400 ms. Rapid selections start from the last rendered pose. The selected planet, rings, outline, and label fit inside the current clear scene rectangle.
+- [x] Add **Pause ambient motion** for galaxy drift, shimmer, and planet spin. Explicit navigation still animates while ambient motion is paused. Reduced motion snaps to the same framing, and a hidden tab settles at the latest destination when it returns.
+- [x] Keep the Canvas across the standalone create route and retain the static WebGL fallback. The details panel and workspace link update as soon as the selection changes.
 
 ### Acceptance
 
-- [ ] List and planet selections produce the same camera destination. Rapid selection lands on the last target. Returning to overview, resizing, reduced motion, and paused animation preserve usable framing and controls.
+- [x] List, planet, and step selection converge on the same framing. Verified rapid retargeting, return during travel, responsive panel clearance, motion preferences, context loss during travel, and immediate workspace entry.
 
 ## Phase 5 — Create campaign and form a planet
 
@@ -115,6 +116,11 @@ Verification passed for lint, formatting, the TypeScript and Vite build, 27 unit
 | Phase 3 browser tests                                                               | `npm run test:e2e -- --workers=3 --output=/private/tmp/goobers-galaxy-phase3-e2e` passed all 19 tests. Pointer selection opened the correct details for duplicate campaign names, and refreshing after a rename and insertion updated the labels by ID.                                                                      |
 | Phase 3 local integration                                                           | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase3-local` passed both tests against the local stack, including campaign access rules.                                                                                                                                                               |
 | Phase 3 responsive review                                                           | Reviewed Chromium captures at 375px, 768px, and 1440px. The selected planet and label were visible with the campaign controls, and the pages had no horizontal overflow.                                                                                                                                                     |
+| Phase 4 static checks                                                               | `npm run lint`, `npm run format:check`, and `npm run build` passed. The build retained the existing Vite chunk-size advisory.                                                                                                                                                                                                |
+| Phase 4 unit tests                                                                  | `npm test` passed all 34 tests, including wrapped direction, retargeting, same-planet selection, and projected ring and label clearance.                                                                                                                                                                                     |
+| Phase 4 browser tests                                                               | `npm run test:e2e -- --workers=2 --output=/private/tmp/goobers-phase4-final-e2e` passed all 25 Chromium tests. The travel checks sample intermediate frames and cover resizing, hidden-tab recovery, motion controls, immediate workspace entry, and WebGL fallback.                                                         |
+| Phase 4 local integration                                                           | `npm run test:local-supabase -- --output=/private/tmp/goobers-phase4-final-local` passed both tests against the running local stack, including authentication and campaign access rules.                                                                                                                                     |
+| Phase 4 responsive review                                                           | Reviewed moving and settled Chromium captures at 375 × 568, 768 × 900, 1440 × 960, and 844 × 390, with long details and expanded campaign lists. Mobile hardware performance remains for Phase 6.                                                                                                                            |
 
 ## Risks and safeguards
 

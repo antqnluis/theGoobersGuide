@@ -1,11 +1,12 @@
 import {
-  startTransition,
   ViewTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
@@ -17,6 +18,17 @@ import { useAuth } from '../auth/useAuth'
 import './galaxy.css'
 
 const compactViewport = '(max-width: 680px)'
+const reducedMotion = '(prefers-reduced-motion: reduce)'
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const query = window.matchMedia?.(reducedMotion)
+  query?.addEventListener?.('change', onChange)
+  return () => query?.removeEventListener?.('change', onChange)
+}
+
+function getReducedMotion() {
+  return window.matchMedia?.(reducedMotion).matches ?? false
+}
 
 export function CampaignSelectorLayout() {
   const { session } = useAuth()
@@ -32,7 +44,18 @@ function CampaignSelector({ userId }: { userId: string }) {
   const [orbitBounds, setOrbitBounds] = useState<OrbitBounds | null>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(() => !window.matchMedia?.(compactViewport).matches)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const restoreFocusOnPauseRemoval = useCallback((button: HTMLButtonElement | null) => {
+    if (!button) return
+    return () => {
+      if (document.activeElement === button) disclosureRef.current?.focus()
+    }
+  }, [])
+  const [webglReady, setWebglReady] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const prefersReducedMotion = useSyncExternalStore(subscribeToReducedMotion, getReducedMotion)
+  const canPause = webglReady && !prefersReducedMotion
+  const [selection, setSelection] = useState<{ id: string; direction?: -1 | 1 } | null>(null)
+  const selectedId = selection?.id ?? null
   const locationState = location.state as { campaignNotice?: string } | null
   const [notice] = useState(() =>
     locationState?.campaignNotice === 'deleted' ? 'Campaign deleted.' : null,
@@ -49,7 +72,10 @@ function CampaignSelector({ userId }: { userId: string }) {
     }
   }, [location.pathname, locationState?.campaignNotice, navigate])
 
-  useEffect(() => {
+  const selectedCampaign = campaignsQuery.data?.find((campaign) => campaign.id === selectedId)
+  const detailsOpen = Boolean(selectedCampaign)
+
+  useLayoutEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
     function measure() {
@@ -75,11 +101,10 @@ function CampaignSelector({ userId }: { userId: string }) {
       observer?.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [isCreating])
+  }, [isCreating, detailsOpen, expanded])
 
   const planets = useMemo(() => orderPlanets(campaignsQuery.data), [campaignsQuery.data])
   const orbitIds = useMemo(() => planets.map(({ id }) => id), [planets])
-  const selectedCampaign = campaignsQuery.data?.find((campaign) => campaign.id === selectedId)
   const memberCountQuery = useQuery({
     queryKey: ['campaigns', 'member-count', selectedCampaign?.id, userId],
     queryFn: () => getCampaignMemberCount(selectedCampaign!.id),
@@ -88,10 +113,10 @@ function CampaignSelector({ userId }: { userId: string }) {
   const memberCount = memberCountQuery.data
 
   const selectCampaign = useCallback(
-    (id: string, keepFocus = false) => {
-      setSelectedId(id)
+    (id: string, direction?: -1 | 1) => {
+      setSelection({ id, direction })
       if (window.matchMedia?.(compactViewport).matches) {
-        if (expanded && !keepFocus) disclosureRef.current?.focus()
+        if (expanded && !direction) disclosureRef.current?.focus()
         setExpanded(false)
       }
     },
@@ -100,11 +125,11 @@ function CampaignSelector({ userId }: { userId: string }) {
 
   function step(direction: -1 | 1) {
     const id = stepCampaign(orbitIds, selectedId, direction)
-    if (id) selectCampaign(id, true)
+    if (id) selectCampaign(id, direction)
   }
 
   if (campaignsQuery.isSuccess && selectedId && !selectedCampaign) {
-    setSelectedId(null)
+    setSelection(null)
   }
 
   return (
@@ -114,8 +139,12 @@ function CampaignSelector({ userId }: { userId: string }) {
         orbitBounds={orbitBounds}
         targetId={getOrbitTarget(orbitIds, selectedId)}
         interactive={!isCreating}
+        motionReduced={prefersReducedMotion}
+        paused={paused}
+        onAvailabilityChange={setWebglReady}
         onSelect={selectCampaign}
-        selectedId={selectedId}
+        selectedId={selectedCampaign?.id ?? null}
+        stepDirection={selection?.direction}
       />
       {isCreating ? (
         <div className="galaxy-create">
@@ -202,12 +231,33 @@ function CampaignSelector({ userId }: { userId: string }) {
                 )}
               </div>
             </div>
-            <Link className="galaxy-create-link" to="/app/campaigns/new">
-              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-              Create campaign
-            </Link>
+            <div className="galaxy-index-actions">
+              <Link className="galaxy-create-link" to="/app/campaigns/new">
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                Create campaign
+              </Link>
+              {canPause && (
+                <button
+                  aria-label="Pause ambient motion"
+                  aria-pressed={paused}
+                  className="galaxy-motion-toggle"
+                  onClick={() => setPaused((value) => !value)}
+                  ref={restoreFocusOnPauseRemoval}
+                  title={paused ? 'Resume ambient motion' : 'Pause ambient motion'}
+                  type="button"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                    {paused ? (
+                      <path d="M5 3.5 12 8l-7 4.5z" stroke="currentColor" strokeWidth="1.5" />
+                    ) : (
+                      <path d="M5.5 3.5v9m5-9v9" stroke="currentColor" strokeWidth="1.5" />
+                    )}
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           <div aria-hidden="true" className="galaxy-orbit-space" ref={sceneRef} />
@@ -234,71 +284,70 @@ function CampaignSelector({ userId }: { userId: string }) {
               {selectedCampaign ? `Selected campaign: ${selectedCampaign.name}` : 'Galaxy overview'}
             </p>
             {selectedCampaign && (
-              <ViewTransition default="none" exit="galaxy-details-exit">
-                <section aria-label="Campaign details" className="galaxy-details galaxy-surface">
-                  <div className="galaxy-details__copy" tabIndex={0}>
-                    <ViewTransition
-                      default="none"
-                      name={'campaign-title-' + selectedCampaign.id}
-                      share="campaign-title-morph"
-                    >
-                      <h2>{selectedCampaign.name}</h2>
-                    </ViewTransition>
-                    <div className="galaxy-details__meta">
-                      <p className="galaxy-role">
-                        Your role:{' '}
-                        <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
+              <section aria-label="Campaign details" className="galaxy-details galaxy-surface">
+                <div className="galaxy-details__copy" tabIndex={0}>
+                  <ViewTransition
+                    default="none"
+                    key={selectedCampaign.id}
+                    name={'campaign-title-' + selectedCampaign.id}
+                    share="campaign-title-morph"
+                  >
+                    <h2>{selectedCampaign.name}</h2>
+                  </ViewTransition>
+                  <div className="galaxy-details__meta">
+                    <p className="galaxy-role">
+                      Your role:{' '}
+                      <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
+                    </p>
+                    <div className="galaxy-details__members">
+                      <p role="status">
+                        {memberCountQuery.isError
+                          ? 'Member count unavailable'
+                          : memberCount === undefined
+                            ? 'Loading member count…'
+                            : `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
                       </p>
-                      <div className="galaxy-details__members">
-                        <p role="status">
-                          {memberCountQuery.isError
-                            ? 'Member count unavailable'
-                            : memberCount === undefined
-                              ? 'Loading member count…'
-                              : `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
-                        </p>
-                        {memberCountQuery.isError && (
-                          <button
-                            className="galaxy-action"
-                            onClick={() => void memberCountQuery.refetch()}
-                            type="button"
-                          >
-                            Retry count
-                          </button>
-                        )}
-                      </div>
+                      {memberCountQuery.isError && (
+                        <button
+                          className="galaxy-action"
+                          onClick={() => void memberCountQuery.refetch()}
+                          type="button"
+                        >
+                          Retry count
+                        </button>
+                      )}
                     </div>
-                    <p>{selectedCampaign.description || 'No description yet.'}</p>
                   </div>
-                  <div className="galaxy-details__actions">
-                    <Link
-                      className="galaxy-action galaxy-action--primary"
-                      state={{
-                        campaignTransition: {
-                          campaignId: selectedCampaign.id,
-                          name: selectedCampaign.name,
-                        },
-                      }}
-                      to={`/app/campaigns/${selectedCampaign.id}`}
-                    >
-                      Enter campaign
-                    </Link>
-                    <button
-                      className="galaxy-action"
-                      onClick={() => {
-                        const returnFocus = expanded
-                          ? (selectedButtonRef.current ?? disclosureRef.current)
-                          : disclosureRef.current
-                        returnFocus?.focus()
-                        startTransition(() => setSelectedId(null))
-                      }}
-                      type="button"
-                    >
-                      Return to galaxy overview
-                    </button>
-                  </div>
-                </section>
-              </ViewTransition>
+                  <p>{selectedCampaign.description || 'No description yet.'}</p>
+                </div>
+                <div className="galaxy-details__actions">
+                  <Link
+                    className="galaxy-action galaxy-action--primary"
+                    state={{
+                      campaignTransition: {
+                        campaignId: selectedCampaign.id,
+                        name: selectedCampaign.name,
+                      },
+                    }}
+                    to={`/app/campaigns/${selectedCampaign.id}`}
+                  >
+                    Enter campaign
+                  </Link>
+                  <button
+                    className="galaxy-action"
+                    onClick={() => {
+                      const returnFocus = expanded
+                        ? (selectedButtonRef.current ?? disclosureRef.current)
+                        : disclosureRef.current
+                      returnFocus?.focus()
+                      setSelection(null)
+                    }}
+                    type="button"
+                  >
+                    Return to galaxy overview
+                  </button>
+                </div>
+              </section>
             )}
           </div>
         </section>

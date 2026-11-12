@@ -1,18 +1,19 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 import {
   Color,
   DoubleSide,
-  MathUtils,
   RingGeometry,
   SphereGeometry,
   Vector3,
   Vector4,
+  type Group,
   type Mesh,
 } from 'three'
-import type { OrbitSlot } from './campaignOrbit'
+import type { OrbitBounds, OrbitSlot } from './campaignOrbit'
 import { planetAppearance } from './planetModel'
 import { planetRing, planetSurface, planetVertex } from './planetShaders'
+import { useGalaxyTravel } from './useGalaxyTravel'
 
 const globeGeometry = new SphereGeometry(1, 48, 32)
 const ringGeometry = new RingGeometry(1.25, 1.67, 64)
@@ -78,36 +79,27 @@ function PlanetaryRing({ appearance }: { appearance: Appearance }) {
   )
 }
 
-const planeZ = 5
-const center = new Vector3(0, 0, planeZ)
-
-type PlanetPlacement = {
-  id: string
-  position: [number, number, number]
-  radius: number
-  appearance: Appearance
-}
-
-type Bounds = { left: number; top: number; right: number; bottom: number }
-
-function overlaps(a: Bounds, b: Bounds) {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
-}
-
 function Planet({
-  planet,
+  id,
+  appearance,
+  registerPlanet,
   animate,
   selected,
   onSelect,
 }: {
-  planet: PlanetPlacement
+  id: string
+  appearance: Appearance
+  registerPlanet: (id: string, group: Group | null) => void
   animate: boolean
   selected: boolean
   onSelect: ((id: string) => void) | undefined
 }) {
   const globe = useRef<Mesh>(null)
   const canvas = useThree((state) => state.gl.domElement)
-  const { id, position, radius, appearance } = planet
+  const register = useCallback(
+    (group: Group | null) => registerPlanet(id, group),
+    [registerPlanet, id],
+  )
   const uniforms = useMemo(() => surfaceUniforms(appearance), [appearance])
 
   useEffect(
@@ -123,11 +115,12 @@ function Planet({
 
   return (
     <group
-      position={position}
-      scale={radius}
+      ref={register}
+      visible={false}
       onClick={
         onSelect &&
         ((event) => {
+          if (!event.eventObject.visible) return
           event.stopPropagation()
           onSelect(id)
         })
@@ -135,6 +128,7 @@ function Planet({
       onPointerOver={
         onSelect &&
         ((event) => {
+          if (!event.eventObject.visible) return
           event.stopPropagation()
           canvas.setAttribute('data-planet-hover', '')
         })
@@ -167,112 +161,60 @@ function Planet({
 
 export function CampaignPlanets({
   slots,
+  ids,
+  order,
+  bounds,
   labels,
   animate,
+  interactive,
+  visible,
+  motionReduced,
   selectedId,
+  stepDirection,
+  backgroundOffset,
   onSelect,
+  onSettled,
 }: {
   slots: OrbitSlot[]
+  ids: string[]
+  order: string[]
+  bounds: OrbitBounds | null
   labels: RefObject<HTMLDivElement | null>
   animate: boolean
+  interactive: boolean
+  visible: boolean
+  motionReduced: boolean
   selectedId: string | null
-  onSelect: ((id: string) => void) | undefined
+  stepDirection?: -1 | 1
+  backgroundOffset: RefObject<number>
+  onSelect: (id: string) => void
+  onSettled: () => void
 }) {
-  const size = useThree((state) => state.size)
-  const camera = useThree((state) => state.camera)
-  const viewport = useThree((state) => state.viewport)
-  const invalidate = useThree((state) => state.invalidate)
-  const placements = useMemo(() => {
-    const { width, height } = size
-    const view = viewport.getCurrentViewport(camera, center, size)
-    const worldPerPixel = view.height / Math.max(1, height)
-    return slots.map(({ id, x, y, radius }): PlanetPlacement => {
-      const appearance = planetAppearance(id)
-      return {
-        id,
-        appearance,
-        position: [(x - width / 2) * worldPerPixel, (height / 2 - y) * worldPerPixel, planeZ],
-        radius: radius * worldPerPixel * appearance.size,
-      }
-    })
-  }, [camera, slots, size, viewport])
-
-  const projected = useRef(false)
-  useEffect(() => {
-    projected.current = false
-    invalidate()
-    let active = true
-    void document.fonts.ready.then(() => {
-      if (!active) return
-      projected.current = false
-      invalidate()
-    })
-    return () => {
-      active = false
-    }
-  }, [placements, selectedId, invalidate])
-
-  useFrame(() => {
-    if (projected.current || !labels.current || size.width === 0 || size.height === 0) return
-    const elements = new Map(
-      Array.from(labels.current.children, (element) => {
-        const label = element as HTMLElement
-        return [label.dataset.campaignId, label] as const
-      }),
-    )
-    if (placements.some(({ id }) => !elements.has(id))) return
-    projected.current = true
-    const point = new Vector3()
-    const anchors = placements.map(({ id, position, radius, appearance }) => {
-      const [x, y, z] = position
-      point.set(x, y, z).project(camera)
-      const pixelX = ((point.x + 1) * size.width) / 2
-      const pixelY = ((1 - point.y) * size.height) / 2
-      point.set(x, y + radius, z).project(camera)
-      const pixelRadius = pixelY - ((1 - point.y) * size.height) / 2
-      const extent = pixelRadius * (appearance.ring || id === selectedId ? 1.82 : 1.08)
-      const element = elements.get(id)!
-      element.dataset.planetX = String(pixelX)
-      element.dataset.planetY = String(pixelY)
-      element.dataset.planetExtent = String(extent)
-      const width = element.offsetWidth
-      const height = element.offsetHeight
-      const left = Math.round(MathUtils.clamp(pixelX - width / 2, 8, size.width - width - 8))
-      const top = Math.round(
-        MathUtils.clamp(pixelY - extent - height - 6, 8, size.height - height - 8),
-      )
-      return {
-        id,
-        element,
-        label: { left, top, right: left + width, bottom: top + height },
-        planet: {
-          left: pixelX - extent,
-          top: pixelY - extent,
-          right: pixelX + extent,
-          bottom: pixelY + extent,
-        },
-      }
-    })
-    const occupied: Bounds[] = []
-    for (const { id, label, element } of anchors) {
-      const occluded = anchors.some((other) => other.id !== id && overlaps(label, other.planet))
-      const visible =
-        (element.dataset.focal === 'true' || !occluded) &&
-        !occupied.some((box) => overlaps(label, box))
-      element.style.visibility = visible ? 'visible' : 'hidden'
-      if (!visible) continue
-      element.style.transform = `translate(${label.left}px, ${label.top}px)`
-      occupied.push(label)
-    }
+  const appearances = useMemo(() => new Map(ids.map((id) => [id, planetAppearance(id)])), [ids])
+  const registerPlanet = useGalaxyTravel({
+    slots,
+    bounds,
+    order,
+    labels,
+    appearances,
+    selectedId,
+    stepDirection,
+    backgroundOffset,
+    visible,
+    interactive,
+    motionReduced,
+    onSettled,
   })
 
-  return placements.map((planet) => (
+  return ids.map((id) => (
     <Planet
-      key={planet.id}
-      planet={planet}
+      key={id}
+      id={id}
+      appearance={appearances.get(id)!}
+      registerPlanet={registerPlanet}
       animate={animate}
-      selected={planet.id === selectedId}
-      onSelect={onSelect}
+      selected={id === selectedId}
+      onSelect={interactive ? onSelect : undefined}
     />
   ))
 }

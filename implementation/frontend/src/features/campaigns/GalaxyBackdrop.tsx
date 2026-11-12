@@ -8,17 +8,28 @@ export type GalaxyProps = {
   orbitBounds: OrbitBounds | null
   targetId: string | null
   interactive: boolean
+  motionReduced: boolean
+  paused: boolean
+  onAvailabilityChange: (ready: boolean) => void
   onSelect: (id: string) => void
   selectedId: string | null
+  stepDirection?: -1 | 1
 }
 
 const GalaxyCanvas = lazy(() => import('./GalaxyCanvas'))
 
-class GalaxyRenderBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class GalaxyRenderBoundary extends Component<
+  { children: ReactNode; onFailure: () => void },
+  { failed: boolean }
+> {
   state = { failed: false }
 
   static getDerivedStateFromError() {
     return { failed: true }
+  }
+
+  componentDidCatch() {
+    this.props.onFailure()
   }
 
   render() {
@@ -29,7 +40,7 @@ class GalaxyRenderBoundary extends Component<{ children: ReactNode }, { failed: 
 export function GalaxyBackdrop(props: GalaxyProps) {
   return (
     <div aria-hidden="true" className="galaxy-backdrop">
-      <GalaxyRenderBoundary>
+      <GalaxyRenderBoundary onFailure={() => props.onAvailabilityChange(false)}>
         <Suspense fallback={null}>
           <GalaxyCanvas {...props} />
         </Suspense>

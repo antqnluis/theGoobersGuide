@@ -510,6 +510,8 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   expect(await canvas.evaluate((element, original) => element === original, originalCanvas)).toBe(
     true,
   )
+  await page.getByRole('button', { name: 'Next campaign' }).press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await canvas.evaluate((element: HTMLCanvasElement) => {
     const extension = element.getContext('webgl2')?.getExtension('WEBGL_lose_context')
     if (!extension) throw new Error('WebGL context-loss simulation unavailable')
@@ -517,7 +519,7 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   })
   await expect(canvas).toHaveCount(0)
   await expect(backdrop).toBeVisible()
-  await page.getByRole('button', { name: 'Next campaign' }).press('Enter')
+  await expect(page.getByRole('button', { name: 'Pause ambient motion' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
   await page.getByRole('button', { name: 'Previous campaign' }).press('Space')
   await page.getByRole('link', { name: 'Enter campaign' }).click()
@@ -781,4 +783,312 @@ test('keeps the orbital carousel clear of controls and navigable with the keyboa
       await expect(page.getByRole('button', { name: redHand.name, pressed: true })).toBeVisible()
     }
   }
+})
+
+test('guides each selection source to the same planet framing', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 })
+  const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
+  const third = { ...redHand, id: '00000000-0000-4000-8000-000000000013', name: 'Meridian' }
+  await mockCampaignApi(page, [third, second, redHand])
+  await signIn(page)
+
+  const canvas = page.locator('.galaxy-backdrop canvas')
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const label = page.locator(`.galaxy-planet-label[data-campaign-id="${second.id}"]`)
+  await expect(label).toBeVisible()
+
+  async function position() {
+    return label.evaluate(({ dataset }) => [
+      Number(dataset.planetX),
+      Number(dataset.planetY),
+      Number(dataset.planetExtent),
+    ])
+  }
+
+  async function arrive() {
+    await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+    await expect(label).toBeVisible()
+    return position()
+  }
+
+  async function overview() {
+    await details.getByRole('button', { name: 'Return to galaxy overview' }).click()
+    await expect(details).toHaveCount(0)
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+  }
+
+  const neighbor = await position()
+  await page.mouse.click(neighbor[0], neighbor[1])
+  const destination = await arrive()
+  expect(destination[2]).toBeGreaterThan(neighbor[2])
+
+  await overview()
+  await page.getByRole('button', { name: second.name }).press('Enter')
+  expect(await arrive()).toEqual(destination)
+
+  await overview()
+  const next = page.getByRole('button', { name: 'Next campaign' })
+  await next.press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await next.press('Enter')
+  expect(await arrive()).toEqual(destination)
+})
+
+test('pans the starfield forward and backward across repeated planet handoffs', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.setViewportSize({ width: 1440, height: 960 })
+  const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
+  await mockCampaignApi(page, [redHand, second])
+  await signIn(page)
+
+  const canvas = page.locator('.galaxy-backdrop canvas')
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Pause ambient motion' }).press('Space')
+  await page.clock.pauseAt(new Date(Date.now() + 1000))
+  await page.getByRole('button', { name: redHand.name }).press('Enter')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await page.clock.runFor(800)
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+
+  // Sample an area outside the planets and overlays, with ambient motion paused.
+  const starfield = { clip: { x: 1050, y: 100, width: 360, height: 175 } }
+  const before = await page.screenshot(starfield)
+  const next = page.getByRole('button', { name: 'Next campaign' })
+  const previous = page.getByRole('button', { name: 'Previous campaign' })
+
+  async function settle() {
+    await page.clock.runFor(800)
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+    return page.screenshot(starfield)
+  }
+
+  await next.press('Enter')
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+  await page.clock.runFor(300)
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  const during = await page.screenshot(starfield)
+
+  const firstArrival = await settle()
+  expect(during.equals(before)).toBe(false)
+  expect(firstArrival.equals(before)).toBe(false)
+  expect(firstArrival.equals(during)).toBe(false)
+
+  await next.press('Enter')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  const secondArrival = await settle()
+  expect(secondArrival.equals(firstArrival)).toBe(false)
+  expect(secondArrival.equals(before)).toBe(false)
+
+  await previous.press('Enter')
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+  expect((await settle()).equals(firstArrival)).toBe(true)
+
+  await previous.press('Enter')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  expect((await settle()).equals(before)).toBe(true)
+})
+
+test('keeps moving planet geometry and labels clear of responsive controls', async ({
+  page,
+}, testInfo) => {
+  const campaigns = [
+    redHand,
+    { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },
+    { ...redHand, id: '00000000-0000-4000-8000-000000000013', name: 'Meridian' },
+    {
+      ...redHand,
+      id: '00000000-0000-4000-8000-000000000014',
+      name: 'Beyond the Far Reaches of the Charted Sea',
+      description: 'The crew set sail into a fog that lingered for twelve nights. '.repeat(70),
+    },
+  ]
+  const [first, , , last] = campaigns
+  await mockCampaignApi(page, campaigns)
+  await signIn(page)
+  const canvas = page.locator('.galaxy-backdrop canvas')
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const next = page.getByRole('button', { name: 'Next campaign' })
+
+  for (const [width, height] of [
+    [1440, 960],
+    [768, 900],
+    [375, 568],
+    [844, 390],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await page.reload()
+    await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toHaveText(first.name)
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+
+    const disclosure = page.getByRole('button', { name: 'Your campaigns' })
+    if ((await disclosure.getAttribute('aria-expanded')) === 'false')
+      await disclosure.press('Enter')
+    // Observe the entire handoff, including frames before the destination label has room to appear.
+    const samples = page.evaluate(
+      ({ from, to }) =>
+        new Promise<{ x: number; clear: boolean }[]>((resolve, reject) => {
+          const canvas = document.querySelector<HTMLCanvasElement>('.galaxy-backdrop canvas')!
+          const rect = document.querySelector<HTMLElement>('.galaxy-orbit-space')!
+          const observations: { x: number; clear: boolean }[] = []
+          const start = performance.now()
+          function observe() {
+            if (performance.now() - start > 5000) {
+              reject(new Error(`Travel did not settle for ${from} → ${to}`))
+              return
+            }
+            const label = document.querySelector<HTMLElement>(
+              `.galaxy-planet-label[data-focal="true"][data-campaign-id="${to}"]`,
+            )
+            if (canvas.dataset.galaxyTravel === 'moving' && label) {
+              const { planetX, planetY, planetExtent } = label.dataset
+              if (planetX && planetY && planetExtent) {
+                const x = Number(planetX)
+                const y = Number(planetY)
+                const extent = Number(planetExtent)
+                const { left, right, top, bottom } = rect.getBoundingClientRect()
+                const tag = label.getBoundingClientRect()
+                const labelHidden = getComputedStyle(label).visibility === 'hidden'
+                observations.push({
+                  x,
+                  clear:
+                    x - extent >= left - 1 &&
+                    x + extent <= right + 1 &&
+                    y - extent >= top - 1 &&
+                    y + extent <= bottom + 1 &&
+                    (labelHidden ||
+                      (tag.left >= left - 1 &&
+                        tag.right <= right + 1 &&
+                        tag.top >= top - 1 &&
+                        tag.bottom <= y - extent + 1)),
+                })
+              }
+            }
+            if (observations.length && canvas.dataset.galaxyTravel === 'idle') resolve(observations)
+            else requestAnimationFrame(observe)
+          }
+          requestAnimationFrame(observe)
+        }),
+      { from: first.id, to: last.id },
+    )
+    await page.getByRole('button', { name: 'Previous campaign' }).press('Enter')
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+    await page.screenshot({ path: testInfo.outputPath(`travel-${width}-moving.png`) })
+    const frames = await samples
+    expect(frames.length).toBeGreaterThan(1)
+    expect(
+      frames.filter(({ clear }) => !clear),
+      `${width} × ${height} travel frames`,
+    ).toEqual([])
+    expect(
+      Math.max(...frames.map(({ x }) => x)) - Math.min(...frames.map(({ x }) => x)),
+    ).toBeGreaterThan(4)
+    await expect(details.getByRole('heading', { name: last.name })).toBeVisible()
+    await expect(details.getByRole('link', { name: 'Enter campaign' })).toBeInViewport()
+    if (width === 375) await disclosure.press('Enter')
+    await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`travel-${width}-settled.png`) })
+  }
+
+  await page.setViewportSize({ width: 1000, height: 720 })
+  await next.press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await page.setViewportSize({ width: 920, height: 720 })
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+  await expect(details.getByRole('heading', { name: first.name })).toBeVisible()
+  await expect
+    .poll(() =>
+      page.locator('.galaxy-planet-label[data-focal="true"]').evaluate((label) => {
+        const scene = document.querySelector('.galaxy-orbit-space')!.getBoundingClientRect()
+        return Math.abs(
+          Number((label as HTMLElement).dataset.planetX) - (scene.left + scene.width / 2),
+        )
+      }),
+    )
+    .toBeLessThan(1)
+})
+
+test('retargets and returns immediately while ambient motion is paused', async ({ page }) => {
+  const duplicateTitles: string[] = []
+  page.on('console', (message) => {
+    if (message.text().includes('There are two <ViewTransition name=')) {
+      duplicateTitles.push(message.text())
+    }
+  })
+  const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
+  const third = { ...redHand, id: '00000000-0000-4000-8000-000000000013', name: 'Meridian' }
+  await mockCampaignApi(page, [third, redHand, second])
+  await signIn(page)
+  const canvas = page.locator('.galaxy-backdrop canvas')
+  const pause = page.getByRole('button', { name: 'Pause ambient motion' })
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const next = page.getByRole('button', { name: 'Next campaign' })
+  await pause.press('Space')
+  await expect(pause).toHaveAttribute('aria-pressed', 'true')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+  const pausedImage = await canvas.screenshot()
+  expect(await canvas.screenshot()).toEqual(pausedImage)
+
+  await next.press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await next.press('Enter')
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+  await next.press('Enter')
+  await expect(details.getByRole('heading', { name: third.name })).toBeVisible()
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await details.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
+  await expect(details).toHaveCount(0)
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+  await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toHaveText(redHand.name)
+
+  await page.getByRole('button', { name: second.name }).press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await pause.focus()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(pause).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Your campaigns' })).toBeFocused()
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect(pause).toHaveAttribute('aria-pressed', 'true')
+
+  await next.press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await next.press('Enter')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  const resumedFocal = page.locator('.galaxy-planet-label[data-focal="true"]')
+  await expect(resumedFocal).toHaveText(redHand.name)
+  await expect(resumedFocal).toBeVisible()
+  await expect
+    .poll(() =>
+      resumedFocal.evaluate((label) => {
+        const scene = document.querySelector('.galaxy-orbit-space')!.getBoundingClientRect()
+        return Math.abs(
+          Number((label as HTMLElement).dataset.planetX) - (scene.left + scene.width / 2),
+        )
+      }),
+    )
+    .toBeLessThan(1)
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
+
+  await next.press('Enter')
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await details.getByRole('link', { name: 'Enter campaign' }).press('Enter')
+  await expect(page.getByRole('heading', { name: second.name })).toBeVisible()
+  await expect(canvas).toHaveCount(0)
+  expect(duplicateTitles).toEqual([])
 })

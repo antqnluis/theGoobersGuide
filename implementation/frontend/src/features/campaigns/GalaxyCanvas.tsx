@@ -1,10 +1,23 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react'
 import { AdditiveBlending, Color, type Group, type ShaderMaterial } from 'three'
 
 import type { GalaxyProps } from './GalaxyBackdrop'
 import { CampaignPlanets } from './CampaignPlanets'
 import { positionCampaignOrbit } from './campaignOrbit'
+import { cameraFov, overviewPose } from './campaignTravel'
+
+const cameraOptions = { position: overviewPose.position, fov: cameraFov, far: 120 }
+const starfieldDefines = { SCROLLING_STARFIELD: 1 }
+const initialGalaxyRotation = -0.24
 
 const vertexShader = /* glsl */ `
   attribute float diameter;
@@ -12,12 +25,20 @@ const vertexShader = /* glsl */ `
   attribute float phase;
   attribute vec3 tint;
   uniform float pixelRatio;
+  uniform float backgroundOffset;
   varying float vPhase;
   varying vec3 vTint;
   varying float vIntensity;
 
   void main() {
-    vec4 view = modelViewMatrix * vec4(position, 1.0);
+    vec3 point = position;
+    #ifdef SCROLLING_STARFIELD
+      // Wrap stars beyond the visible edges, including on wide viewports.
+      float depth = ${overviewPose.position[2].toFixed(1)} - point.z;
+      float span = max(2.1, 2.0 / projectionMatrix[0][0] + 0.75);
+      point.x = (fract(point.x + 0.5 - backgroundOffset) - 0.5) * span * depth;
+    #endif
+    vec4 view = modelViewMatrix * vec4(point, 1.0);
     gl_Position = projectionMatrix * view;
     gl_PointSize = clamp(diameter * pixelRatio * 40.0 / -view.z, 1.0, 192.0);
     vTint = tint;
@@ -63,9 +84,9 @@ function makePoints(layer: Layer) {
     const index = i * 3
     if (layer === 'field') {
       const depth = 9 + random() * 82
-      positions[index] = (random() - 0.5) * depth * 2.1
+      positions[index] = random() - 0.5
       positions[index + 1] = (random() - 0.5) * depth
-      positions[index + 2] = 38 - depth
+      positions[index + 2] = overviewPose.position[2] - depth
       const bright = random() > 0.982
       diameters[i] = bright ? 3 + random() * 3 : 0.65 + random() * 1.5
       intensities[i] = bright ? 0.86 : 0.24 + random() * 0.32
@@ -91,18 +112,36 @@ function makePoints(layer: Layer) {
   return { positions, colors, diameters, intensities, phases }
 }
 
-function StarLayer({ layer }: { layer: Layer }) {
+function StarLayer({
+  layer,
+  animate,
+  backgroundOffset,
+}: {
+  layer: Layer
+  animate: boolean
+  backgroundOffset?: RefObject<number>
+}) {
   const data = useMemo(() => makePoints(layer), [layer])
   const pixelRatio = useThree((state) => state.viewport.dpr)
   const uniforms = useMemo(
-    () => ({ pixelRatio: { value: pixelRatio }, uTime: { value: 0 } }),
+    () => ({
+      pixelRatio: { value: pixelRatio },
+      uTime: { value: 0 },
+      backgroundOffset: { value: 0 },
+    }),
     [pixelRatio],
   )
 
   const material = useRef<ShaderMaterial>(null)
 
-  useFrame((state) => {
-    if (material.current) material.current.uniforms.uTime.value = state.clock.elapsedTime
+  const time = useRef(0)
+  useFrame((_, delta) => {
+    if (animate) time.current += Math.min(delta, 0.1)
+    if (material.current) {
+      material.current.uniforms.uTime.value = time.current
+      if (backgroundOffset)
+        material.current.uniforms.backgroundOffset.value = backgroundOffset.current % 1
+    }
   })
 
   return (
@@ -117,6 +156,7 @@ function StarLayer({ layer }: { layer: Layer }) {
       <shaderMaterial
         ref={material}
         blending={AdditiveBlending}
+        defines={backgroundOffset ? starfieldDefines : undefined}
         depthWrite={false}
         fragmentShader={fragmentShader}
         toneMapped={false}
@@ -128,13 +168,28 @@ function StarLayer({ layer }: { layer: Layer }) {
   )
 }
 
-function GalaxyScene({ animate, onContextLost }: { animate: boolean; onContextLost: () => void }) {
+function GalaxyScene({
+  animate,
+  backgroundOffset,
+  onContextLost,
+}: {
+  animate: boolean
+  backgroundOffset: RefObject<number>
+  onContextLost: () => void
+}) {
   const canvas = useThree((state) => state.gl.domElement)
   const aspect = useThree((state) => state.size.width / state.size.height)
   const galaxy = useRef<Group>(null)
+  const ambientRotation = useRef(0)
 
   useFrame((_, delta) => {
-    if (animate && galaxy.current) galaxy.current.rotation.z += Math.min(delta, 0.1) * 0.006
+    if (animate) ambientRotation.current += Math.min(delta, 0.1) * 0.006
+    if (galaxy.current) {
+      galaxy.current.rotation.z =
+        initialGalaxyRotation +
+        ambientRotation.current -
+        (backgroundOffset.current % 1) * 2 * Math.PI
+    }
   })
 
   useEffect(() => {
@@ -146,28 +201,18 @@ function GalaxyScene({ animate, onContextLost }: { animate: boolean; onContextLo
     <>
       <ambientLight intensity={0.6} />
       <directionalLight position={[-10, 12, 9]} intensity={2} />
-      <StarLayer layer="field" />
+      <StarLayer animate={animate} backgroundOffset={backgroundOffset} layer="field" />
       <group
         ref={galaxy}
         position={[aspect > 1 ? 2.5 : 0, aspect > 1 ? 0 : 1, 0]}
-        rotation={[0.94, 0.09, -0.24]}
+        rotation={[0.94, 0.09, initialGalaxyRotation]}
         scale={Math.min(1, Math.max(0.52, aspect * 0.8))}
       >
-        <StarLayer layer="nebula" />
-        <StarLayer layer="spiral" />
+        <StarLayer animate={animate} layer="nebula" />
+        <StarLayer animate={animate} layer="spiral" />
       </group>
     </>
   )
-}
-
-function subscribeToReducedMotion(onChange: () => void) {
-  const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
-
-function getReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function subscribeToVisibility(onChange: () => void) {
@@ -180,59 +225,90 @@ export default function GalaxyCanvas({
   orbitBounds,
   targetId,
   interactive,
+  motionReduced,
+  paused,
+  onAvailabilityChange,
   onSelect,
   selectedId,
+  stepDirection,
 }: GalaxyProps) {
   const labels = useRef<HTMLDivElement>(null)
+  const backgroundOffset = useRef(0)
+  const order = useMemo(() => planets.map(({ id }) => id), [planets])
   const slots = useMemo(
-    () =>
-      orbitBounds
-        ? positionCampaignOrbit(
-            planets.map(({ id }) => id),
-            targetId,
-            orbitBounds,
-          )
-        : [],
-    [orbitBounds, planets, targetId],
+    () => (orbitBounds ? positionCampaignOrbit(order, targetId, orbitBounds) : []),
+    [orbitBounds, order, targetId],
   )
   const names = useMemo(() => new Map(planets.map(({ id, name }) => [id, name])), [planets])
+  const destinations = useMemo(() => slots.map(({ id }) => id), [slots])
+  const destinationKey = destinations.join(',')
+  const [roster, setRoster] = useState({ key: destinationKey, ids: destinations })
+  if (roster.key !== destinationKey) {
+    const departing = roster.ids.filter((id) => !destinations.includes(id) && names.has(id))
+    setRoster({ key: destinationKey, ids: [...destinations, ...departing.slice(0, 3)] })
+  }
+  const ids = useMemo(() => roster.ids.filter((id) => names.has(id)), [roster.ids, names])
+  const releaseDeparting = useCallback(() => {
+    setRoster((current) =>
+      current.key === destinationKey && current.ids.length > destinations.length
+        ? { key: destinationKey, ids: destinations }
+        : current,
+    )
+  }, [destinationKey, destinations])
+
   const [contextLost, setContextLost] = useState(false)
+  const handleContextLost = useCallback(() => {
+    setContextLost(true)
+    onAvailabilityChange(false)
+  }, [onAvailabilityChange])
   const isVisible = useSyncExternalStore(subscribeToVisibility, () => !document.hidden)
-  const prefersReducedMotion = useSyncExternalStore(
-    subscribeToReducedMotion,
-    getReducedMotion,
-    () => false,
-  )
-  const animate = isVisible && !prefersReducedMotion
+  const animate = isVisible && !motionReduced && !paused
 
   if (contextLost) return null
 
   return (
     <>
       <Canvas
-        camera={{ position: [0, 0, 38], fov: 49, far: 120 }}
+        camera={cameraOptions}
         dpr={[1, 1.5]}
         frameloop={isVisible ? (animate ? 'always' : 'demand') : 'never'}
         gl={{ antialias: false, powerPreference: 'low-power' }}
-        onCreated={({ gl }) => gl.domElement.setAttribute('data-galaxy-ready', '')}
+        onCreated={({ gl }) => {
+          gl.domElement.setAttribute('data-galaxy-ready', '')
+          onAvailabilityChange(true)
+        }}
       >
-        <GalaxyScene animate={animate} onContextLost={() => setContextLost(true)} />
+        <GalaxyScene
+          animate={animate}
+          backgroundOffset={backgroundOffset}
+          onContextLost={handleContextLost}
+        />
         <CampaignPlanets
           animate={animate}
+          backgroundOffset={backgroundOffset}
+          bounds={orbitBounds}
+          ids={ids}
+          interactive={interactive}
           labels={labels}
-          onSelect={interactive ? onSelect : undefined}
+          motionReduced={motionReduced}
+          onSelect={onSelect}
+          onSettled={releaseDeparting}
+          order={order}
+          visible={isVisible}
           slots={slots}
           selectedId={selectedId}
+          stepDirection={stepDirection}
         />
       </Canvas>
       <div className="galaxy-planet-labels" ref={labels}>
-        {slots.map(({ id, offset }) => (
+        {ids.map((id) => (
           <span
             className="galaxy-planet-label"
             data-campaign-id={id}
-            data-focal={offset === 0}
+            data-focal={id === slots[0]?.id}
             data-selected={id === selectedId}
             key={id}
+            style={orbitBounds ? { maxWidth: `min(12rem, ${orbitBounds.width}px)` } : undefined}
           >
             {names.get(id)}
           </span>

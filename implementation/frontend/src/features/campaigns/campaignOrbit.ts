@@ -1,5 +1,7 @@
 export type OrbitBounds = { left: number; top: number; width: number; height: number }
 
+export const orbitLabelClearance = 30
+
 export type OrbitSlot = { id: string; x: number; y: number; radius: number; offset: -1 | 0 | 1 }
 
 export function getOrbitTarget(ids: readonly string[], selectedId: string | null) {
@@ -26,12 +28,11 @@ export function positionCampaignOrbit(
   const y = top + height / 2
   // Reserve the widest possible ring and a line for each planet's label.
   const extent = 1.82
-  const labelSpace = 30
   const showNeighbors = ids.length > 1 && width >= 280 && height >= 128
   const radius = Math.min(
     154,
     width * (showNeighbors ? 0.156 : 0.24),
-    (height / 2 - labelSpace) / extent,
+    (height / 2 - orbitLabelClearance) / extent,
   )
   if (radius <= 0) return []
 
