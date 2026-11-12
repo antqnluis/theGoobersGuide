@@ -12,7 +12,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Campaigns and membership
 
-- `public.campaigns.owner_id` references `profiles.id` and defaults to the creator's Auth ID. Campaigns have a required `name`, optional `description`, and creation and modification timestamps.
+- `public.campaigns.owner_id` references `profiles.id` and defaults to the creator's Auth ID. Campaigns have a required `name` containing at least one non-whitespace character, optional `description`, and creation and modification timestamps.
 - `public.campaign_members` links campaigns and profiles in a many-to-many relationship. Each row has an ID, a `joined_at` timestamp, and an `owner` or `member` role. A campaign/profile pair is unique, and each campaign can have only one owner row.
 - An insert trigger creates the owner row in the same transaction as the campaign. The migration backfills existing owner rows using each campaign's `created_at`. The application API fixes ownership at creation.
 - Deleting a campaign deletes its roster. A hard delete of an Auth user deletes their profile, memberships, and owned campaigns. Rosters of those owned campaigns are deleted too.
@@ -25,9 +25,11 @@ Row Level Security is enabled on all three tables. Anonymous clients have no tab
 | --- | --- |
 | Profiles | Read your own row. Update your own display name and avatar URL. |
 | Campaigns | Create under your own profile ID. Read campaigns you own or belong to. Edit the name and description or delete a campaign you own. |
-| Campaign members | Read the roster of a campaign you belong to. Campaign owners can add or remove regular members by profile ID. Roster rows expose membership details, while profile rows follow their own access policy. |
+| Campaign members | Read the roster of a campaign you belong to. Membership writes are reserved for database-managed operations. |
 
-The roster read policies use a private `SECURITY DEFINER` helper with a fixed search path. It returns campaign IDs for the authenticated caller and reads the roster with the function owner's permissions to avoid recursive RLS. Column grants and the owner-only membership policies protect the owner row, profile IDs, and roles.
+The roster read policies use a private `SECURITY DEFINER` helper with a fixed search path. It returns campaign IDs for the authenticated caller and reads the roster with the function owner's permissions to avoid recursive RLS. Authenticated clients have read-only access to membership rows.
+
+Authenticated members can call `get_campaign_roster(p_campaign_id uuid)` to get each member’s `profile_id`, `role`, and `username`. The username is null for email-only accounts. The RPC returns an empty result for unknown or inaccessible campaigns. It checks the caller’s membership and leaves direct profile access self-only.
 
 ## Future character tables
 

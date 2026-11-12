@@ -30,6 +30,30 @@
         ],
         "createdAt": "2026-11-11T18:01:13.923Z",
         "reason": "Agent: these saved option sketches retain their distinct concept palettes; the selected warm field-guide paper and earth-tone mood were user confirmed."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/campaign-accordion.html",
+          ".impeccable/mocks/decision/campaign-alphabet.html",
+          ".impeccable/mocks/decision/campaign-created-order.html",
+          ".impeccable/mocks/decision/campaign-folios.html",
+          ".impeccable/mocks/decision/campaign-index.html",
+          ".impeccable/mocks/decision/campaign-role-totals.html",
+          ".impeccable/mocks/decision/campaign-roles.html"
+        ],
+        "createdAt": "2026-11-12T03:08:01.126Z",
+        "reason": "Agent: The user selected margin-index; these seven are unselected comparison sketches and are not shipped UI."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "implementation/frontend/src/index.css"
+        ],
+        "createdAt": "2026-11-12T03:44:16.329Z",
+        "reason": "Agent: auth-status-page__content is a standalone status text column, not a card; the oxblood edge is an intentional folio marker consistent with the current palette, outside the login/create-account surface."
       }
     ]
   }

@@ -418,6 +418,7 @@ input {
   display: flex;
   width: 50%;
   align-items: center;
+  overflow: hidden;
   padding: 42px 8%;
   color: var(--color-paper-light);
   transform: translateX(100%);
@@ -428,7 +429,85 @@ input {
 }
 
 .auth-switch__content {
+  position: relative;
+  z-index: 1;
   max-width: 320px;
+}
+
+.auth-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.auth-map__contour {
+  fill: none;
+  stroke: rgb(247 243 233 / 13%);
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.auth-map__route {
+  fill: none;
+  stroke: rgb(247 243 233 / 54%);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  animation: auth-map-draw 1.05s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.auth-map__waypoint {
+  fill: var(--color-oxblood);
+  stroke: rgb(247 243 233 / 60%);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.auth-map__label {
+  fill: #f1dedb;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  opacity: 0.82;
+}
+
+.auth-map__marker {
+  position: absolute;
+  z-index: 1;
+  top: 87.2%;
+  left: 88%;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgb(247 243 233 / 82%);
+  border-radius: 50%;
+  background: rgb(122 41 50 / 72%);
+  transform: translate(-50%, -50%);
+  transition: left 760ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-map__marker span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-paper-light);
+}
+
+.auth-routes[data-mode='register'] .auth-map__marker {
+  left: 12%;
+}
+
+@keyframes auth-map-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .auth-switch h2 {
@@ -467,6 +546,17 @@ input {
 .auth-switch a:focus-visible {
   outline: 3px solid var(--color-paper-light);
   outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-map__route {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+
+  .auth-map__marker {
+    transition: none;
+  }
 }
 
 .auth-page:has(.auth-routes[data-mode='register']) .auth-intro {
@@ -652,6 +742,7 @@ input {
   .auth-switch {
     position: static;
     width: 100%;
+    min-height: 240px;
     padding: 28px 22px 32px;
     transform: none;
   }

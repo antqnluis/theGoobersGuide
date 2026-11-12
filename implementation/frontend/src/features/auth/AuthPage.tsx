@@ -292,6 +292,35 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             </div>
           </div>
           <aside className="auth-switch">
+            <svg
+              key={`${mode}-map`}
+              aria-hidden="true"
+              className="auth-map"
+              preserveAspectRatio="none"
+              viewBox="0 0 600 360"
+            >
+              <path
+                className="auth-map__contour"
+                d="M-30 114C58 77 102 87 160 111s89 30 149-1 100-45 157-13 95 31 164-8M-26 154c87-33 123-15 180 9s94 23 151-4 101-39 154-6 102 36 169 1M-22 194c76-26 128-4 182 16s92 11 145-11 98-29 152 1 102 39 170 12"
+              />
+              <path
+                className="auth-map__route"
+                pathLength="1"
+                d="M72 314c54 0 46-24 106-24s69 36 122 20 57-22 110-10 62 28 118 28"
+              />
+              <circle className="auth-map__waypoint" cx="178" cy="290" r="4" />
+              <circle className="auth-map__waypoint" cx="300" cy="310" r="4" />
+              <circle className="auth-map__waypoint" cx="410" cy="300" r="4" />
+              <text className="auth-map__label" textAnchor="start" x="68" y="345">
+                RETURN
+              </text>
+              <text className="auth-map__label" textAnchor="end" x="532" y="345">
+                BEGIN
+              </text>
+            </svg>
+            <span className="auth-map__marker" aria-hidden="true">
+              <span />
+            </span>
             <div
               key={mode}
               className={`auth-switch__content${hash ? ' auth-switch__content--transition' : ''}`}

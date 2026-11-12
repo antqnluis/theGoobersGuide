@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { Session } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { listAccessibleCampaigns } from './features/campaigns/campaignService'
 import {
   getAuthSession,
   signInWithPassword,
@@ -17,6 +18,15 @@ vi.mock('./features/auth/authService', () => ({
   signOutFromAuth: vi.fn(),
   signUpWithPassword: vi.fn(),
   subscribeToAuthState: vi.fn(),
+}))
+
+vi.mock('./features/campaigns/campaignService', () => ({
+  listAccessibleCampaigns: vi.fn(),
+  createCampaign: vi.fn(),
+  getCampaign: vi.fn(),
+  getCampaignRoster: vi.fn(),
+  updateCampaign: vi.fn(),
+  deleteCampaign: vi.fn(),
 }))
 
 const session = {
@@ -47,6 +57,7 @@ beforeEach(() => {
     authStateListeners.push(onSessionChange)
     return () => undefined
   })
+  vi.mocked(listAccessibleCampaigns).mockResolvedValue([])
 })
 
 describe('auth routes and forms', () => {
@@ -75,9 +86,9 @@ describe('auth routes and forms', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: "You're signed in." })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Your campaigns' })).toBeVisible()
     expect(screen.getByText('player@example.com')).toBeVisible()
-    expect(window.location.pathname).toBe('/app')
+    expect(window.location.pathname).toBe('/app/campaigns')
   })
 
   it('blocks direct access to the app when there is no session', async () => {
@@ -143,8 +154,8 @@ describe('auth routes and forms', () => {
     await user.type(form.getByLabelText('Confirm password'), 'adventure1')
     await user.click(within(registration).getByRole('button', { name: 'Create account' }))
 
-    expect(await screen.findByRole('heading', { name: "You're signed in." })).toBeVisible()
-    expect(window.location.pathname).toBe('/app')
+    expect(await screen.findByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+    expect(window.location.pathname).toBe('/app/campaigns')
   })
 
   it('signs out and returns to the public account page', async () => {
@@ -159,7 +170,7 @@ describe('auth routes and forms', () => {
     window.history.replaceState({}, '', '/app')
     render(<App />)
 
-    await screen.findByRole('heading', { name: "You're signed in." })
+    await screen.findByRole('heading', { name: 'Your campaigns' })
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(await screen.findByRole('region', { name: 'Sign in' })).toBeVisible()
