@@ -198,7 +198,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
 
   const campaign = page.getByRole('button', { name: 'The Red Hand' })
   const details = page.getByRole('region', { name: 'Campaign details' })
-  const openWorkspace = page.getByRole('link', { name: 'Open workspace' })
+  const openWorkspace = page.getByRole('link', { name: 'Enter campaign' })
   await expect(openWorkspace).toHaveCount(0)
   await campaign.focus()
   await campaign.press('Enter')
@@ -208,7 +208,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   await expect(details.getByText(redHand.description!)).toBeVisible()
   await expect(details.getByText('Your role:')).toContainText('Owner')
 
-  await details.getByRole('button', { name: 'Galaxy overview' }).click()
+  await details.getByRole('button', { name: 'Return to galaxy overview' }).click()
   await expect(campaign).toBeFocused()
   await expect(campaign).toHaveAttribute('aria-pressed', 'false')
   await campaign.press('Space')
@@ -251,7 +251,7 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await mockCampaignApi(page, [redHand])
   await signIn(page)
   await page.getByRole('button', { name: 'The Red Hand' }).click()
-  await page.getByRole('link', { name: 'Open workspace' }).click()
+  await page.getByRole('link', { name: 'Enter campaign' }).click()
 
   await page.getByRole('button', { name: 'Edit details' }).click()
   await page.getByLabel('Campaign name').fill('The Red Hand: Reframed')
@@ -284,7 +284,7 @@ test('shows member access without owner controls', async ({ page }) => {
 
   await page.getByRole('button', { name: 'The Red Hand' }).click()
   await expect(page.getByText('Your role:')).toContainText('Member')
-  await page.getByRole('link', { name: 'Open workspace' }).click()
+  await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByText('Your role').locator('..')).toContainText('Member')
   await expect(page.getByRole('list').getByText('game_master', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
@@ -326,7 +326,7 @@ test('clears selection when a refresh removes access to the campaign', async ({ 
   hideCampaign = false
   await back.click()
   await expect(campaign).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.getByRole('link', { name: 'Open workspace' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Enter campaign' })).toHaveCount(0)
 })
 
 test('shows a loading state while campaigns are fetched', async ({ page }) => {
@@ -390,9 +390,18 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
       await page.goto(screen.path)
       await expect(screen.heading).toBeVisible()
       if (screen.name === 'dashboard') {
+        const disclosure = page.getByRole('button', { name: 'Your campaigns' })
+        if (width === 375) {
+          await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+          await expect(page.getByRole('button', { name: 'The Red Hand' })).toHaveCount(0)
+          await disclosure.press('Enter')
+        }
         await page.getByRole('button', { name: 'The Red Hand' }).click()
-        await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Enter campaign' })).toBeVisible()
+        if (width === 375) await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
       }
+      if (screen.name !== 'workspace')
+        await expect(page.locator('.galaxy-backdrop canvas[data-galaxy-ready]')).toBeVisible()
       await page.evaluate(() => document.fonts.ready)
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -401,7 +410,106 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
       await page.screenshot({
         path: `test-results/m02-${width}-${screen.name}.png`,
         fullPage: true,
+        animations: 'disabled',
       })
     }
   }
+})
+
+test('keeps one full-screen WebGL canvas across overlays and falls back after context loss', async ({
+  page,
+}) => {
+  await mockCampaignApi(page, [redHand])
+  await signIn(page)
+
+  const backdrop = page.locator('.galaxy-backdrop')
+  const canvas = backdrop.locator('canvas')
+  await expect(canvas).toHaveAttribute('data-galaxy-ready', '')
+  const size = page.viewportSize()!
+  expect(await canvas.boundingBox()).toEqual({ x: 0, y: 0, ...size })
+  const originalCanvas = await canvas.elementHandle()
+
+  const disclosure = page.getByRole('button', { name: 'Your campaigns' })
+  await disclosure.click()
+  await disclosure.click()
+  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('link', { name: 'Create campaign' }).click()
+  await expect(page.getByRole('heading', { name: 'Create a campaign' })).toBeVisible()
+  expect(await canvas.evaluate((element, original) => element === original, originalCanvas)).toBe(
+    true,
+  )
+
+  await page.getByRole('link', { name: 'Back to campaigns' }).click()
+  await expect(page.getByRole('button', { name: 'The Red Hand' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  expect(await canvas.evaluate((element, original) => element === original, originalCanvas)).toBe(
+    true,
+  )
+  await canvas.evaluate((element: HTMLCanvasElement) => {
+    const extension = element.getContext('webgl2')?.getExtension('WEBGL_lose_context')
+    if (!extension) throw new Error('WebGL context-loss simulation unavailable')
+    extension.loseContext()
+  })
+  await expect(canvas).toHaveCount(0)
+  await expect(backdrop).toBeVisible()
+  await page.getByRole('link', { name: 'Enter campaign' }).click()
+  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+  await expect(backdrop).toHaveCount(0)
+})
+
+test('keeps a large campaign list scrollable and dismissible on a short phone viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 568 })
+  const campaigns = Array.from({ length: 32 }, (_, index) => ({
+    ...redHand,
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    name: `Campaign ${index + 1}`,
+  }))
+  await mockCampaignApi(page, campaigns)
+  await signIn(page)
+
+  const disclosure = page.getByRole('button', { name: 'Your campaigns' })
+  const create = page.getByRole('link', { name: 'Create campaign' })
+  await disclosure.press('Enter')
+  await expect(create).toBeInViewport({ ratio: 1 })
+  const first = page.getByRole('button', { name: 'Campaign 1', exact: true })
+  await first.focus()
+  await first.press('Escape')
+  await expect(disclosure).toBeFocused()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+
+  await disclosure.press('Space')
+  const last = page.getByRole('button', { name: 'Campaign 32', exact: true })
+  await last.scrollIntoViewIfNeeded()
+  await expect(last).toBeInViewport({ ratio: 1 })
+  await last.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('heading', { name: 'Campaign 32' })).toBeInViewport({ ratio: 1 })
+  await page.getByRole('button', { name: 'Return to galaxy overview' }).click()
+  await expect(disclosure).toBeFocused()
+  await expect(page.getByRole('region', { name: 'Campaign details' })).toHaveCount(0)
+})
+
+test('keeps the selector usable when WebGL cannot start', async ({ page }) => {
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.getContext = new Proxy(HTMLCanvasElement.prototype.getContext, {
+      apply(getContext, canvas, args) {
+        return args[0] === 'webgl2' ? null : Reflect.apply(getContext, canvas, args)
+      },
+    })
+  })
+  const initializationFailure = page.waitForEvent('console', {
+    predicate: (message) => message.text().includes('Error creating WebGL context'),
+  })
+  await mockCampaignApi(page, [redHand])
+  await signIn(page)
+
+  await initializationFailure
+  await expect(page.locator('.galaxy-backdrop canvas')).toHaveCount(0)
+  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('link', { name: 'Enter campaign' }).click()
+  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
 })

@@ -1,8 +1,12 @@
-import { ViewTransition, useEffect, useRef, useState } from 'react'
+import { startTransition, ViewTransition, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
 import { listAccessibleCampaigns } from './campaignService'
+import { GalaxyBackdrop } from './GalaxyBackdrop'
 import { useAuth } from '../auth/useAuth'
+import './galaxy.css'
+
+const compactViewport = '(max-width: 680px)'
 
 export function CampaignSelectorLayout() {
   const { session } = useAuth()
@@ -14,6 +18,8 @@ function CampaignSelector({ userId }: { userId: string }) {
   const navigate = useNavigate()
   const isCreating = Boolean(useMatch('/app/campaigns/new'))
   const selectedButtonRef = useRef<HTMLButtonElement>(null)
+  const disclosureRef = useRef<HTMLButtonElement>(null)
+  const [expanded, setExpanded] = useState(() => !window.matchMedia?.(compactViewport).matches)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const locationState = location.state as { campaignNotice?: string } | null
   const [notice] = useState(() =>
@@ -37,135 +43,160 @@ function CampaignSelector({ userId }: { userId: string }) {
     setSelectedId(null)
   }
 
-  if (isCreating) {
-    return <Outlet />
-  }
-
   return (
-    <section aria-labelledby="campaigns-heading" className="campaign-page">
-      <div className="campaign-page__heading">
-        <div>
-          <h1 id="campaigns-heading">Your campaigns</h1>
-          <p>Find your place in the story, or begin a new one.</p>
+    <>
+      <GalaxyBackdrop />
+      {isCreating ? (
+        <div className="galaxy-create">
+          <Outlet />
         </div>
-        <Link className="auth-button campaign-create-link" to="/app/campaigns/new">
-          Create campaign
-        </Link>
-      </div>
-
-      {notice && (
-        <p className="campaign-notice" role="status">
-          {notice}
-        </p>
-      )}
-
-      {campaignsQuery.isPending && (
-        <p className="campaign-loading" role="status">
-          Gathering your campaigns…
-        </p>
-      )}
-
-      {campaignsQuery.isError && (
-        <div className="campaign-state" role="alert">
-          <h2>Your campaigns could not be loaded.</h2>
-          <p>Check your connection and try again.</p>
-          <button
-            className="auth-button auth-button--secondary"
-            onClick={() => campaignsQuery.refetch()}
-            type="button"
+      ) : (
+        <section aria-labelledby="campaigns-heading" className="galaxy-controls">
+          <div
+            className="galaxy-index galaxy-surface"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && expanded) {
+                disclosureRef.current?.focus()
+                setExpanded(false)
+              }
+            }}
           >
-            Try again
-          </button>
-        </div>
-      )}
+            <h1 id="campaigns-heading">
+              <button
+                aria-controls="galaxy-campaign-list"
+                aria-expanded={expanded}
+                className="galaxy-disclosure"
+                onClick={() => setExpanded(!expanded)}
+                ref={disclosureRef}
+                type="button"
+              >
+                Your campaigns
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                  <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
+            </h1>
 
-      {campaignsQuery.isSuccess && campaignsQuery.data.length === 0 && (
-        <div className="campaign-empty">
-          <h2>Your next story starts here.</h2>
-          <p>
-            You do not have a campaign yet. Create one to give your group a shared place to begin.
-          </p>
-          <Link className="campaign-inline-link" to="/app/campaigns/new">
-            Create your first campaign
-          </Link>
-        </div>
-      )}
-
-      {campaignsQuery.isSuccess && campaignsQuery.data.length > 0 && (
-        <div className="campaign-selector">
-          <ul aria-label="Campaign list" className="campaign-index">
-            {campaignsQuery.data.map((campaign) => (
-              <li key={campaign.id}>
-                <button
-                  aria-controls="campaign-selection"
-                  aria-pressed={selectedId === campaign.id}
-                  className="campaign-index__button"
-                  onClick={() => setSelectedId(campaign.id)}
-                  ref={selectedId === campaign.id ? selectedButtonRef : undefined}
-                  type="button"
-                >
-                  {campaign.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <section
-            aria-label="Campaign details"
-            className="campaign-selection"
-            id="campaign-selection"
-          >
-            <div aria-live="polite">
-              {selectedCampaign ? (
-                <>
-                  <ViewTransition
-                    default="none"
-                    name={'campaign-title-' + selectedCampaign.id}
-                    share="campaign-title-morph"
-                  >
-                    <h2>{selectedCampaign.name}</h2>
-                  </ViewTransition>
-                  <p>{selectedCampaign.description || 'No description yet.'}</p>
-                  <p className="campaign-selection__role">
-                    Your role:{' '}
-                    <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h2>Galaxy overview</h2>
-                  <p>Select a campaign to see its details.</p>
-                </>
-              )}
-            </div>
-            {selectedCampaign && (
-              <div className="campaign-selection__actions">
-                <Link
-                  className="auth-button"
-                  state={{
-                    campaignTransition: {
-                      campaignId: selectedCampaign.id,
-                      name: selectedCampaign.name,
-                    },
-                  }}
-                  to={`/app/campaigns/${selectedCampaign.id}`}
-                >
-                  Open workspace
-                </Link>
-                <button
-                  className="auth-button auth-button--secondary"
-                  onClick={() => {
-                    selectedButtonRef.current?.focus()
-                    setSelectedId(null)
-                  }}
-                  type="button"
-                >
-                  Galaxy overview
-                </button>
-              </div>
+            {notice && (
+              <p className="galaxy-notice" role="status">
+                {notice}
+              </p>
             )}
-          </section>
-        </div>
+            <div className="galaxy-list-reveal" data-expanded={expanded} id="galaxy-campaign-list">
+              <div aria-hidden={!expanded} className="galaxy-list-scroll" inert={!expanded}>
+                {campaignsQuery.isPending && (
+                  <p className="galaxy-list-message" role="status">
+                    Gathering your campaigns…
+                  </p>
+                )}
+                {campaignsQuery.isError && (
+                  <div className="galaxy-list-message" role="alert">
+                    <h2>Your campaigns could not be loaded.</h2>
+                    <p>Check your connection and try again.</p>
+                    <button
+                      className="galaxy-action"
+                      onClick={() => campaignsQuery.refetch()}
+                      type="button"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {campaignsQuery.isSuccess && campaignsQuery.data.length === 0 && (
+                  <div className="galaxy-list-message">
+                    <h2>Your next story starts here.</h2>
+                    <p>Create a campaign to give your group a shared place to begin.</p>
+                  </div>
+                )}
+                {campaignsQuery.isSuccess && campaignsQuery.data.length > 0 && (
+                  <ul aria-label="Campaign list" className="galaxy-list">
+                    {campaignsQuery.data.map((campaign) => (
+                      <li key={campaign.id}>
+                        <button
+                          aria-pressed={selectedId === campaign.id}
+                          className="galaxy-list-button"
+                          onClick={() => {
+                            setSelectedId(campaign.id)
+                            if (window.matchMedia?.(compactViewport).matches) {
+                              disclosureRef.current?.focus()
+                              setExpanded(false)
+                            }
+                          }}
+                          ref={selectedId === campaign.id ? selectedButtonRef : undefined}
+                          type="button"
+                        >
+                          {campaign.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <Link className="galaxy-create-link" to="/app/campaigns/new">
+              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Create campaign
+            </Link>
+          </div>
+
+          <div className="galaxy-details-slot">
+            <p aria-live="polite" className="visually-hidden">
+              {selectedCampaign ? `Selected campaign: ${selectedCampaign.name}` : 'Galaxy overview'}
+            </p>
+            {selectedCampaign && (
+              <ViewTransition default="none" exit="galaxy-details-exit">
+                <section aria-label="Campaign details" className="galaxy-details galaxy-surface">
+                  <div className="galaxy-details__copy" tabIndex={0}>
+                    <ViewTransition
+                      default="none"
+                      name={'campaign-title-' + selectedCampaign.id}
+                      share="campaign-title-morph"
+                    >
+                      <h2>{selectedCampaign.name}</h2>
+                    </ViewTransition>
+                    <p>{selectedCampaign.description || 'No description yet.'}</p>
+                    {selectedCampaign.role && (
+                      <p className="galaxy-role">
+                        Your role:{' '}
+                        <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
+                      </p>
+                    )}
+                  </div>
+                  <div className="galaxy-details__actions">
+                    <Link
+                      className="galaxy-action galaxy-action--primary"
+                      state={{
+                        campaignTransition: {
+                          campaignId: selectedCampaign.id,
+                          name: selectedCampaign.name,
+                        },
+                      }}
+                      to={`/app/campaigns/${selectedCampaign.id}`}
+                    >
+                      Enter campaign
+                    </Link>
+                    <button
+                      className="galaxy-action"
+                      onClick={() => {
+                        const returnFocus = expanded
+                          ? selectedButtonRef.current
+                          : disclosureRef.current
+                        returnFocus?.focus()
+                        startTransition(() => setSelectedId(null))
+                      }}
+                      type="button"
+                    >
+                      Return to galaxy overview
+                    </button>
+                  </div>
+                </section>
+              </ViewTransition>
+            )}
+          </div>
+        </section>
       )}
-    </section>
+    </>
   )
 }

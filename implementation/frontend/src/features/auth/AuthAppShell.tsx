@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
 import { isInternalEmail } from './authValidation'
 
 export function AuthAppShell() {
   const navigate = useNavigate()
+  const isSelector = useMatch('/app/campaigns')
+  const isCreating = useMatch('/app/campaigns/new')
+  const isGalaxy = Boolean(isSelector || isCreating)
   const queryClient = useQueryClient()
   const { acceptSession, session } = useAuth()
   const [isPending, setIsPending] = useState(false)
@@ -43,7 +46,7 @@ export function AuthAppShell() {
   }
 
   return (
-    <div className="workspace-page">
+    <div className={isGalaxy ? 'workspace-page galaxy-shell' : 'workspace-page'}>
       <div className="workspace-page__frame">
         <a className="workspace-skip-link" href="#campaign-content">
           Skip to campaign content
@@ -53,12 +56,14 @@ export function AuthAppShell() {
             <Link className="auth-brand" to="/app/campaigns">
               The Goober&apos;s Guide
             </Link>
-            <nav aria-label="Campaign navigation" className="workspace-navigation">
-              <NavLink to="/app/campaigns">Campaigns</NavLink>
-            </nav>
+            {!isGalaxy && (
+              <nav aria-label="Campaign navigation" className="workspace-navigation">
+                <NavLink to="/app/campaigns">Campaigns</NavLink>
+              </nav>
+            )}
           </div>
           <div className="workspace-account">
-            <span>{accountName}</span>
+            <span title={isGalaxy ? accountName : undefined}>{accountName}</span>
             <button
               className="auth-button auth-button--secondary"
               disabled={isPending}
@@ -78,10 +83,12 @@ export function AuthAppShell() {
         <main className="campaign-app-main" id="campaign-content" tabIndex={-1}>
           <Outlet />
         </main>
-        <footer className="auth-footer">
-          <span>Account session active</span>
-          <Link to="/dev/status">Development status</Link>
-        </footer>
+        {!isGalaxy && (
+          <footer className="auth-footer">
+            <span>Account session active</span>
+            <Link to="/dev/status">Development status</Link>
+          </footer>
+        )}
       </div>
     </div>
   )

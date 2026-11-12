@@ -2,9 +2,9 @@
 
 ## Status
 
-**Phase 1 implemented and verified. Awaiting user verification before Phase 2.**
+**Phases 1 and 2 implemented and verified. Awaiting user verification before Phase 3.**
 
-The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign displays its details on the same page. **Open workspace** opens the existing workspace route. The standalone create form still opens the workspace after saving.
+The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
 
 ## Phase gates
 
@@ -12,9 +12,9 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 
 ## Decisions
 
-- **Routes and lifetime.** Add a selector layout inside the protected `/app` shell. It owns the campaign query, selected campaign ID, and one lazily loaded Canvas across `/app/campaigns` and `/app/campaigns/new`. Keep the workspace route a sibling. Planet selection and opening or closing the create form preserve the scene. Entering a workspace or leaving the authenticated selector releases it.
-- **Exploration and entry.** Start in a galaxy overview. Clicking a planet or activating its campaign-list button selects the same campaign and starts guided camera travel. A **Galaxy overview** control returns to the wide view. The selected campaign panel shows its name, description, and role. **Open workspace** explicitly enters the existing workspace URL. Keep selection in memory and start in overview on a fresh visit.
-- **Rendering.** Use Three.js with React Three Fiber v9 and the corresponding `@types/three` development dependency. Fiber v9 targets React 19, which matches the app’s React major. Verify the exact installed peer range and production build in Phase 2. Use one WebGL Canvas, procedural visuals, and Fiber’s frame loop for camera and planet motion. Keep the existing app shell and typography, with a dark galaxy viewport and a readable campaign list beside it on desktop and below it on mobile. [React Three Fiber installation](https://r3f.docs.pmnd.rs/getting-started/installation)
+- **Routes and lifetime.** Add a selector layout inside the protected `/app` shell. It owns the campaign query, selected campaign ID, and one lazily loaded Canvas across `/app/campaigns` and `/app/campaigns/new`. Keep the workspace route a sibling. Selection and opening or closing the create form preserve the scene. Future planet selection uses the same scene. Entering a workspace or leaving the authenticated selector releases it.
+- **Exploration and entry.** Start in a galaxy overview. In Phase 2, list selection opens details over a fixed overview. Phase 3 adds planet selection to the existing list selection. Phase 4 adds guided travel. **Return to galaxy overview** clears the selection and, once travel exists, returns to the wide view. The selected campaign panel shows its name, description, and role. **Enter campaign** explicitly enters the existing workspace URL. Keep selection in memory and start in overview on a fresh visit.
+- **Rendering.** Use Three.js with React Three Fiber v9 and the corresponding `@types/three` development dependency. Fiber 9.8.2 accepts React and React DOM versions `>=19 <19.4` and Three.js `>=0.156`. The app resolves React and React DOM 19.3.1 and Three.js 0.187.0. Use one WebGL Canvas with procedural visuals. Phase 2 renders on demand and suspends rendering while hidden; later phases use Fiber’s frame loop for camera and planet motion. Keep the existing typography and route protection. The scene fills the viewport behind a compact branded account header and floating DOM controls. The collapsible campaign list floats at the left, and details appear only when a campaign is selected, at the bottom right. On phones, the list starts collapsed and the details use a compact bottom sheet. The create route remains a standalone form in front of the persistent galaxy until the Phase 5 modal and save-flow change. Workspace pages retain the existing shell. [React Three Fiber installation](https://r3f.docs.pmnd.rs/getting-started/installation)
 - **Planet identity.** Derive surface palette, pattern, size, tilt, and ring treatment from a deterministic, versioned seed based on the campaign UUID. Assign overview positions using creation time and UUID as a stable tie-breaker, independently of the display sort. Renames update labels without changing planet appearance. Keep the model derived in the frontend. Supabase Auth, campaign records, membership rules, and RLS require no schema or API changes.
 
 ## Phase 1 — Selector and navigation
@@ -32,12 +32,13 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 
 ### Work
 
-- [ ] Lazy-load the Canvas from the selector and keep the list usable during loading. Build a wide view with batched star points, layered nebulae, and directional and ambient lighting. Cap device pixel ratio, reuse geometry where practical, and suspend rendering while the tab is hidden.
-- [ ] Isolate renderer and module errors to the viewport. Unsupported WebGL or context loss shows a static backdrop while the list and all campaign actions remain available.
+- [x] Replace the dashboard frame with a full-viewport galaxy, responsive floating controls, and selector-only navigation styling. Keep campaign actions and standalone creation behavior intact.
+- [x] Lazy-load the Canvas from the selector and keep the list usable during loading. Build a wide view with batched star points, layered nebulae, and directional and ambient lighting. Cap device pixel ratio, reuse geometry where practical, and suspend rendering while the tab is hidden.
+- [x] Isolate renderer and module errors to the viewport. Unsupported WebGL or context loss shows a static backdrop while the list and all campaign actions remain available.
 
 ### Acceptance
 
-- [ ] The galaxy renders in a WebGL-capable browser. Changing selection preserves the Canvas DOM node. Forced renderer failure leaves the campaign list and workspace entry usable. Production build output confirms Three.js loads from the selector rather than the login or workspace entry path.
+- [x] The galaxy renders in a WebGL-capable browser. Changing selection, toggling the list, and opening or closing the standalone creation form preserve the Canvas DOM node. Desktop, tablet, and phone layouts keep the controls usable without shrinking the scene. Forced renderer failure leaves the campaign list and workspace entry usable. Production build output confirms Three.js loads from the selector rather than the login or workspace entry path.
 
 ## Phase 3 — Campaign planets and labels
 
@@ -90,14 +91,19 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 | --- | --- |
 | Repository, routes, source, package scripts, Supabase configuration, and migrations | Inspected on `milestone/m02-campaign-management` with a clean working tree. |
 | Existing selector design | Reviewed the saved desktop campaign dashboard capture. |
-| Three.js and Fiber compatibility | Official documentation confirms the React 19 pairing. Exact peer resolution, build, and runtime checks are pending Phase 2. |
+| Three.js and Fiber compatibility | Official documentation confirms the React 19 pairing. Phase 2 verified the installed peer ranges and runtime rendering. |
 | Phase 1 static checks | `npm run lint`, `npm run format:check`, and `npm run build` passed. The build reported the existing Vite chunk-size advisory. |
 | Phase 1 unit tests | `npm test` passed all 22 tests. |
 | Phase 1 browser tests | `npm run test:e2e -- --workers=3` passed all 15 tests, covering keyboard selection, explicit workspace entry, Back, direct URLs, access changes, owner/member behavior, creation, and sign-out. |
 | Phase 1 local integration | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase1-local-results` passed both tests against local Supabase, including campaign and roster access rules. |
 | Phase 1 responsive review | Reviewed selected-campaign captures at 375px, 768px, and 1440px. No horizontal overflow. Impeccable reported no findings for the changed selector files. |
+| Phase 2 static checks | `npm run lint`, `npm run format:check`, and `npm run build -- --manifest` passed. The manifest lists the galaxy as a dynamic import. The app entry went from 155.25 kB to 156.69 kB gzip; the separate galaxy chunk is 243.98 kB gzip. Vite reported its chunk-size advisory. |
+| Phase 2 unit tests | `npm test` passed all 22 tests. |
+| Phase 2 browser tests | `npm run test:e2e -- --workers=3 --output=/private/tmp/goobers-galaxy-phase2-e2e` passed all 18 tests. Coverage includes Canvas identity through selection, disclosure, and creation; workspace entry after context loss or unavailable WebGL; and keyboard and scroll behavior with 32 campaigns on a short phone viewport. |
+| Phase 2 local integration | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase2-local-results` passed both tests against the running local stack, including authentication and campaign access rules. |
+| Phase 2 responsive review | Reviewed Chromium captures at 375px, 768px, and 1440px, including the selected campaign and standalone create form over the rendered galaxy. Physical mobile GPU performance remains for Phase 6. |
 
 ## Risks and safeguards
 
-- The existing build already records a Vite chunk-size advisory. Compare initial-route and galaxy chunk sizes in Phase 2 and Phase 6.
+- The existing build already records a Vite chunk-size advisory. Recheck initial-route and galaxy chunk sizes in Phase 6.
 - Shared state stays inside the authenticated selector, keyed by the active user. The scene consumes only campaigns returned by the existing authorized query, and Supabase RLS continues to enforce access to campaign data.
