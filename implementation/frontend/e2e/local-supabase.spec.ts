@@ -253,6 +253,15 @@ test('registers and signs in by username or email and enforces profile and campa
       const roster = (client: ReturnType<typeof localClient>, id: string) =>
         client.from('campaign_members').select('profile_id, role').eq('campaign_id', id)
 
+      const memberCount = (client: ReturnType<typeof localClient>, id: string) =>
+        client
+          .from('campaign_members')
+          .select('campaign_id', { count: 'exact', head: true })
+          .eq('campaign_id', id)
+
+      expect(await memberCount(owner, firstId)).toMatchObject({ count: 1, error: null })
+      expect(await memberCount(member, firstId)).toMatchObject({ count: 0, error: null })
+
       for (const id of campaignIds) {
         expect(await roster(owner, id)).toMatchObject({
           data: [{ profile_id: ownerId, role: 'owner' }],
@@ -321,6 +330,9 @@ test('registers and signs in by username or email and enforces profile and campa
         error: null,
       })
       expect(await namedRoster(member, secondId)).toMatchObject({ data: [], error: null })
+      expect(await memberCount(owner, firstId)).toMatchObject({ count: 3, error: null })
+      expect(await memberCount(member, firstId)).toMatchObject({ count: 3, error: null })
+      expect(await memberCount(member, secondId)).toMatchObject({ count: 0, error: null })
       const expectedRoster = [
         ownerRow,
         { profile_id: memberId, role: 'member', username: usernameOnly },

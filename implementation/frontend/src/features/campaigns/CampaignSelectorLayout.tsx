@@ -1,7 +1,17 @@
-import { startTransition, ViewTransition, useEffect, useRef, useState } from 'react'
+import {
+  startTransition,
+  ViewTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
-import { listAccessibleCampaigns } from './campaignService'
+import { getCampaignMemberCount, listAccessibleCampaigns } from './campaignService'
+import { getOrbitTarget, stepCampaign, type OrbitBounds } from './campaignOrbit'
+import { orderPlanets } from './planetModel'
 import { GalaxyBackdrop } from './GalaxyBackdrop'
 import { useAuth } from '../auth/useAuth'
 import './galaxy.css'
@@ -18,6 +28,8 @@ function CampaignSelector({ userId }: { userId: string }) {
   const navigate = useNavigate()
   const isCreating = Boolean(useMatch('/app/campaigns/new'))
   const selectedButtonRef = useRef<HTMLButtonElement>(null)
+  const sceneRef = useRef<HTMLDivElement>(null)
+  const [orbitBounds, setOrbitBounds] = useState<OrbitBounds | null>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(() => !window.matchMedia?.(compactViewport).matches)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -37,7 +49,59 @@ function CampaignSelector({ userId }: { userId: string }) {
     }
   }, [location.pathname, locationState?.campaignNotice, navigate])
 
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene) return
+    function measure() {
+      if (!scene) return
+      const { left, top, width, height } = scene.getBoundingClientRect()
+      setOrbitBounds((current) =>
+        current?.left === left &&
+        current.top === top &&
+        current.width === width &&
+        current.height === height
+          ? current
+          : { left, top, width, height },
+      )
+    }
+
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(scene)
+    const header = scene.closest('.galaxy-shell')?.querySelector('.workspace-header')
+    if (header) observer?.observe(header)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [isCreating])
+
+  const planets = useMemo(() => orderPlanets(campaignsQuery.data), [campaignsQuery.data])
+  const orbitIds = useMemo(() => planets.map(({ id }) => id), [planets])
   const selectedCampaign = campaignsQuery.data?.find((campaign) => campaign.id === selectedId)
+  const memberCountQuery = useQuery({
+    queryKey: ['campaigns', 'member-count', selectedCampaign?.id, userId],
+    queryFn: () => getCampaignMemberCount(selectedCampaign!.id),
+    enabled: Boolean(userId && selectedCampaign) && !isCreating,
+  })
+  const memberCount = memberCountQuery.data
+
+  const selectCampaign = useCallback(
+    (id: string, keepFocus = false) => {
+      setSelectedId(id)
+      if (window.matchMedia?.(compactViewport).matches) {
+        if (expanded && !keepFocus) disclosureRef.current?.focus()
+        setExpanded(false)
+      }
+    },
+    [expanded],
+  )
+
+  function step(direction: -1 | 1) {
+    const id = stepCampaign(orbitIds, selectedId, direction)
+    if (id) selectCampaign(id, true)
+  }
 
   if (campaignsQuery.isSuccess && selectedId && !selectedCampaign) {
     setSelectedId(null)
@@ -45,13 +109,24 @@ function CampaignSelector({ userId }: { userId: string }) {
 
   return (
     <>
-      <GalaxyBackdrop />
+      <GalaxyBackdrop
+        planets={planets}
+        orbitBounds={orbitBounds}
+        targetId={getOrbitTarget(orbitIds, selectedId)}
+        interactive={!isCreating}
+        onSelect={selectCampaign}
+        selectedId={selectedId}
+      />
       {isCreating ? (
         <div className="galaxy-create">
           <Outlet />
         </div>
       ) : (
-        <section aria-labelledby="campaigns-heading" className="galaxy-controls">
+        <section
+          aria-labelledby="campaigns-heading"
+          className="galaxy-controls"
+          data-details-open={Boolean(selectedCampaign)}
+        >
           <div
             className="galaxy-index galaxy-surface"
             onKeyDown={(event) => {
@@ -115,13 +190,7 @@ function CampaignSelector({ userId }: { userId: string }) {
                         <button
                           aria-pressed={selectedId === campaign.id}
                           className="galaxy-list-button"
-                          onClick={() => {
-                            setSelectedId(campaign.id)
-                            if (window.matchMedia?.(compactViewport).matches) {
-                              disclosureRef.current?.focus()
-                              setExpanded(false)
-                            }
-                          }}
+                          onClick={() => selectCampaign(campaign.id)}
                           ref={selectedId === campaign.id ? selectedButtonRef : undefined}
                           type="button"
                         >
@@ -141,6 +210,25 @@ function CampaignSelector({ userId }: { userId: string }) {
             </Link>
           </div>
 
+          <div aria-hidden="true" className="galaxy-orbit-space" ref={sceneRef} />
+
+          {planets.length > 1 && (
+            <nav aria-label="Campaign orbit" className="galaxy-orbit-nav">
+              <button className="galaxy-action" onClick={() => step(-1)} type="button">
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                  <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                Previous campaign
+              </button>
+              <button className="galaxy-action" onClick={() => step(1)} type="button">
+                Next campaign
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                  <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
+            </nav>
+          )}
+
           <div className="galaxy-details-slot">
             <p aria-live="polite" className="visually-hidden">
               {selectedCampaign ? `Selected campaign: ${selectedCampaign.name}` : 'Galaxy overview'}
@@ -156,13 +244,31 @@ function CampaignSelector({ userId }: { userId: string }) {
                     >
                       <h2>{selectedCampaign.name}</h2>
                     </ViewTransition>
-                    <p>{selectedCampaign.description || 'No description yet.'}</p>
-                    {selectedCampaign.role && (
+                    <div className="galaxy-details__meta">
                       <p className="galaxy-role">
                         Your role:{' '}
                         <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
                       </p>
-                    )}
+                      <div className="galaxy-details__members">
+                        <p role="status">
+                          {memberCountQuery.isError
+                            ? 'Member count unavailable'
+                            : memberCount === undefined
+                              ? 'Loading member count…'
+                              : `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
+                        </p>
+                        {memberCountQuery.isError && (
+                          <button
+                            className="galaxy-action"
+                            onClick={() => void memberCountQuery.refetch()}
+                            type="button"
+                          >
+                            Retry count
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p>{selectedCampaign.description || 'No description yet.'}</p>
                   </div>
                   <div className="galaxy-details__actions">
                     <Link
@@ -181,7 +287,7 @@ function CampaignSelector({ userId }: { userId: string }) {
                       className="galaxy-action"
                       onClick={() => {
                         const returnFocus = expanded
-                          ? selectedButtonRef.current
+                          ? (selectedButtonRef.current ?? disclosureRef.current)
                           : disclosureRef.current
                         returnFocus?.focus()
                         startTransition(() => setSelectedId(null))

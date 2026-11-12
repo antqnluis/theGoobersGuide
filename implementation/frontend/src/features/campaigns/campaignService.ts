@@ -51,6 +51,17 @@ export async function getCampaign(campaignId: string): Promise<CampaignRecord | 
   return data as CampaignRecord | null
 }
 
+export async function getCampaignMemberCount(campaignId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('campaign_members')
+    .select('campaign_id', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+
+  if (error) throw error
+  if (count === null) throw new Error('Campaign member count was unavailable.')
+  return count
+}
+
 export async function getCampaignRoster(campaignId: string): Promise<CampaignRosterMember[]> {
   const { data, error } = await supabase.rpc('get_campaign_roster', {
     p_campaign_id: campaignId,

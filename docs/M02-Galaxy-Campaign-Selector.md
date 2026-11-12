@@ -2,9 +2,9 @@
 
 ## Status
 
-**Phases 1 and 2 implemented and verified. Awaiting user verification before Phase 3.**
+**Phases 1–3 implemented and verified. Awaiting user verification before Phase 4.**
 
-The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
+The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign from its planet or the list displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
 
 ## Phase gates
 
@@ -44,12 +44,20 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 
 ### Work
 
-- [ ] Map each authorized campaign to one UUID-keyed animated planet using the seeded appearance model. Project the campaign name above its planet in a DOM overlay. Keep labels inside the viewport, cull occluded or overlapping labels with priority for the selected planet, and show full names in the list.
-- [ ] Connect planet hit targets to the same selection action as the list. Use stable React keys and keep the list as the keyboard and assistive-technology entry point.
+- [x] Map each authorized campaign to one UUID-keyed animated planet using the seeded appearance model. Project the campaign name above its planet in a DOM overlay. Keep labels inside the viewport, cull occluded or overlapping labels with priority for the selected planet, and show full names in the list.
+- [x] Connect planet hit targets to the same selection action as the list. Use stable React keys and keep the list as the keyboard and assistive-technology entry point.
 
 ### Acceptance
 
-- [ ] Every accessible campaign has a planet. Pointer selection updates the corresponding list item and panel. Test duplicate names, long names, refresh, rename, and insertion of another campaign. The same UUID retains its appearance across those changes.
+- [x] Every accessible campaign has a planet. Pointer selection updates the corresponding list item and panel. Test duplicate names, long names, refresh, rename, and insertion of another campaign. The same UUID retains its appearance across those changes.
+
+## Orbital Campaign Carousel Foundation
+
+Option B replaces the Phase 3 grid. The overview frames the first planet with details closed. Selecting a planet, choosing a campaign from the list, or stepping with **Previous campaign** and **Next campaign** centers the selected planet in the clear scene area and opens its details. The step controls wrap in creation-time and UUID order. The immediate neighbors sit farther up the arc and at a smaller scale. When space is limited, the list and step controls still reach every campaign.
+
+The full-screen Canvas stays in place behind the overlays. CSS reserves a clear rectangle for the orbit, and the selector measures it as the viewport and panels resize. The selector owns the selected ID and derives the focal target. The orbit model computes slots in screen coordinates, and the renderer projects those slots into the fixed camera view. This leaves guided travel, motion controls, and atmospheric entry for later work.
+
+Verification passed for lint, formatting, the TypeScript and Vite build, 27 unit tests, 21 Chromium tests, and both local Supabase tests. Reviewed one, two, and multiple planets at 375px, 768px, and 1440px, including an expanded list and long details at 375 × 568. The build retained the existing Vite chunk-size advisory.
 
 ## Phase 4 — Guided camera travel
 
@@ -102,6 +110,11 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 | Phase 2 browser tests                                                               | `npm run test:e2e -- --workers=3 --output=/private/tmp/goobers-galaxy-phase2-e2e` passed all 18 tests. Coverage includes Canvas identity through selection, disclosure, and creation; workspace entry after context loss or unavailable WebGL; and keyboard and scroll behavior with 32 campaigns on a short phone viewport. |
 | Phase 2 local integration                                                           | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase2-local-results` passed both tests against the running local stack, including authentication and campaign access rules.                                                                                                                            |
 | Phase 2 responsive review                                                           | Reviewed Chromium captures at 375px, 768px, and 1440px, including the selected campaign and standalone create form over the rendered galaxy. Physical mobile GPU performance remains for Phase 6.                                                                                                                            |
+| Phase 3 static checks                                                               | `npm run lint`, `npm run format:check`, and `npm run build` passed. The build retained the existing Vite chunk-size advisory.                                                                                                                                                                                                |
+| Phase 3 unit tests                                                                  | `npm test` passed all 23 tests, including versioned UUID appearance and creation-time ordering through rename and insertion.                                                                                                                                                                                                 |
+| Phase 3 browser tests                                                               | `npm run test:e2e -- --workers=3 --output=/private/tmp/goobers-galaxy-phase3-e2e` passed all 19 tests. Pointer selection opened the correct details for duplicate campaign names, and refreshing after a rename and insertion updated the labels by ID.                                                                      |
+| Phase 3 local integration                                                           | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase3-local` passed both tests against the local stack, including campaign access rules.                                                                                                                                                               |
+| Phase 3 responsive review                                                           | Reviewed Chromium captures at 375px, 768px, and 1440px. The selected planet and label were visible with the campaign controls, and the pages had no horizontal overflow.                                                                                                                                                     |
 
 ## Risks and safeguards
 

@@ -2,6 +2,10 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AdditiveBlending, Color, type Group, type ShaderMaterial } from 'three'
 
+import type { GalaxyProps } from './GalaxyBackdrop'
+import { CampaignPlanets } from './CampaignPlanets'
+import { positionCampaignOrbit } from './campaignOrbit'
+
 const vertexShader = /* glsl */ `
   attribute float diameter;
   attribute float intensity;
@@ -171,7 +175,27 @@ function subscribeToVisibility(onChange: () => void) {
   return () => document.removeEventListener('visibilitychange', onChange)
 }
 
-export default function GalaxyCanvas() {
+export default function GalaxyCanvas({
+  planets,
+  orbitBounds,
+  targetId,
+  interactive,
+  onSelect,
+  selectedId,
+}: GalaxyProps) {
+  const labels = useRef<HTMLDivElement>(null)
+  const slots = useMemo(
+    () =>
+      orbitBounds
+        ? positionCampaignOrbit(
+            planets.map(({ id }) => id),
+            targetId,
+            orbitBounds,
+          )
+        : [],
+    [orbitBounds, planets, targetId],
+  )
+  const names = useMemo(() => new Map(planets.map(({ id, name }) => [id, name])), [planets])
   const [contextLost, setContextLost] = useState(false)
   const isVisible = useSyncExternalStore(subscribeToVisibility, () => !document.hidden)
   const prefersReducedMotion = useSyncExternalStore(
@@ -184,14 +208,36 @@ export default function GalaxyCanvas() {
   if (contextLost) return null
 
   return (
-    <Canvas
-      camera={{ position: [0, 0, 38], fov: 49, far: 120 }}
-      dpr={[1, 1.5]}
-      frameloop={isVisible ? (animate ? 'always' : 'demand') : 'never'}
-      gl={{ antialias: false, powerPreference: 'low-power' }}
-      onCreated={({ gl }) => gl.domElement.setAttribute('data-galaxy-ready', '')}
-    >
-      <GalaxyScene animate={animate} onContextLost={() => setContextLost(true)} />
-    </Canvas>
+    <>
+      <Canvas
+        camera={{ position: [0, 0, 38], fov: 49, far: 120 }}
+        dpr={[1, 1.5]}
+        frameloop={isVisible ? (animate ? 'always' : 'demand') : 'never'}
+        gl={{ antialias: false, powerPreference: 'low-power' }}
+        onCreated={({ gl }) => gl.domElement.setAttribute('data-galaxy-ready', '')}
+      >
+        <GalaxyScene animate={animate} onContextLost={() => setContextLost(true)} />
+        <CampaignPlanets
+          animate={animate}
+          labels={labels}
+          onSelect={interactive ? onSelect : undefined}
+          slots={slots}
+          selectedId={selectedId}
+        />
+      </Canvas>
+      <div className="galaxy-planet-labels" ref={labels}>
+        {slots.map(({ id, offset }) => (
+          <span
+            className="galaxy-planet-label"
+            data-campaign-id={id}
+            data-focal={offset === 0}
+            data-selected={id === selectedId}
+            key={id}
+          >
+            {names.get(id)}
+          </span>
+        ))}
+      </div>
+    </>
   )
 }

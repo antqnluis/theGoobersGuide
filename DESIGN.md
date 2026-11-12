@@ -167,7 +167,7 @@ The components feel refined and restrained: familiar controls sit inside a calm,
 
 The protected campaign selector is a full-screen galaxy. The starfield extends behind the header, list, and campaign details. Keep the rest of the app in the Adventure Ledger style.
 
-Use Source Serif 4 for the brand and campaign names. Floating controls use translucent midnight violet surfaces, light text, and warm starlight accents for the selected campaign and primary action. Keep the center open for the scene. The campaign list sits at the left and scrolls within its disclosure; campaign details appear at the lower right only when selected. On phones, start with the list collapsed and present details as a compact bottom sheet. The standalone create form uses the same dark palette with familiar light input fields.
+Use Source Serif 4 for the brand and campaign names. Floating controls use translucent midnight violet surfaces, light text, and warm starlight accents for the selected campaign and primary action. Keep the center open for the scene. The campaign list sits at the left and scrolls within its disclosure; campaign details appear beside the selected planet at widths of 960px and above. At narrower widths, the card sits below the orbit controls. On phones, start with the list collapsed. The standalone create form uses the same dark palette with familiar light input fields.
 
 ## Do's and Don'ts
 

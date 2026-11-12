@@ -45,7 +45,8 @@ function corsHeaders() {
   return {
     'access-control-allow-origin': 'http://127.0.0.1:4173',
     'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'access-control-expose-headers': 'content-range',
+    'access-control-allow-methods': 'GET, HEAD, POST, PATCH, DELETE, OPTIONS',
   }
 }
 
@@ -75,9 +76,10 @@ async function mockCampaignApi(
     memberMode?: boolean
     shouldFailList?: () => boolean
     hideFromList?: () => boolean
+    memberCount?: (campaignId: string) => Promise<number | null>
   } = {},
 ) {
-  const campaigns = [...initialCampaigns]
+  const campaigns = initialCampaigns.map((campaign) => ({ ...campaign }))
   await page.route('**/rest/v1/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -109,6 +111,25 @@ async function mockCampaignApi(
           ? []
           : campaigns
       await route.fulfill({ status: 200, headers: corsHeaders(), json: result })
+      return
+    }
+
+    if (path.endsWith('/rest/v1/campaign_members') && method === 'HEAD') {
+      const id = url.searchParams.get('campaign_id')?.slice(3) ?? ''
+      const count = options.memberCount
+        ? await options.memberCount(id)
+        : campaigns.some((campaign) => campaign.id === id)
+          ? options.memberMode
+            ? 2
+            : 1
+          : 0
+      await route.fulfill({
+        status: count === null ? 400 : 200,
+        headers: {
+          ...corsHeaders(),
+          ...(count === null ? {} : { 'content-range': `*/${count}` }),
+        },
+      })
       return
     }
 
@@ -188,6 +209,7 @@ async function mockCampaignApi(
       json: { message: 'Unexpected API request' },
     })
   })
+  return campaigns
 }
 
 test('selects by keyboard, opens the workspace explicitly, and returns to the overview', async ({
@@ -200,6 +222,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   const details = page.getByRole('region', { name: 'Campaign details' })
   const openWorkspace = page.getByRole('link', { name: 'Enter campaign' })
   await expect(openWorkspace).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Campaign orbit' })).toHaveCount(0)
   await campaign.focus()
   await campaign.press('Enter')
   await expect(campaign).toHaveAttribute('aria-pressed', 'true')
@@ -207,6 +230,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   await expect(details.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
   await expect(details.getByText(redHand.description!)).toBeVisible()
   await expect(details.getByText('Your role:')).toContainText('Owner')
+  await expect(details.getByText('1 member', { exact: true })).toBeVisible()
 
   await details.getByRole('button', { name: 'Return to galaxy overview' }).click()
   await expect(campaign).toBeFocused()
@@ -224,6 +248,42 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   await page.goto(`/app/campaigns/${redHand.id}`)
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
   await expect(page.getByRole('listitem').getByText('player_one', { exact: true })).toBeVisible()
+})
+
+test('scopes member counts to the selected campaign and retries failures', async ({ page }) => {
+  const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
+  let releaseFirst!: (count: number) => void
+  const firstCount = new Promise<number>((resolve) => {
+    releaseFirst = resolve
+  })
+  const requests: string[] = []
+  let failSecond = true
+  await mockCampaignApi(page, [redHand, second], {
+    memberCount: async (id) => {
+      requests.push(id)
+      return id === redHand.id ? firstCount : failSecond ? null : 4
+    },
+  })
+  await signIn(page)
+
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  await expect(page.getByRole('button', { name: redHand.name })).toBeVisible()
+  await expect(details).toHaveCount(0)
+  expect(requests).toEqual([])
+  await page.getByRole('button', { name: redHand.name }).click()
+  await expect(details.getByText('Loading member count…')).toBeVisible()
+  await expect.poll(() => requests).toEqual([redHand.id])
+
+  await page.getByRole('button', { name: second.name }).click()
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
+  releaseFirst(1)
+  await expect(details.getByText('Member count unavailable')).toBeVisible()
+  await expect(details.getByRole('link', { name: 'Enter campaign' })).toBeVisible()
+
+  failSecond = false
+  await details.getByRole('button', { name: 'Retry count' }).click()
+  await expect(details.getByText('4 members', { exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
 })
 
 test('validates and creates a campaign before opening its workspace', async ({ page }) => {
@@ -419,7 +479,10 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
 test('keeps one full-screen WebGL canvas across overlays and falls back after context loss', async ({
   page,
 }) => {
-  await mockCampaignApi(page, [redHand])
+  await mockCampaignApi(page, [
+    redHand,
+    { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },
+  ])
   await signIn(page)
 
   const backdrop = page.locator('.galaxy-backdrop')
@@ -454,6 +517,9 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   })
   await expect(canvas).toHaveCount(0)
   await expect(backdrop).toBeVisible()
+  await page.getByRole('button', { name: 'Next campaign' }).press('Enter')
+  await expect(page.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
+  await page.getByRole('button', { name: 'Previous campaign' }).press('Space')
   await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
   await expect(backdrop).toHaveCount(0)
@@ -504,12 +570,215 @@ test('keeps the selector usable when WebGL cannot start', async ({ page }) => {
   const initializationFailure = page.waitForEvent('console', {
     predicate: (message) => message.text().includes('Error creating WebGL context'),
   })
-  await mockCampaignApi(page, [redHand])
+  await mockCampaignApi(page, [
+    redHand,
+    { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },
+  ])
   await signIn(page)
 
   await initializationFailure
   await expect(page.locator('.galaxy-backdrop canvas')).toHaveCount(0)
-  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('button', { name: 'Next campaign' }).click()
+  await expect(page.getByRole('heading', { name: redHand.name })).toBeVisible()
   await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+})
+
+test('selects a specific planet when campaign names match and refreshes labels by ID', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const duplicate = {
+    ...redHand,
+    id: '00000000-0000-4000-8000-000000000012',
+    description: 'A second campaign with the same name.',
+  }
+  const records = await mockCampaignApi(page, [duplicate, redHand])
+  await signIn(page)
+
+  const planetLabels = page.locator('.galaxy-planet-label')
+  await expect(planetLabels).toHaveCount(2)
+  const label = page.locator(`.galaxy-planet-label[data-campaign-id="${duplicate.id}"]`)
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.reload()
+    await expect(planetLabels.first()).toHaveAttribute('data-focal', 'true')
+    await expect(label).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`orbital-two-planets-${width}.png`) })
+  }
+  const [x, y] = await label.evaluate(({ dataset }) => [
+    Number(dataset.planetX),
+    Number(dataset.planetY),
+  ])
+  await page.mouse.click(x, y)
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  await expect(details.getByText(duplicate.description)).toBeVisible()
+  await expect(page.getByRole('button', { name: redHand.name, pressed: true })).toHaveCount(1)
+  await expect(label).toHaveAttribute('data-selected', 'true')
+  await expect(label).toHaveAttribute('data-focal', 'true')
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+  const longName = 'The ' + 'Chronicles of the Uncharted Stars '.repeat(3).trim()
+  records.find((campaign) => campaign.id === duplicate.id)!.name = longName
+  records.unshift({
+    ...redHand,
+    id: '00000000-0000-4000-8000-000000000013',
+    name: 'The New Expedition',
+  })
+  await page.reload()
+  await expect(planetLabels).toHaveCount(3)
+  await expect(planetLabels.first()).toHaveText(redHand.name)
+  await expect(label).toHaveText(longName)
+  await expect(page.getByRole('button', { name: longName, exact: true })).toBeVisible()
+  await expect(details).toHaveCount(0)
+})
+
+test('renders all six planet materials in the galaxy without WebGL shader errors', async ({
+  page,
+}, testInfo) => {
+  const shaderErrors: string[] = []
+  page.on('console', (message) => {
+    if (/shader error|VALIDATE_STATUS|GL_INVALID_OPERATION/i.test(message.text())) {
+      shaderErrors.push(message.text())
+    }
+  })
+  const worlds = [
+    [3, 'Greenwater'],
+    [12, 'The Amber Dunes'],
+    [11, 'Emberfall'],
+    [4, 'The Violet Tempest'],
+    [2, 'Pale Meridian'],
+    [9, 'The Broken Moon'],
+  ] as const
+  await mockCampaignApi(
+    page,
+    worlds.map(([seed, name]) => ({
+      ...redHand,
+      id: `00000000-0000-4000-8000-${String(seed).padStart(12, '0')}`,
+      name,
+    })),
+  )
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await signIn(page)
+
+  for (const [width, height] of [
+    [1440, 960],
+    [375, 900],
+  ]) {
+    await page.setViewportSize({ width, height })
+    if (width === 375) {
+      await page.reload()
+      await expect(page.getByRole('button', { name: 'Your campaigns' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    }
+    await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
+    const next = page.getByRole('button', { name: 'Next campaign' })
+    const seen = new Set<string>()
+    for (let index = 0; index < worlds.length; index++) {
+      await next.press('Enter')
+      const focal = page.locator('.galaxy-planet-label[data-focal="true"]')
+      await expect(focal).toBeVisible()
+      await expect(focal).toHaveAttribute('data-selected', 'true')
+      seen.add((await focal.getAttribute('data-campaign-id'))!)
+      await expect(
+        page.getByRole('region', { name: 'Campaign details' }).getByRole('heading'),
+      ).toHaveText((await focal.textContent())!)
+      // Wait for the demand-rendered frame before stepping to another material.
+      await expect(focal).toHaveAttribute('data-planet-y', /\d/)
+    }
+    expect(seen.size).toBe(worlds.length)
+    await page.screenshot({ path: testInfo.outputPath(`planet-materials-${width}.png`) })
+  }
+
+  expect(shaderErrors).toEqual([])
+})
+
+test('keeps the orbital carousel clear of controls and navigable with the keyboard', async ({
+  page,
+}, testInfo) => {
+  const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
+  const third = {
+    ...redHand,
+    id: '00000000-0000-4000-8000-000000000013',
+    name: 'Meridian',
+    description: 'A voyage to the edge of the known galaxy. '.repeat(100),
+  }
+  await mockCampaignApi(page, [third, second, redHand])
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await signIn(page)
+
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const previous = page.getByRole('button', { name: 'Previous campaign' })
+  const next = page.getByRole('button', { name: 'Next campaign' })
+  const focal = page.locator('.galaxy-planet-label[data-focal="true"]')
+
+  for (const [width, height] of [
+    [375, 568],
+    [768, 900],
+    [1440, 960],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await page.reload()
+    await expect(focal).toHaveText(redHand.name)
+    await expect(focal).toHaveAttribute('data-selected', 'false')
+    await expect(details).toHaveCount(0)
+    await previous.press('Enter')
+    await expect(previous).toBeFocused()
+    await expect(focal).toHaveText(third.name)
+    await expect(details.getByRole('heading', { name: third.name })).toBeVisible()
+
+    if (width === 375) {
+      await page.getByRole('button', { name: 'Your campaigns' }).press('Enter')
+      await expect(page.getByRole('button', { name: third.name, pressed: true })).toBeVisible()
+    }
+
+    await page.evaluate(() => document.fonts.ready)
+    await expect
+      .poll(async () =>
+        focal.evaluate((element) => {
+          const { planetX, planetY, planetExtent } = element.dataset
+          if (!planetX || !planetY || !planetExtent) return false
+          const x = Number(planetX)
+          const y = Number(planetY)
+          const extent = Number(planetExtent)
+          const space = document.querySelector('.galaxy-orbit-space')!.getBoundingClientRect()
+          return (
+            Math.abs(x - (space.left + space.width / 2)) < 1 &&
+            Math.abs(y - (space.top + space.height / 2)) < 1 &&
+            x - extent >= space.left &&
+            x + extent <= space.right &&
+            y - extent >= space.top &&
+            y + extent <= space.bottom
+          )
+        }),
+      )
+      .toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const scene = (await page.locator('.galaxy-orbit-space').boundingBox())!
+    const panel = (await details.boundingBox())!
+    const orbitNav = (await page.getByRole('navigation', { name: 'Campaign orbit' }).boundingBox())!
+    if (width >= 960) {
+      expect(panel.x).toBeGreaterThan(scene.x + scene.width)
+      expect(Math.abs(panel.y + panel.height / 2 - (scene.y + scene.height / 2))).toBeLessThan(1)
+    } else {
+      expect(panel.y).toBeGreaterThan(orbitNav.y + orbitNav.height)
+    }
+    await expect(details.getByRole('link', { name: 'Enter campaign' })).toBeInViewport()
+    await expect(
+      details.getByRole('button', { name: 'Return to galaxy overview' }),
+    ).toBeInViewport()
+    await page.screenshot({ path: testInfo.outputPath(`orbital-${width}.png`) })
+
+    await next.press('Space')
+    await expect(next).toBeFocused()
+    await expect(focal).toHaveText(redHand.name)
+    await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+    if (width > 375) {
+      await expect(page.getByRole('button', { name: redHand.name, pressed: true })).toBeVisible()
+    }
+  }
 })
