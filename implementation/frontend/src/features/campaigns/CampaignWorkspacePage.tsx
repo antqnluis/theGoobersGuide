@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { ViewTransition, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
-import { deleteCampaign, getCampaign, getCampaignRoster, updateCampaign } from './campaignService'
-import { toCampaignInput } from './campaignValidation'
+import { getCampaign, getCampaignRoster } from './campaignService'
+import { useCampaignManagement } from './useCampaignManagement'
 
 export function CampaignWorkspacePage() {
   const { campaignId = '' } = useParams()
@@ -13,7 +13,6 @@ export function CampaignWorkspacePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const navigationType = useNavigationType()
-  const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const deleteTriggerRef = useRef<HTMLButtonElement>(null)
@@ -29,7 +28,7 @@ export function CampaignWorkspacePage() {
   const [notice, setNotice] = useState<string | null>(() =>
     routeState?.campaignCreated ? 'Campaign created.' : null,
   )
-  const [mutationError, setMutationError] = useState<string | null>(null)
+  const management = useCampaignManagement(campaignId, userId)
 
   const campaignQuery = useQuery({
     queryKey: ['campaigns', 'detail', campaignId, userId],
@@ -41,10 +40,6 @@ export function CampaignWorkspacePage() {
     queryFn: () => getCampaignRoster(campaignId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
-  const updateMutation = useMutation({
-    mutationFn: (input: ReturnType<typeof toCampaignInput>) => updateCampaign(campaignId, input),
-  })
-  const deleteMutation = useMutation({ mutationFn: () => deleteCampaign(campaignId) })
   const campaign = campaignQuery.data
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
   const roster = rosterQuery.data ?? []
@@ -70,27 +65,15 @@ export function CampaignWorkspacePage() {
   }, [isConfirmingDelete])
 
   const save = async (name: string, description: string) => {
-    setMutationError(null)
-    try {
-      await updateMutation.mutateAsync(toCampaignInput(name, description))
-      await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    if (await management.save(name, description)) {
       setIsEditing(false)
       setNotice('Campaign details saved.')
-    } catch {
-      setMutationError("We couldn't save these changes. Check your connection and try again.")
     }
   }
 
   const remove = async () => {
-    setMutationError(null)
-    try {
-      await deleteMutation.mutateAsync()
-      await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      queryClient.removeQueries({ queryKey: ['campaigns', 'detail', campaignId, userId] })
-      queryClient.removeQueries({ queryKey: ['campaigns', 'roster', campaignId, userId] })
+    if (await management.remove()) {
       navigate('/app/campaigns', { state: { campaignNotice: 'deleted' } })
-    } catch {
-      setMutationError("We couldn't delete this campaign. Check your connection and try again.")
     }
   }
 
@@ -236,19 +219,19 @@ export function CampaignWorkspacePage() {
       {isOwner && (
         <section aria-labelledby="campaign-settings-heading" className="campaign-settings">
           <h2 id="campaign-settings-heading">Campaign details</h2>
-          {mutationError && (
+          {management.error && (
             <p className="campaign-form__feedback" role="alert">
-              {mutationError}
+              {management.error}
             </p>
           )}
           {isEditing ? (
             <CampaignForm
               initialDescription={campaign.description}
               initialName={campaign.name}
-              isPending={updateMutation.isPending}
+              isPending={management.isSaving}
               onCancel={() => {
                 setIsEditing(false)
-                setMutationError(null)
+                management.clearError()
               }}
               onSubmit={save}
               submitLabel="Save changes"
@@ -258,7 +241,7 @@ export function CampaignWorkspacePage() {
               <button
                 className="auth-button auth-button--secondary"
                 onClick={() => {
-                  setMutationError(null)
+                  management.clearError()
                   setIsEditing(true)
                 }}
                 type="button"
@@ -269,7 +252,7 @@ export function CampaignWorkspacePage() {
                 className="campaign-danger-button"
                 ref={deleteTriggerRef}
                 onClick={() => {
-                  setMutationError(null)
+                  management.clearError()
                   setIsConfirmingDelete(true)
                 }}
                 type="button"
@@ -292,16 +275,16 @@ export function CampaignWorkspacePage() {
               <div className="campaign-settings__actions">
                 <button
                   className="campaign-danger-button"
-                  disabled={deleteMutation.isPending}
+                  disabled={management.isDeleting}
                   onClick={remove}
                   type="button"
                   autoFocus
                 >
-                  {deleteMutation.isPending ? 'Deleting campaign…' : 'Yes, delete campaign'}
+                  {management.isDeleting ? 'Deleting campaign…' : 'Yes, delete campaign'}
                 </button>
                 <button
                   className="campaign-text-button"
-                  disabled={deleteMutation.isPending}
+                  disabled={management.isDeleting}
                   onClick={() => {
                     restoreDeleteFocusRef.current = true
                     setIsConfirmingDelete(false)

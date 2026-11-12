@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 import {
+  AdditiveBlending,
   Color,
   DoubleSide,
   RingGeometry,
@@ -12,13 +13,24 @@ import {
 } from 'three'
 import type { OrbitBounds, OrbitSlot } from './campaignOrbit'
 import { planetAppearance } from './planetModel'
-import { planetRing, planetSurface, planetVertex } from './planetShaders'
+import {
+  atmosphereScale,
+  planetAtmosphere,
+  planetRing,
+  planetSurface,
+  planetVertex,
+} from './planetShaders'
 import type { SpaceMotion } from './campaignTravel'
 import { useGalaxyTravel } from './useGalaxyTravel'
 
 const globeGeometry = new SphereGeometry(1, 48, 32)
 const ringGeometry = new RingGeometry(1.25, 1.67, 64)
 const selectionGeometry = new RingGeometry(1.77, 1.81, 64)
+
+// One star lights every world. Until the orrery places it at the center of the
+// orbits, it sits off to the upper left, in front of the carousel's planets.
+const sunPosition = { value: new Vector3(-22, 12, 12) }
+const noRaycast = () => null
 
 type Appearance = ReturnType<typeof planetAppearance>
 
@@ -52,7 +64,33 @@ function surfaceUniforms({ type, palette, air, haze, seed }: Appearance) {
     uHaze: { value: haze },
     uSeed: { value: new Vector3(...seed) },
     uImpacts: { value: impacts },
+    uSunPosition: sunPosition,
   }
+}
+
+function Atmosphere({ appearance }: { appearance: Appearance }) {
+  const uniforms = useMemo(
+    () => ({
+      uAir: { value: new Color(appearance.air) },
+      uHaze: { value: appearance.haze },
+      uSunPosition: sunPosition,
+    }),
+    [appearance],
+  )
+
+  return (
+    <mesh geometry={globeGeometry} raycast={noRaycast} scale={atmosphereScale}>
+      <shaderMaterial
+        uniforms={uniforms}
+        vertexShader={planetVertex}
+        fragmentShader={planetAtmosphere}
+        blending={AdditiveBlending}
+        premultipliedAlpha
+        transparent
+        depthWrite={false}
+      />
+    </mesh>
+  )
 }
 
 function PlanetaryRing({ appearance }: { appearance: Appearance }) {
@@ -61,6 +99,7 @@ function PlanetaryRing({ appearance }: { appearance: Appearance }) {
       uDust: { value: new Color(appearance.palette[2]).lerp(new Color('#aa8e7e'), 0.45) },
       uIce: { value: new Color(appearance.palette[3]).lerp(new Color('#e9d9c7'), 0.65) },
       uPhase: { value: appearance.seed[1] },
+      uSunPosition: sunPosition,
     }),
     [appearance],
   )
@@ -151,6 +190,7 @@ function Planet({
         </mesh>
         {appearance.ring && <PlanetaryRing appearance={appearance} />}
       </group>
+      {appearance.haze > 0 && <Atmosphere appearance={appearance} />}
       {selected && (
         <mesh geometry={selectionGeometry} position={[0, 0, -0.06]}>
           <meshBasicMaterial color="#f5d3ae" toneMapped={false} />
