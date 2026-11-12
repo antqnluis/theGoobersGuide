@@ -385,6 +385,35 @@
   color: var(--color-ink-soft);
 }
 
+.campaign-invitations {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.campaign-invitations > :is(div, section) {
+  width: 100%;
+}
+
+.campaign-invitations__form {
+  display: grid;
+  max-width: 26rem;
+  gap: 12px;
+}
+
+.campaign-invitations h3 {
+  margin: 0 0 8px;
+  color: var(--color-ink);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.campaign-invitations [aria-disabled='true'] {
+  cursor: wait;
+  opacity: 0.75;
+}
+
 .campaign-inline-error {
   display: flex;
   align-items: center;

@@ -6,6 +6,10 @@ export type CredentialErrors = Partial<
 
 export const internalEmailDomain = 'accounts.goobersguide.invalid'
 const usernamePattern = /^[A-Za-z0-9_]{3,24}$/
+export function isValidUsername(username: string) {
+  return usernamePattern.test(username)
+}
+
 const usernameHint = 'Use 3–24 letters, numbers, or underscores.'
 
 export function isInternalEmail(email: string) {
@@ -24,7 +28,7 @@ export function validateSignIn(identifierInput: string, password: string) {
 
   if (!identifier) {
     errors.identifier = 'Enter your username or email address.'
-  } else if (isEmail ? !isValidEmail(identifier) : !usernamePattern.test(trimmed)) {
+  } else if (isEmail ? !isValidEmail(identifier) : !isValidUsername(trimmed)) {
     errors.identifier = isEmail ? 'Enter a valid email address.' : usernameHint
   }
   if (!password) errors.password = 'Enter your password.'
@@ -43,7 +47,7 @@ export function validateRegistration(
   const errors: CredentialErrors = {}
 
   if (!username) errors.username = 'Enter a username.'
-  else if (!usernamePattern.test(usernameInput.trim())) errors.username = usernameHint
+  else if (!isValidUsername(usernameInput.trim())) errors.username = usernameHint
   if (email && !isValidEmail(email)) errors.email = 'Enter a valid email address.'
   if (!password) errors.password = 'Enter your password.'
   else if (password.length < 8) errors.password = 'Use at least 8 characters.'

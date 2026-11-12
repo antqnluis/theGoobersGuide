@@ -182,6 +182,8 @@
 }
 
 .galaxy-index {
+  --invite-duration: 160ms;
+  --invite-ease: ease-out;
   grid-column: 1;
   grid-row: 1 / -1;
   display: flex;
@@ -192,7 +194,13 @@
   padding: 6px;
 }
 
+.galaxy-index[data-invitations-open='true'] {
+  --invite-duration: 240ms;
+  --invite-ease: cubic-bezier(0.2, 0.75, 0.35, 1);
+}
+
 .galaxy-index h1 {
+  flex: none;
   margin: 0;
   font: 600 1.26rem/1.2 var(--font-display);
 }
@@ -239,6 +247,7 @@
 
 .galaxy-index-actions {
   display: flex;
+  flex: none;
   align-items: center;
 }
 
@@ -285,6 +294,71 @@
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+.galaxy-invitations {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-top: 1px solid var(--galaxy-rule);
+}
+
+.galaxy-invitations__heading {
+  flex: none;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.galaxy-invitations__heading svg {
+  margin-inline-start: auto;
+}
+
+.galaxy-invitations__count {
+  color: var(--galaxy-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.galaxy-invitations__reveal {
+  transition:
+    grid-template-rows var(--invite-duration) var(--invite-ease),
+    opacity var(--invite-duration) ease-out;
+}
+
+.galaxy-invitations__list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+.galaxy-invitations__list li {
+  padding-block: 10px;
+  border-top: 1px solid var(--galaxy-rule);
+}
+
+.galaxy-invitations__list p {
+  margin: 2px 0 8px;
+  color: var(--galaxy-muted);
+}
+
+.galaxy-invitations__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.galaxy-invitations__actions .galaxy-action {
+  padding-inline: 10px;
+}
+
+.galaxy-invitations__actions [aria-disabled='true'] {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.galaxy-invitations__error {
+  color: #ffc3b7;
 }
 
 .galaxy-list {
@@ -642,7 +716,38 @@
     grid-row: 1;
     width: min(100%, 19rem);
     max-height: min(210px, 28dvh);
-    transition: width 220ms ease;
+    transition:
+      width 220ms ease,
+      max-height var(--invite-duration) var(--invite-ease);
+  }
+
+  .galaxy-index:has([aria-expanded='true']) {
+    max-height: min(270px, 43dvh);
+  }
+
+  .galaxy-index[data-invitations-open='true'] {
+    max-height: min(20rem, 48dvh);
+  }
+
+  .galaxy-campaign-status {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows var(--invite-duration) var(--invite-ease),
+      opacity var(--invite-duration) ease-out,
+      visibility var(--invite-duration);
+  }
+
+  .galaxy-campaign-status > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .galaxy-index[data-invitations-open='true'] .galaxy-campaign-status {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .galaxy-index:not(:has([aria-expanded='true'])) {

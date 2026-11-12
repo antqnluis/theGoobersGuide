@@ -421,3 +421,194 @@ test('registers and signs in by username or email and enforces profile and campa
     expect(cleanup?.error ?? null).toBeNull()
   }
 })
+
+test('campaign invitations grant access only after the addressed player accepts', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  const owner = localClient()
+  const recipient = localClient()
+  const unrelated = localClient()
+  const anonymous = localClient()
+  const run = crypto.randomUUID().replaceAll('-', '').slice(0, 10)
+  const password = crypto.randomUUID()
+  const ownerUsername = `host_${run}`
+  const recipientUsername = `guest_${run}`
+  const unrelatedUsername = `outside_${run}`
+  const emailFor = (username: string) => `${username}@example.com`
+  const createAccount = async (client: ReturnType<typeof localClient>, username: string) => {
+    const { data, error } = await client.auth.signUp({
+      email: emailFor(username),
+      password,
+      options: { data: { username } },
+    })
+    expect(error).toBeNull()
+    expect(data.session).toBeTruthy()
+    return data.user!.id
+  }
+  const signIn = async (username: string) => {
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(emailFor(username))
+    await page.getByLabel('Password', { exact: true }).fill(password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+  }
+  const ids: string[] = []
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  try {
+    await createAccount(owner, ownerUsername)
+    const recipientId = await createAccount(recipient, recipientUsername)
+    await createAccount(unrelated, unrelatedUsername)
+
+    const campaignName = `Invitation campaign ${run}`
+    const { data: campaigns, error } = await owner
+      .from('campaigns')
+      .insert([{ name: campaignName }, { name: `Invitation race ${run}` }])
+      .select('id')
+    expect(error).toBeNull()
+    ids.push(...campaigns!.map(({ id }) => id))
+    const [campaignId, raceCampaignId] = ids
+    const send = (client: ReturnType<typeof localClient>, id: string, username: string) =>
+      client.rpc('send_campaign_invitation', { p_campaign_id: id, p_username: username })
+    const incoming = (client: ReturnType<typeof localClient>) =>
+      client.rpc('list_my_campaign_invitations')
+    const outgoing = (client: ReturnType<typeof localClient>, id: string) =>
+      client.rpc('list_campaign_outgoing_invitations', { p_campaign_id: id })
+    const respond = (client: ReturnType<typeof localClient>, id: string, accept: boolean) =>
+      client.rpc('respond_to_campaign_invitation', { p_invitation_id: id, p_accept: accept })
+    const cancel = (client: ReturnType<typeof localClient>, id: string) =>
+      client.rpc('cancel_campaign_invitation', { p_invitation_id: id })
+
+    await signIn(ownerUsername)
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await page.getByRole('button', { name: 'Invite player' }).click()
+    await page.getByLabel('Player username').fill(`  ${recipientUsername.toUpperCase()}  `)
+    await page.getByRole('button', { name: 'Send invitation' }).click()
+    await expect(page.getByText('Invitation sent.')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: `Cancel invitation for ${recipientUsername}` }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await expect(page).toHaveURL(/\/login$/)
+
+    const { data: inbox, error: inboxError } = await incoming(recipient)
+    expect(inboxError).toBeNull()
+    expect(inbox).toEqual([
+      { id: expect.any(String), campaign_name: campaignName, inviter_username: ownerUsername },
+    ])
+    const id = inbox![0].id
+    expect(await outgoing(owner, campaignId)).toMatchObject({
+      data: [{ id, recipient_username: recipientUsername }],
+      error: null,
+    })
+    expect(await outgoing(recipient, campaignId)).toMatchObject({ data: [], error: null })
+    expect(await incoming(unrelated)).toMatchObject({ data: [], error: null })
+    expect(await incoming(owner)).toMatchObject({ data: [], error: null })
+    expect(await recipient.from('campaigns').select('id').eq('id', campaignId)).toMatchObject({
+      data: [],
+      error: null,
+    })
+    expect(await recipient.rpc('get_campaign_roster', { p_campaign_id: campaignId })).toMatchObject(
+      {
+        data: [],
+        error: null,
+      },
+    )
+
+    for (const attempt of [
+      send(recipient, campaignId, unrelatedUsername),
+      send(anonymous, campaignId, unrelatedUsername),
+      respond(unrelated, id, true),
+      respond(owner, id, true),
+      respond(anonymous, id, true),
+      cancel(unrelated, id),
+      cancel(recipient, id),
+      cancel(anonymous, id),
+      incoming(anonymous),
+      outgoing(anonymous, campaignId),
+    ]) {
+      expect((await attempt).error).toBeTruthy()
+    }
+    expect((await recipient.from('campaign_invitations').select('id')).error).toBeTruthy()
+    expect(
+      (await owner.from('campaign_invitations').update({ status: 'accepted' }).eq('id', id)).error,
+    ).toBeTruthy()
+    expect((await send(owner, campaignId, ownerUsername)).error?.message).toBe(
+      'campaign_invitation_self',
+    )
+    expect((await send(owner, campaignId, `missing_${run}`)).error?.message).toBe(
+      'campaign_invitation_unknown_username',
+    )
+    expect((await send(owner, campaignId, recipientUsername)).error?.message).toBe(
+      'campaign_invitation_already_pending',
+    )
+
+    await signIn(recipientUsername)
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await expect(page.getByRole('heading', { name: 'Campaign not available' })).toBeVisible()
+    await page.getByRole('link', { name: 'Return to your campaigns' }).click()
+    await page.getByRole('button', { name: 'My invitations' }).click()
+    await page.getByRole('button', { name: `Accept invitation to ${campaignName}` }).click()
+    await expect(
+      page.getByText('Invitation accepted. The campaign is in Your campaigns.'),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: campaignName, exact: true })).toBeVisible()
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await expect(page.getByRole('heading', { name: campaignName })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Invite player' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
+    expect(await incoming(recipient)).toMatchObject({ data: [], error: null })
+    expect(await outgoing(owner, campaignId)).toMatchObject({ data: [], error: null })
+    expect(await recipient.rpc('get_campaign_roster', { p_campaign_id: campaignId })).toMatchObject(
+      {
+        data: expect.arrayContaining([
+          { profile_id: recipientId, role: 'member', username: recipientUsername },
+        ]),
+        error: null,
+      },
+    )
+    expect((await send(recipient, campaignId, unrelatedUsername)).error?.code).toBe('42501')
+    expect((await send(owner, campaignId, recipientUsername)).error?.message).toBe(
+      'campaign_invitation_already_member',
+    )
+    expect((await respond(recipient, id, true)).error?.message).toBe(
+      'campaign_invitation_unavailable',
+    )
+
+    const firstSend = await send(owner, raceCampaignId, recipientUsername)
+    expect(firstSend.error).toBeNull()
+    expect((await respond(recipient, firstSend.data, false)).error).toBeNull()
+    const secondSend = await send(owner, raceCampaignId, recipientUsername)
+    expect(secondSend.error).toBeNull()
+    expect((await cancel(owner, secondSend.data)).error).toBeNull()
+    const thirdSend = await send(owner, raceCampaignId, recipientUsername)
+    expect(thirdSend.error).toBeNull()
+
+    const [acceptResult, cancelResult] = await Promise.all([
+      respond(recipient, thirdSend.data, true),
+      cancel(owner, thirdSend.data),
+    ])
+    expect(
+      [acceptResult.error?.message ?? null, cancelResult.error?.message ?? null].sort(),
+    ).toEqual(['campaign_invitation_unavailable', null].sort())
+    expect(
+      await owner
+        .from('campaign_members')
+        .select('role')
+        .eq('campaign_id', raceCampaignId)
+        .eq('profile_id', recipientId),
+    ).toMatchObject({
+      data: acceptResult.error ? [] : [{ role: 'member' }],
+      error: null,
+    })
+
+    expect((await send(owner, raceCampaignId, unrelatedUsername)).error).toBeNull()
+    expect((await owner.from('campaigns').delete().eq('id', raceCampaignId)).error).toBeNull()
+    expect(await incoming(unrelated)).toMatchObject({ data: [], error: null })
+  } finally {
+    const cleanup = ids.length ? await owner.from('campaigns').delete().in('id', ids) : null
+    await Promise.all([owner.auth.signOut(), recipient.auth.signOut(), unrelated.auth.signOut()])
+    expect(cleanup?.error ?? null).toBeNull()
+  }
+})

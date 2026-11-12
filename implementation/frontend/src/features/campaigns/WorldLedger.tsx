@@ -1,5 +1,6 @@
 import { useCallback, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
+import { CampaignInvitationInbox } from './CampaignInvitationInbox'
 import type { CampaignListItem } from './campaignTypes'
 import { catalogueNumeral } from './orreryLayout'
 
@@ -13,6 +14,7 @@ export type LedgerStatus = 'pending' | 'error' | 'ready'
 type WorldLedgerProps = {
   /** Campaigns oldest first, the same order as the orbits. */
   planets: readonly CampaignListItem[]
+  userId: string
   status: LedgerStatus
   onRetry: () => void
   notice: string | null
@@ -35,6 +37,7 @@ type WorldLedgerProps = {
  */
 export function WorldLedger({
   planets,
+  userId,
   status,
   onRetry,
   notice,
@@ -49,6 +52,7 @@ export function WorldLedger({
   selectedButtonRef,
 }: WorldLedgerProps) {
   const [filter, setFilter] = useState('')
+  const [invitationsOpen, setInvitationsOpen] = useState(false)
   const restoreFocusOnPauseRemoval = useCallback(
     (button: HTMLButtonElement | null) => {
       if (!button) return
@@ -68,10 +72,16 @@ export function WorldLedger({
   return (
     <div
       className="galaxy-index galaxy-surface"
+      data-invitations-open={invitationsOpen}
       onKeyDown={(event) => {
         // On a phone the list is a drawer, and Escape closes it. Elsewhere Escape
         // belongs to the scene, which returns to the overview.
-        if (event.key === 'Escape' && expanded && window.matchMedia?.(compactViewport).matches) {
+        if (
+          !event.defaultPrevented &&
+          event.key === 'Escape' &&
+          expanded &&
+          window.matchMedia?.(compactViewport).matches
+        ) {
           event.preventDefault()
           disclosureRef.current?.focus()
           onExpandedChange(false)
@@ -83,7 +93,10 @@ export function WorldLedger({
           aria-controls="galaxy-campaign-list"
           aria-expanded={expanded}
           className="galaxy-disclosure"
-          onClick={() => onExpandedChange(!expanded)}
+          onClick={() => {
+            if (!expanded && window.matchMedia?.(compactViewport).matches) setInvitationsOpen(false)
+            onExpandedChange(!expanded)
+          }}
           ref={disclosureRef}
           type="button"
         >
@@ -99,26 +112,30 @@ export function WorldLedger({
           {notice}
         </p>
       )}
-      {status === 'pending' && (
-        <p className="galaxy-list-message" role="status">
-          Gathering your campaigns…
-        </p>
-      )}
-      {status === 'error' && (
-        <div className="galaxy-list-message" role="alert">
-          <h2>Your campaigns could not be loaded.</h2>
-          <p>Check your connection and try again.</p>
-          <button className="galaxy-action" onClick={onRetry} type="button">
-            Try again
-          </button>
+      <div className="galaxy-campaign-status">
+        <div>
+          {status === 'pending' && (
+            <p className="galaxy-list-message" role="status">
+              Gathering your campaigns…
+            </p>
+          )}
+          {status === 'error' && (
+            <div className="galaxy-list-message" role="alert">
+              <h2>Your campaigns could not be loaded.</h2>
+              <p>Check your connection and try again.</p>
+              <button className="galaxy-action" onClick={onRetry} type="button">
+                Try again
+              </button>
+            </div>
+          )}
+          {status === 'ready' && planets.length === 0 && (
+            <div className="galaxy-list-message">
+              <h2>Your next story starts here.</h2>
+              <p>Create a campaign to give your group a shared place to begin.</p>
+            </div>
+          )}
         </div>
-      )}
-      {status === 'ready' && planets.length === 0 && (
-        <div className="galaxy-list-message">
-          <h2>Your next story starts here.</h2>
-          <p>Create a campaign to give your group a shared place to begin.</p>
-        </div>
-      )}
+      </div>
 
       <div className="galaxy-list-reveal" data-expanded={expanded} id="galaxy-campaign-list">
         <div aria-hidden={!expanded} className="galaxy-list-scroll" inert={!expanded}>
@@ -165,6 +182,14 @@ export function WorldLedger({
         </div>
       </div>
 
+      <CampaignInvitationInbox
+        expanded={invitationsOpen}
+        onExpandedChange={(open) => {
+          if (open && window.matchMedia?.(compactViewport).matches) onExpandedChange(false)
+          setInvitationsOpen(open)
+        }}
+        userId={userId}
+      />
       <div className="galaxy-index-actions">
         <Link className="galaxy-create-link" to="/app/campaigns/new">
           <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">

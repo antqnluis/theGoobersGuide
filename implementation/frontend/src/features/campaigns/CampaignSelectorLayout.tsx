@@ -224,6 +224,7 @@ function CampaignSelector({ userId }: { userId: string }) {
             planets={planets}
             selectedButtonRef={selectedButtonRef}
             selectedId={selectedId}
+            userId={userId}
             status={
               campaignsQuery.isPending ? 'pending' : campaignsQuery.isError ? 'error' : 'ready'
             }

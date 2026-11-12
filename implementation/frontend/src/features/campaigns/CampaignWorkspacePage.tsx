@@ -3,6 +3,7 @@ import { ViewTransition, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
+import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignManagement } from './useCampaignManagement'
 
@@ -213,6 +214,13 @@ export function CampaignWorkspacePage() {
               </li>
             ))}
           </ul>
+        )}
+        {isOwner && (
+          <CampaignOutgoingInvitations
+            campaignId={campaign.id}
+            key={campaign.id + userId}
+            userId={userId}
+          />
         )}
       </section>
 

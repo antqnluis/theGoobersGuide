@@ -152,6 +152,15 @@ async function mockCampaignApi(
       return
     }
 
+    if (
+      method === 'POST' &&
+      (path.endsWith('/list_my_campaign_invitations') ||
+        path.endsWith('/list_campaign_outgoing_invitations'))
+    ) {
+      await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
+      return
+    }
+
     if (path.endsWith('/rest/v1/rpc/get_campaign_roster') && method === 'POST') {
       const { p_campaign_id: campaignId } = request.postDataJSON() as { p_campaign_id: string }
       const campaign = campaigns.find((item) => item.id === campaignId)
@@ -754,9 +763,11 @@ test('keeps the focused world clear of controls and navigable with the keyboard'
       page.getByRole('button', { name: 'View The Red Hand', exact: true }),
     ).toBeInViewport()
     if (width > 375) {
-      await expect(
-        page.getByRole('list', { name: 'Campaign list' }).getByRole('button'),
-      ).toHaveText([redHand.name, second.name, third.name])
+      const rows = page.getByRole('list', { name: 'Campaign list' }).getByRole('button')
+      await expect(rows).toHaveCount(3)
+      for (const [index, { name }] of [redHand, second, third].entries()) {
+        await expect(rows.nth(index)).toHaveAccessibleName(name)
+      }
     }
     await page.screenshot({ path: testInfo.outputPath(`orbital-overview-${width}.png`) })
     await previous.press('Enter')
@@ -1148,4 +1159,152 @@ test('retargets and returns immediately while ambient motion is paused', async (
   await expect(page.getByRole('heading', { name: second.name })).toBeVisible()
   await expect(canvas).toHaveCount(0)
   expect(duplicateTitles).toEqual([])
+})
+
+test('an owner sends and cancels invitations from the campaign workspace', async ({
+  page,
+}, testInfo) => {
+  await mockCampaignApi(page, [redHand])
+  let pending = false
+  await page.route('**/rest/v1/rpc/*campaign*invitation*', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const rpc = new URL(request.url()).pathname.split('/').at(-1)
+    if (rpc === 'list_campaign_outgoing_invitations') {
+      return route.fulfill({
+        status: 200,
+        headers,
+        json: pending ? [{ id: 'invite-1', recipient_username: 'player_two' }] : [],
+      })
+    }
+    if (rpc === 'send_campaign_invitation') {
+      const body = request.postDataJSON()
+      if (body.p_username === 'missing_player') {
+        return route.fulfill({
+          status: 400,
+          headers,
+          json: { message: 'campaign_invitation_unknown_username' },
+        })
+      }
+      expect(body).toEqual({ p_campaign_id: redHand.id, p_username: 'Player_Two' })
+      pending = true
+      return route.fulfill({ status: 200, headers, json: 'invite-1' })
+    }
+    if (rpc === 'cancel_campaign_invitation') {
+      expect(request.postDataJSON()).toEqual({ p_invitation_id: 'invite-1' })
+      pending = false
+      return route.fulfill({ status: 204, headers })
+    }
+    return route.fallback()
+  })
+  await signIn(page)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+
+  const trigger = page.getByRole('button', { name: 'Invite player' })
+  const username = page.getByLabel('Player username')
+  const send = page.getByRole('button', { name: 'Send invitation' })
+  await trigger.press('Enter')
+  await expect(username).toBeFocused()
+  await page.getByRole('heading', { name: 'People in this campaign' }).scrollIntoViewIfNeeded()
+  await page.screenshot({
+    fullPage: true,
+    path: testInfo.outputPath('workspace-invitation-form.png'),
+  })
+  await send.click()
+  await expect(username).toHaveAttribute('aria-invalid', 'true')
+  await username.fill('missing_player')
+  await send.click()
+  await expect(page.getByRole('alert')).toContainText('No player has that username')
+  await expect(username).toHaveValue('missing_player')
+  await username.fill('  Player_Two  ')
+  await send.click()
+  await expect(page.getByText('Invitation sent.')).toBeVisible()
+  await expect(trigger).toBeFocused()
+
+  await page.getByRole('button', { name: 'Cancel invitation for player_two' }).click()
+  await expect(page.getByText('Invitation cancelled.')).toBeVisible()
+  await expect(page.getByText('No pending invitations.', { exact: true })).toBeVisible()
+  await expect(trigger).toBeFocused()
+})
+
+test('responds to invitations on a short phone viewport without WebGL', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 568 })
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.getContext = new Proxy(HTMLCanvasElement.prototype.getContext, {
+      apply(getContext, canvas, args) {
+        return args[0] === 'webgl2' ? null : Reflect.apply(getContext, canvas, args)
+      },
+    })
+  })
+  const campaigns = await mockCampaignApi(page, [], { memberMode: true })
+  let listUnavailable = true
+  const pending = [
+    { id: 'invite-1', campaign_name: 'The Red Hand', inviter_username: 'game_master' },
+    { id: 'invite-2', campaign_name: 'Far Shore', inviter_username: 'game_master' },
+  ]
+
+  await page.route('**/rest/v1/rpc/*campaign_invitation*', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (request.url().endsWith('/list_my_campaign_invitations')) {
+      return route.fulfill({
+        status: listUnavailable ? 400 : 200,
+        headers,
+        json: listUnavailable ? { message: 'Temporary inbox error' } : pending,
+      })
+    }
+    if (request.url().endsWith('/respond_to_campaign_invitation')) {
+      const { p_invitation_id: id, p_accept: accept } = request.postDataJSON()
+      if (accept) campaigns.push({ ...redHand, owner_id: ownerId })
+      pending.splice(
+        pending.findIndex((invitation) => invitation.id === id),
+        1,
+      )
+      return route.fulfill({ status: 204, headers })
+    }
+    return route.fallback()
+  })
+
+  await signIn(page)
+  const inbox = page.getByRole('button', { name: 'My invitations' })
+  const panel = page.locator('#galaxy-invitations-panel')
+  await expect(inbox).toHaveAttribute('aria-expanded', 'false')
+  await inbox.press('Enter')
+  await expect(page.getByText('Invitations could not be loaded.')).toBeVisible()
+  listUnavailable = false
+  await page.getByRole('button', { name: 'Try again' }).click()
+
+  await expect(inbox).toHaveAccessibleName(/My invitations\s*\(2\)/)
+  const accept = page.getByRole('button', { name: 'Accept invitation to The Red Hand' })
+  await expect(accept).toBeInViewport({ ratio: 1 })
+  await page.screenshot({ path: testInfo.outputPath('mobile-invitations.png') })
+  await expect(page.locator('.galaxy-backdrop canvas')).toHaveCount(0)
+  await accept.press('Escape')
+  await expect(inbox).toBeFocused()
+  await expect(inbox).toHaveAttribute('aria-expanded', 'false')
+  await expect(accept).toHaveCount(0)
+  await expect(panel).toHaveCSS('grid-template-rows', '0px')
+  await inbox.press('Space')
+  await accept.click()
+  await expect(
+    page.getByText('Invitation accepted. The campaign is in Your campaigns.'),
+  ).toBeVisible()
+  await expect(inbox).toBeFocused()
+  await expect(inbox).toHaveAccessibleName(/My invitations\s*\(1\)/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await page.getByRole('button', { name: 'Decline invitation to Far Shore' }).click()
+  await expect(page.getByText('Invitation declined.')).toBeVisible()
+  await expect(page.getByText('You have no pending invitations.')).toBeVisible()
+  await page.getByRole('button', { name: 'Your campaigns' }).click()
+  await expect(inbox).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'The Red Hand', exact: true })).toBeInViewport()
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await inbox.press('Enter')
+  await expect(panel).toHaveCSS('transition-property', 'none')
+  await expect(page.getByText('You have no pending invitations.')).toBeInViewport()
 })
