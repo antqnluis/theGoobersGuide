@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 2 username and optional email update — awaiting user verification**
+**Phase 3 integration and verification complete — awaiting user verification**
 
 This document tracks the authentication milestone, its decisions, acceptance criteria, and verification results. Update the status and record actual command results as each phase is completed.
 
@@ -60,24 +60,24 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ### Work
 
-- [ ] Run the real local flow with and without an email. Verify username and email sign-in, session restoration, sign-out, duplicate username rejection, and private lookup permissions.
-- [ ] Run two-user and anonymous campaigns RLS tests against local Supabase.
-- [ ] Inspect keyboard access, labels, errors, visible focus, contrast, and mobile/desktop layouts.
-- [ ] Run frontend lint, formatting, build, unit tests, browser tests, and local Supabase integration tests.
-- [ ] Record each command and its actual result below; list any blocked checks or unresolved issues.
+- [x] Run the real local flow with and without an email. Verify username and email sign-in, session restoration, sign-out, duplicate username rejection, and private lookup permissions.
+- [x] Run two-user and anonymous campaigns RLS tests against local Supabase.
+- [x] Inspect keyboard access, labels, errors, visible focus, contrast, and mobile/desktop layouts.
+- [x] Run frontend lint, formatting, build, unit tests, browser tests, and local Supabase integration tests.
+- [x] Record each command and its actual result below; list any blocked checks or unresolved issues.
 
 ### Acceptance
 
-- All listed checks pass against the local Supabase instance.
-- Browser code contains only the publishable Supabase key; no service-role credential is added to frontend configuration or tests.
-- No campaign CRUD or unrelated product features are introduced.
+- [x] All listed checks pass against the local Supabase instance.
+- [x] Browser code contains only the publishable Supabase key; no service-role credential is added to frontend configuration or tests.
+- [x] No campaign CRUD or unrelated product features are introduced.
 
 ## Verification log
 
 | Check                                                                                                | Result                                                                                                                                                                                                                       |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run supabase:start` (`implementation/backend`)                                                  | Passed; local Supabase started with the updated configuration                                                                                                                                                                |
-| `npm run supabase:status -- --output env` (`implementation/backend`)                                 | Passed on an escalated retry; local API URL reported, with `supabase_imgproxy_backend` and `supabase_pooler_backend` stopped (pooler is disabled and image transformation is not configured)                                 |
+| `npm run supabase:status` (`implementation/backend`)                                                 | Earlier `--output env` run passed on an escalated retry; the fresh plain status attempt was blocked when the CLI tried to write `/Users/ton/.supabase/telemetry.json`. The live API was confirmed by the Phase 3 integration test. |
 | Local Supabase Auth and campaigns RLS API checks (temporary Node scripts, `implementation/frontend`) | Passed; tested seven-character rejection, immediate signup session, login/logout, owner create/update/delete, denial of all anonymous table operations, other-user read/update/delete denial, and forged owner insert denial |
 | `npm run supabase:stop` (`implementation/backend`)                                                   | Not run; stack remains running for user verification                                                                                                                                                                         |
 | `npm run lint` (`implementation/frontend`)                                                           | Passed                                                                                                                                                                                                                       |
@@ -89,7 +89,14 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 | Impeccable detector on changed UI files                                                              | Passed; returned no findings (`[]`)                                                                                                                                                                                          |
 | Impeccable finish review                                                                             | `ship` for the two scored fixes: saved direction contract/seed and mobile registration navigation. The chosen pick had no persisted QUALITY BAR board, so the verdict was scoped to those fixes                              |
 | Design documentation                                                                                 | Added root `DESIGN.md` and `.impeccable/design.json` with the user-confirmed visual language and extracted tokens                                                                                                            |
-| `npm run test:local-supabase` (`implementation/frontend`)                                            | Pending; Phase 3                                                                                                                                                                                                             |
+| Phase 3 `npm run lint` (`implementation/frontend`)                                                   | Passed                                                                                                                                                                                                                       |
+| Phase 3 `npm run format:check` (`implementation/frontend`)                                           | Passed                                                                                                                                                                                                                       |
+| Phase 3 `npm run build` (`implementation/frontend`)                                                  | Passed; Vite reported a 522.76 kB minified JavaScript chunk (151.58 kB gzip), above its 500 kB warning threshold                                                                                                             |
+| Phase 3 `npm test` (`implementation/frontend`)                                                       | Passed; 2 files and 20 tests                                                                                                                                                                                                 |
+| Phase 3 `npm run test:e2e` (`implementation/frontend`)                                               | Passed; 5 Chromium tests covering diagnostics, registration, mocked Auth session restore/login/logout, and mobile and desktop navigation                                                                                       |
+| Phase 3 `npm run test:local-supabase` (`implementation/frontend`)                                    | Passed; 2 Chromium tests against local Supabase covered both registration paths, username and email sign-in, session restore/sign-out, duplicate username rejection, private lookup denial, and campaign RLS isolation            |
+| Phase 3 auth accessibility and layout review                                                         | Passed; semantic labels, announced errors, keyboard password reveal, visible focus, 375px mobile layout without horizontal overflow, and 1280px desktop layout. Sampled text contrast was at least 6.29:1 and focus contrast at least 5.96:1. |
+| Browser credential scan                                                                              | Passed; no service-role or secret-key references in frontend source, tests, example configuration, or built assets                                                                                                          |
 
 ## Risks and safeguards
 
@@ -108,6 +115,6 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ## Unresolved issues
 
-- No Phase 1 authentication or campaigns RLS defects were identified. Phase 2 is complete and awaits user verification; Phase 3 remains gated on that review.
+- No Phase 1 authentication or campaigns RLS defects were identified. Phase 2 was verified by the user; Phase 3 checks pass and this final phase awaits user verification.
 - The production build still reports a JavaScript chunk above the 500 kB warning threshold. The build succeeds; code splitting has not been added in this milestone.
 - No local QUALITY BAR board was persisted for the selected field-guide pick. The finish review returned `ship` for the two fixes it scored, and its verdict did not claim a full-surface ceiling review.

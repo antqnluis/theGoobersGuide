@@ -2,6 +2,8 @@
 
 The backend is local Supabase, not a custom application server. Configuration is in `supabase/config.toml`; database migrations are in `supabase/migrations/`.
 
+See the [database schema](../../docs/DATABASE_SCHEMA.md) for profiles, campaign membership, and access rules.
+
 ## Commands
 
 Run these commands from this directory:
