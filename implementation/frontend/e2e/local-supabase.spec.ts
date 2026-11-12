@@ -1,12 +1,40 @@
+import { execFileSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { loadEnv } from 'vite'
 
 function localClient() {
   const env = loadEnv('development', process.cwd(), 'VITE_')
+  const url = new URL(env.VITE_SUPABASE_URL)
+  if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== '54321') {
+    throw new Error(
+      'Campaign integration tests require the repository local Supabase stack on port 54321.',
+    )
+  }
   return createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+}
+
+function localDatabaseQuery(sql: string, variables: Record<string, string>) {
+  return execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'supabase_db_backend',
+      'psql',
+      '-XqAt',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+      ...Object.entries(variables).flatMap(([key, value]) => ['-v', `${key}=${value}`]),
+    ],
+    { input: sql, encoding: 'utf8' },
+  ).trim()
 }
 
 test('connects the browser app to the running local Supabase Auth API', async ({ page }) => {
@@ -25,6 +53,10 @@ test('registers and signs in by username or email and enforces profile and campa
   page,
 }) => {
   test.setTimeout(60_000)
+  const owner = localClient()
+  const member = localClient()
+  const emailOnly = localClient()
+  const anonymous = localClient()
   const run = crypto.randomUUID().slice(0, 12).replace('-', '')
   const emailUsername = `email_${run}`
   const usernameOnly = `player_${run}`
@@ -80,10 +112,6 @@ test('registers and signs in by username or email and enforces profile and campa
   await register(usernameOnly.toUpperCase(), `duplicate_${run}@example.com`)
   await expect(page.getByRole('alert')).toContainText('Try a different username or email')
 
-  const owner = localClient()
-  const member = localClient()
-  const emailOnly = localClient()
-  const anonymous = localClient()
   const { data: ownerAuth, error: ownerError } = await owner.auth.signInWithPassword({
     email,
     password,
@@ -197,6 +225,26 @@ test('registers and signs in by username or email and enforces profile and campa
       expect((await anonymous.from('campaigns').select('id')).error).toBeTruthy()
       expect((await roster(anonymous, firstId)).error).toBeTruthy()
 
+      const namedRoster = (client: ReturnType<typeof localClient>, id: string) =>
+        client.rpc('get_campaign_roster', { p_campaign_id: id })
+      const ownerRow = { profile_id: ownerId, role: 'owner', username: emailUsername }
+      expect(await namedRoster(owner, firstId)).toMatchObject({ data: [ownerRow], error: null })
+      expect(await namedRoster(member, firstId)).toMatchObject({ data: [], error: null })
+      expect(await namedRoster(owner, crypto.randomUUID())).toMatchObject({
+        data: [],
+        error: null,
+      })
+      expect((await namedRoster(anonymous, firstId)).error).toBeTruthy()
+
+      for (const name of ['', '   ', '\t\n']) {
+        expect(await owner.from('campaigns').insert({ name })).toMatchObject({
+          error: { code: '23514' },
+        })
+        expect(await owner.from('campaigns').update({ name }).eq('id', firstId)).toMatchObject({
+          error: { code: '23514' },
+        })
+      }
+
       const fields = { name: 'Renamed campaign', description: 'Shared campaign description' }
       expect(
         await owner.from('campaigns').update(fields).eq('id', firstId).select().single(),
@@ -204,30 +252,48 @@ test('registers and signs in by username or email and enforces profile and campa
       expect(
         await owner.from('campaigns').update({ owner_id: memberId }).eq('id', firstId),
       ).toMatchObject({ error: { code: '42501' } })
-      expect(
-        await owner
-          .from('campaign_members')
-          .insert({ campaign_id: firstId, profile_id: memberId, role: 'owner' }),
-      ).toMatchObject({ error: { code: '42501' } })
-      expect(
-        await owner.from('campaign_members').insert([
-          { campaign_id: firstId, profile_id: memberId },
-          { campaign_id: secondId, profile_id: memberId },
-        ]),
-      ).toMatchObject({ error: null })
-      expect(
-        await owner.from('campaign_members').insert({ campaign_id: firstId, profile_id: memberId }),
-      ).toMatchObject({ error: { code: '23505' } })
+
+      for (const client of [owner, member, emailOnly, anonymous]) {
+        expect(
+          await client
+            .from('campaign_members')
+            .insert({ campaign_id: firstId, profile_id: memberId }),
+        ).toMatchObject({ error: { code: '42501' } })
+      }
+
+      localDatabaseQuery(
+        `insert into public.campaign_members (campaign_id, profile_id)
+         values (:'first_id', :'member_id'), (:'first_id', :'email_only_id');`,
+        { first_id: firstId, member_id: memberId, email_only_id: emailOnlyId },
+      )
 
       expect(await member.from('campaigns').select('id')).toMatchObject({
-        data: expect.arrayContaining([{ id: firstId }, { id: secondId }]),
+        data: [{ id: firstId }],
         error: null,
       })
       expect(
-        await member
-          .from('campaign_members')
-          .insert({ campaign_id: firstId, profile_id: emailOnlyId }),
-      ).toMatchObject({ error: { code: '42501' } })
+        await member.from('campaigns').select('name, description').eq('id', firstId).single(),
+      ).toMatchObject({ data: fields, error: null })
+      expect(await member.from('campaigns').select('id').eq('id', secondId)).toMatchObject({
+        data: [],
+        error: null,
+      })
+      expect(await namedRoster(member, secondId)).toMatchObject({ data: [], error: null })
+      const expectedRoster = [
+        ownerRow,
+        { profile_id: memberId, role: 'member', username: usernameOnly },
+        { profile_id: emailOnlyId, role: 'member', username: null },
+      ]
+      for (const client of [owner, member, emailOnly]) {
+        const result = await namedRoster(client, firstId)
+        expect(result.error).toBeNull()
+        expect(result.data).toHaveLength(expectedRoster.length)
+        expect(result.data).toEqual(expect.arrayContaining(expectedRoster))
+      }
+      expect(await member.from('profiles').select('username').eq('id', ownerId)).toMatchObject({
+        data: [],
+        error: null,
+      })
       expect(
         await member
           .from('campaign_members')
@@ -235,22 +301,11 @@ test('registers and signs in by username or email and enforces profile and campa
           .eq('campaign_id', firstId)
           .eq('profile_id', memberId),
       ).toMatchObject({ error: { code: '42501' } })
-      expect(
-        await member
-          .from('campaign_members')
-          .delete()
-          .eq('campaign_id', firstId)
-          .eq('profile_id', memberId)
-          .select('id'),
-      ).toMatchObject({ data: [], error: null })
-      expect(
-        await owner
-          .from('campaign_members')
-          .delete()
-          .eq('campaign_id', firstId)
-          .eq('profile_id', ownerId)
-          .select('id'),
-      ).toMatchObject({ data: [], error: null })
+      for (const client of [owner, member]) {
+        expect(
+          await client.from('campaign_members').delete().eq('campaign_id', firstId),
+        ).toMatchObject({ error: { code: '42501' } })
+      }
       expect(
         await member.from('campaigns').update({ name: 'Changed' }).eq('id', firstId).select('id'),
       ).toMatchObject({ data: [], error: null })
@@ -260,40 +315,49 @@ test('registers and signs in by username or email and enforces profile and campa
       })
 
       expect(
-        await owner
-          .from('campaign_members')
-          .insert({ campaign_id: firstId, profile_id: emailOnlyId })
-          .select('role')
-          .single(),
-      ).toMatchObject({ data: { role: 'member' }, error: null })
-      expect(await roster(member, firstId)).toMatchObject({
-        data: expect.arrayContaining([
-          { profile_id: ownerId, role: 'owner' },
-          { profile_id: memberId, role: 'member' },
-          { profile_id: emailOnlyId, role: 'member' },
-        ]),
-        error: null,
-      })
+        await member.from('campaigns').update({ name: 'Changed' }).eq('id', secondId).select('id'),
+      ).toMatchObject({ data: [], error: null })
+      expect(await member.from('campaigns').delete().eq('id', secondId).select('id')).toMatchObject(
+        {
+          data: [],
+          error: null,
+        },
+      )
+      expect((await anonymous.from('campaigns').insert({ name: 'Anonymous' })).error).toBeTruthy()
+      expect(
+        (await anonymous.from('campaigns').update(fields).eq('id', firstId)).error,
+      ).toBeTruthy()
+      expect((await anonymous.from('campaigns').delete().eq('id', firstId)).error).toBeTruthy()
+      expect(
+        await owner.from('campaigns').select('name, description').eq('id', firstId).single(),
+      ).toMatchObject({ data: fields, error: null })
 
       expect(
-        await owner
-          .from('campaign_members')
-          .delete()
-          .eq('campaign_id', firstId)
-          .eq('profile_id', memberId)
-          .select('profile_id')
-          .single(),
-      ).toMatchObject({ data: { profile_id: memberId }, error: null })
-      expect(await roster(member, firstId)).toMatchObject({ data: [], error: null })
-      expect(await member.from('campaigns').select('id')).toMatchObject({
-        data: [{ id: secondId }],
+        await owner.from('campaigns').delete().eq('id', firstId).select('id').single(),
+      ).toMatchObject({ data: { id: firstId }, error: null })
+      expect(
+        localDatabaseQuery(
+          `select count(*) from public.campaign_members where campaign_id = :'campaign_id';`,
+          { campaign_id: firstId },
+        ),
+      ).toBe('0')
+      expect(await namedRoster(member, firstId)).toMatchObject({ data: [], error: null })
+      expect(await member.from('campaigns').select('id')).toMatchObject({ data: [], error: null })
+      expect(await roster(owner, secondId)).toMatchObject({
+        data: [{ profile_id: ownerId, role: 'owner' }],
         error: null,
       })
-      expect(
-        await owner.from('campaigns').delete().eq('id', secondId).select('id').single(),
-      ).toMatchObject({ data: { id: secondId }, error: null })
-      expect(await roster(owner, secondId)).toMatchObject({ data: [], error: null })
-      expect(await member.from('campaigns').select('id')).toMatchObject({ data: [], error: null })
+      for (const [client, id] of [
+        [owner, ownerId],
+        [member, memberId],
+        [emailOnly, emailOnlyId],
+      ] as const) {
+        expect((await client.auth.getUser()).data.user?.id).toBe(id)
+        expect(await client.from('profiles').select('id').single()).toMatchObject({
+          data: { id },
+          error: null,
+        })
+      }
     })
   } finally {
     const cleanup = campaignIds.length

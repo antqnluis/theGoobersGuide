@@ -2,7 +2,7 @@
 
 ## Status
 
-**Planned — Phase 1 not started**
+**Phase 1 complete locally — awaiting user verification**
 
 This document tracks the campaign management milestone, its decisions, acceptance criteria, and verification results. Update the status and record actual command results as each phase is completed.
 
@@ -24,19 +24,19 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ### Work
 
-- [ ] Review the current Supabase migrations, campaign schema, username/profile representation, existing RLS policies, and frontend Supabase client. Confirm the M01 authentication and ownership guarantees remain intact.
-- [ ] Verify or add campaign fields for `id`, `owner_id`, `name`, optional `description`, `created_at`, and `updated_at`, preserving existing campaign records and owners.
-- [ ] Verify or add the minimum campaign-membership table with a unique campaign/profile-or-user pair and an `owner`/`member` role, using the existing stable Auth-linked user identifier. Preserve compatible schema already in place.
-- [ ] Backfill owner membership for existing campaigns if needed; ensure creating a campaign and establishing its owner membership succeeds or fails as one transaction.
-- [ ] Implement and verify persistent campaign create, list, detail, update, and delete operations. Reject blank or whitespace-only campaign names and prevent duplicate form submissions at the application boundary.
-- [ ] Ensure owners can edit/delete their campaigns, members can read campaigns they belong to, and non-members and anonymous clients cannot read or mutate private campaigns. Prevent forged ownership, membership creation, and role escalation.
-- [ ] Provide authorized member-roster reads with usernames without exposing the private username-resolution table. Avoid recursive RLS and broad security-definer privileges.
-- [ ] Verify campaign deletion removes only the campaign and dependent membership data as intended; it must not delete users, authentication records, or unrelated data.
-- [ ] Add automated local Supabase/API tests for positive and negative authorization paths. Use versioned, non-destructive migrations where changes are required.
+- [x] Review the current Supabase migrations, campaign schema, username/profile representation, existing RLS policies, and frontend Supabase client. Confirm the M01 authentication and ownership guarantees remain intact.
+- [x] Verify or add campaign fields for `id`, `owner_id`, `name`, optional `description`, `created_at`, and `updated_at`, preserving existing campaign records and owners.
+- [x] Verify or add the minimum campaign-membership table with a unique campaign/profile-or-user pair and an `owner`/`member` role, using the existing stable Auth-linked user identifier. Preserve compatible schema already in place.
+- [x] Backfill owner membership for existing campaigns if needed; ensure creating a campaign and establishing its owner membership succeeds or fails as one transaction.
+- [x] Implement and verify persistent campaign create, list, detail, update, and delete operations. Reject blank or whitespace-only campaign names in the database. The Phase 2 form will prevent duplicate submissions.
+- [x] Ensure owners can edit/delete their campaigns, members can read campaigns they belong to, and non-members and anonymous clients cannot read or mutate private campaigns. Prevent forged ownership, membership creation, and role escalation.
+- [x] Provide authorized member-roster reads with usernames without exposing the private username-resolution table. Avoid recursive RLS and broad security-definer privileges.
+- [x] Verify campaign deletion removes only the campaign and dependent membership data as intended; it must not delete users, authentication records, or unrelated data.
+- [x] Add automated local Supabase/API tests for positive and negative authorization paths. Use versioned, non-destructive migrations where changes are required.
 
 ### Acceptance
 
-- Local Supabase starts with all required migrations; existing accounts, usernames, and campaigns are preserved.
+- Local Supabase starts with all required migrations. Applying the migration preserves existing accounts, usernames, and campaigns.
 - Campaign create, list, detail, update, and delete operations persist and respect ownership and membership. Owners are registered as members without partial writes.
 - Real local API checks demonstrate that anonymous users and non-members cannot access private campaigns; regular members cannot edit/delete campaigns or elevate their permissions.
 - Username lookup and M01 login, registration, session restoration, and logout continue working.
@@ -85,18 +85,17 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 | Check | Result |
 | --- | --- |
-| Supabase migration and existing-data preservation | Not run — pending Phase 1 |
-| Campaign CRUD and membership API checks | Not run — pending Phase 1 |
-| Owner/member/non-member/anonymous RLS checks | Not run — pending Phase 1 |
-| M01 authentication and username regression checks | Not run — pending Phase 3 |
-| `npm run lint` (`implementation/frontend`) | Not run — pending Phase 3 |
-| `npm run format:check` (`implementation/frontend`) | Not run — pending Phase 3 |
-| `npm run build` (`implementation/frontend`) | Not run — pending Phase 3 |
-| `npm test` (`implementation/frontend`) | Not run — pending Phase 3 |
-| `npm run test:e2e` (`implementation/frontend`) | Not run — pending Phase 3 |
-| `npm run test:local-supabase` (`implementation/frontend`) | Not run — pending Phase 3; adapt as needed for campaign tests |
-| Responsive and accessibility review (375px, 768px, 1440px) | Not run — pending Phase 3 |
-| Impeccable detector and finish review | Not run — pending Phase 3 |
+| `npm run db:migrate` (`implementation/backend`) | Passed on the running local stack. Before-and-after row counts and content fingerprints matched for profiles, campaigns, and memberships. The database contained one profile and no campaigns or memberships before migration. The name constraint validated with no legacy names to correct. |
+| Campaign CRUD, roster, and RLS checks | Passed in the real local API suite. Verified owner enrollment, campaign and roster isolation, read-only membership access, username visibility, whitespace validation, and deletion cascades. |
+| M01 authentication and username regression checks | Passed in the real local suite, including registration, case-insensitive username sign-in, email sign-in, session restoration, sign-out, and private lookup permissions. |
+| `npm run lint` (`implementation/frontend`) | Passed. |
+| `npm run format:check` (`implementation/frontend`) | Passed. |
+| `npm run build` (`implementation/frontend`) | Passed. Vite reported a chunk larger than 500 kB after minification. |
+| `npm test` (`implementation/frontend`) | Passed, 20 tests. |
+| `npm run test:e2e` (`implementation/frontend`) | Passed, 5 tests. |
+| `npm run test:local-supabase` (`implementation/frontend`) | Passed, 2 tests. The suite cleaned up its campaigns and their memberships. Test accounts remain in local Auth. |
+| Responsive and accessibility review (375px, 768px, 1440px) | Pending campaign UI. |
+| Impeccable detector and finish review | Pending campaign UI. |
 
 ## Risks and safeguards
 
@@ -109,6 +108,5 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ## Unresolved issues
 
-- Verify whether the separately discussed `profiles` and `campaign_members` schema changes were actually applied after M01. The attached M01 record confirms owner-only campaigns and a private username mapping, but does not confirm those later changes.
 - Verify the application's current routing conventions before choosing final campaign URLs beneath `/app`.
-- No M02 implementation or checks have been run. Replace this planned status and the verification-log placeholders only with observed results.
+- Phase 1 verification used the running local stack. A clean stack startup was not exercised.

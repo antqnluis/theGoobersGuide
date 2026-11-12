@@ -81,7 +81,7 @@ npm run test:e2e
 npm run test:local-supabase       # requires the local Supabase stack and .env.local
 ```
 
-`npm run format` formats the frontend files. `npm run test:watch` starts Vitest in watch mode. The end-to-end smoke test starts Vite itself and stubs the Auth health endpoint. `npm run test:local-supabase` uses the values in `.env.local` and checks the running local Auth API, username and email account flows, and campaign access rules. It creates local test accounts and removes its test campaign.
+`npm run format` formats the frontend files. `npm run test:watch` starts Vitest in watch mode. The end-to-end smoke test starts Vite itself and stubs the Auth health endpoint. `npm run test:local-supabase` uses the values in `.env.local` and checks the running local Auth API, username and email account flows, and campaign access rules. It creates local test accounts, uses Docker access to add test memberships to the local database, and removes its test campaigns afterward. The test accounts remain in local Auth.
 
 ## Environment variables
 
