@@ -2,7 +2,12 @@ import { useThree, type RootState } from '@react-three/fiber'
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react'
 import type { PerspectiveCamera } from 'three'
 import {
+  arrivalDuration,
+  arrivalEase,
+  arrivalPose,
+  arrivalStreak,
   cameraView,
+  clamp,
   chartPose,
   focusPose,
   heading,
@@ -12,6 +17,7 @@ import {
   travelDurations,
   travelProgress,
   unwrapHeading,
+  type ArrivalFlight,
   type CameraPose,
   type CameraView,
   type Point,
@@ -44,12 +50,14 @@ export function useOrreryCamera({
   visible,
   motionReduced,
   spaceMotion: spaceMotionRef,
+  arrival: arrivalRef,
 }: {
   bounds: SceneBounds | null
   extent: number
   visible: boolean
   motionReduced: boolean
   spaceMotion: RefObject<SpaceMotion>
+  arrival: RefObject<ArrivalFlight>
 }) {
   const invalidate = useThree((state) => state.invalidate)
   const settleImmediately = useRef(true)
@@ -62,14 +70,24 @@ export function useOrreryCamera({
     bounds: null as SceneBounds | null,
     extent: 0,
     heading: null as number | null,
+    flightElapsed: 0,
     offsetX: 0,
     offsetY: 0,
   })
 
   useLayoutEffect(() => {
     // Rendering stops while the tab is hidden; on return the camera is already there.
-    if (!visible) settleImmediately.current = true
-  }, [visible])
+    if (!visible) {
+      settleImmediately.current = true
+      // A hidden tab cannot play the arrival; it lands on the chart when shown.
+      const flight = arrivalRef.current
+      if (flight.phase !== 'off') {
+        flight.phase = 'off'
+        flight.progress = 1
+        flight.finished()
+      }
+    }
+  }, [visible, arrivalRef])
 
   return useCallback(
     (
@@ -97,9 +115,28 @@ export function useOrreryCamera({
         state.bounds !== bounds ||
         state.extent !== extent
 
+      const flight = arrivalRef.current
+      if (flight.phase !== 'off' && motionReduced) {
+        flight.phase = 'off'
+        flight.progress = 1
+        flight.finished()
+      }
+      const arriving = flight.phase === 'waiting' || flight.phase === 'flying'
+
       let started = false
       // Reduced motion cuts straight to every destination.
-      if (settleImmediately.current || motionReduced || !state.pose) {
+      if (arriving) {
+        state.travel = null
+      } else if (flight.phase === 'skipping') {
+        // Fast-forward the rest of the arrival from wherever the camera is.
+        flight.phase = 'off'
+        flight.progress = 1
+        state.travel = state.pose
+          ? { elapsed: 0, duration: travelDurations.skip, from: state.pose, swing: false }
+          : null
+        started = true
+        flight.finished()
+      } else if (settleImmediately.current || motionReduced || !state.pose) {
         state.travel = null
       } else if (selectionChanged) {
         const swing = Boolean(state.focusId && focusId)
@@ -130,7 +167,27 @@ export function useOrreryCamera({
       const travel = state.travel
       let pose = destination
       let streak = 0
-      if (travel) {
+      let radial = 0
+      if (arriving) {
+        if (flight.phase === 'waiting') {
+          state.flightElapsed = 0
+          flight.progress = 0
+          pose = arrivalPose(destination, 0)
+        } else {
+          state.flightElapsed += Math.min(delta, 0.1)
+          const elapsed = Math.min(state.flightElapsed, arrivalDuration)
+          flight.progress = clamp(elapsed / arrivalDuration, 0, 1)
+          pose = arrivalPose(destination, arrivalEase(elapsed))
+          radial = arrivalStreak(elapsed)
+          if (state.flightElapsed >= arrivalDuration) {
+            flight.phase = 'off'
+            flight.progress = 1
+            radial = 0
+            flight.finished()
+          }
+        }
+        invalidate()
+      } else if (travel) {
         const step = Math.min(delta, 0.1)
         if (!started) travel.elapsed += step
         const progress = travelProgress(travel.elapsed, travel.duration)
@@ -167,13 +224,14 @@ export function useOrreryCamera({
       state.heading = unwrapHeading(state.heading, heading(pose))
       space.offset = state.heading * starfieldPan
       space.streak = streak
+      space.radial = radial
 
-      const status = state.travel ? 'moving' : 'idle'
+      const status = state.travel || arriving ? 'moving' : 'idle'
       if (gl.domElement.dataset.galaxyTravel !== status) gl.domElement.dataset.galaxyTravel = status
       if (state.travel) invalidate()
 
       return { view: cameraView(pose, size.height), scene, moving: Boolean(state.travel) }
     },
-    [bounds, extent, motionReduced, spaceMotionRef, invalidate],
+    [bounds, extent, motionReduced, spaceMotionRef, arrivalRef, invalidate],
   )
 }

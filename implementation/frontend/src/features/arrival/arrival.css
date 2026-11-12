@@ -1,0 +1,236 @@
+/*
+ * The sign-in arrival. The paper login page dims to night like table lights
+ * going down, the wordmark carries over, and the camera falls towards the
+ * hearth. Everything here plays once, after a successful sign-in.
+ */
+
+:root {
+  --arrival-night: oklch(0.12 0.035 285);
+  --arrival-dusk: oklch(0.36 0.08 12);
+  --arrival-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arrival-layer {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  overflow: hidden;
+  cursor: default;
+}
+
+.arrival-layer[data-stage='settling'],
+.arrival-layer[data-stage='fading'] {
+  pointer-events: none;
+}
+
+.arrival-plate {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--color-paper);
+}
+
+.arrival-snapshot-host {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+.arrival-snapshot {
+  /* The plate carries the ground, so it can dim beneath the page's ink. */
+  background: transparent;
+  pointer-events: none;
+}
+
+.arrival-snapshot .auth-brand {
+  display: inline-block;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* Departing: the ink goes first, then the ground dims. */
+.arrival-layer[data-stage='departing'] .arrival-plate {
+  animation: arrival-dusk 750ms cubic-bezier(0.45, 0, 0.55, 1) 250ms both;
+}
+
+.arrival-layer[data-stage='departing'] :is(.auth-routes, .auth-intro) {
+  animation: arrival-ink-out 380ms var(--arrival-ease) both;
+}
+
+.arrival-layer[data-stage='departing'] .auth-intro {
+  animation-delay: 90ms;
+}
+
+.arrival-layer[data-stage='departing'] :is(.auth-navigation, .auth-header__folio, .auth-footer) {
+  animation: arrival-ink-out 380ms var(--arrival-ease) 130ms both;
+}
+
+.arrival-layer[data-stage='departing'] .auth-header {
+  animation: arrival-rules-out 700ms ease-out 250ms both;
+}
+
+/* The ink is already gone by the time the ground lifts. */
+.arrival-layer :is(.auth-routes, .auth-intro, .auth-navigation, .auth-header__folio, .auth-footer) {
+  opacity: 0;
+}
+
+.arrival-layer .auth-header {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.arrival-layer[data-stage='flying'] .arrival-plate,
+.arrival-layer[data-stage='settling'] .arrival-plate {
+  background: var(--arrival-night);
+}
+
+.arrival-layer[data-stage='flying'] .arrival-plate {
+  animation: arrival-lift 800ms cubic-bezier(0.33, 0, 0.2, 1) both;
+}
+
+.arrival-layer[data-stage='settling'] .arrival-plate {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+/* Reduced motion: the page crossfades into the galaxy with nothing travelling. */
+.arrival-layer[data-stage='fading'] {
+  animation: arrival-lift 250ms ease-out both;
+}
+
+.arrival-layer[data-stage='fading']
+  :is(.auth-routes, .auth-intro, .auth-navigation, .auth-header__folio, .auth-footer) {
+  opacity: 1;
+}
+
+.arrival-layer[data-stage='fading'] .auth-header {
+  border-top-color: var(--color-oxblood);
+  border-bottom-color: var(--color-rule);
+}
+
+.arrival-layer[data-stage='fading'] .arrival-skip {
+  display: none;
+}
+
+.arrival-skip {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #d8cbff32;
+  border-radius: 6px;
+  color: #f4efff;
+  background: #111021d9;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0;
+  animation: arrival-skip-in 400ms ease-out 900ms both;
+}
+
+.arrival-layer[data-stage='settling'] .arrival-skip {
+  visibility: hidden;
+}
+
+.arrival-skip:hover {
+  background: #312743;
+}
+
+.arrival-skip:focus-visible {
+  outline: 2px solid #d2baff;
+  outline-offset: 3px;
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes arrival-dusk {
+  from {
+    background-color: var(--color-paper);
+  }
+  45% {
+    background-color: var(--arrival-dusk);
+  }
+  to {
+    background-color: var(--arrival-night);
+  }
+}
+
+@keyframes arrival-ink-out {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+
+@keyframes arrival-rules-out {
+  from {
+    border-top-color: var(--color-oxblood);
+    border-bottom-color: var(--color-rule);
+  }
+  to {
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+  }
+}
+
+@keyframes arrival-lift {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes arrival-skip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * The galaxy beneath. While the camera travels, the interface waits; when it
+ * settles the ledger, prompt, account and labels arrive in turn. The galaxy
+ * header's wordmark stays hidden while the login wordmark carries it over.
+ */
+.galaxy-shell[data-arrival-held][data-arrival='departing'] .workspace-header__primary {
+  opacity: 0;
+}
+
+.galaxy-shell:is([data-arrival='departing'], [data-arrival='flying'])
+  :is(.workspace-account, .galaxy-index, .galaxy-orbit-controls, .galaxy-details-slot) {
+  opacity: 0;
+  translate: 0 12px;
+}
+
+.galaxy-shell:is([data-arrival='departing'], [data-arrival='flying']) .galaxy-planet-labels {
+  opacity: 0;
+}
+
+.galaxy-shell[data-arrival='settling']
+  :is(.workspace-account, .galaxy-index, .galaxy-orbit-controls) {
+  transition:
+    opacity 520ms var(--arrival-ease),
+    translate 520ms var(--arrival-ease);
+}
+
+.galaxy-shell[data-arrival='settling'] .galaxy-orbit-controls {
+  transition-delay: 120ms;
+}
+
+.galaxy-shell[data-arrival='settling'] .workspace-account {
+  transition-delay: 200ms;
+}
+
+.galaxy-shell[data-arrival='settling'] .galaxy-planet-labels {
+  transition: opacity 520ms ease-out 260ms;
+}

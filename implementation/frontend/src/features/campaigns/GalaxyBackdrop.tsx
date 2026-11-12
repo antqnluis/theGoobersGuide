@@ -1,7 +1,8 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react'
+import { Component, lazy, Suspense, type ReactNode, type RefObject } from 'react'
 
+import { loadGalaxyCanvas } from './loadGalaxyCanvas'
 import type { CampaignListItem } from './campaignTypes'
-import type { SceneBounds } from './orreryCamera'
+import type { ArrivalFlight, SceneBounds } from './orreryCamera'
 
 export type GalaxyProps = {
   /** Campaigns oldest first: the order of their orbits, outward from the hearth. */
@@ -17,9 +18,11 @@ export type GalaxyProps = {
   selectedId: string | null
   /** Members of the selected campaign, shown as its moons once known. */
   memberCount: number | undefined
+  /** The sign-in arrival, when the camera flies in rather than appearing on the chart. */
+  arrival: RefObject<ArrivalFlight>
 }
 
-const GalaxyCanvas = lazy(() => import('./GalaxyCanvas'))
+const GalaxyCanvas = lazy(loadGalaxyCanvas)
 
 class GalaxyRenderBoundary extends Component<
   { children: ReactNode; onFailure: () => void },

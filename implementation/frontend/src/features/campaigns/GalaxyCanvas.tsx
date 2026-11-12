@@ -60,9 +60,10 @@ export default function GalaxyCanvas({
   onSelect,
   selectedId,
   memberCount,
+  arrival,
 }: GalaxyProps) {
   const labels = useRef<HTMLDivElement>(null)
-  const spaceMotion = useRef<SpaceMotion>({ offset: 0, streak: 0 })
+  const spaceMotion = useRef<SpaceMotion>({ offset: 0, streak: 0, radial: 0 })
   const highlight = useRef<RingHighlight>({ focus: -1, hover: -1 })
   const layout = useMemo(() => orreryLayout(planets.map(({ id }) => id)), [planets])
 
@@ -93,9 +94,10 @@ export default function GalaxyCanvas({
           spaceMotion={spaceMotion}
           onContextLost={handleContextLost}
         />
-        <OrbitRings highlight={highlight} rings={layout.rings} />
+        <OrbitRings arrival={arrival} highlight={highlight} rings={layout.rings} />
         <OrreryWorlds
           animate={animate}
+          arrival={arrival}
           bounds={orbitBounds}
           extent={layout.extent}
           highlight={highlight}

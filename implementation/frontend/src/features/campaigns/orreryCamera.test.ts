@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  arrivalDistance,
+  arrivalEase,
+  arrivalPose,
+  arrivalReveal,
+  arrivalStreak,
   cameraView,
   chartElevationFor,
   chartPose,
@@ -212,5 +217,42 @@ describe('travel', () => {
       heading(near) * starfieldPan,
       12,
     )
+  })
+})
+
+describe('arrival flight', () => {
+  const chart = chartPose(8, desktop, viewHeight)
+
+  it('starts far out on the chart line of sight and ends on the chart', () => {
+    const far = arrivalPose(chart, 0)
+    const near = arrivalPose(chart, 1)
+    expect(near.position).toEqual(chart.position)
+    expect(far.target).toEqual(chart.target)
+    expect(far.principal).toEqual(chart.principal)
+    expect(Math.hypot(...far.position) / Math.hypot(...chart.position)).toBeCloseTo(arrivalDistance)
+    // The direction from the hearth never changes: the camera only closes in.
+    expect(far.position[1] / far.position[2]).toBeCloseTo(chart.position[1] / chart.position[2])
+  })
+
+  it('closes most of the distance early and decelerates into the chart', () => {
+    expect(arrivalEase(0)).toBe(0)
+    expect(arrivalEase(1.9)).toBe(1)
+    expect(arrivalEase(0.95)).toBeGreaterThan(0.8)
+    const steps = [0.2, 0.4, 0.6, 0.8, 1].map((t) => arrivalEase(t * 1.9))
+    steps.reduce((previous, value) => {
+      expect(value).toBeGreaterThan(previous)
+      return value
+    }, 0)
+    expect(steps[4] - steps[3]).toBeLessThan(steps[1] - steps[0])
+  })
+
+  it('streaks mid-flight, never at rest, and draws orbits in late', () => {
+    expect(arrivalStreak(0)).toBe(0)
+    expect(arrivalStreak(1.9)).toBe(0)
+    expect(arrivalStreak(0.47)).toBeGreaterThan(0.9)
+    expect(arrivalStreak(1.4)).toBeLessThan(0.15)
+    expect(arrivalReveal(0)).toBe(0)
+    expect(arrivalReveal(0.2 * 1.9)).toBe(0)
+    expect(arrivalReveal(1.9)).toBe(1)
   })
 })

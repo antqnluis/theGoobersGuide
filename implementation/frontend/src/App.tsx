@@ -1,4 +1,6 @@
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router'
+import { ArrivalLayer } from './features/arrival/ArrivalLayer'
+import { ArrivalProvider } from './features/arrival/ArrivalProvider'
 import { AuthAppShell } from './features/auth/AuthAppShell'
 import { AuthPage } from './features/auth/AuthPage'
 import { AuthProvider } from './features/auth/AuthProvider'
@@ -66,23 +68,26 @@ export default function App() {
     <AppProviders>
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<HomeRoute />} />
-            <Route element={<GuestRoute />}>
-              <Route path="/login" element={<></>} />
-              <Route path="/register" element={<></>} />
-            </Route>
-            <Route path="/app" element={<ProtectedRoute />}>
-              <Route index element={<Navigate to="campaigns" replace />} />
-              <Route path="campaigns" element={<CampaignSelectorLayout />}>
-                <Route path="new" element={<CreateCampaignPage />} />
+          <ArrivalProvider>
+            <Routes>
+              <Route path="/" element={<HomeRoute />} />
+              <Route element={<GuestRoute />}>
+                <Route path="/login" element={<></>} />
+                <Route path="/register" element={<></>} />
               </Route>
-              <Route path="campaigns/:campaignId" element={<CampaignWorkspacePage />} />
-            </Route>
-            <Route path="/dev/status" element={<DevelopmentStatusPage />} />
-            <Route path="/not-found" element={<NotFoundPage />} />
-            <Route path="*" element={<Navigate to="/not-found" replace />} />
-          </Routes>
+              <Route path="/app" element={<ProtectedRoute />}>
+                <Route index element={<Navigate to="campaigns" replace />} />
+                <Route path="campaigns" element={<CampaignSelectorLayout />}>
+                  <Route path="new" element={<CreateCampaignPage />} />
+                </Route>
+                <Route path="campaigns/:campaignId" element={<CampaignWorkspacePage />} />
+              </Route>
+              <Route path="/dev/status" element={<DevelopmentStatusPage />} />
+              <Route path="/not-found" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/not-found" replace />} />
+            </Routes>
+            <ArrivalLayer />
+          </ArrivalProvider>
         </AuthProvider>
       </BrowserRouter>
     </AppProviders>

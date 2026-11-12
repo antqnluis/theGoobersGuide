@@ -17,10 +17,30 @@ export type CameraPose = {
   principal: [number, number]
 }
 
-/** Sideways pan of the starfield and the strength of its flight streaks. */
-export type SpaceMotion = { offset: number; streak: number }
+/**
+ * Sideways pan of the starfield and the strength of its flight streaks.
+ * `radial` streaks stars away from the point the camera flies towards.
+ */
+export type SpaceMotion = { offset: number; streak: number; radial: number }
 
-export const travelDurations = { approach: 0.9, swing: 0.8, retreat: 0.6 }
+/**
+ * The sign-in arrival, shared between the arrival layer and the camera rig.
+ * `waiting` holds the camera far out, `flying` runs the approach, `skipping`
+ * cuts the remainder short. `progress` is the share of the flight that has run
+ * and `finished` is called once, when the camera has settled on the chart.
+ */
+export type ArrivalFlight = {
+  phase: 'off' | 'waiting' | 'flying' | 'skipping'
+  progress: number
+  finished: () => void
+}
+
+export const travelDurations = { approach: 0.9, swing: 0.8, retreat: 0.6, skip: 0.35 }
+
+/** Seconds the arrival flight takes from the far pose to the chart. */
+export const arrivalDuration = 1.9
+/** How many times farther than the chart the arrival starts. */
+export const arrivalDistance = 6
 
 const turn = Math.PI * 2
 const degrees = Math.PI / 180
@@ -148,6 +168,46 @@ export function focusPose(
     target: world,
     principal: [bounds.left + bounds.width / 2, bounds.top + bounds.height / 2],
   }
+}
+
+/**
+ * Arrival easing: a gentle start and a long deceleration, so most of the
+ * distance is covered in the first half and the last stretch settles.
+ */
+export function arrivalEase(elapsed: number, duration = arrivalDuration) {
+  const t = clamp(elapsed / duration, 0, 1)
+  const smooth = t * t * (3 - 2 * t)
+  return 1 - (1 - smooth) ** 3
+}
+
+/**
+ * The camera on its way in: straight down the chart's line of sight, with the
+ * distance closing by a constant ratio so the approach feels even.
+ */
+export function arrivalPose(chart: CameraPose, eased: number): CameraPose {
+  const [tx, ty, tz] = chart.target
+  const offset = chart.position.map((value, axis) => value - chart.target[axis]) as Point
+  const scale = arrivalDistance ** (1 - clamp(eased, 0, 1))
+  return {
+    position: [tx + offset[0] * scale, ty + offset[1] * scale, tz + offset[2] * scale],
+    target: chart.target,
+    principal: chart.principal,
+  }
+}
+
+/** Radial streak strength: follows the flight's speed, peaks early, gone before the end. */
+export function arrivalStreak(elapsed: number, duration = arrivalDuration) {
+  const t = clamp(elapsed / duration, 0, 1)
+  const smooth = t * t * (3 - 2 * t)
+  const speed = 3 * (1 - smooth) ** 2 * 6 * t * (1 - t)
+  return clamp(speed / 2.4, 0, 1)
+}
+
+/** Share of the system's orbits drawn in, from the hearth outward. */
+export function arrivalReveal(elapsed: number, duration = arrivalDuration) {
+  const t = clamp(elapsed / duration, 0, 1)
+  const part = clamp((t - 0.28) / 0.6, 0, 1)
+  return part * part * (3 - 2 * part)
 }
 
 function shortestTurn(from: number, to: number) {

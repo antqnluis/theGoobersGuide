@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
+import { useArrival } from '../arrival/useArrival'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
 import { isInternalEmail } from './authValidation'
@@ -11,6 +12,7 @@ export function AuthAppShell() {
   const isCreating = useMatch('/app/campaigns/new')
   const isGalaxy = Boolean(isSelector || isCreating)
   const queryClient = useQueryClient()
+  const { snapshot, stage } = useArrival()
   const { acceptSession, session } = useAuth()
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +48,11 @@ export function AuthAppShell() {
   }
 
   return (
-    <div className={isGalaxy ? 'workspace-page galaxy-shell' : 'workspace-page'}>
+    <div
+      className={isGalaxy ? 'workspace-page galaxy-shell' : 'workspace-page'}
+      data-arrival={isGalaxy && stage !== 'idle' ? stage : undefined}
+      data-arrival-held={isGalaxy && snapshot ? '' : undefined}
+    >
       <div className="workspace-page__frame">
         <a className="workspace-skip-link" href="#campaign-content">
           Skip to campaign content

@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { captureLoginPage } from '../arrival/captureLoginPage'
+import { useArrival } from '../arrival/useArrival'
 import { useAuth } from './useAuth'
 import { signInWithPassword, signUpWithPassword } from './authService'
 import { AuthField } from './AuthField'
@@ -18,6 +20,7 @@ type Feedback = {
 function AccountForm({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate()
   const { acceptSession } = useAuth()
+  const { begin: beginArrival } = useArrival()
   const [identifier, setIdentifier] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -65,6 +68,7 @@ function AccountForm({ mode }: { mode: AuthMode }) {
           return
         }
 
+        beginArrival({ userId: data.session.user.id, snapshot: captureLoginPage() })
         acceptSession(data.session)
         navigate('/app', { replace: true })
         return
@@ -86,6 +90,7 @@ function AccountForm({ mode }: { mode: AuthMode }) {
       }
 
       if (data.session) {
+        beginArrival({ userId: data.session.user.id, snapshot: captureLoginPage() })
         acceptSession(data.session)
         navigate('/app', { replace: true })
         return

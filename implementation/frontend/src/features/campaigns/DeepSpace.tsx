@@ -13,7 +13,10 @@ const starVertexShader = /* glsl */ `
   uniform float pixelRatio;
   uniform float backgroundOffset;
   uniform float flightStreak;
+  uniform float flightRadial;
   uniform float uTime;
+  varying vec2 vOutward;
+  varying float vRadial;
   varying float vPhase;
   varying vec3 vTint;
   varying float vIntensity;
@@ -36,7 +39,13 @@ const starVertexShader = /* glsl */ `
     float coreSize = max(1.0, diameter * pixelRatio * depth / -view.z);
     // Only foreground stars leave a long trail; the distant sky stays legible.
     vTrail = clamp(flightStreak, -1.0, 1.0) * smoothstep(0.45, 2.8, parallax);
-    gl_PointSize = coreSize + abs(vTrail) * 35.0 * pixelRatio;
+    // Arrival: foreground stars streak away from the point the camera flies towards.
+    vec2 vanishing = -vec2(projectionMatrix[2][0], projectionMatrix[2][1]);
+    vec2 away = gl_Position.xy / gl_Position.w - vanishing;
+    float awayLength = length(away);
+    vOutward = awayLength > 0.0001 ? away / awayLength : vec2(1.0, 0.0);
+    vRadial = flightRadial * smoothstep(0.45, 2.8, parallax) * smoothstep(0.04, 0.45, awayLength);
+    gl_PointSize = coreSize + (abs(vTrail) * 35.0 + vRadial * 62.0) * pixelRatio;
     vCoreRatio = coreSize / gl_PointSize;
     vTint = tint;
     vIntensity = intensity;
@@ -49,6 +58,8 @@ const starFragmentShader = /* glsl */ `
   varying float vIntensity;
   varying float vCoreRatio;
   varying float vTrail;
+  varying vec2 vOutward;
+  varying float vRadial;
   varying float vPhase;
   uniform float uTime;
 
@@ -66,6 +77,14 @@ const starFragmentShader = /* glsl */ `
       float across = (sprite.y - along * 0.12) / vCoreRatio;
       trail = exp(-7.0 * across * across) * smoothstep(-0.2, 0.08, along)
         * pow(max(0.0, 1.0 - along), 1.65) * abs(vTrail) * 0.85;
+    }
+    if (vRadial > 0.01) {
+      // Sprite space has y pointing down; the streak runs from the star back towards the centre.
+      vec2 screen = vec2(sprite.x, -sprite.y);
+      float behind = dot(screen, -vOutward);
+      float across = dot(screen, vec2(-vOutward.y, vOutward.x)) / vCoreRatio;
+      trail += exp(-7.0 * across * across) * smoothstep(-0.2, 0.08, behind)
+        * pow(max(0.0, 1.0 - behind), 1.65) * vRadial * 0.9;
     }
     gl_FragColor = vec4(vTint, (light + trail + rays * brightStar * 0.55) * vIntensity * shimmer);
   }
@@ -129,6 +148,7 @@ function Starfield({
       uTime: { value: 0 },
       backgroundOffset: { value: 0 },
       flightStreak: { value: 0 },
+      flightRadial: { value: 0 },
     }),
     [pixelRatio],
   )
@@ -141,6 +161,7 @@ function Starfield({
       material.current.uniforms.uTime.value = time.current
       material.current.uniforms.backgroundOffset.value = spaceMotion.current.offset
       material.current.uniforms.flightStreak.value = spaceMotion.current.streak
+      material.current.uniforms.flightRadial.value = spaceMotion.current.radial
     }
   })
 

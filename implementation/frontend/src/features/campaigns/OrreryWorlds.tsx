@@ -17,9 +17,11 @@ import {
 } from 'three'
 import type { RingHighlight } from './OrbitRings'
 import {
+  arrivalReveal,
   labelClearance,
   mix,
   projectedSphereExtent,
+  type ArrivalFlight,
   type SceneBounds,
   type SpaceMotion,
 } from './orreryCamera'
@@ -292,6 +294,7 @@ export function OrreryWorlds({
   selectedId,
   moonCount,
   spaceMotion: spaceMotionRef,
+  arrival: arrivalRef,
   onSelect,
 }: {
   worlds: readonly OrreryWorld[]
@@ -307,6 +310,7 @@ export function OrreryWorlds({
   /** Members of the selected campaign, once known. Each one is a moon. */
   moonCount: number | undefined
   spaceMotion: RefObject<SpaceMotion>
+  arrival: RefObject<ArrivalFlight>
   onSelect: (id: string) => void
 }) {
   const invalidate = useThree((state) => state.invalidate)
@@ -338,6 +342,7 @@ export function OrreryWorlds({
     visible,
     motionReduced,
     spaceMotion: spaceMotionRef,
+    arrival: arrivalRef,
   })
 
   const setHovered = useCallback(
@@ -411,7 +416,18 @@ export function OrreryWorlds({
     if (animate) clock.current += Math.min(delta, 0.1)
     const seconds = clock.current
     const spots = worlds.map((world) => orbitPosition(world, seconds))
-    worlds.forEach(({ id }, index) => groups.current.get(id)?.position.set(...spots[index]))
+    const flight = arrivalRef.current
+    // During the arrival each world grows as the drawn-in orbits reach its ring.
+    const reach =
+      flight.phase === 'off' ? Infinity : arrivalReveal(flight.progress, 1) * (extent + 3)
+    worlds.forEach(({ id, radius }, index) => {
+      const group = groups.current.get(id)
+      if (!group) return
+      group.position.set(...spots[index])
+      const size = (appearances.get(id)?.size ?? 1) * worldScale
+      const grown = Math.min(1, Math.max(0, (reach - radius) / 2.5))
+      group.scale.setScalar(Math.max(size * grown * grown * (3 - 2 * grown), 1e-4))
+    })
 
     const focusIndex = worlds.findIndex(({ id }) => id === selectedId)
     const focusAppearance = focusIndex < 0 ? undefined : appearances.get(worlds[focusIndex].id)

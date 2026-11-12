@@ -10,13 +10,15 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useMatch, useNavigate } from 'react-router'
-import { getCampaignMemberCount, listAccessibleCampaigns } from './campaignService'
+import { campaignListOptions } from './campaignQueries'
+import { getCampaignMemberCount } from './campaignService'
 import type { SceneBounds } from './orreryCamera'
 import { getOrbitTarget, stepCampaign } from './orreryLayout'
 import { orderPlanets } from './planetModel'
 import { GalaxyBackdrop } from './GalaxyBackdrop'
 import { WorldAnnotation } from './WorldAnnotation'
 import { WorldLedger, compactViewport } from './WorldLedger'
+import { useArrival } from '../arrival/useArrival'
 import { useAuth } from '../auth/useAuth'
 import './galaxy.css'
 
@@ -38,6 +40,7 @@ export function CampaignSelectorLayout() {
 }
 
 function CampaignSelector({ userId }: { userId: string }) {
+  const { flight, stage, reportGalaxy } = useArrival()
   const location = useLocation()
   const navigate = useNavigate()
   const isCreating = Boolean(useMatch('/app/campaigns/new'))
@@ -53,6 +56,14 @@ function CampaignSelector({ userId }: { userId: string }) {
   const [paused, setPaused] = useState(false)
   const prefersReducedMotion = useSyncExternalStore(subscribeToReducedMotion, getReducedMotion)
   const canPause = webglReady && !prefersReducedMotion
+  const arriving = stage !== 'idle' && stage !== 'fading'
+  const changeAvailability = useCallback(
+    (ready: boolean) => {
+      setWebglReady(ready)
+      reportGalaxy(ready)
+    },
+    [reportGalaxy],
+  )
   const [selection, setSelection] = useState<{ id: string; direction?: -1 | 1 } | null>(null)
   const selectedId = selection?.id ?? null
   const locationState = location.state as { campaignNotice?: string } | null
@@ -60,8 +71,7 @@ function CampaignSelector({ userId }: { userId: string }) {
     locationState?.campaignNotice === 'deleted' ? 'Campaign deleted.' : null,
   )
   const campaignsQuery = useQuery({
-    queryKey: ['campaigns', 'list', userId],
-    queryFn: () => listAccessibleCampaigns(userId),
+    ...campaignListOptions(userId),
     enabled: Boolean(userId) && !isCreating,
   })
 
@@ -182,10 +192,11 @@ function CampaignSelector({ userId }: { userId: string }) {
         planets={planets}
         orbitBounds={orbitBounds}
         targetId={orbitTarget}
-        interactive={!isCreating}
+        interactive={!isCreating && !arriving}
         motionReduced={prefersReducedMotion}
         paused={paused}
-        onAvailabilityChange={setWebglReady}
+        arrival={flight}
+        onAvailabilityChange={changeAvailability}
         onSelect={selectCampaign}
         selectedId={selectedCampaign?.id ?? null}
         memberCount={memberCount}

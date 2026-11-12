@@ -60,12 +60,16 @@ async function signIn(page: Page) {
     })
   })
 
+  // The sign-in arrival has its own spec; here it crossfades so the galaxy is ready at once.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/login')
   const signInForm = page.getByRole('region', { name: 'Sign in' })
   await signInForm.getByLabel('Username or email').fill(accountEmail)
   await signInForm.getByLabel('Password', { exact: true }).fill('adventure1')
   await signInForm.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(page.locator('.arrival-layer')).toHaveCount(0)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
 }
 
 async function mockCampaignApi(
