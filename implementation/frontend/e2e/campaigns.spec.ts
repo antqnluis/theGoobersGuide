@@ -622,6 +622,15 @@ test('selects a specific planet when campaign names match and refreshes labels b
     Number(dataset.planetX),
     Number(dataset.planetY),
   ])
+  // Pointing at a world marks it on the chart before it is chosen.
+  const canvas = page.locator('.galaxy-backdrop canvas')
+  await page.mouse.move(x, y)
+  await expect(canvas).toHaveAttribute('data-planet-hover', '')
+  await expect(label).toHaveAttribute('data-hovered', 'true')
+  await page.mouse.move(x, y + 200)
+  await expect(canvas).not.toHaveAttribute('data-planet-hover')
+  await expect(label).not.toHaveAttribute('data-hovered')
+
   await page.mouse.click(x, y)
   const details = page.getByRole('region', { name: 'Campaign details' })
   await expect(details.getByText(duplicate.description)).toBeVisible()
@@ -708,7 +717,7 @@ test('renders all six planet materials in the galaxy without WebGL shader errors
   expect(shaderErrors).toEqual([])
 })
 
-test('keeps the orbital carousel clear of controls and navigable with the keyboard', async ({
+test('keeps the focused world clear of controls and navigable with the keyboard', async ({
   page,
 }, testInfo) => {
   const second = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' }
@@ -843,17 +852,23 @@ test('guides each selection source to the same planet framing', async ({ page })
   const destination = await arrive()
   expect(destination[2]).toBeGreaterThan(neighbor[2])
 
+  // The world keeps orbiting between visits, so the framing is compared to within a pixel.
+  async function expectSameFraming() {
+    const framing = await arrive()
+    framing.forEach((value, index) => expect(value).toBeCloseTo(destination[index], 0))
+  }
+
   await overview()
   await page.getByRole('button', { name: second.name }).press('Enter')
-  expect(await arrive()).toEqual(destination)
+  await expectSameFraming()
 
   await overview()
   const next = page.getByRole('button', { name: 'Next campaign' })
   await next.press('Enter')
-  expect(await arrive()).toEqual(destination)
+  await expectSameFraming()
 })
 
-test('pans the starfield forward and backward across repeated planet handoffs', async ({
+test('turns the sky as the camera swings between worlds and restores it on the way back', async ({
   page,
 }) => {
   await page.clock.install()
@@ -869,48 +884,47 @@ test('pans the starfield forward and backward across repeated planet handoffs', 
   await page.clock.pauseAt(new Date(Date.now() + 1000))
   await page.getByRole('button', { name: redHand.name, exact: true }).press('Enter')
   await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
-  await page.clock.runFor(800)
+  await page.clock.runFor(1200)
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
 
-  // Sample an area outside the planets and overlays, with ambient motion paused.
-  const starfield = { clip: { x: 1050, y: 100, width: 360, height: 175 } }
-  const before = await page.screenshot(starfield)
+  // Sample the sky above the details panel. With ambient motion paused, nothing moves but the camera.
+  const sky = { clip: { x: 1050, y: 100, width: 360, height: 175 } }
+  const atFirst = await page.screenshot(sky)
   const next = page.getByRole('button', { name: 'Next campaign' })
   const previous = page.getByRole('button', { name: 'Previous campaign' })
 
   async function settle() {
-    await page.clock.runFor(800)
+    await page.clock.runFor(1200)
     await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
-    return page.screenshot(starfield)
+    return page.screenshot(sky)
   }
 
   await next.press('Enter')
   await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   await page.clock.runFor(300)
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
-  const during = await page.screenshot(starfield)
+  const during = await page.screenshot(sky)
 
-  const firstArrival = await settle()
-  expect(during.equals(before)).toBe(false)
-  expect(firstArrival.equals(before)).toBe(false)
-  expect(firstArrival.equals(during)).toBe(false)
+  const atSecond = await settle()
+  expect(during.equals(atFirst)).toBe(false)
+  expect(atSecond.equals(atFirst)).toBe(false)
+  expect(atSecond.equals(during)).toBe(false)
 
+  // Each world has its own place in the system, so coming back to it brings back its sky.
   await next.press('Enter')
   await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
-  const secondArrival = await settle()
-  expect(secondArrival.equals(firstArrival)).toBe(false)
-  expect(secondArrival.equals(before)).toBe(false)
+  expect((await settle()).equals(atFirst)).toBe(true)
 
   await previous.press('Enter')
   await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
-  expect((await settle()).equals(firstArrival)).toBe(true)
+  expect((await settle()).equals(atSecond)).toBe(true)
 
   await previous.press('Enter')
   await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
-  expect((await settle()).equals(before)).toBe(true)
+  expect((await settle()).equals(atFirst)).toBe(true)
 })
 
-test('keeps moving planet geometry and labels clear of responsive controls', async ({
+test('keeps travelling labels inside the scene and lands each world clear of the controls', async ({
   page,
 }, testInfo) => {
   const campaigns = [
@@ -950,7 +964,8 @@ test('keeps moving planet geometry and labels clear of responsive controls', asy
     await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
     if ((await disclosure.getAttribute('aria-expanded')) === 'false')
       await disclosure.press('Enter')
-    // Observe the entire handoff, including frames before the destination label has room to appear.
+    // Observe the whole flight. The world itself may pass behind the controls on the way,
+    // but its label only shows inside the clear part of the scene, above the world.
     const samples = page.evaluate(
       ({ from, to }) =>
         new Promise<{ x: number; clear: boolean }[]>((resolve, reject) => {
@@ -967,26 +982,18 @@ test('keeps moving planet geometry and labels clear of responsive controls', asy
               `.galaxy-planet-label[data-focal="true"][data-campaign-id="${to}"]`,
             )
             if (canvas.dataset.galaxyTravel === 'moving' && label) {
-              const { planetX, planetY, planetExtent } = label.dataset
-              if (planetX && planetY && planetExtent) {
-                const x = Number(planetX)
-                const y = Number(planetY)
-                const extent = Number(planetExtent)
+              const { planetX, planetY } = label.dataset
+              if (planetX && planetY) {
                 const { left, right, top, bottom } = rect.getBoundingClientRect()
                 const tag = label.getBoundingClientRect()
-                const labelHidden = getComputedStyle(label).visibility === 'hidden'
                 observations.push({
-                  x,
+                  x: Number(planetX),
                   clear:
-                    x - extent >= left - 1 &&
-                    x + extent <= right + 1 &&
-                    y - extent >= top - 1 &&
-                    y + extent <= bottom + 1 &&
-                    (labelHidden ||
-                      (tag.left >= left - 1 &&
-                        tag.right <= right + 1 &&
-                        tag.top >= top - 1 &&
-                        tag.bottom <= y - extent + 1)),
+                    getComputedStyle(label).visibility === 'hidden' ||
+                    (tag.left >= left - 1 &&
+                      tag.right <= right + 1 &&
+                      tag.top >= top - 1 &&
+                      tag.bottom <= Math.min(bottom, Number(planetY)) + 1),
                 })
               }
             }
@@ -1012,7 +1019,31 @@ test('keeps moving planet geometry and labels clear of responsive controls', asy
     await expect(details.getByRole('heading', { name: last.name })).toBeVisible()
     await expect(details.getByRole('link', { name: 'Enter campaign' })).toBeInViewport()
     if (width === 375) await disclosure.press('Enter')
-    await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toBeVisible()
+    const arrived = page.locator('.galaxy-planet-label[data-focal="true"]')
+    await expect(arrived).toBeVisible()
+    // Once there, the world, its moons, and its label all sit inside the clear part of the scene.
+    await expect
+      .poll(() =>
+        arrived.evaluate((label) => {
+          const { planetX, planetY, planetExtent } = (label as HTMLElement).dataset
+          const x = Number(planetX)
+          const y = Number(planetY)
+          const extent = Number(planetExtent)
+          const scene = document.querySelector('.galaxy-orbit-space')!.getBoundingClientRect()
+          const tag = label.getBoundingClientRect()
+          return (
+            Math.abs(x - (scene.left + scene.width / 2)) < 1 &&
+            Math.abs(y - (scene.top + scene.height / 2)) < 1 &&
+            x - extent >= scene.left &&
+            x + extent <= scene.right &&
+            y - extent >= scene.top &&
+            y + extent <= scene.bottom &&
+            tag.top >= scene.top - 1 &&
+            tag.bottom <= y
+          )
+        }),
+      )
+      .toBe(true)
     await page.screenshot({ path: testInfo.outputPath(`travel-${width}-settled.png`) })
   }
 

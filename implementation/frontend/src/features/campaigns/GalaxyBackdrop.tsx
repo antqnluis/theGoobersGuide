@@ -1,11 +1,13 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react'
 
-import type { OrbitBounds } from './campaignOrbit'
 import type { CampaignListItem } from './campaignTypes'
+import type { SceneBounds } from './orreryCamera'
 
 export type GalaxyProps = {
+  /** Campaigns oldest first: the order of their orbits, outward from the hearth. */
   planets: CampaignListItem[]
-  orbitBounds: OrbitBounds | null
+  /** The part of the screen the controls leave clear, or null for all of it. */
+  orbitBounds: SceneBounds | null
   targetId: string | null
   interactive: boolean
   motionReduced: boolean
@@ -13,7 +15,8 @@ export type GalaxyProps = {
   onAvailabilityChange: (ready: boolean) => void
   onSelect: (id: string) => void
   selectedId: string | null
-  stepDirection?: -1 | 1
+  /** Members of the selected campaign, shown as its moons once known. */
+  memberCount: number | undefined
 }
 
 const GalaxyCanvas = lazy(() => import('./GalaxyCanvas'))

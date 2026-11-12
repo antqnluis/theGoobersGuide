@@ -11,7 +11,8 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
 import { getCampaignMemberCount, listAccessibleCampaigns } from './campaignService'
-import { getOrbitTarget, stepCampaign, type OrbitBounds } from './campaignOrbit'
+import type { SceneBounds } from './orreryCamera'
+import { getOrbitTarget, stepCampaign } from './orreryLayout'
 import { orderPlanets } from './planetModel'
 import { GalaxyBackdrop } from './GalaxyBackdrop'
 import { useAuth } from '../auth/useAuth'
@@ -44,7 +45,7 @@ function CampaignSelector({ userId }: { userId: string }) {
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
   const openedFromOverviewAction = useRef(false)
   const sceneRef = useRef<HTMLDivElement>(null)
-  const [orbitBounds, setOrbitBounds] = useState<OrbitBounds | null>(null)
+  const [orbitBounds, setOrbitBounds] = useState<SceneBounds | null>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(() => !window.matchMedia?.(compactViewport).matches)
   const restoreFocusOnPauseRemoval = useCallback((button: HTMLButtonElement | null) => {
@@ -162,7 +163,7 @@ function CampaignSelector({ userId }: { userId: string }) {
         onAvailabilityChange={setWebglReady}
         onSelect={selectCampaign}
         selectedId={selectedCampaign?.id ?? null}
-        stepDirection={selection?.direction}
+        memberCount={memberCount}
       />
       {isCreating ? (
         <div className="galaxy-create">

@@ -590,6 +590,7 @@
   pointer-events: none;
 }
 
+/* Engraved onto the sky: an ink wash keeps the lettering legible over worlds and stars. */
 .galaxy-planet-label {
   position: absolute;
   top: 0;
@@ -597,24 +598,31 @@
   visibility: hidden;
   max-width: min(12rem, calc(100% - 16px));
   overflow: hidden;
-  padding: 2px 8px;
-  border: 1px solid var(--galaxy-rule);
-  border-radius: 6px;
-  color: var(--galaxy-ink);
-  background: #141025;
+  padding: 1px 7px 2px;
+  border-radius: 3px;
+  color: var(--galaxy-muted);
+  background: #0b0a18b8;
   font-family: 'Source Serif 4', Georgia, serif;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.galaxy-planet-label[data-focal='false'] {
-  color: var(--galaxy-muted);
-  font-size: 0.78rem;
+/* The catalogue numeral counts outward from the hearth, oldest campaign first. */
+.galaxy-planet-label::before {
+  margin-inline-end: 0.5em;
+  color: var(--galaxy-accent);
+  content: attr(data-catalogue);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+.galaxy-planet-label:is([data-focal='true'], [data-hovered='true']) {
+  color: var(--galaxy-ink);
 }
 
 .galaxy-planet-label[data-selected='true'] {
-  border-color: #f5d3ae83;
   color: var(--galaxy-accent);
 }
 

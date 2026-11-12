@@ -252,3 +252,36 @@ export const planetRing = /* glsl */ `
     #include <colorspace_fragment>
   }
 `
+
+// Moons share one instanced mesh, so their vertex stage applies each instance's own transform.
+export const moonVertex = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec3 vOutward;
+
+  void main() {
+    mat4 placed = modelMatrix * instanceMatrix;
+    vWorld = (placed * vec4(position, 1.0)).xyz;
+    vOutward = mat3(placed) * position;
+    gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
+  }
+`
+
+// Bare rock lit by the star: a hard terminator and no air.
+export const moonSurface = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec3 vOutward;
+  uniform vec3 uRock;
+
+  ${sun}
+
+  void main() {
+    vec3 outward = normalize(vOutward);
+    vec3 sunlight = normalize(uSunPosition - vWorld);
+    float day = smoothstep(-0.04, 0.3, dot(outward, sunlight));
+    vec3 lit = uRock * (nightTint + day * (0.3 + 0.9 * max(dot(outward, sunlight), 0.0)) * sunTint);
+
+    gl_FragColor = vec4(lit, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`

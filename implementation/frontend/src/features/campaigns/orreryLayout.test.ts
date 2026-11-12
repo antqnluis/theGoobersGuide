@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  catalogueNumeral,
+  getOrbitTarget,
   maxRings,
   orbitAngle,
   orbitPosition,
   orreryLayout,
   ringCounts,
   ringRadius,
+  stepCampaign,
 } from './orreryLayout'
 
 function campaignIds(count: number) {
@@ -137,5 +140,37 @@ describe('orrery layout', () => {
     const [laterX, , laterZ] = orbitPosition(world, world.period)
     expect(laterX).toBeCloseTo(x, 10)
     expect(laterZ).toBeCloseTo(z, 10)
+  })
+})
+
+describe('orbit order', () => {
+  it('treats the innermost world as focal until a listed campaign is selected', () => {
+    expect(getOrbitTarget([], null)).toBeNull()
+    expect(getOrbitTarget(['first', 'second'], null)).toBe('first')
+    expect(getOrbitTarget(['first', 'second'], 'second')).toBe('second')
+    expect(getOrbitTarget(['first'], 'removed')).toBe('first')
+  })
+
+  it('steps through the given order and wraps in both directions', () => {
+    const ids = ['first', 'second', 'third']
+    expect(stepCampaign([], null, 1)).toBeNull()
+    expect(stepCampaign(ids, null, 1)).toBe('second')
+    expect(stepCampaign(ids, null, -1)).toBe('third')
+    expect(stepCampaign(ids, 'removed', 1)).toBe('second')
+    expect(stepCampaign(ids, 'first', -1)).toBe('third')
+    expect(stepCampaign(ids, 'third', 1)).toBe('first')
+    expect(stepCampaign(ids, 'second', 1)).toBe('third')
+  })
+
+  it('numbers worlds from the hearth outward in Roman numerals', () => {
+    expect([0, 1, 3, 8, 13, 31, 39].map(catalogueNumeral)).toEqual([
+      'I',
+      'II',
+      'IV',
+      'IX',
+      'XIV',
+      'XXXII',
+      'XL',
+    ])
   })
 })

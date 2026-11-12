@@ -3,6 +3,9 @@
 
 export const maxRings = 8
 
+/** Radius of the hearth's visible disc. */
+export const hearthRadius = 0.62
+
 const innerRadius = 3.4
 const ringSpacing = 2.2
 // Below 1 the gaps tighten outward, so eight rings stay within one overview.
@@ -117,4 +120,42 @@ export function orbitPosition(
 ): [number, number, number] {
   const angle = orbitAngle(world, seconds)
   return [Math.cos(angle) * world.radius, 0, Math.sin(angle) * world.radius]
+}
+
+/** The world the scene treats as focal: the selected one, or the innermost while nothing is selected. */
+export function getOrbitTarget(ids: readonly string[], selectedId: string | null) {
+  return selectedId !== null && ids.includes(selectedId) ? selectedId : (ids[0] ?? null)
+}
+
+/** Steps outward (1) or inward (-1) through the orbit order, wrapping at both ends. */
+export function stepCampaign(ids: readonly string[], selectedId: string | null, direction: -1 | 1) {
+  const target = getOrbitTarget(ids, selectedId)
+  if (target === null) return null
+  const index = ids.indexOf(target)
+  return ids[(index + direction + ids.length) % ids.length]
+}
+
+const numerals = [
+  ['C', 100],
+  ['XC', 90],
+  ['L', 50],
+  ['XL', 40],
+  ['X', 10],
+  ['IX', 9],
+  ['V', 5],
+  ['IV', 4],
+  ['I', 1],
+] as const
+
+/** Catalogue numeral for a world's place in the orbit order: 0 is I, 1 is II. */
+export function catalogueNumeral(index: number) {
+  let rest = index + 1
+  let numeral = ''
+  for (const [symbol, value] of numerals) {
+    while (rest >= value) {
+      numeral += symbol
+      rest -= value
+    }
+  }
+  return numeral
 }

@@ -10,12 +10,15 @@ import {
 } from 'react'
 
 import type { GalaxyProps } from './GalaxyBackdrop'
-import { CampaignPlanets } from './CampaignPlanets'
 import { DeepSpace } from './DeepSpace'
-import { positionCampaignOrbit } from './campaignOrbit'
-import { cameraFov, overviewPose, type SpaceMotion } from './campaignTravel'
+import { HearthStar } from './HearthStar'
+import { OrbitRings, type RingHighlight } from './OrbitRings'
+import { OrreryWorlds } from './OrreryWorlds'
+import { cameraFov, type SpaceMotion } from './orreryCamera'
+import { catalogueNumeral, orreryLayout } from './orreryLayout'
 
-const cameraOptions = { position: overviewPose.position, fov: cameraFov, far: 180 }
+// The rig places the camera before the first frame is drawn.
+const cameraOptions = { position: [0, 12, 30] as const, fov: cameraFov, near: 0.1, far: 400 }
 
 function GalaxyScene({
   animate,
@@ -35,9 +38,8 @@ function GalaxyScene({
 
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[-10, 12, 9]} intensity={2} />
       <DeepSpace animate={animate} spaceMotion={spaceMotion} />
+      <HearthStar animate={animate} />
     </>
   )
 }
@@ -57,31 +59,12 @@ export default function GalaxyCanvas({
   onAvailabilityChange,
   onSelect,
   selectedId,
-  stepDirection,
+  memberCount,
 }: GalaxyProps) {
   const labels = useRef<HTMLDivElement>(null)
   const spaceMotion = useRef<SpaceMotion>({ offset: 0, streak: 0 })
-  const order = useMemo(() => planets.map(({ id }) => id), [planets])
-  const slots = useMemo(
-    () => (orbitBounds ? positionCampaignOrbit(order, targetId, orbitBounds) : []),
-    [orbitBounds, order, targetId],
-  )
-  const names = useMemo(() => new Map(planets.map(({ id, name }) => [id, name])), [planets])
-  const destinations = useMemo(() => slots.map(({ id }) => id), [slots])
-  const destinationKey = destinations.join(',')
-  const [roster, setRoster] = useState({ key: destinationKey, ids: destinations })
-  if (roster.key !== destinationKey) {
-    const departing = roster.ids.filter((id) => !destinations.includes(id) && names.has(id))
-    setRoster({ key: destinationKey, ids: [...destinations, ...departing.slice(0, 3)] })
-  }
-  const ids = useMemo(() => roster.ids.filter((id) => names.has(id)), [roster.ids, names])
-  const releaseDeparting = useCallback(() => {
-    setRoster((current) =>
-      current.key === destinationKey && current.ids.length > destinations.length
-        ? { key: destinationKey, ids: destinations }
-        : current,
-    )
-  }, [destinationKey, destinations])
+  const highlight = useRef<RingHighlight>({ focus: -1, hover: -1 })
+  const layout = useMemo(() => orreryLayout(planets.map(({ id }) => id)), [planets])
 
   const [contextLost, setContextLost] = useState(false)
   const handleContextLost = useCallback(() => {
@@ -110,34 +93,35 @@ export default function GalaxyCanvas({
           spaceMotion={spaceMotion}
           onContextLost={handleContextLost}
         />
-        <CampaignPlanets
+        <OrbitRings highlight={highlight} rings={layout.rings} />
+        <OrreryWorlds
           animate={animate}
-          spaceMotion={spaceMotion}
           bounds={orbitBounds}
-          ids={ids}
+          extent={layout.extent}
+          highlight={highlight}
           interactive={interactive}
           labels={labels}
+          moonCount={memberCount}
           motionReduced={motionReduced}
           onSelect={onSelect}
-          onSettled={releaseDeparting}
-          order={order}
-          visible={isVisible}
-          slots={slots}
           selectedId={selectedId}
-          stepDirection={stepDirection}
+          spaceMotion={spaceMotion}
+          visible={isVisible}
+          worlds={layout.worlds}
         />
       </Canvas>
       <div className="galaxy-planet-labels" ref={labels}>
-        {ids.map((id) => (
+        {planets.map(({ id, name }, index) => (
           <span
             className="galaxy-planet-label"
             data-campaign-id={id}
-            data-focal={id === slots[0]?.id}
+            data-catalogue={catalogueNumeral(index)}
+            data-focal={id === targetId}
             data-selected={id === selectedId}
             key={id}
             style={orbitBounds ? { maxWidth: `min(12rem, ${orbitBounds.width}px)` } : undefined}
           >
-            {names.get(id)}
+            {name}
           </span>
         ))}
       </div>
