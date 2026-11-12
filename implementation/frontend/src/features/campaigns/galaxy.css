@@ -136,6 +136,10 @@
   gap: 6px;
 }
 
+.galaxy-orbit-controls > .galaxy-prompt {
+  pointer-events: none;
+}
+
 .galaxy-orbit-nav {
   display: flex;
   gap: 6px;
@@ -223,10 +227,14 @@
 }
 
 .galaxy-create-link {
-  color: var(--galaxy-accent);
+  color: var(--galaxy-muted);
   font-size: 0.86rem;
-  font-weight: 650;
+  font-weight: 600;
   text-decoration: none;
+}
+
+.galaxy-create-link:hover {
+  color: var(--galaxy-accent);
 }
 
 .galaxy-index-actions {
@@ -286,8 +294,30 @@
 }
 
 .galaxy-list-button {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  gap: 4px;
   border: 1px solid transparent;
   font-size: 0.9rem;
+}
+
+/* The catalogue numeral and owner mark are typeset like a book's contents. */
+.galaxy-list-button__numeral,
+.galaxy-list-button__mark {
+  color: var(--galaxy-muted);
+  font-family: var(--font-display);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.galaxy-list-button__numeral {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+.galaxy-list-button__mark {
+  font-size: 0.68rem;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.1em;
 }
 
 .galaxy-list-button[aria-pressed='true'] {
@@ -295,6 +325,40 @@
   color: var(--galaxy-accent);
   background: #453240;
   font-weight: 700;
+}
+
+.galaxy-list-button[aria-pressed='true']
+  :is(.galaxy-list-button__numeral, .galaxy-list-button__mark) {
+  color: var(--galaxy-accent);
+}
+
+.galaxy-ledger-filter {
+  display: grid;
+  gap: 2px;
+  padding: 4px 8px 0;
+}
+
+.galaxy-ledger-filter label {
+  color: var(--galaxy-muted);
+  font-size: 0.75rem;
+}
+
+.galaxy-ledger-filter input {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--galaxy-rule);
+  border-radius: 4px;
+  color: var(--galaxy-ink);
+  background: #0b0a18;
+  font-size: 0.86rem;
+  accent-color: var(--galaxy-accent);
+}
+
+.galaxy-prompt {
+  margin: 0;
+  color: var(--galaxy-muted);
+  font: italic 400 0.95rem/1.3 var(--font-display);
+  text-wrap: balance;
 }
 
 .galaxy-disclosure:hover,
@@ -337,6 +401,47 @@
   justify-content: flex-end;
 }
 
+.galaxy-plate {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  border: 1px solid var(--galaxy-rule);
+  border-radius: 3px;
+  background: #0b0a18f2;
+  box-shadow:
+    inset 0 0 0 3px #0b0a18f2,
+    inset 0 0 0 4px var(--galaxy-rule),
+    0 14px 30px -14px #000000b3;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  scrollbar-color: #a696c7 #191427;
+}
+
+.galaxy-leader {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.galaxy-leader line {
+  stroke: var(--galaxy-accent);
+  stroke-dasharray: 1;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  /* The line draws in after the camera has landed on the world. */
+  animation: galaxy-leader-draw 250ms cubic-bezier(0.16, 1, 0.3, 1) 700ms both;
+}
+
+.galaxy-leader circle {
+  fill: var(--galaxy-accent);
+  animation: galaxy-leader-dot 160ms ease-out 900ms both;
+}
+
 .galaxy-details {
   display: flex;
   min-height: 0;
@@ -377,6 +482,10 @@
 
 .galaxy-details__meta p {
   font-size: 0.79rem;
+}
+
+.galaxy-catalogue {
+  font-variant-numeric: lining-nums;
 }
 
 .galaxy-details__members {
@@ -474,6 +583,18 @@
 .galaxy-shell ::selection {
   color: #251829;
   background: #f5d3ae;
+}
+
+@keyframes galaxy-leader-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes galaxy-leader-dot {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes galaxy-detail-arrive {
