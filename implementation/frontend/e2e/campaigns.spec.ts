@@ -218,7 +218,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   await mockCampaignApi(page, [redHand])
   await signIn(page)
 
-  const campaign = page.getByRole('button', { name: 'The Red Hand' })
+  const campaign = page.getByRole('button', { name: 'The Red Hand', exact: true })
   const details = page.getByRole('region', { name: 'Campaign details' })
   const openWorkspace = page.getByRole('link', { name: 'Enter campaign' })
   await expect(openWorkspace).toHaveCount(0)
@@ -267,10 +267,10 @@ test('scopes member counts to the selected campaign and retries failures', async
   await signIn(page)
 
   const details = page.getByRole('region', { name: 'Campaign details' })
-  await expect(page.getByRole('button', { name: redHand.name })).toBeVisible()
+  await expect(page.getByRole('button', { name: redHand.name, exact: true })).toBeVisible()
   await expect(details).toHaveCount(0)
   expect(requests).toEqual([])
-  await page.getByRole('button', { name: redHand.name }).click()
+  await page.getByRole('button', { name: redHand.name, exact: true }).click()
   await expect(details.getByText('Loading member count…')).toBeVisible()
   await expect.poll(() => requests).toEqual([redHand.id])
 
@@ -310,7 +310,7 @@ test('validates and creates a campaign before opening its workspace', async ({ p
 test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await mockCampaignApi(page, [redHand])
   await signIn(page)
-  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
   await page.getByRole('link', { name: 'Enter campaign' }).click()
 
   await page.getByRole('button', { name: 'Edit details' }).click()
@@ -342,7 +342,7 @@ test('shows member access without owner controls', async ({ page }) => {
   await mockCampaignApi(page, [memberCampaign], { memberMode: true })
   await signIn(page)
 
-  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
   await expect(page.getByText('Your role:')).toContainText('Member')
   await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByText('Your role').locator('..')).toContainText('Member')
@@ -369,7 +369,7 @@ test('clears selection when a refresh removes access to the campaign', async ({ 
   await mockCampaignApi(page, [redHand], { hideFromList: () => hideCampaign })
   await signIn(page)
 
-  const campaign = page.getByRole('button', { name: 'The Red Hand' })
+  const campaign = page.getByRole('button', { name: 'The Red Hand', exact: true })
   const create = page.getByRole('link', { name: 'Create campaign', exact: true })
   const back = page.getByRole('link', { name: 'Back to campaigns' })
   await campaign.click()
@@ -396,7 +396,7 @@ test('shows a loading state while campaigns are fetched', async ({ page }) => {
   await expect(
     page.getByRole('status').filter({ hasText: 'Gathering your campaigns…' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'The Red Hand' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'The Red Hand', exact: true })).toBeVisible()
 })
 
 test('keyboard skip link focuses the campaign content', async ({ page }) => {
@@ -453,10 +453,12 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
         const disclosure = page.getByRole('button', { name: 'Your campaigns' })
         if (width === 375) {
           await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
-          await expect(page.getByRole('button', { name: 'The Red Hand' })).toHaveCount(0)
+          await expect(page.getByRole('button', { name: 'The Red Hand', exact: true })).toHaveCount(
+            0,
+          )
           await disclosure.press('Enter')
         }
-        await page.getByRole('button', { name: 'The Red Hand' }).click()
+        await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
         await expect(page.getByRole('link', { name: 'Enter campaign' })).toBeVisible()
         if (width === 375) await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
       }
@@ -495,7 +497,7 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   const disclosure = page.getByRole('button', { name: 'Your campaigns' })
   await disclosure.click()
   await disclosure.click()
-  await page.getByRole('button', { name: 'The Red Hand' }).click()
+  await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
   await page.getByRole('link', { name: 'Create campaign' }).click()
   await expect(page.getByRole('heading', { name: 'Create a campaign' })).toBeVisible()
   expect(await canvas.evaluate((element, original) => element === original, originalCanvas)).toBe(
@@ -503,7 +505,7 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   )
 
   await page.getByRole('link', { name: 'Back to campaigns' }).click()
-  await expect(page.getByRole('button', { name: 'The Red Hand' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'The Red Hand', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
@@ -580,10 +582,17 @@ test('keeps the selector usable when WebGL cannot start', async ({ page }) => {
 
   await initializationFailure
   await expect(page.locator('.galaxy-backdrop canvas')).toHaveCount(0)
+  const preview = page.getByRole('button', { name: 'View The Red Hand', exact: true })
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  await preview.press('Enter')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeFocused()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await details.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
+  await expect(preview).toBeFocused()
   await page.getByRole('button', { name: 'Next campaign' }).click()
-  await expect(page.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await expect(details.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
   await page.getByRole('link', { name: 'Enter campaign' }).click()
-  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
 })
 
 test('selects a specific planet when campaign names match and refreshes labels by ID', async ({
@@ -728,6 +737,15 @@ test('keeps the orbital carousel clear of controls and navigable with the keyboa
     await expect(focal).toHaveText(redHand.name)
     await expect(focal).toHaveAttribute('data-selected', 'false')
     await expect(details).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'View The Red Hand', exact: true }),
+    ).toBeInViewport()
+    if (width > 375) {
+      await expect(
+        page.getByRole('list', { name: 'Campaign list' }).getByRole('button'),
+      ).toHaveText([redHand.name, second.name, third.name])
+    }
+    await page.screenshot({ path: testInfo.outputPath(`orbital-overview-${width}.png`) })
     await previous.press('Enter')
     await expect(previous).toBeFocused()
     await expect(focal).toHaveText(third.name)
@@ -832,9 +850,6 @@ test('guides each selection source to the same planet framing', async ({ page })
   await overview()
   const next = page.getByRole('button', { name: 'Next campaign' })
   await next.press('Enter')
-  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
-  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
-  await next.press('Enter')
   expect(await arrive()).toEqual(destination)
 })
 
@@ -852,7 +867,7 @@ test('pans the starfield forward and backward across repeated planet handoffs', 
   await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toBeVisible()
   await page.getByRole('button', { name: 'Pause ambient motion' }).press('Space')
   await page.clock.pauseAt(new Date(Date.now() + 1000))
-  await page.getByRole('button', { name: redHand.name }).press('Enter')
+  await page.getByRole('button', { name: redHand.name, exact: true }).press('Enter')
   await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
   await page.clock.runFor(800)
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
@@ -928,6 +943,11 @@ test('keeps moving planet geometry and labels clear of responsive controls', asy
     await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
 
     const disclosure = page.getByRole('button', { name: 'Your campaigns' })
+    if ((await disclosure.getAttribute('aria-expanded')) === 'false')
+      await disclosure.press('Enter')
+    await page.getByRole('button', { name: first.name, exact: true }).press('Enter')
+    await expect(details.getByRole('heading', { name: first.name })).toBeVisible()
+    await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
     if ((await disclosure.getAttribute('aria-expanded')) === 'false')
       await disclosure.press('Enter')
     // Observe the entire handoff, including frames before the destination label has room to appear.
@@ -1037,10 +1057,12 @@ test('retargets and returns immediately while ambient motion is paused', async (
 
   await next.press('Enter')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
-  await next.press('Enter')
   await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   await next.press('Enter')
   await expect(details.getByRole('heading', { name: third.name })).toBeVisible()
+  await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
+  await page.getByRole('button', { name: 'Previous campaign' }).press('Enter')
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await details.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
   await expect(details).toHaveCount(0)

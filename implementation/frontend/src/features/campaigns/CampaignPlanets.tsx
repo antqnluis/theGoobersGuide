@@ -13,6 +13,7 @@ import {
 import type { OrbitBounds, OrbitSlot } from './campaignOrbit'
 import { planetAppearance } from './planetModel'
 import { planetRing, planetSurface, planetVertex } from './planetShaders'
+import type { SpaceMotion } from './campaignTravel'
 import { useGalaxyTravel } from './useGalaxyTravel'
 
 const globeGeometry = new SphereGeometry(1, 48, 32)
@@ -171,7 +172,7 @@ export function CampaignPlanets({
   motionReduced,
   selectedId,
   stepDirection,
-  backgroundOffset,
+  spaceMotion,
   onSelect,
   onSettled,
 }: {
@@ -186,7 +187,7 @@ export function CampaignPlanets({
   motionReduced: boolean
   selectedId: string | null
   stepDirection?: -1 | 1
-  backgroundOffset: RefObject<number>
+  spaceMotion: RefObject<SpaceMotion>
   onSelect: (id: string) => void
   onSettled: () => void
 }) {
@@ -199,7 +200,7 @@ export function CampaignPlanets({
     appearances,
     selectedId,
     stepDirection,
-    backgroundOffset,
+    spaceMotion,
     visible,
     interactive,
     motionReduced,

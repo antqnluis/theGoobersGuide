@@ -40,6 +40,9 @@ function CampaignSelector({ userId }: { userId: string }) {
   const navigate = useNavigate()
   const isCreating = Boolean(useMatch('/app/campaigns/new'))
   const selectedButtonRef = useRef<HTMLButtonElement>(null)
+  const viewCampaignRef = useRef<HTMLButtonElement>(null)
+  const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
+  const openedFromOverviewAction = useRef(false)
   const sceneRef = useRef<HTMLDivElement>(null)
   const [orbitBounds, setOrbitBounds] = useState<OrbitBounds | null>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
@@ -105,6 +108,20 @@ function CampaignSelector({ userId }: { userId: string }) {
 
   const planets = useMemo(() => orderPlanets(campaignsQuery.data), [campaignsQuery.data])
   const orbitIds = useMemo(() => planets.map(({ id }) => id), [planets])
+  const orbitTarget = getOrbitTarget(orbitIds, selectedId)
+  const overviewCampaign = detailsOpen ? null : planets[0]
+
+  useLayoutEffect(() => {
+    if (!openedFromOverviewAction.current || isCreating) return
+    if (detailsOpen) {
+      detailsHeadingRef.current?.focus({ preventScroll: true })
+    } else {
+      const returnFocus = viewCampaignRef.current ?? disclosureRef.current
+      returnFocus?.focus({ preventScroll: true })
+      openedFromOverviewAction.current = false
+    }
+  }, [detailsOpen, isCreating])
+
   const memberCountQuery = useQuery({
     queryKey: ['campaigns', 'member-count', selectedCampaign?.id, userId],
     queryFn: () => getCampaignMemberCount(selectedCampaign!.id),
@@ -114,6 +131,7 @@ function CampaignSelector({ userId }: { userId: string }) {
 
   const selectCampaign = useCallback(
     (id: string, direction?: -1 | 1) => {
+      openedFromOverviewAction.current = false
       setSelection({ id, direction })
       if (window.matchMedia?.(compactViewport).matches) {
         if (expanded && !direction) disclosureRef.current?.focus()
@@ -137,7 +155,7 @@ function CampaignSelector({ userId }: { userId: string }) {
       <GalaxyBackdrop
         planets={planets}
         orbitBounds={orbitBounds}
-        targetId={getOrbitTarget(orbitIds, selectedId)}
+        targetId={orbitTarget}
         interactive={!isCreating}
         motionReduced={prefersReducedMotion}
         paused={paused}
@@ -214,7 +232,7 @@ function CampaignSelector({ userId }: { userId: string }) {
                 )}
                 {campaignsQuery.isSuccess && campaignsQuery.data.length > 0 && (
                   <ul aria-label="Campaign list" className="galaxy-list">
-                    {campaignsQuery.data.map((campaign) => (
+                    {planets.map((campaign) => (
                       <li key={campaign.id}>
                         <button
                           aria-pressed={selectedId === campaign.id}
@@ -262,22 +280,37 @@ function CampaignSelector({ userId }: { userId: string }) {
 
           <div aria-hidden="true" className="galaxy-orbit-space" ref={sceneRef} />
 
-          {planets.length > 1 && (
-            <nav aria-label="Campaign orbit" className="galaxy-orbit-nav">
-              <button className="galaxy-action" onClick={() => step(-1)} type="button">
-                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                  <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                Previous campaign
+          <div className="galaxy-orbit-controls">
+            {overviewCampaign && (
+              <button
+                className="galaxy-action galaxy-action--primary galaxy-view-campaign"
+                onClick={() => {
+                  selectCampaign(overviewCampaign.id)
+                  openedFromOverviewAction.current = true
+                }}
+                ref={viewCampaignRef}
+                type="button"
+              >
+                <span>View {overviewCampaign.name}</span>
               </button>
-              <button className="galaxy-action" onClick={() => step(1)} type="button">
-                Next campaign
-                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                  <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-              </button>
-            </nav>
-          )}
+            )}
+            {planets.length > 1 && (
+              <nav aria-label="Campaign orbit" className="galaxy-orbit-nav">
+                <button className="galaxy-action" onClick={() => step(-1)} type="button">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                    <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  Previous campaign
+                </button>
+                <button className="galaxy-action" onClick={() => step(1)} type="button">
+                  Next campaign
+                  <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
+                    <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                </button>
+              </nav>
+            )}
+          </div>
 
           <div className="galaxy-details-slot">
             <p aria-live="polite" className="visually-hidden">
@@ -292,7 +325,9 @@ function CampaignSelector({ userId }: { userId: string }) {
                     name={'campaign-title-' + selectedCampaign.id}
                     share="campaign-title-morph"
                   >
-                    <h2>{selectedCampaign.name}</h2>
+                    <h2 ref={detailsHeadingRef} tabIndex={-1}>
+                      {selectedCampaign.name}
+                    </h2>
                   </ViewTransition>
                   <div className="galaxy-details__meta">
                     <p className="galaxy-role">
@@ -339,7 +374,7 @@ function CampaignSelector({ userId }: { userId: string }) {
                       const returnFocus = expanded
                         ? (selectedButtonRef.current ?? disclosureRef.current)
                         : disclosureRef.current
-                      returnFocus?.focus()
+                      if (!openedFromOverviewAction.current) returnFocus?.focus()
                       setSelection(null)
                     }}
                     type="button"

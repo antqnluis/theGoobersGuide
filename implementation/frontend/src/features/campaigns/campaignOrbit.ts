@@ -9,9 +9,9 @@ export function getOrbitTarget(ids: readonly string[], selectedId: string | null
 }
 
 export function stepCampaign(ids: readonly string[], selectedId: string | null, direction: -1 | 1) {
-  if (ids.length === 0) return null
-  const index = selectedId === null ? -1 : ids.indexOf(selectedId)
-  if (index < 0) return ids[direction === 1 ? 0 : ids.length - 1]
+  const target = getOrbitTarget(ids, selectedId)
+  if (target === null) return null
+  const index = ids.indexOf(target)
   return ids[(index + direction + ids.length) % ids.length]
 }
 

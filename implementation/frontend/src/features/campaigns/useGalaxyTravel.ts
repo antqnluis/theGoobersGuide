@@ -1,25 +1,34 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
-import { Vector3, type Group, type PerspectiveCamera } from 'three'
+import { PerspectiveCamera, Vector3, type Group } from 'three'
 import { orbitLabelClearance, type OrbitBounds, type OrbitSlot } from './campaignOrbit'
 import {
   fitOrbitCenter,
   fitWorldRadius,
+  flybyDuration,
+  flybyPlane,
+  flybySlotProgress,
+  flybyStreak,
   focusPose,
+  glidePose,
+  glideStrength,
   handoffSlots,
+  interpolatePose,
   mix,
+  orbitPlane,
   overviewDepth,
   overviewPose,
-  planetPlane,
   projectedSphereExtent,
+  travelArc,
   travelDirection,
   travelProgress,
   type CameraPose,
+  type SpaceMotion,
 } from './campaignTravel'
 import type { planetAppearance } from './planetModel'
 
 const labelGap = 6
-const backgroundStep = 0.035
+const backgroundStep = 0.012
 
 type Box = { left: number; top: number; right: number; bottom: number }
 type Label = { element: HTMLElement; width: number; height: number }
@@ -44,22 +53,36 @@ function sameSlots(a: OrbitSlot[], b: OrbitSlot[]) {
   )
 }
 
-function interpolatePoint(
-  from: CameraPose['position'],
-  to: CameraPose['position'],
-  t: number,
-): CameraPose['position'] {
-  return [mix(from[0], to[0], t), mix(from[1], to[1], t), mix(from[2], to[2], t)]
+function placeCamera(camera: PerspectiveCamera, pose: CameraPose) {
+  camera.position.set(...pose.position)
+  camera.lookAt(...pose.lookAt)
+  camera.updateMatrixWorld()
+}
+
+function pointOnPlane(
+  point: Vector3,
+  camera: PerspectiveCamera,
+  slopeX: number,
+  slopeY: number,
+  plane: number,
+) {
+  point.set(slopeX, slopeY, -1).transformDirection(camera.matrixWorld)
+  return point.multiplyScalar((plane - camera.position.z) / point.z).add(camera.position)
 }
 
 type Travel = {
   elapsed: number
   duration: number
   direction: number
+  glideDirection: number
+  outgoingId: string | null
+  strength: number
   from: CameraPose
   to: CameraPose
   backgroundFrom: number
   backgroundTo: number
+  streakFrom: number
+  flyby: { elapsed: number; direction: number; strength: number; from: number } | null
   tracks: ReturnType<typeof handoffSlots>
 }
 
@@ -69,7 +92,7 @@ export function useGalaxyTravel({
   order,
   selectedId,
   stepDirection,
-  backgroundOffset: backgroundOffsetRef,
+  spaceMotion: spaceMotionRef,
   interactive,
   visible,
   motionReduced,
@@ -82,7 +105,7 @@ export function useGalaxyTravel({
   order: string[]
   selectedId: string | null
   stepDirection?: -1 | 1
-  backgroundOffset: RefObject<number>
+  spaceMotion: RefObject<SpaceMotion>
   interactive: boolean
   visible: boolean
   motionReduced: boolean
@@ -101,9 +124,10 @@ export function useGalaxyTravel({
   const createWasOpen = useRef(false)
   const labelCache = useRef(new Map<string, Label>())
   const vectors = useMemo(() => ({ point: new Vector3(), local: new Vector3() }), [])
+  const referenceCamera = useMemo(() => new PerspectiveCamera(), [])
   const live = useRef({
     pose: overviewPose,
-    slots: new Map<string, OrbitSlot>(),
+    slots: new Map<string, OrbitSlot & { plane: number }>(),
     targetSlots: [] as OrbitSlot[],
     selectedId: null as string | null,
     width: 0,
@@ -168,8 +192,10 @@ export function useGalaxyTravel({
   useFrame(({ camera: activeCamera, gl, size }, delta) => {
     const camera = activeCamera as PerspectiveCamera
     const frame = live.current
+    const space = spaceMotionRef.current
     if (!interactive || !visible) {
       frame.travel = null
+      spaceMotionRef.current.streak = 0
       if (gl.domElement.dataset.galaxyTravel !== 'idle') gl.domElement.dataset.galaxyTravel = 'idle'
       return
     }
@@ -186,6 +212,7 @@ export function useGalaxyTravel({
     if (!frame.travel && !layoutChanged && !selectionChanged && !reset && !layoutDirty.current)
       return
 
+    let startedTravel = false
     if (reset || selectionChanged || layoutChanged) {
       const destination = focusPose(selectedId, focal, size.width, size.height)
       const oldFocal = frame.targetSlots[0]?.id ?? null
@@ -195,29 +222,46 @@ export function useGalaxyTravel({
           ? (stepDirection ??
             (frame.slots.get(focal.id)?.offset || travelDirection(order, oldFocal, focal.id)))
           : activeTravel!.direction
+        const strength = glideStrength(bounds)
+        const flybyDirection = selectionChanged && frame.selectedId && selectedId ? direction : 0
         // Keep the intended destination on resize and advance it on each new selection.
-        const previousBackgroundTarget = activeTravel?.backgroundTo ?? backgroundOffsetRef.current
+        const previousBackgroundTarget = activeTravel?.backgroundTo ?? space.offset
         const backgroundTo = selectedId
           ? previousBackgroundTarget +
             (selectionChanged && oldFocal !== focal.id ? direction * backgroundStep : 0)
-          : backgroundOffsetRef.current
+          : space.offset
         frame.travel = {
           elapsed: 0,
           duration: selectionChanged
-            ? selectedId
-              ? 0.6
-              : 0.4
+            ? frame.selectedId && selectedId
+              ? flybyDuration
+              : selectedId
+                ? 0.64
+                : 0.48
             : Math.max(0.12, activeTravel!.duration - activeTravel!.elapsed),
           direction,
+          // A resize rebases the remainder from the live pose without replaying the flyby.
+          glideDirection: flybyDirection,
+          outgoingId: selectionChanged ? oldFocal : null,
+          strength,
           from: frame.pose,
           to: destination,
-          backgroundFrom: backgroundOffsetRef.current,
+          backgroundFrom: space.offset,
           backgroundTo,
+          streakFrom: space.streak,
+          // The stars keep their original flight clock when the orbit is resized.
+          flyby: selectionChanged
+            ? flybyDirection
+              ? { elapsed: 0, direction: flybyDirection, strength, from: space.streak }
+              : null
+            : activeTravel!.flyby,
           tracks: handoffSlots(frame.slots, slots, [...appearances.keys()], bounds, direction),
         }
+        startedTravel = true
       } else {
         frame.travel = null
         frame.pose = destination
+        spaceMotionRef.current.streak = 0
       }
       frame.targetSlots = slots
       frame.selectedId = selectedId
@@ -231,26 +275,34 @@ export function useGalaxyTravel({
     const travel = frame.travel
     let progress = 1
     let arc = 0
+    let slotCamera = camera
     if (travel) {
-      travel.elapsed += Math.min(delta, 0.1)
+      if (!startedTravel) {
+        const step = Math.min(delta, 0.1)
+        travel.elapsed += step
+        if (travel.flyby) travel.flyby.elapsed += step
+      }
       progress = travelProgress(travel.elapsed, travel.duration)
-      arc = Math.sin(progress * Math.PI) ** 2
-      frame.pose = {
-        position: interpolatePoint(travel.from.position, travel.to.position, progress),
-        lookAt: interpolatePoint(travel.from.lookAt, travel.to.lookAt, progress),
+      arc = travel.glideDirection ? travelArc(progress) * travel.strength : 0
+      const referencePose = interpolatePose(travel.from, travel.to, progress)
+      frame.pose = glidePose(referencePose, progress, travel.glideDirection, travel.strength)
+      if (frame.pose !== referencePose) {
+        // Lay out the arc against the reference pose so the curved camera can see real parallax.
+        placeCamera(referenceCamera, referencePose)
+        slotCamera = referenceCamera
       }
-      if (progress >= 1) {
-        backgroundOffsetRef.current = travel.backgroundTo
-        frame.travel = null
-      } else {
-        backgroundOffsetRef.current = mix(travel.backgroundFrom, travel.backgroundTo, progress)
-      }
+      const { flyby } = travel
+      spaceMotionRef.current.offset = mix(travel.backgroundFrom, travel.backgroundTo, progress)
+      spaceMotionRef.current.streak =
+        progress >= 1
+          ? 0
+          : flyby
+            ? flybyStreak(flyby.elapsed, flyby.from, flyby.direction, flyby.strength)
+            : travel.streakFrom * (1 - travelProgress(travel.elapsed, 0.18))
+      if (progress >= 1) frame.travel = null
     }
 
-    const { position, lookAt } = frame.pose
-    camera.position.set(...position)
-    camera.lookAt(...lookAt)
-    camera.updateMatrixWorld()
+    placeCamera(camera, frame.pose)
     gl.domElement.dataset.galaxyTravel = frame.travel ? 'moving' : 'idle'
     layoutDirty.current = false
 
@@ -261,14 +313,20 @@ export function useGalaxyTravel({
     for (const [id, group] of groups.current) {
       const track = travel?.tracks.get(id)
       let slot = slots.find((candidate) => candidate.id === id)
+      let plane = slot ? orbitPlane(slot) : 0
       if (track && progress < 1) {
         const { from, to } = track
-        const bend = to.offset === 0 ? -1 : from.offset === 0 ? 1 : 0
+        const role = travel?.glideDirection
+          ? Number(id === travel.outgoingId) - Number(id === focal?.id)
+          : 0
+        const slotProgress = flybySlotProgress(progress, role)
+        plane = flybyPlane(from, to, slotProgress, arc, role)
         slot = {
           ...to,
-          x: mix(from.x, to.x, progress),
-          y: mix(from.y, to.y, progress) + bend * arc * Math.min(22, (focal?.radius ?? 0) * 0.4),
-          radius: mix(from.radius, to.radius, progress),
+          x: mix(from.x, to.x, slotProgress),
+          y:
+            mix(from.y, to.y, slotProgress) + role * arc * Math.min(32, (focal?.radius ?? 0) * 0.4),
+          radius: mix(from.radius, to.radius, slotProgress),
         }
       }
 
@@ -281,14 +339,30 @@ export function useGalaxyTravel({
         continue
       }
 
+      const { point, local } = vectors
+      const centerX = size.width / 2
+      const centerY = size.height / 2
+      pointOnPlane(
+        point,
+        slotCamera,
+        (slot.x - centerX) / pixelsX,
+        (centerY - slot.y) / pixelsY,
+        plane,
+      )
+      local.copy(point).applyMatrix4(camera.matrixWorldInverse)
+      const projected = {
+        ...slot,
+        x: centerX + (pixelsX * local.x) / -local.z,
+        y: centerY - (pixelsY * local.y) / -local.z,
+      }
       const labelClearance = Math.max(orbitLabelClearance, (label?.height ?? 0) + labelGap + 1)
-      const { x, y, extent } = fitOrbitCenter(slot, bounds, labelClearance)
+      const { x, y, extent } = fitOrbitCenter(projected, bounds, labelClearance)
       const slopeX = (x - size.width / 2) / pixelsX
       const slopeY = (size.height / 2 - y) / pixelsY
-      const point = vectors.point.set(slopeX, slopeY, -1).transformDirection(camera.matrixWorld)
-      const plane = planetPlane + (id === focal?.id ? arc * 0.6 : 0)
-      point.multiplyScalar((plane - camera.position.z) / point.z).add(camera.position)
-      const local = vectors.local.copy(point).applyMatrix4(camera.matrixWorldInverse)
+      if (x !== projected.x || y !== projected.y) {
+        pointOnPlane(point, camera, slopeX, slopeY, plane)
+        local.copy(point).applyMatrix4(camera.matrixWorldInverse)
+      }
       const depth = -local.z
       const envelope = appearance.ring || id === selectedId ? 1.82 : 1.08
       const nominalRadius = (slot.radius * appearance.size * overviewDepth) / pixelsY
@@ -308,6 +382,7 @@ export function useGalaxyTravel({
         ...slot,
         x,
         y,
+        plane,
         radius: Math.min(slot.radius, (radius * pixelsY) / (appearance.size * overviewDepth)),
       })
       if (radius <= 0) {

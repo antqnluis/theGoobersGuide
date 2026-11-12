@@ -3,11 +3,18 @@ import type { OrbitBounds, OrbitSlot } from './campaignOrbit'
 import {
   fitOrbitCenter,
   fitWorldRadius,
+  flybyPlane,
   focusPose,
+  glidePose,
+  glideStrength,
   handoffSlots,
+  interpolatePose,
   mix,
+  orbitPlane,
   overviewPose,
+  planetPlane,
   projectedSphereExtent,
+  travelArc,
   travelDirection,
   travelProgress,
 } from './campaignTravel'
@@ -33,8 +40,34 @@ describe('guided campaign travel', () => {
     expect(travelDirection(ids, 'a', 'a')).toBe(0)
   })
 
+  it('glides in opposite directions between campaigns with identical camera endpoints', () => {
+    const from = focusPose('a', focal, 1440, 960)
+    const to = focusPose('b', { ...focal, id: 'b' }, 1440, 960)
+    expect(to).toEqual(from)
+
+    const midpoint = interpolatePose(from, to, travelProgress(0.3, 0.6))
+    const forward = glidePose(midpoint, 0.5, 1, glideStrength(desktop))
+    const reverse = glidePose(midpoint, 0.5, -1, glideStrength(desktop))
+    expect(forward.position[0]).toBeGreaterThan(from.position[0])
+    expect(reverse.position[0] - from.position[0]).toBeCloseTo(
+      from.position[0] - forward.position[0],
+    )
+    expect(forward.position[2]).toBeGreaterThan(from.position[2])
+    expect(forward.position[2]).toBe(reverse.position[2])
+    expect(glidePose(from, 0, 1, 1)).toEqual(from)
+    expect(glidePose(to, 1, 1, 1)).toEqual(to)
+
+    const compact = glideStrength({ ...desktop, height: 113 })
+    const compactMidpoint = glidePose(midpoint, 0.5, 1, compact)
+    expect(compactMidpoint.position[0]).toBeGreaterThan(from.position[0])
+    expect(compactMidpoint.position[0]).toBeLessThan(forward.position[0])
+
+    const restarted = interpolatePose(forward, to, travelProgress(0, 0.6))
+    expect(glidePose(restarted, 0, -1, 1)).toEqual(forward)
+  })
+
   it('starts a retarget from the live position and brings unseen planets in from the arc', () => {
-    const live = { ...focal, x: 500, radius: 68 }
+    const live = { ...focal, x: 500, radius: 68, plane: planetPlane + 0.4 }
     const second = { ...focal, id: 'b', offset: 1, x: 840 } satisfies OrbitSlot
     const third = { ...focal, id: 'c' }
     const tracks = handoffSlots(
@@ -50,6 +83,18 @@ describe('guided campaign travel', () => {
     expect(tracks.get('c')?.to).toEqual(third)
     expect(mix(live.x, focal.x, travelProgress(0, 0.6))).toBe(live.x)
     expect(travelProgress(0.6, 0.6)).toBe(1)
+  })
+
+  it('separates the outgoing and incoming worlds in depth and preserves a live handoff', () => {
+    const neighbor = { ...focal, id: 'b', offset: 1 } satisfies OrbitSlot
+    const arc = travelArc(0.5)
+    const outgoing = flybyPlane(focal, neighbor, 0.5, arc, 1)
+    const incoming = flybyPlane(neighbor, focal, 0.5, arc, -1)
+
+    expect(outgoing).toBeLessThan(orbitPlane(neighbor))
+    expect(incoming).toBeGreaterThan(orbitPlane(focal))
+    expect(flybyPlane({ ...neighbor, plane: outgoing }, focal, 0, 0, -1)).toBe(outgoing)
+    expect(flybyPlane({ ...neighbor, plane: outgoing }, focal, 1, 0, -1)).toBe(orbitPlane(focal))
   })
 
   it.each([

@@ -3,6 +3,9 @@ import { orbitLabelClearance, type OrbitBounds, type OrbitSlot } from './campaig
 export const planetPlane = 5
 export const overviewDepth = 33
 export const cameraFov = 49
+export const flybyDuration = 0.78
+
+export type SpaceMotion = { offset: number; streak: number }
 
 type Point = [number, number, number]
 
@@ -33,7 +36,7 @@ export function focusPose(
   const x = clamp((focal.x - width / 2) * units * 0.26, -2.2, 2.2)
   const y = clamp((height / 2 - focal.y) * units * 0.24, -1.6, 1.6)
   return {
-    position: [x * 0.6, y * 0.6, planetPlane + overviewDepth * 0.9],
+    position: [x * 0.6, y * 0.6, planetPlane + overviewDepth * 0.86],
     lookAt: [x, y, planetPlane],
   }
 }
@@ -44,7 +47,77 @@ export function mix(from: number, to: number, progress: number) {
 
 export function travelProgress(elapsed: number, duration: number) {
   const t = clamp(elapsed / duration, 0, 1)
-  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
+  return t ** 3 * (10 + t * (-15 + 6 * t))
+}
+
+export function interpolatePose(from: CameraPose, to: CameraPose, progress: number): CameraPose {
+  function interpolatePoint(start: Point, end: Point): Point {
+    return [
+      mix(start[0], end[0], progress),
+      mix(start[1], end[1], progress),
+      mix(start[2], end[2], progress),
+    ]
+  }
+
+  return {
+    position: interpolatePoint(from.position, to.position),
+    lookAt: interpolatePoint(from.lookAt, to.lookAt),
+  }
+}
+
+export function glideStrength(bounds: OrbitBounds) {
+  return clamp(Math.min(bounds.width / 520, bounds.height / 360), 0, 1)
+}
+
+export function travelArc(progress: number) {
+  return 4 * progress * (1 - progress)
+}
+
+export function flybySlotProgress(progress: number, role: number) {
+  // Make room at the center before the destination closes the gap.
+  return progress + role * 0.2 * travelArc(progress)
+}
+
+export function flybyStreak(elapsed: number, from: number, direction: number, strength: number) {
+  const t = clamp(elapsed / flybyDuration, 0, 1)
+  // Follow the speed of the flight, not the distance left to travel.
+  const speed = 16 * (t * (1 - t)) ** 2
+  return from * (1 - travelProgress(t, 0.3)) + direction * strength * speed
+}
+
+export function orbitPlane(slot: OrbitSlot) {
+  return planetPlane - Math.abs(slot.offset) * 3.2
+}
+
+export function flybyPlane(
+  from: RenderedSlot,
+  to: OrbitSlot,
+  progress: number,
+  arc: number,
+  role: number,
+) {
+  const depth = mix(from.plane ?? orbitPlane(from), orbitPlane(to), progress)
+  // The outgoing globe slips behind the arc as the incoming globe approaches the camera.
+  return depth - role * arc * (role > 0 ? 5.6 : 3.2)
+}
+
+export function glidePose(
+  pose: CameraPose,
+  progress: number,
+  direction: number,
+  strength: number,
+): CameraPose {
+  if (progress <= 0 || progress >= 1 || direction === 0) return pose
+
+  const arc = travelArc(progress) * strength
+  // The camera opens out early to clear the outgoing world, then closes in on arrival.
+  const lateral = direction * arc * mix(5.5, 3.3, progress)
+  const [x, y, z] = pose.position
+  const [targetX, targetY, targetZ] = pose.lookAt
+  return {
+    position: [x + lateral, y + arc * 1.2, z + arc * mix(6.6, 2.4, progress)],
+    lookAt: [targetX + lateral * 0.4, targetY + arc * 0.25, targetZ],
+  }
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -106,15 +179,17 @@ export function projectedSphereExtent(axis: number, depth: number, radius: numbe
   return ((tangent + shift) / denominator) * pixels
 }
 
+type RenderedSlot = OrbitSlot & { plane?: number }
+
 export function handoffSlots(
-  current: ReadonlyMap<string, OrbitSlot>,
+  current: ReadonlyMap<string, RenderedSlot>,
   destinations: OrbitSlot[],
   ids: readonly string[],
   bounds: OrbitBounds,
   direction: number,
 ) {
   const focal = destinations[0]
-  const tracks = new Map<string, { from: OrbitSlot; to: OrbitSlot }>()
+  const tracks = new Map<string, { from: RenderedSlot; to: OrbitSlot }>()
   if (!focal) return tracks
 
   for (const id of ids) {

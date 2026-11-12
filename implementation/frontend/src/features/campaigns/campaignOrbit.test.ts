@@ -43,8 +43,9 @@ describe('campaign orbit', () => {
   it('steps through the given order and wraps in both directions', () => {
     const ids = ['first', 'second', 'third']
     expect(stepCampaign([], null, 1)).toBeNull()
-    expect(stepCampaign(ids, null, 1)).toBe('first')
+    expect(stepCampaign(ids, null, 1)).toBe('second')
     expect(stepCampaign(ids, null, -1)).toBe('third')
+    expect(stepCampaign(ids, 'removed', 1)).toBe('second')
     expect(stepCampaign(ids, 'first', -1)).toBe('third')
     expect(stepCampaign(ids, 'third', 1)).toBe('first')
     expect(stepCampaign(ids, 'second', 1)).toBe('third')
