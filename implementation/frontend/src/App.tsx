@@ -4,8 +4,12 @@ import { AuthPage } from './features/auth/AuthPage'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { AuthStatus } from './features/auth/AuthStatus'
 import { useAuth } from './features/auth/useAuth'
+import { CampaignDashboardPage } from './features/campaigns/CampaignDashboardPage'
+import { CampaignWorkspacePage } from './features/campaigns/CampaignWorkspacePage'
+import { CreateCampaignPage } from './features/campaigns/CreateCampaignPage'
 import { AppProviders } from './providers/AppProviders'
 import { DevelopmentStatusPage } from './pages/DevelopmentStatusPage'
+import './features/campaigns/campaigns.css'
 
 function HomeRoute() {
   const { error, isLoading, retrySessionCheck, session } = useAuth()
@@ -68,7 +72,12 @@ export default function App() {
               <Route path="/login" element={<></>} />
               <Route path="/register" element={<></>} />
             </Route>
-            <Route path="/app" element={<ProtectedRoute />} />
+            <Route path="/app" element={<ProtectedRoute />}>
+              <Route index element={<Navigate to="campaigns" replace />} />
+              <Route path="campaigns" element={<CampaignDashboardPage />} />
+              <Route path="campaigns/new" element={<CreateCampaignPage />} />
+              <Route path="campaigns/:campaignId" element={<CampaignWorkspacePage />} />
+            </Route>
             <Route path="/dev/status" element={<DevelopmentStatusPage />} />
             <Route path="/not-found" element={<NotFoundPage />} />
             <Route path="*" element={<Navigate to="/not-found" replace />} />

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 1 complete locally — awaiting user verification**
+**Phase 1 verified by the user. Phase 2 implementation is ready for acceptance verification.**
 
 This document tracks the campaign management milestone, its decisions, acceptance criteria, and verification results. Update the status and record actual command results as each phase is completed.
 
@@ -19,6 +19,7 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 - Use the registered username as the player-facing identity. Preserve the private username lookup and authentication behavior established by M01; do not expose private account records or add a separate display-name requirement.
 - If campaign membership infrastructure is missing, add the minimal `campaign_members` relationship, securely backfill existing owners, and make campaign creation plus owner membership atomic. Do not introduce invitations or new member-management UI.
 - Reuse the visual direction documented in `DESIGN.md` and `.impeccable/design.json`. Use Impeccable to review the new campaign surfaces before frontend implementation and again during visual verification.
+- Use the selected **margin index** composition for the campaign dashboard: campaign names and descriptions stay in the main reading column, while role and workspace action sit in a narrow outer column. The surface stays warm, minimal, and personal, with thin rules in place of repeated cards. Preserve the user's direction: modern and refined, immersive without fantasy ornament, visually distinctive, and carefully composed; avoid generic SaaS structures, unnecessary statistics, and decorative elements without a task purpose.
 
 ## Phase 1 — Backend Campaign Management
 
@@ -45,15 +46,15 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ### Work
 
-- [ ] Inspect existing routes, authenticated shell, components, and M01 design artifacts. Use Impeccable discovery/review to align the campaign UI with the established visual direction.
-- [ ] Add a campaign dashboard inside the protected app, listing accessible campaigns with name, optional description, the current player's role, and a Create Campaign action.
-- [ ] Add a Create Campaign form with a required name, optional description, inline validation, cancel navigation, loading state, safe errors, and duplicate-submit prevention.
-- [ ] After successful creation, navigate to the new campaign workspace. Keep campaign IDs in navigable URLs and support direct links and refreshes.
-- [ ] Add a campaign workspace displaying campaign information, owner username, current members, and navigation back to the campaign dashboard. Show owner/member distinctions clearly.
-- [ ] Add owner-only editing and deletion controls. Confirm destructive deletion explicitly; provide success/error feedback and return to the dashboard after successful deletion.
-- [ ] Handle empty campaign lists, loading states, unavailable campaigns, insufficient permissions, and network failures without exposing private data.
-- [ ] Add accessible labels, keyboard operation, visible focus indicators, and responsive layouts at 375px, 768px, and 1440px.
-- [ ] Add Vitest and Playwright coverage for creation, navigation, validation, dashboard states, editing, deletion, and permission-based UI behavior.
+- [x] Inspect existing routes, authenticated shell, components, and M01 design artifacts. Use Impeccable discovery/review to align the campaign UI with the established visual direction.
+- [x] Add a campaign dashboard inside the protected app, listing accessible campaigns with name, optional description, the current player's role, and a Create Campaign action.
+- [x] Add a Create Campaign form with a required name, optional description, inline validation, cancel navigation, loading state, safe errors, and duplicate-submit prevention.
+- [x] After successful creation, navigate to the new campaign workspace. Keep campaign IDs in navigable URLs and support direct links and refreshes.
+- [x] Add a campaign workspace displaying campaign information, owner username, current members, and navigation back to the campaign dashboard. Show owner/member distinctions clearly.
+- [x] Add owner-only editing and deletion controls. Confirm destructive deletion explicitly; provide success/error feedback and return to the dashboard after successful deletion.
+- [x] Handle empty campaign lists, loading states, unavailable campaigns, insufficient permissions, and network failures without exposing private data.
+- [x] Add accessible labels, keyboard operation, visible focus indicators, and responsive layouts at 375px, 768px, and 1440px.
+- [x] Add Vitest and Playwright coverage for creation, navigation, validation, dashboard states, editing, deletion, and permission-based UI behavior.
 
 ### Acceptance
 
@@ -94,8 +95,13 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 | `npm test` (`implementation/frontend`) | Passed, 20 tests. |
 | `npm run test:e2e` (`implementation/frontend`) | Passed, 5 tests. |
 | `npm run test:local-supabase` (`implementation/frontend`) | Passed, 2 tests. The suite cleaned up its campaigns and their memberships. Test accounts remain in local Auth. |
-| Responsive and accessibility review (375px, 768px, 1440px) | Pending campaign UI. |
-| Impeccable detector and finish review | Pending campaign UI. |
+| `npm run lint` (`implementation/frontend`, Phase 2) | Passed. |
+| `npm run format:check` (`implementation/frontend`, Phase 2) | Passed. |
+| `npm run build` (`implementation/frontend`, Phase 2) | Passed. Vite reported a 538.26 kB minified JavaScript chunk, above its 500 kB advisory threshold. |
+| Campaign Vitest and Playwright coverage | Added; not run in this implementation pass. |
+| Responsive and accessibility review (375px, 768px, 1440px) | Pending rendered campaign screens. |
+| Impeccable detector and finish review | The design hook reported no deterministic issues for changed UI files. Full campaign-screen capture and finish review remain pending. |
+| `npm run supabase:status` (`implementation/backend`) | Could not inspect the local stack: access to `/Users/ton/.docker/run/docker.sock` was denied. No database command or mutation was run. |
 
 ## Risks and safeguards
 
@@ -108,5 +114,5 @@ Complete one phase at a time. After a phase's acceptance checks are run, update 
 
 ## Unresolved issues
 
-- Verify the application's current routing conventions before choosing final campaign URLs beneath `/app`.
+- Phase 2 acceptance is not yet verified. Campaign flow tests were added but not executed, and visual review needs an accessible local Supabase/Docker stack or another permitted campaign session.
 - Phase 1 verification used the running local stack. A clean stack startup was not exercised.

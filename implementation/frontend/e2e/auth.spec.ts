@@ -22,6 +22,19 @@ const authSession = {
 }
 
 test('guards the app, restores a signed-in session, and signs out', async ({ page }) => {
+  await page.route('**/rest/v1/**', async (route) => {
+    const headers = {
+      'access-control-allow-origin': 'http://127.0.0.1:4173',
+      'access-control-allow-headers': '*',
+      'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    }
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers })
+      return
+    }
+
+    await route.fulfill({ status: 200, headers, contentType: 'application/json', body: '[]' })
+  })
   await page.route('**/auth/v1/token**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -46,12 +59,12 @@ test('guards the app, restores a signed-in session, and signs out', async ({ pag
   await signIn.getByRole('button', { name: 'Hide password', exact: true }).click()
   await expect(password).toHaveAttribute('type', 'password')
   await signIn.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/app$/)
-  await expect(page.getByRole('heading', { name: "You're signed in." })).toBeVisible()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
   await expect(page.getByText(accountEmail)).toBeVisible()
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: "You're signed in." })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)
 })
@@ -95,7 +108,7 @@ test('creates an account from the registration route', async ({ page }) => {
   await expect(confirmation).toHaveAttribute('type', 'text')
   await registration.getByRole('button', { name: 'Create account' }).click()
 
-  await expect(page).toHaveURL(/\/app$/)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
   await expect(page.getByText('player_one')).toBeVisible()
 })
 

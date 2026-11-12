@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
 import { isInternalEmail } from './authValidation'
 
 export function AuthAppShell() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { acceptSession, session } = useAuth()
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +33,7 @@ export function AuthAppShell() {
       }
 
       acceptSession(null)
+      queryClient.clear()
       navigate('/login', { replace: true })
     } catch {
       setError("We couldn't sign you out. Check your connection and try again.")
@@ -42,10 +45,18 @@ export function AuthAppShell() {
   return (
     <main className="workspace-page">
       <div className="workspace-page__frame">
+        <a className="workspace-skip-link" href="#campaign-content">
+          Skip to campaign content
+        </a>
         <header className="workspace-header">
-          <Link className="auth-brand" to="/app">
-            The Goober&apos;s Guide
-          </Link>
+          <div className="workspace-header__primary">
+            <Link className="auth-brand" to="/app/campaigns">
+              The Goober&apos;s Guide
+            </Link>
+            <nav aria-label="Campaign navigation" className="workspace-navigation">
+              <NavLink to="/app/campaigns">Campaigns</NavLink>
+            </nav>
+          </div>
           <div className="workspace-account">
             <span>{accountName}</span>
             <button
@@ -59,15 +70,14 @@ export function AuthAppShell() {
           </div>
         </header>
 
-        <section className="workspace-welcome">
-          <h1>You&apos;re signed in.</h1>
-          <p>Your account is ready. The player workspace will grow in later milestones.</p>
-          {error && (
-            <p className="auth-feedback auth-feedback--error" role="alert">
-              {error}
-            </p>
-          )}
-        </section>
+        {error && (
+          <p className="auth-feedback auth-feedback--error workspace-signout-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="campaign-app-main" id="campaign-content">
+          <Outlet />
+        </div>
         <footer className="auth-footer">
           <span>Account session active</span>
           <Link to="/dev/status">Development status</Link>
