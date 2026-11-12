@@ -70,7 +70,12 @@ async function signIn(page: Page) {
 async function mockCampaignApi(
   page: Page,
   initialCampaigns: Campaign[],
-  options: { delayList?: boolean; memberMode?: boolean; shouldFailList?: () => boolean } = {},
+  options: {
+    delayList?: boolean
+    memberMode?: boolean
+    shouldFailList?: () => boolean
+    hideFromList?: () => boolean
+  } = {},
 ) {
   const campaigns = [...initialCampaigns]
   await page.route('**/rest/v1/**', async (route) => {
@@ -100,7 +105,9 @@ async function mockCampaignApi(
       const idFilter = url.searchParams.get('id')
       const result = idFilter?.startsWith('eq.')
         ? campaigns.filter((campaign) => campaign.id === idFilter.slice(3))
-        : campaigns
+        : options.hideFromList?.()
+          ? []
+          : campaigns
       await route.fulfill({ status: 200, headers: corsHeaders(), json: result })
       return
     }
@@ -183,17 +190,38 @@ async function mockCampaignApi(
   })
 }
 
-test('lists campaigns and supports direct workspace links after refresh', async ({ page }) => {
+test('selects by keyboard, opens the workspace explicitly, and returns to the overview', async ({
+  page,
+}) => {
   await mockCampaignApi(page, [redHand])
   await signIn(page)
 
-  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
-  await expect(page.getByText('Your role:')).toContainText('Owner')
-  await page.getByRole('link', { name: 'Open workspace' }).click()
+  const campaign = page.getByRole('button', { name: 'The Red Hand' })
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const openWorkspace = page.getByRole('link', { name: 'Open workspace' })
+  await expect(openWorkspace).toHaveCount(0)
+  await campaign.focus()
+  await campaign.press('Enter')
+  await expect(campaign).toHaveAttribute('aria-pressed', 'true')
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(details.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+  await expect(details.getByText(redHand.description!)).toBeVisible()
+  await expect(details.getByText('Your role:')).toContainText('Owner')
+
+  await details.getByRole('button', { name: 'Galaxy overview' }).click()
+  await expect(campaign).toBeFocused()
+  await expect(campaign).toHaveAttribute('aria-pressed', 'false')
+  await campaign.press('Space')
+  await openWorkspace.click()
   await expect(page).toHaveURL(/\/app\/campaigns\/00000000-0000-4000-8000-000000000011$/)
   await expect(page.getByRole('heading', { name: 'People in this campaign' })).toBeVisible()
 
-  await page.reload()
+  await page.goBack()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(campaign).toHaveAttribute('aria-pressed', 'false')
+  await expect(openWorkspace).toHaveCount(0)
+
+  await page.goto(`/app/campaigns/${redHand.id}`)
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
   await expect(page.getByRole('listitem').getByText('player_one', { exact: true })).toBeVisible()
 })
@@ -222,6 +250,7 @@ test('validates and creates a campaign before opening its workspace', async ({ p
 test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await mockCampaignApi(page, [redHand])
   await signIn(page)
+  await page.getByRole('button', { name: 'The Red Hand' }).click()
   await page.getByRole('link', { name: 'Open workspace' }).click()
 
   await page.getByRole('button', { name: 'Edit details' }).click()
@@ -253,6 +282,7 @@ test('shows member access without owner controls', async ({ page }) => {
   await mockCampaignApi(page, [memberCampaign], { memberMode: true })
   await signIn(page)
 
+  await page.getByRole('button', { name: 'The Red Hand' }).click()
   await expect(page.getByText('Your role:')).toContainText('Member')
   await page.getByRole('link', { name: 'Open workspace' }).click()
   await expect(page.getByText('Your role').locator('..')).toContainText('Member')
@@ -274,6 +304,31 @@ test('shows a campaign list error and recovers', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
 })
 
+test('clears selection when a refresh removes access to the campaign', async ({ page }) => {
+  let hideCampaign = false
+  await mockCampaignApi(page, [redHand], { hideFromList: () => hideCampaign })
+  await signIn(page)
+
+  const campaign = page.getByRole('button', { name: 'The Red Hand' })
+  const create = page.getByRole('link', { name: 'Create campaign', exact: true })
+  const back = page.getByRole('link', { name: 'Back to campaigns' })
+  await campaign.click()
+  await create.click()
+  await back.click()
+  await expect(campaign).toHaveAttribute('aria-pressed', 'true')
+
+  await create.click()
+  hideCampaign = true
+  await back.click()
+  await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
+
+  await create.click()
+  hideCampaign = false
+  await back.click()
+  await expect(campaign).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('link', { name: 'Open workspace' })).toHaveCount(0)
+})
+
 test('shows a loading state while campaigns are fetched', async ({ page }) => {
   await mockCampaignApi(page, [redHand], { delayList: true })
   await signIn(page)
@@ -281,7 +336,7 @@ test('shows a loading state while campaigns are fetched', async ({ page }) => {
   await expect(
     page.getByRole('status').filter({ hasText: 'Gathering your campaigns…' }),
   ).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'The Red Hand' })).toBeVisible()
 })
 
 test('keyboard skip link focuses the campaign content', async ({ page }) => {
@@ -334,6 +389,10 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
     for (const screen of screens) {
       await page.goto(screen.path)
       await expect(screen.heading).toBeVisible()
+      if (screen.name === 'dashboard') {
+        await page.getByRole('button', { name: 'The Red Hand' }).click()
+        await expect(page.getByRole('link', { name: 'Open workspace' })).toBeVisible()
+      }
       await page.evaluate(() => document.fonts.ready)
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

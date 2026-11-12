@@ -2,9 +2,9 @@
 
 ## Status
 
-**Proposed for review. Implementation has not started.**
+**Phase 1 implemented and verified. Awaiting user verification before Phase 2.**
 
-The current Choose Campaign screen is the **Your campaigns** page at `/app/campaigns`, rendered by [CampaignDashboardPage.tsx](../implementation/frontend/src/features/campaigns/CampaignDashboardPage.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign currently opens `/app/campaigns/:campaignId` directly. The existing create form at `/app/campaigns/new` validates and saves a campaign, then opens its workspace. The workspace also supports owner editing and deletion and displays the authorized roster. Source inspection confirmed these paths, and the [M02 verification log](M02-Campaign-Management.md#verification-log) records passing browser and local Supabase checks. Those suites were not rerun during planning.
+The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign displays its details on the same page. **Open workspace** opens the existing workspace route. The standalone create form still opens the workspace after saving.
 
 ## Phase gates
 
@@ -21,12 +21,12 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 
 ### Work
 
-- [ ] Move the existing list query and its loading, empty, error, retry, and deletion-feedback states into the selector layout. Build the accessible campaign list and selected-campaign panel first. Clear selection if a successful refresh removes that campaign from the accessible list.
-- [ ] Make list selection a keyboard-operable button action and preserve the existing workspace route through **Open workspace**. Keep the standalone creation behavior until Phase 5.
+- [x] Move the existing list query and its loading, empty, error, retry, and deletion-feedback states into the selector layout. Build the accessible campaign list and selected-campaign panel first. Clear selection if a successful refresh removes that campaign from the accessible list.
+- [x] Make list selection a keyboard-operable button action and preserve the existing workspace route through **Open workspace**. Keep the standalone creation behavior until Phase 5.
 
 ### Acceptance
 
-- [ ] Selection updates the panel on the selector URL. Only the explicit workspace action opens the workspace. Direct workspace links, browser Back, owner/member behavior, and sign-out still work.
+- [x] Selection updates the panel on the selector URL. Only the explicit workspace action opens the workspace. Direct workspace links, browser Back, owner/member behavior, and sign-out still work.
 
 ## Phase 2 — Persistent galaxy environment
 
@@ -91,7 +91,11 @@ Complete one phase at a time. Run its acceptance checks, record actual results i
 | Repository, routes, source, package scripts, Supabase configuration, and migrations | Inspected on `milestone/m02-campaign-management` with a clean working tree. |
 | Existing selector design | Reviewed the saved desktop campaign dashboard capture. |
 | Three.js and Fiber compatibility | Official documentation confirms the React 19 pairing. Exact peer resolution, build, and runtime checks are pending Phase 2. |
-| Automated checks | Pending implementation. Existing M02 results are recorded in the campaign-management milestone. |
+| Phase 1 static checks | `npm run lint`, `npm run format:check`, and `npm run build` passed. The build reported the existing Vite chunk-size advisory. |
+| Phase 1 unit tests | `npm test` passed all 22 tests. |
+| Phase 1 browser tests | `npm run test:e2e -- --workers=3` passed all 15 tests, covering keyboard selection, explicit workspace entry, Back, direct URLs, access changes, owner/member behavior, creation, and sign-out. |
+| Phase 1 local integration | `npm run test:local-supabase -- --output=/private/tmp/goobers-galaxy-phase1-local-results` passed both tests against local Supabase, including campaign and roster access rules. |
+| Phase 1 responsive review | Reviewed selected-campaign captures at 375px, 768px, and 1440px. No horizontal overflow. Impeccable reported no findings for the changed selector files. |
 
 ## Risks and safeguards
 

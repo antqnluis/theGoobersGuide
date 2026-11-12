@@ -4,7 +4,7 @@ import { AuthPage } from './features/auth/AuthPage'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { AuthStatus } from './features/auth/AuthStatus'
 import { useAuth } from './features/auth/useAuth'
-import { CampaignDashboardPage } from './features/campaigns/CampaignDashboardPage'
+import { CampaignSelectorLayout } from './features/campaigns/CampaignSelectorLayout'
 import { CampaignWorkspacePage } from './features/campaigns/CampaignWorkspacePage'
 import { CreateCampaignPage } from './features/campaigns/CreateCampaignPage'
 import { AppProviders } from './providers/AppProviders'
@@ -74,8 +74,9 @@ export default function App() {
             </Route>
             <Route path="/app" element={<ProtectedRoute />}>
               <Route index element={<Navigate to="campaigns" replace />} />
-              <Route path="campaigns" element={<CampaignDashboardPage />} />
-              <Route path="campaigns/new" element={<CreateCampaignPage />} />
+              <Route path="campaigns" element={<CampaignSelectorLayout />}>
+                <Route path="new" element={<CreateCampaignPage />} />
+              </Route>
               <Route path="campaigns/:campaignId" element={<CampaignWorkspacePage />} />
             </Route>
             <Route path="/dev/status" element={<DevelopmentStatusPage />} />
