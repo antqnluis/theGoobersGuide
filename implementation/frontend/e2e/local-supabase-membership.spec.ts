@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test'
-import { localClient, localDatabaseQuery } from './support/localSupabase.ts'
-
-function sqlError(sql: string): string {
-  try {
-    localDatabaseQuery(sql, {})
-  } catch (error) {
-    const failure = error as { stderr?: string; message: string }
-    return `${failure.stderr ?? ''}${failure.message}`
-  }
-  return ''
-}
+import { localClient, localDatabaseQuery, sqlError } from './support/localSupabase.ts'
+import {
+  cleanup,
+  PASSWORD,
+  createCampaign,
+  invite,
+  newPlayers,
+  RANDOM_ID,
+  rpcError,
+  rpcOk,
+  type Client,
+  type Player,
+} from './support/localPlayers.ts'
 
 // Two accounts, one campaign owned by `owner`, and `member` on its roster.
 // Every statement runs inside a transaction the caller rolls back.
@@ -166,72 +168,6 @@ rollback;`,
 
 // --- Membership RPCs against the real local stack ---------------------------------
 
-type Client = ReturnType<typeof localClient>
-const PASSWORD = crypto.randomUUID()
-
-async function createAccount(client: Client, username: string): Promise<string> {
-  const { data, error } = await client.auth.signUp({
-    email: `${username}@example.com`,
-    password: PASSWORD,
-    options: { data: { username } },
-  })
-  expect(error).toBeNull()
-  expect(data.session).toBeTruthy()
-  return data.user!.id
-}
-
-async function rpcError(call: PromiseLike<{ error: { code: string; message: string } | null }>) {
-  const { error } = await call
-  expect(error, 'expected the call to fail').not.toBeNull()
-  return { code: error!.code, message: error!.message }
-}
-
-async function rpcOk(call: PromiseLike<{ error: { code: string; message: string } | null }>) {
-  const { error } = await call
-  expect(error?.message ?? null).toBeNull()
-}
-
-interface Player {
-  client: Client
-  id: string
-  username: string
-}
-
-async function newPlayers(names: string[]) {
-  const run = crypto.randomUUID().replaceAll('-', '').slice(0, 10)
-  const players: Record<string, Player> = {}
-  for (const name of names) {
-    const client = localClient()
-    const username = `${name}_${run}`
-    players[name] = { client, id: await createAccount(client, username), username }
-  }
-  return { run, players }
-}
-
-async function invite(owner: Player, campaignId: string, recipient: Player) {
-  await rpcOk(
-    owner.client.rpc('send_campaign_invitation', {
-      p_campaign_id: campaignId,
-      p_username: recipient.username,
-    }),
-  )
-  const { data, error } = await recipient.client.rpc('list_my_campaign_invitations')
-  expect(error).toBeNull()
-  expect(data).toHaveLength(1)
-  await rpcOk(
-    recipient.client.rpc('respond_to_campaign_invitation', {
-      p_invitation_id: data[0].id,
-      p_accept: true,
-    }),
-  )
-}
-
-async function createCampaign(owner: Player, name: string) {
-  const { data, error } = await owner.client.from('campaigns').insert({ name }).select('id')
-  expect(error).toBeNull()
-  return data![0].id as string
-}
-
 async function roster(client: Client, campaignId: string) {
   const { data, error } = await client.rpc('get_campaign_roster', { p_campaign_id: campaignId })
   expect(error).toBeNull()
@@ -266,16 +202,6 @@ function invariantViolations(campaignId: string) {
 
 function ownerOf(campaignId: string) {
   return localDatabaseQuery(`select owner_id from public.campaigns where id = '${campaignId}';`, {})
-}
-
-const RANDOM_ID = '00000000-0000-4000-8000-00000000dead'
-
-async function cleanup(players: Record<string, Player>, ids: string[]) {
-  for (const id of ids) {
-    for (const player of Object.values(players)) {
-      await player.client.from('campaigns').delete().eq('id', id)
-    }
-  }
 }
 
 test('leaving, rejoining, and leave authorization', async () => {

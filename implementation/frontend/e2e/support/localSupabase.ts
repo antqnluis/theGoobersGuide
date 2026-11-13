@@ -35,3 +35,14 @@ export function localDatabaseQuery(sql: string, variables: Record<string, string
     { input: sql, encoding: 'utf8' },
   ).trim()
 }
+
+/** Runs SQL expected to fail and returns psql's error output ('' when it succeeds). */
+export function sqlError(sql: string): string {
+  try {
+    localDatabaseQuery(sql, {})
+  } catch (error) {
+    const failure = error as { stderr?: string; message: string }
+    return `${failure.stderr ?? ''}${failure.message}`
+  }
+  return ''
+}
