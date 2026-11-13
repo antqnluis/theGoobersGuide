@@ -1112,3 +1112,56 @@ test('character lifecycle functions are executable only by authenticated users',
     ),
   ).toBe('anon:false,authenticated:false,public:false,service_role:false')
 })
+
+test('the sheet body saves only against its previous updated_at (optimistic concurrency)', async () => {
+  test.setTimeout(60_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M2 optimistic')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdId(guest, campaignId)
+
+    const read = async () => {
+      const { data, error } = await guest.client
+        .from('character_sheets')
+        .select('updated_at')
+        .eq('character_id', characterId)
+        .single()
+      expect(error).toBeNull()
+      return data!.updated_at
+    }
+    const save = (features: string, previous: string) =>
+      guest.client
+        .from('character_sheets')
+        .update({ sheet: { version: 1, features } })
+        .eq('character_id', characterId)
+        .eq('updated_at', previous)
+        .select('updated_at')
+        .maybeSingle()
+
+    const first = await read()
+    const saved = await save('First', first)
+    expect(saved.error).toBeNull()
+    expect(saved.data?.updated_at).not.toBe(first)
+
+    // A second device still holding the old stamp matches no row.
+    const stale = await save('Second', first)
+    expect(stale.error).toBeNull()
+    expect(stale.data).toBeNull()
+
+    // A vitals patch moves the stamp too; the cache must adopt the returned row.
+    const patched = await guest.client
+      .from('character_sheets')
+      .update({ current_hp: 3 })
+      .eq('character_id', characterId)
+      .select('updated_at')
+      .single()
+    expect((await save('Third', saved.data!.updated_at)).data).toBeNull()
+    expect((await save('Third', patched.data!.updated_at)).data).not.toBeNull()
+  } finally {
+    await cleanup(players, ids)
+  }
+})

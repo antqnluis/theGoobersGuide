@@ -132,6 +132,118 @@ export type Database = {
           },
         ]
       }
+      character_sheets: {
+        Row: {
+          armor_class: number | null
+          character_id: string
+          current_hp: number | null
+          max_hp: number | null
+          sheet: NonNullable<Json>
+          speed: number | null
+          temp_hp: number
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          armor_class?: number | null
+          character_id: string
+          current_hp?: number | null
+          max_hp?: number | null
+          sheet?: NonNullable<Json>
+          speed?: number | null
+          temp_hp?: number
+          updated_at?: string
+        }
+        Update: {
+          armor_class?: number | null
+          character_id?: string
+          current_hp?: number | null
+          max_hp?: number | null
+          sheet?: NonNullable<Json>
+          speed?: number | null
+          temp_hp?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_sheets_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: true
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      characters: {
+        Row: {
+          background: string | null
+          campaign_id: string
+          class_name: string | null
+          created_at: string
+          id: string
+          in_party: boolean
+          level: number
+          name: string
+          owner_id: string
+          sheet_visibility: string
+          species: string | null
+          status: string
+          status_changed_at: string
+          subclass: string | null
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          background?: string | null
+          campaign_id: string
+          class_name?: string | null
+          created_at?: string
+          id?: string
+          in_party?: boolean
+          level?: number
+          name: string
+          owner_id?: string
+          sheet_visibility?: string
+          species?: string | null
+          status?: string
+          status_changed_at?: string
+          subclass?: string | null
+          updated_at?: string
+        }
+        Update: {
+          background?: string | null
+          campaign_id?: string
+          class_name?: string | null
+          created_at?: string
+          id?: string
+          in_party?: boolean
+          level?: number
+          name?: string
+          owner_id?: string
+          sheet_visibility?: string
+          species?: string | null
+          status?: string
+          status_changed_at?: string
+          subclass?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'characters_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'characters_owner_id_fkey'
+            columns: ['owner_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -166,6 +278,19 @@ export type Database = {
     }
     Functions: {
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
+      create_character: {
+        Args: {
+          p_background?: string
+          p_campaign_id: string
+          p_class_name?: string
+          p_in_party?: boolean
+          p_level?: number
+          p_name: string
+          p_species?: string
+          p_subclass?: string
+        }
+        Returns: string
+      }
       get_campaign_party: {
         Args: { p_campaign_id: string }
         Returns: {
@@ -211,6 +336,14 @@ export type Database = {
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
         Returns: string
+      }
+      set_character_in_party: {
+        Args: { p_character_id: string; p_in_party: boolean }
+        Returns: undefined
+      }
+      set_character_status: {
+        Args: { p_character_id: string; p_status: string }
+        Returns: undefined
       }
       transfer_campaign_ownership: {
         Args: { p_campaign_id: string; p_profile_id: string }
