@@ -245,3 +245,14 @@ Measured on the uncommitted Lantern Village working tree, branch `feature/indivi
 **Coverage gaps to close:** no unit tests for the village or its dialog focus logic; e2e uses CSS-class selectors for the scene; no per-world-type, viewport, or art-failure coverage; no performance or cross-browser projects.
 
 **Open decision:** commit the current village as a checkpoint before replacing it (not done, awaiting approval).
+
+### Phase 1: Shell and test contract (13 November 2026)
+
+No visual change; the Lantern Village picture is still the temporary backdrop.
+
+- **Added:** `camp/campLayout.ts` (location table, owner gating, panel side), `camp/useDestinationDialog.ts` (selection plus dialog focus and restore), `CampaignCamp.tsx` (replaces `CampaignVillage.tsx`; `CampaignWorkspacePage` only swaps the child).
+- **Renamed once:** "Back to camp", "Camp places", "Overview Campfire", "Party Bedroll circle", "Campaign settings Steward's wagon"; `isVillage` → `isCamp` in `AuthAppShell` (`workspace-page--camp`, `camp-exit`); dialog heading ids → `camp-*-heading`.
+- **Data hooks:** `data-camp-state` (`idle` or the open destination) on the camp root. Backdrop selectors in e2e now use `data-camp-backdrop`, `data-camp-plane`, `data-camp-light` instead of `.lantern-*` classes. `data-camera-x` and `data-animating` are not added yet: they describe the camera rig, which arrives in Phases 2 and 6.
+- **Tests:** `src/test/setup.ts` gains `showModal`/`close` and `checkVisibility` polyfills; new `CampaignCamp.test.tsx` covers focus on open, focus restore to a scene button and to a Places entry, and owner gating (3 tests). No e2e assertions removed; two `data-camp-state` assertions added.
+- **Results:** lint, format:check, build pass; unit 82 pass; `test:e2e` 34 pass; `test:local-supabase` 3 pass.
+- **Kept for later phases:** `lantern-*` CSS classes, `campaignVillage.css`, and the `art/lantern-village*` files stay until Phase 4 removes them.

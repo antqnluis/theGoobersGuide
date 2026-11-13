@@ -165,9 +165,15 @@ The components feel refined and restrained: familiar controls sit inside a calm,
 
 ## Campaign selector
 
-The protected campaign selector is a full-screen galaxy. The starfield extends behind the header, list, and campaign details. Keep the rest of the app in the Adventure Ledger style.
+The protected campaign selector is a full-screen galaxy. The starfield extends behind the header, list, and campaign details. The Adventure Ledger is the default style for the app’s forms and reading surfaces.
 
 Use Source Serif 4 for the brand and campaign names. Floating controls use translucent midnight violet surfaces, light text, and warm starlight accents for the selected campaign and primary action. Keep the center open for the scene. The campaign list sits at the left and scrolls within its disclosure; campaign details appear beside the selected planet at widths of 960px and above. At narrower widths, the card sits below the orbit controls. On phones, start with the list collapsed. The standalone create form uses the same dark palette with familiar light input fields.
+
+## Individual campaign dashboard
+
+The dashboard at `/app/campaigns/:campaignId` is a detailed pixel-art fantasy village at dusk. Amber windows and lanterns pick out timber storefronts and cobblestones against blue-violet roofs and a distant castle. The tavern sign and guild banner mark entrances to the campaign’s live features. Compact, readable controls sit over the scene on wide screens, and opened features use the Adventure Ledger typography and familiar form controls.
+
+See the [pixel-art village plan](docs/M02-Campaign-World-Redesign-Plan.md) for the primary reference, destination map, and interaction details.
 
 ## Do's and Don'ts
 

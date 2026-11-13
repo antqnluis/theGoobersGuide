@@ -251,7 +251,10 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   await campaign.press('Space')
   await openWorkspace.click()
   await expect(page).toHaveURL(/\/app\/campaigns\/00000000-0000-4000-8000-000000000011$/)
+  await expect(page.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'People in this campaign' })).toBeVisible()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
 
   await page.goBack()
   await expect(page).toHaveURL(/\/app\/campaigns$/)
@@ -260,6 +263,7 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
 
   await page.goto(`/app/campaigns/${redHand.id}`)
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
   await expect(page.getByRole('listitem').getByText('player_one', { exact: true })).toBeVisible()
 })
 
@@ -326,21 +330,38 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
   await page.getByRole('link', { name: 'Enter campaign' }).click()
 
+  const settings = page.getByRole('button', { name: 'Campaign settings', exact: true })
+  await settings.click()
   await page.getByRole('button', { name: 'Edit details' }).click()
+  await page.getByLabel('Campaign name').fill('   ')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Enter a campaign name.')).toBeVisible()
   await page.getByLabel('Campaign name').fill('The Red Hand: Reframed')
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeFocused()
+  await settings.click()
+  await expect(page.getByLabel('Campaign name')).toHaveValue('The Red Hand: Reframed')
   await page.getByLabel('Description (optional)').fill('A different account of the same town.')
   await page.getByRole('button', { name: 'Save changes' }).click()
-  await expect(page.getByRole('heading', { name: 'The Red Hand: Reframed' })).toBeVisible()
   await expect(
     page.getByRole('status').filter({ hasText: 'Campaign details saved.' }),
   ).toBeVisible()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(page.getByRole('heading', { name: 'The Red Hand: Reframed' })).toBeVisible()
 
+  await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toBeVisible()
   await page.getByRole('button', { name: 'Keep campaign' }).click()
-  await expect(page.getByRole('heading', { name: 'The Red Hand: Reframed' })).toBeVisible()
+  const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
+  await expect(deleteButton).toBeFocused()
+  await deleteButton.click()
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeFocused()
 
-  await page.getByRole('button', { name: 'Delete campaign' }).click()
+  await settings.click()
+  await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toHaveCount(0)
+  await deleteButton.click()
   await page.getByRole('button', { name: 'Yes, delete campaign' }).click()
   await expect(page).toHaveURL(/\/app\/campaigns$/)
   await expect(page.getByRole('status').filter({ hasText: 'Campaign deleted.' })).toBeVisible()
@@ -358,10 +379,13 @@ test('shows member access without owner controls', async ({ page }) => {
   await page.getByRole('button', { name: 'The Red Hand', exact: true }).click()
   await expect(page.getByText('Your role:')).toContainText('Member')
   await page.getByRole('link', { name: 'Enter campaign' }).click()
+  await expect(page.getByRole('button', { name: 'Campaign settings' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
   await expect(page.getByText('Your role').locator('..')).toContainText('Member')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
   await expect(page.getByRole('list').getByText('game_master', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Delete campaign' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Invite player' })).toHaveCount(0)
 })
 
 test('shows a campaign list error and recovers', async ({ page }) => {
@@ -489,6 +513,162 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
       })
     }
   }
+})
+
+test('fits the full camp backdrop and keeps destinations usable across viewports', async ({
+  page,
+}, testInfo) => {
+  const longName = 'The Unwritten Chronicles of the Far Shore and the Lanterns Beyond the Sea'
+  const roster = Array.from({ length: 32 }, (_, index) => ({
+    profile_id: `player-${index}`,
+    role: 'member',
+    username: `player_${String(index).padStart(2, '0')}`,
+  }))
+  await mockCampaignApi(page, [{ ...redHand, name: longName }])
+  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+    const headers = corsHeaders()
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    await route.fulfill({ status: 200, headers, json: roster })
+  })
+  await signIn(page)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+
+  const heading = page.getByRole('heading', { name: longName, exact: true })
+  const party = page.getByRole('button', { name: 'Party', exact: true })
+  const back = page.getByRole('button', { name: 'Back to camp' })
+  const image = page.locator('[data-camp-backdrop]')
+  const scene = page.locator('[data-camp-plane]')
+
+  for (const [width, height] of [
+    [320, 568],
+    [375, 812],
+    [768, 960],
+    [1440, 900],
+    [844, 390],
+  ]) {
+    await page.setViewportSize({ width, height })
+    const usesSceneButtons = width >= 900 && height >= 481
+    const imageName = width <= 480 ? 'lantern-village-small.avif' : 'lantern-village.avif'
+    await expect
+      .poll(() =>
+        image.evaluate((img: HTMLImageElement) =>
+          img.complete && img.naturalWidth > 0 ? img.currentSrc : '',
+        ),
+      )
+      .toContain(imageName)
+    await expect(image).toBeInViewport({ ratio: 1 })
+    const imageBox = (await image.boundingBox())!
+    expect(imageBox.width / imageBox.height).toBeCloseTo(1672 / 941, 2)
+    await expect(heading).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
+    const names = usesSceneButtons
+      ? ['Overview', 'Party', 'Campaign settings']
+      : ['Overview Campfire', 'Party Bedroll circle', 'Campaign settings Steward’s wagon']
+    for (const name of names) {
+      const sign = page.getByRole('button', { name, exact: true })
+      await expect(sign).toBeInViewport({ ratio: 1 })
+      await sign.click({ trial: true })
+      expect((await sign.boundingBox())?.height).toBeGreaterThanOrEqual(44)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+    await page.screenshot({ path: testInfo.outputPath(`camp-${width}.png`) })
+
+    const partyControl = page.getByRole('button', { name: names[1], exact: true })
+    await partyControl.press('Enter')
+    await expect(back).toBeFocused()
+    await expect(page.locator('[data-camp-state]')).toHaveAttribute('data-camp-state', 'party')
+    const dialog = page.getByRole('dialog', { name: 'People in this campaign' })
+    await expect(dialog).toBeInViewport({ ratio: 1 })
+    if (usesSceneButtons) await expect(scene).not.toHaveCSS('transform', 'none')
+    else expect((await dialog.boundingBox())?.width).toBe(width)
+    await page.screenshot({
+      path: testInfo.outputPath(`party-${width}.png`),
+      animations: 'disabled',
+    })
+    await dialog.getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
+    await expect(dialog.getByText('player_31', { exact: true })).toBeInViewport()
+    await expect(back).toBeInViewport({ ratio: 1 })
+    await page.keyboard.press('Escape')
+    await expect(partyControl).toBeFocused()
+    await expect(page.locator('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await party.click()
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Party Bedroll circle' })).toBeFocused()
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await party.click()
+  await expect(scene).toHaveCSS('transform', 'none')
+  await expect(scene).toHaveCSS('transition-duration', '0s')
+  await expect(scene.locator('[data-camp-light]').first()).toHaveCSS('animation-name', 'none')
+})
+
+test('opens locations from Places when camp artwork is unavailable', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await page.route('**/art/lantern-village*', (route) =>
+    route.request().resourceType() === 'image' ? route.abort() : route.fallback(),
+  )
+  await signIn(page)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+
+  const places = page.getByRole('list', { name: 'Camp places' })
+  const overview = places.getByRole('button', { name: 'Overview Campfire' })
+  await expect(places).toBeVisible()
+  await overview.press('Enter')
+  const dialog = page.getByRole('dialog', { name: redHand.name })
+  await expect(dialog.getByText(redHand.description!)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(overview).toBeFocused()
+  await page.getByRole('link', { name: 'Back to campaigns' }).click()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+})
+
+test('retries campaign and party loading from the camp', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const error = { message: 'temporary test failure' }
+  let releaseCampaign!: () => void
+  let releaseRoster!: () => void
+  const pendingCampaign = new Promise<void>((resolve) => {
+    releaseCampaign = resolve
+  })
+  const pendingRoster = new Promise<void>((resolve) => {
+    releaseRoster = resolve
+  })
+  let failCampaign = true
+  let failRoster = true
+  await page.route('**/rest/v1/campaigns?*', async (route) => {
+    if (!new URL(route.request().url()).searchParams.has('id') || !failCampaign)
+      return route.fallback()
+    await pendingCampaign
+    await route.fulfill({ status: 400, headers: corsHeaders(), json: error })
+  })
+  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+    const headers = corsHeaders()
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (failRoster) {
+      await pendingRoster
+      return route.fulfill({ status: 400, headers, json: error })
+    }
+    await route.fulfill({ status: 200, headers, json: [] })
+  })
+  await signIn(page)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+  await expect(page.getByText('Opening campaign workspace…')).toBeVisible()
+  releaseCampaign()
+  await expect(page.getByText('This workspace could not be opened.')).toBeVisible()
+  failCampaign = false
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByText('Loading campaign members…')).toBeVisible()
+  releaseRoster()
+  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  failRoster = false
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText('No member information is available.')).toBeVisible()
 })
 
 test('keeps one full-screen WebGL canvas across overlays and falls back after context loss', async ({
@@ -1201,6 +1381,8 @@ test('an owner sends and cancels invitations from the campaign workspace', async
   await signIn(page)
   await page.goto(`/app/campaigns/${redHand.id}`)
 
+  const guild = page.getByRole('button', { name: 'Party', exact: true })
+  await guild.click()
   const trigger = page.getByRole('button', { name: 'Invite player' })
   const username = page.getByLabel('Player username')
   const send = page.getByRole('button', { name: 'Send invitation' })
@@ -1218,6 +1400,10 @@ test('an owner sends and cancels invitations from the campaign workspace', async
   await expect(page.getByRole('alert')).toContainText('No player has that username')
   await expect(username).toHaveValue('missing_player')
   await username.fill('  Player_Two  ')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(guild).toBeFocused()
+  await guild.click()
+  await expect(username).toHaveValue('  Player_Two  ')
   await send.click()
   await expect(page.getByText('Invitation sent.')).toBeVisible()
   await expect(trigger).toBeFocused()
