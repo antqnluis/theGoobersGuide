@@ -68,7 +68,11 @@ function CampaignSelector({ userId }: { userId: string }) {
   const selectedId = selection?.id ?? null
   const locationState = location.state as { campaignNotice?: string } | null
   const [notice] = useState(() =>
-    locationState?.campaignNotice === 'deleted' ? 'Campaign deleted.' : null,
+    locationState?.campaignNotice === 'deleted'
+      ? 'Campaign deleted.'
+      : locationState?.campaignNotice === 'left'
+        ? 'You left the campaign.'
+        : null,
   )
   const campaignsQuery = useQuery({
     ...campaignListOptions(userId),

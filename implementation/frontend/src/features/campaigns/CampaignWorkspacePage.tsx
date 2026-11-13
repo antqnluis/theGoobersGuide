@@ -4,12 +4,15 @@ import { Link, useLocation, useNavigate, useNavigationType, useParams } from 're
 import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
+import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
+import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
 import { planetAppearance } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignManagement } from './useCampaignManagement'
+import { useCampaignMembership, type MembershipConfirmation } from './useCampaignMembership'
 
 export function CampaignWorkspacePage() {
   const { campaignId = '' } = useParams()
@@ -43,6 +46,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     routeState?.campaignCreated ? 'Campaign created.' : null,
   )
   const management = useCampaignManagement(campaignId, userId)
+  const membership = useCampaignMembership(campaignId, userId)
+  const [confirmation, setConfirmation] = useState<MembershipConfirmation | null>(null)
+  // Which action the current membership error belongs to, so it shows beside its own control.
+  const [membershipErrorFor, setMembershipErrorFor] = useState<'party' | 'settings'>('party')
 
   const campaignQuery = useQuery({
     queryKey: ['campaigns', 'detail', campaignId, userId],
@@ -97,6 +104,36 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const remove = async () => {
     if (await management.remove()) {
       navigate('/app/campaigns', { state: { campaignNotice: 'deleted' } })
+    }
+  }
+
+  const changeConfirmation = (next: MembershipConfirmation | null) => {
+    membership.clearError()
+    setConfirmation(next)
+  }
+
+  const leaveCampaign = async () => {
+    setMembershipErrorFor('party')
+    if (await membership.leave()) {
+      navigate('/app/campaigns', { state: { campaignNotice: 'left' } })
+    }
+  }
+
+  const removeMember = async (profileId: string, name: string) => {
+    setMembershipErrorFor('party')
+    setNotice(null)
+    if (await membership.remove(profileId)) {
+      setConfirmation(null)
+      setNotice(`${name} was removed.`)
+    }
+  }
+
+  const transferOwnership = async (profileId: string, name: string) => {
+    setMembershipErrorFor('settings')
+    setNotice(null)
+    if (await membership.transfer(profileId)) {
+      setConfirmation(null)
+      setNotice(`Ownership transferred to ${name}.`)
     }
   }
 
@@ -173,8 +210,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           management.clearError()
           setIsConfirmingDelete(false)
         }
+        membership.clearError()
+        setConfirmation(null)
       }}
-      isDeleting={management.isDeleting}
+      isDeleting={management.isDeleting || membership.pendingAction !== null}
       isOwner={isOwner}
       notice={notice}
       landfallKey={arrivedFromGalaxy ? location.key : null}
@@ -215,42 +254,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         </>
       }
       party={
-        <>
-          <h2 id="camp-party-heading">People in this campaign</h2>
-          {rosterQuery.isPending && (
-            <p className="campaign-loading" role="status">
-              Loading campaign members…
-            </p>
-          )}
-          {rosterQuery.isError && (
-            <div className="campaign-inline-error" role="alert">
-              <p>Campaign members could not be loaded.</p>
-              <button
-                className="campaign-text-button"
-                onClick={() => rosterQuery.refetch()}
-                type="button"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {rosterQuery.isSuccess && roster.length === 0 && (
-            <p className="campaign-members__empty">No member information is available.</p>
-          )}
-          {rosterQuery.isSuccess && roster.length > 0 && (
-            <ul className="campaign-member-list">
-              {roster.map((member) => (
-                <li key={member.profile_id}>
-                  <span>
-                    {member.username || (member.role === 'owner' ? 'Campaign owner' : 'Player')}
-                  </span>
-                  <span className="campaign-member-list__role">
-                    {member.role === 'owner' ? 'Owner' : 'Member'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <CampaignPartyMembers
+          campaignName={campaign.name}
+          confirmation={confirmation}
+          error={membershipErrorFor === 'party' ? membership.error : null}
+          isOwner={isOwner}
+          onConfirmationChange={changeConfirmation}
+          onLeaveCampaign={leaveCampaign}
+          onRemoveMember={removeMember}
+          onRetry={() => rosterQuery.refetch()}
+          pendingAction={membership.pendingAction}
+          pendingProfileId={membership.pendingProfileId}
+          roster={roster}
+          status={rosterQuery.isError ? 'error' : rosterQuery.isSuccess ? 'success' : 'pending'}
+        >
           {isOwner && (
             <CampaignOutgoingInvitations
               campaignId={campaign.id}
@@ -258,7 +275,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               userId={userId}
             />
           )}
-        </>
+        </CampaignPartyMembers>
       }
       settings={
         <>
@@ -286,6 +303,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
                 className="auth-button auth-button--secondary"
                 onClick={() => {
                   management.clearError()
+                  changeConfirmation(null)
                   setIsEditing(true)
                 }}
                 type="button"
@@ -297,6 +315,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
                 ref={deleteTriggerRef}
                 onClick={() => {
                   management.clearError()
+                  changeConfirmation(null)
                   setIsConfirmingDelete(true)
                 }}
                 type="button"
@@ -305,6 +324,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               </button>
             </div>
           ) : null}
+
+          {!isEditing && !isConfirmingDelete && (
+            <CampaignOwnershipTransfer
+              campaignName={campaign.name}
+              confirmation={confirmation}
+              error={membershipErrorFor === 'settings' ? membership.error : null}
+              onConfirmationChange={changeConfirmation}
+              onRetry={() => rosterQuery.refetch()}
+              onTransfer={transferOwnership}
+              pendingAction={membership.pendingAction}
+              roster={roster}
+              status={rosterQuery.isError ? 'error' : rosterQuery.isSuccess ? 'success' : 'pending'}
+            />
+          )}
 
           {isConfirmingDelete && (
             <div

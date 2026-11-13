@@ -309,3 +309,73 @@ export async function enterFromGalaxy(page: Page, campaign: Campaign = redHand) 
   await expect(page).toHaveURL(new RegExp(`/app/campaigns/${campaign.id}$`))
   return page.locator('.camp')
 }
+
+export type MembershipFailure = { status: number; message: string } | null
+
+/**
+ * A stateful roster and the three membership RPCs, layered over `mockCampaignApi`
+ * (later routes win). Leaving, removing, and transferring mutate `roster` and
+ * `campaigns` so refetches show the result, as the database would.
+ */
+export async function mockMembership(
+  page: Page,
+  campaigns: Campaign[],
+  roster: RosterMember[],
+  options: {
+    /** Return a failure to refuse the next membership call. */
+    fail?: () => MembershipFailure
+    /** Holds each membership call until the promise settles. */
+    hold?: () => Promise<void> | undefined
+  } = {},
+) {
+  const calls: string[] = []
+  const requests: string[] = []
+  await page.route('**/rest/v1/**', async (route) => {
+    const request = route.request()
+    const method = request.method()
+    const path = new URL(request.url()).pathname
+    const headers = corsHeaders()
+    const rpc = path.split('/rest/v1/rpc/')[1]
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    requests.push(`${method} ${path.split('/rest/v1/')[1]}`)
+
+    if (rpc === 'get_campaign_roster') {
+      return route.fulfill({ status: 200, headers, json: roster })
+    }
+    if (
+      rpc !== 'leave_campaign' &&
+      rpc !== 'remove_campaign_member' &&
+      rpc !== 'transfer_campaign_ownership'
+    ) {
+      return route.fallback()
+    }
+
+    const body = request.postDataJSON() as { p_campaign_id: string; p_profile_id?: string }
+    calls.push(`${rpc} ${body.p_profile_id ?? ''}`.trim())
+    await options.hold?.()
+    const failure = options.fail?.()
+    if (failure) {
+      return route.fulfill({
+        status: failure.status,
+        headers,
+        json: { code: 'P0001', message: failure.message },
+      })
+    }
+
+    const campaign = campaigns.find((item) => item.id === body.p_campaign_id)
+    if (rpc === 'leave_campaign') {
+      campaigns.splice(campaigns.indexOf(campaign!), 1)
+    } else if (rpc === 'remove_campaign_member') {
+      const index = roster.findIndex((member) => member.profile_id === body.p_profile_id)
+      roster.splice(index, 1)
+    } else {
+      for (const member of roster) {
+        if (member.role === 'owner') member.role = 'member'
+        else if (member.profile_id === body.p_profile_id) member.role = 'owner'
+      }
+      campaign!.owner_id = body.p_profile_id!
+    }
+    await route.fulfill({ status: 204, headers })
+  })
+  return { calls, requests }
+}

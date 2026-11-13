@@ -11,6 +11,12 @@ import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
 
+/** The one inline confirmation that may be open at a time in the workspace. */
+export type MembershipConfirmation =
+  | { type: 'leave' }
+  | { type: 'remove'; profileId: string }
+  | { type: 'transfer'; profileId: string }
+
 const fallbackCopy: Record<MembershipAction, string> = {
   leave: "We couldn't leave the campaign. Check your connection and try again.",
   remove: "We couldn't remove this player. Check your connection and try again.",

@@ -5,13 +5,17 @@ import { seatParty } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
 import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
+import type { RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import {
+  accountId,
   type Campaign,
+  type MembershipFailure,
   campDraws,
   campLog,
   corsHeaders,
   enterFromGalaxy,
   mockCampaignApi,
+  mockMembership,
   mockRoster,
   openCamp,
   ownerId,
@@ -407,8 +411,8 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     await expect(dialog).toBeInViewport({ ratio: 1 })
     await expect(camp).toHaveAttribute('data-camp-state', 'party')
     if (!desktop) expect((await dialog.boundingBox())?.width).toBe(width)
-    await dialog.getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
-    await expect(dialog.getByText('player_31', { exact: true })).toBeInViewport()
+    await dialog.getByRole('list').getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
+    await expect(dialog.getByRole('list').getByText('player_31', { exact: true })).toBeInViewport()
     await expect(back).toBeInViewport({ ratio: 1 })
     await page.keyboard.press('Escape')
     await expect(party).toBeFocused()
@@ -532,7 +536,11 @@ test('seats the real roster around the fire and recovers from a roster error', a
   await expect(names).toHaveCount(0)
   const empty = await checksum()
   await page.locator('[data-camp-sign][data-location="party"]').click()
-  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Campaign members could not be loaded.'),
+  ).toBeVisible()
   await expect(names).toHaveCount(0)
 
   failing = false
@@ -1228,9 +1236,17 @@ test('retries campaign and party loading from the camp', async ({ page }) => {
   failCampaign = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await page.getByRole('button', { name: 'Party', exact: true }).click()
-  await expect(page.getByText('Loading campaign members…')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Loading campaign members…'),
+  ).toBeVisible()
   releaseRoster()
-  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Campaign members could not be loaded.'),
+  ).toBeVisible()
   failRoster = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.getByText('No member information is available.')).toBeVisible()
@@ -2059,3 +2075,292 @@ test('responds to invitations on a short phone viewport without WebGL', async ({
   await expect(panel).toHaveCSS('transition-property', 'none')
   await expect(page.getByText('You have no pending invitations.')).toBeInViewport()
 })
+
+const guestId = '00000000-0000-4000-8000-000000000201'
+const nameless = '00000000-0000-4000-8000-000000000202'
+
+function ownerRoster(): RosterMember[] {
+  return [
+    { profile_id: accountId, role: 'owner', username: 'player_one' },
+    { profile_id: guestId, role: 'member', username: 'player_two' },
+    { profile_id: nameless, role: 'member', username: null },
+  ]
+}
+
+function memberRoster(): RosterMember[] {
+  return [
+    { profile_id: ownerId, role: 'owner', username: 'game_master' },
+    { profile_id: accountId, role: 'member', username: 'player_one' },
+    { profile_id: guestId, role: 'member', username: 'player_two' },
+  ]
+}
+
+const hasNoHorizontalScroll = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+
+test('a member leaves from the Party panel by keyboard and lands on the selector', async ({
+  page,
+}) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  const { calls, requests } = await mockMembership(page, campaigns, memberRoster())
+  await openCamp(page, campaign)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Invite player' })).toHaveCount(0)
+  const leave = page.getByRole('button', { name: 'Leave campaign', exact: true })
+  await leave.focus()
+  await page.keyboard.press('Enter')
+
+  const confirm = page.getByRole('group', { name: 'Confirm leaving the campaign' })
+  await expect(confirm).toContainText(
+    "Leave The Red Hand? You'll lose access until the owner invites you again.",
+  )
+  await expect(page.getByRole('button', { name: 'Yes, leave campaign' })).toBeFocused()
+  await page.getByRole('button', { name: 'Stay in campaign' }).click()
+  await expect(confirm).toHaveCount(0)
+  await expect(leave).toBeFocused()
+  expect(calls).toEqual([])
+
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(page.getByRole('status').filter({ hasText: 'You left the campaign.' })).toBeVisible()
+  await expect(page.getByText('Campaign not available')).toHaveCount(0)
+  expect(calls).toEqual(['leave_campaign'])
+  // Nothing refetched the campaign or roster after the leave, so no "not available" flash.
+  const afterLeave = requests.slice(requests.indexOf('POST rpc/leave_campaign') + 1)
+  expect(afterLeave.filter((entry) => entry.includes('rpc/get_campaign_roster'))).toEqual([])
+  expect(afterLeave.filter((entry) => entry.startsWith('GET campaigns'))).not.toContain(
+    'GET campaigns?select=*&id=eq.' + campaign.id,
+  )
+})
+
+test('the owner removes a member after one inline confirmation', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  const { calls } = await mockMembership(page, campaigns, roster)
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Leave campaign' })).toHaveCount(0)
+  await expect(page.getByText('transfer ownership in Campaign settings first.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(2)
+  await expect(
+    page.getByRole('button', { name: 'Remove this player from the campaign' }),
+  ).toBeVisible()
+
+  const removeGuest = page.getByRole('button', { name: 'Remove player_two from the campaign' })
+  await removeGuest.click()
+  const confirm = page.getByRole('group', { name: 'Confirm removal of player_two' })
+  await expect(confirm).toContainText('Remove player_two from The Red Hand?')
+  await expect(page.getByRole('button', { name: 'Yes, remove' })).toBeFocused()
+
+  // Only one confirmation is open at a time.
+  await page.getByRole('button', { name: 'Remove this player from the campaign' }).click()
+  await expect(page.getByRole('group', { name: /Confirm removal/ })).toHaveCount(1)
+  await expect(page.getByRole('group', { name: 'Confirm removal of this player' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Keep this player' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Remove this player from the campaign' }),
+  ).toBeFocused()
+  expect(calls).toEqual([])
+
+  await removeGuest.click()
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'player_two was removed.' }),
+  ).toBeVisible()
+  await expect(page.getByRole('list').getByText('player_two', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Invite player' })).toBeFocused()
+  expect(calls).toEqual([`remove_campaign_member ${guestId}`])
+})
+
+test('the owner transfers ownership and becomes a regular member', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  const { calls } = await mockMembership(page, campaigns, roster)
+  await openCamp(page)
+
+  const settings = page.getByRole('button', { name: 'Campaign settings', exact: true })
+  await settings.click()
+  const transfer = page.getByRole('button', { name: 'Transfer ownership', exact: true })
+  await expect(page.getByRole('heading', { name: 'Transfer ownership' })).toBeVisible()
+  await expect(transfer).toBeDisabled()
+  await page.getByRole('radio', { name: 'player_two' }).check()
+  await expect(transfer).toBeEnabled()
+  await transfer.click()
+
+  const confirm = page.getByRole('group', { name: 'Confirm ownership transfer' })
+  await expect(confirm).toContainText('Make player_two the owner of The Red Hand?')
+  await page.getByRole('button', { name: 'Keep ownership' }).click()
+  await expect(confirm).toHaveCount(0)
+  expect(calls).toEqual([])
+
+  await page.getByRole('radio', { name: 'player_two' }).check()
+  await transfer.click()
+  await page.getByRole('button', { name: 'Yes, transfer ownership' }).click()
+
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Ownership transferred to player_two.' }),
+  ).toBeVisible()
+  await expect(settings).toHaveCount(0)
+  await expect(page.locator('dialog.camp-ledger')).not.toHaveAttribute('open', '')
+  expect(calls).toEqual([`transfer_campaign_ownership ${guestId}`])
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
+  await expect(page.getByText('Your role').locator('..')).toContainText('Member')
+  await expect(page.getByText('Campaign owner').locator('..')).toContainText('player_two')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Leave campaign' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+})
+
+test('an owner with no other members is asked to invite someone before transferring', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(page, campaigns, [
+    { profile_id: accountId, role: 'owner', username: 'player_one' },
+  ])
+  await openCamp(page)
+  await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
+  await expect(page.getByText('Invite a player before you transfer ownership.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Transfer ownership', exact: true })).toHaveCount(0)
+})
+
+test('membership failures show safe copy, keep the dialog open, and can be retried', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  let failure: MembershipFailure = { status: 500, message: 'connection reset' }
+  await mockMembership(page, campaigns, roster, { fail: () => failure })
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    "We couldn't remove this player. Check your connection and try again.",
+  )
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+  await expect(page.locator('dialog.camp-ledger')).toHaveAttribute('open', '')
+
+  failure = { status: 400, message: 'campaign_member_unavailable' }
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(page.getByRole('alert')).toHaveText('That player is no longer in this campaign.')
+
+  failure = null
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'player_two was removed.' }),
+  ).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  failure = { status: 400, message: 'campaign_transfer_target_unavailable' }
+  await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
+  await page.getByRole('radio', { name: 'player', exact: false }).first().check()
+  await page.getByRole('button', { name: 'Transfer ownership', exact: true }).click()
+  await page.getByRole('button', { name: 'Yes, transfer ownership' }).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'That player is no longer in this campaign. Choose another member.',
+  )
+})
+
+test('the camp dialog cannot close while a membership request is pending', async ({ page }) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await mockMembership(page, campaigns, memberRoster(), { hold: () => gate })
+  await openCamp(page, campaign)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Leave campaign', exact: true }).click()
+  await page.getByRole('button', { name: 'Yes, leave campaign' }).click()
+  await expect(page.getByRole('button', { name: 'Leaving…' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Stay in campaign' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('dialog.camp-ledger')).toHaveAttribute('open', '')
+
+  release()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+})
+
+test('closing the camp dialog cancels an open membership confirmation', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(page, campaigns, ownerRoster())
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('group', { name: /Confirm removal/ })).toHaveCount(0)
+})
+
+const places = (page: Page) => page.getByRole('list', { name: 'Camp places' })
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['tablet', 768, 1024],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`owner membership confirmations fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const ownedCampaigns = await mockCampaignApi(page, [
+      { ...redHand, name: 'The Red Hand of the Long Night' },
+    ])
+    await mockMembership(page, ownedCampaigns, ownerRoster())
+    await openCamp(page, redHand)
+
+    await places(page)
+      .getByRole('button', { name: /^Party/ })
+      .click()
+    await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+    await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+    await page.getByRole('button', { name: 'Keep player_two' }).click()
+    await page.getByRole('button', { name: 'Back to camp' }).click()
+
+    await places(page)
+      .getByRole('button', { name: /^Campaign settings/ })
+      .click()
+    await page.getByRole('radio', { name: 'player_two' }).check()
+    await page.getByRole('button', { name: 'Transfer ownership', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Confirm ownership transfer' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+  })
+
+  test(`a member's leave confirmation fits a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const campaign: Campaign = {
+      ...redHand,
+      owner_id: ownerId,
+      name: 'The Red Hand of the Long Night',
+    }
+    const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+    await mockMembership(page, campaigns, memberRoster())
+    await openCamp(page, campaign)
+
+    await places(page)
+      .getByRole('button', { name: /^Party/ })
+      .click()
+    await page.getByRole('button', { name: 'Leave campaign', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Confirm leaving the campaign' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+  })
+}

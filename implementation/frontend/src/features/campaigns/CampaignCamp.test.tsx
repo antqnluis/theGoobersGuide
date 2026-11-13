@@ -10,11 +10,11 @@ vi.mock('./camp/CampLandscape', () => ({ default: () => null }))
 
 afterEach(cleanup)
 
-function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
-  render(
+function campElement({ isOwner = true, isDeleting = false, cancelDelete = vi.fn() } = {}) {
+  return (
     <CampaignCamp
       cancelDelete={cancelDelete}
-      isDeleting={false}
+      isDeleting={isDeleting}
       isOwner={isOwner}
       notice={null}
       background="campaign"
@@ -29,10 +29,17 @@ function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
-    />,
+    />
   )
-  return { cancelDelete }
 }
+
+function renderCamp(options: Parameters<typeof campElement>[0] = {}) {
+  const cancelDelete = options.cancelDelete ?? vi.fn()
+  const view = render(campElement({ ...options, cancelDelete }))
+  return { ...view, cancelDelete }
+}
+
+const pendingCamp = (isDeleting: boolean) => campElement({ isDeleting })
 
 describe('CampaignCamp destinations', () => {
   it('opens a destination, focuses Back to camp, and restores focus to the opener', async () => {
@@ -59,6 +66,23 @@ describe('CampaignCamp destinations', () => {
     await user.click(entry)
     await user.click(screen.getByRole('button', { name: 'Back to camp' }))
     expect(entry).toHaveFocus()
+  })
+
+  it('cannot be closed while a campaign or membership change is pending', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderCamp()
+    await user.click(screen.getByRole('button', { name: /Party\s*Bedroll circle/ }))
+    const state = () => document.querySelector('[data-camp-state]')
+
+    rerender(pendingCamp(true))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    expect(state()).toHaveAttribute('data-camp-state', 'party')
+
+    rerender(pendingCamp(false))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    await vi.waitFor(() => expect(state()).toHaveAttribute('data-camp-state', 'idle'))
   })
 
   it('names Places entries by label and object, and hides settings from members', () => {
