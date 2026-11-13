@@ -45,7 +45,15 @@ export function CampSettings({
   }, [open])
 
   const control = (
-    <div className="camp-settings" ref={rootRef}>
+    <div
+      className="camp-settings"
+      onBlur={(event) => {
+        // Tabbing out of the panel closes it; a click inside never moves focus outside.
+        const next = event.relatedTarget
+        if (open && next instanceof Node && !event.currentTarget.contains(next)) setOpen(false)
+      }}
+      ref={rootRef}
+    >
       <button
         aria-controls={open ? panelId : undefined}
         aria-expanded={open}

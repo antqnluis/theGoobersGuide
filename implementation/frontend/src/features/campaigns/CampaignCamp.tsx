@@ -416,11 +416,10 @@ export function CampaignCamp({
       <CampSettings background={background} onChange={onBackgroundChange} />
       <div className="camp__heading">
         {title}
-        {notice && !active && (
-          <p className="camp__notice" role="status">
-            {notice}
-          </p>
-        )}
+        {/* Always mounted, so a screen reader announces text added to it. */}
+        <p className="camp__notice" role="status">
+          {notice && !active ? notice : null}
+        </p>
       </div>
 
       <div className="camp-scene" ref={sceneRef} style={sceneStyle}>
@@ -472,11 +471,9 @@ export function CampaignCamp({
             </button>
           </header>
           <div className="camp-ledger__body" ref={bodyRef}>
-            {notice && active && (
-              <p className="camp-ledger__notice" role="status">
-                {notice}
-              </p>
-            )}
+            <p className="camp-ledger__notice" role="status">
+              {notice && active ? notice : null}
+            </p>
             <section hidden={active?.id !== 'overview'}>{overview}</section>
             <section hidden={active?.id !== 'party'}>{party}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}

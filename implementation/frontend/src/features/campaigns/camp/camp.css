@@ -2,6 +2,23 @@
   --camp-night: #181628;
   --camp-cream: #fff0d7;
   --camp-brass: #dab98a;
+  /* Secondary text and the hairline edge of floating controls. */
+  --camp-brass-soft: #e1c6a4;
+  --camp-edge: #b99969;
+  /* Surfaces: the header and popover, hovered rows, and the plates over the scene. */
+  --camp-surface: #1d192d;
+  --camp-hover: #353142;
+  --camp-plate: #291c24;
+  --camp-plate-hot: #4a2b28;
+  --camp-plate-hot-edge: #fff0c9;
+  --camp-focus: #ffe7ac;
+  --camp-shadow: #0b0912;
+  /* The journal: its bar, rule, back link, and scrollbar on light paper. */
+  --camp-ledger-bar: #eae1d0;
+  --camp-ledger-rule: #ab9d86;
+  --camp-ledger-edge: #9b7d58;
+  --camp-ledger-back: #552831;
+  --camp-ledger-scroll: #8d7c63;
   --camp-gutter: clamp(16px, 3vw, 48px);
   --camp-header-height: 62px;
   position: relative;
@@ -24,8 +41,8 @@
   padding: 0 var(--camp-gutter);
   gap: 12px;
   border: 0;
-  border-bottom: 1px solid #edd0a539;
-  background: #1d192d;
+  border-bottom: 1px solid color-mix(in srgb, var(--camp-brass-soft) 22%, transparent);
+  background: var(--camp-surface);
 }
 
 .workspace-page--camp .workspace-header__primary {
@@ -137,7 +154,6 @@
   z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
   padding: 12px var(--camp-gutter) 14px;
   pointer-events: none;
 }
@@ -155,18 +171,25 @@
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;
   text-wrap: balance;
-  text-shadow: 0 2px 16px #0e1019;
+  text-shadow: 0 2px 16px color-mix(in srgb, var(--camp-night) 70%, black);
 }
 
 .camp__notice {
   justify-self: start;
-  margin: 0;
+  margin: 8px 0 0;
   padding: 8px 12px;
   color: var(--camp-cream);
-  background: #201e1c;
+  background: var(--camp-plate);
   font-size: 0.9rem;
   font-weight: 700;
   pointer-events: auto;
+}
+
+/* The status region stays mounted for screen readers; empty, it takes no room. */
+.camp__notice:empty,
+.camp-ledger__notice:empty {
+  margin: 0;
+  padding: 0;
 }
 
 /* The scene is a window onto the panorama. The gradient shows before the art
@@ -229,12 +252,12 @@
   /* Neighbouring seats are at least 30 art pixels apart, so plates never overrun them. */
   max-width: calc(var(--camp-unit) * 30);
   overflow: hidden;
-  border: 1px solid #cba473;
+  border: 1px solid var(--camp-edge);
   border-radius: 2px;
   padding: 1px 5px;
   color: var(--camp-cream);
-  background: #291c24e6;
-  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--camp-plate) 90%, transparent);
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -244,6 +267,7 @@
 
 .camp-sign {
   position: absolute;
+  cursor: pointer;
   border-radius: var(--radius-control);
   padding: 0;
   background: transparent;
@@ -252,12 +276,12 @@
 .camp-sign span {
   position: absolute;
   left: 50%;
-  border: 1px solid #cba473;
+  border: 1px solid var(--camp-edge);
   border-radius: var(--radius-control);
   padding: 6px 10px;
   color: var(--camp-cream);
-  background: #291c24;
-  box-shadow: 0 4px 12px #14100bb3;
+  background: var(--camp-plate);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--camp-shadow) 70%, transparent);
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.2;
@@ -289,8 +313,8 @@
 }
 
 .camp-sign:is(:hover, :focus-visible, [data-active]) span {
-  border-color: #fff0c9;
-  background: #4a2b28;
+  border-color: var(--camp-plate-hot-edge);
+  background: var(--camp-plate-hot);
 }
 
 .camp-directory {
@@ -313,7 +337,7 @@
 }
 
 .camp-directory li + li {
-  border-top: 1px solid #b9996952;
+  border-top: 1px solid color-mix(in srgb, var(--camp-edge) 32%, transparent);
 }
 
 .camp-places__destination {
@@ -330,13 +354,13 @@
 }
 
 .camp-places__destination span {
-  color: #e1c6a4;
+  color: var(--camp-brass-soft);
   font-size: 0.8rem;
   font-weight: 400;
 }
 
 .camp-places__destination:hover {
-  background: #353142;
+  background: var(--camp-hover);
 }
 
 .workspace-page--camp
@@ -348,7 +372,7 @@
     .camp-state button,
     .camp-state a
   ):focus-visible {
-  outline: 3px solid #ffe7ac;
+  outline: 3px solid var(--camp-focus);
   outline-offset: 3px;
 }
 
@@ -367,11 +391,11 @@
   overflow: hidden;
   color: var(--color-ink);
   background: var(--color-paper-light);
-  box-shadow: -8px 5px 44px #1510125c;
+  box-shadow: -8px 5px 44px color-mix(in srgb, var(--camp-night) 36%, transparent);
 }
 
 .camp-ledger::backdrop {
-  background: #14111e36;
+  background: color-mix(in srgb, var(--camp-night) 21%, transparent);
 }
 
 .camp-ledger__layout {
@@ -382,8 +406,8 @@
 
 .camp-ledger__bar {
   padding: 5px clamp(20px, 3vw, 38px);
-  border-bottom: 1px solid #ab9d86;
-  background: #eae1d0;
+  border-bottom: 1px solid var(--camp-ledger-rule);
+  background: var(--camp-ledger-bar);
 }
 
 .camp-ledger__back {
@@ -391,7 +415,7 @@
   min-height: 44px;
   align-items: center;
   gap: 9px;
-  color: #552831;
+  color: var(--camp-ledger-back);
   font-size: 0.9rem;
   font-weight: 700;
   text-decoration-thickness: 1px;
@@ -418,7 +442,7 @@
   overscroll-behavior: contain;
   padding: clamp(22px, 4vw, 44px) clamp(20px, 3vw, 38px) 34px;
   overflow-wrap: anywhere;
-  scrollbar-color: #8d7c63 var(--color-paper-light);
+  scrollbar-color: var(--camp-ledger-scroll) var(--color-paper-light);
 }
 
 .camp-ledger__body h2 {
@@ -515,23 +539,23 @@
   .camp-places__destination {
     min-height: 48px;
     width: auto;
-    border: 1px solid #b99969;
+    border: 1px solid var(--camp-edge);
     border-radius: var(--radius-control);
     padding: 4px 12px;
-    background: #1b202bd9;
+    background: color-mix(in srgb, var(--camp-surface) 85%, transparent);
   }
 
   .camp-ledger {
     inset: 12px 12px 12px auto;
     width: clamp(340px, 39vw, 540px);
     height: calc(100dvh - 24px);
-    border-inline: 1px solid #9b7d58;
-    border-bottom: 1px solid #9b7d58;
+    border-inline: 1px solid var(--camp-ledger-edge);
+    border-bottom: 1px solid var(--camp-ledger-edge);
   }
 
   .camp-ledger[data-panel-side='left'] {
     inset-inline: 12px auto;
-    box-shadow: 8px 5px 44px #1510125c;
+    box-shadow: 8px 5px 44px color-mix(in srgb, var(--camp-night) 36%, transparent);
   }
 }
 
@@ -540,8 +564,8 @@
     --camp-header-height: 54px;
   }
 
-  .camp__heading {
-    gap: 12px;
+  .camp__notice {
+    margin-top: 12px;
   }
 }
 
@@ -649,7 +673,7 @@
 }
 
 .workspace-page--camp .camp-settings :is(button, input):focus-visible {
-  outline: 3px solid #ffe7ac;
+  outline: 3px solid var(--camp-focus);
   outline-offset: 3px;
 }
 
@@ -663,12 +687,12 @@
   width: min(19rem, calc(100vw - 2 * var(--camp-gutter)));
   gap: 2px;
   margin: 0;
-  border: 1px solid #b99969;
+  border: 1px solid var(--camp-edge);
   border-radius: var(--radius-control);
   padding: 8px;
   color: var(--camp-cream);
-  background: #1d192d;
-  box-shadow: 0 10px 30px #0b0912cc;
+  background: var(--camp-surface);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--camp-shadow) 80%, transparent);
 }
 
 .camp-settings__title {
@@ -692,25 +716,25 @@
 
 .camp-settings__choice:hover,
 .camp-settings__choice:has(input:checked) {
-  background: #353142;
+  background: var(--camp-hover);
 }
 
 .camp-settings__choice input {
   width: 18px;
   height: 18px;
   flex: none;
-  accent-color: #dab98a;
+  accent-color: var(--camp-brass);
 }
 
 .camp-settings__choice small {
   display: block;
-  color: #e1c6a4;
+  color: var(--camp-brass-soft);
   font-size: 0.78rem;
   font-weight: 400;
 }
 
 .camp-settings__note {
   margin: 4px 8px 2px;
-  color: #cdb596;
+  color: var(--camp-brass-soft);
   font-size: 0.78rem;
 }
