@@ -8,7 +8,9 @@ import {
   buildSwapLut,
   campRamps,
   masterBiome,
+  colorsForMaterials,
   masterColors,
+  materialNames,
   masterFixed,
   packRgba,
   variantKey,
@@ -45,6 +47,20 @@ describe('master palette', () => {
       expect(Math.max(...back.map((value, index) => Math.abs(value - rgb[index])))).toBeLessThan(2)
       expect(rgbToHex(rgb)).toBe(color)
     }
+  })
+})
+
+describe('colorsForMaterials', () => {
+  it('returns only the named materials and rejects unknown ones', () => {
+    expect(colorsForMaterials(['ground', 'rock'])).toEqual([
+      ...masterBiome.ground,
+      ...masterBiome.rock,
+    ])
+    expect(() => colorsForMaterials(['lava'])).toThrow(/Unknown material/)
+  })
+
+  it('names every material in the master palette', () => {
+    expect(colorsForMaterials(materialNames)).toHaveLength(masterColors().length)
   })
 })
 

@@ -17,7 +17,8 @@
     "preview": "vite preview",
     "art:build": "node scripts/camp-art/build.ts",
     "art:check": "node scripts/camp-art/check.ts",
-    "art:placeholder": "node scripts/camp-art/placeholder.ts"
+    "art:placeholder": "node scripts/camp-art/placeholder.ts",
+    "art:review": "node scripts/camp-art/review.ts"
   },
   "dependencies": {
     "@fontsource/source-serif-4": "^5.3.1",

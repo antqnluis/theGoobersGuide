@@ -1,6 +1,6 @@
-import type { planetAppearance } from '../planetModel'
-import { biomeMaterials, masterBiome, type BiomeMaterial } from './masterPalette'
-import { hexToRgb, labToRgb, rgbToHex, rgbToLab, type Lab } from './oklab'
+import type { planetAppearance } from '../planetModel.ts'
+import { biomeMaterials, masterBiome, type BiomeMaterial } from './masterPalette.ts'
+import { hexToRgb, labToRgb, rgbToHex, rgbToLab, type Lab } from './oklab.ts'
 
 // All camp art is authored in one master palette. Fixed materials (wood, fire,
 // cloth, brass, skin) never change. Biome materials act as lookup keys and are
@@ -124,5 +124,12 @@ export function applyPaletteSwap(pixels: Uint32Array, lut: ReadonlyMap<number, n
   }
 }
 
-export { biomeMaterials, masterBiome, masterColors, masterFixed } from './masterPalette'
-export type { BiomeMaterial } from './masterPalette'
+export {
+  biomeMaterials,
+  colorsForMaterials,
+  masterBiome,
+  masterColors,
+  masterFixed,
+  materialNames,
+} from './masterPalette.ts'
+export type { BiomeMaterial } from './masterPalette.ts'

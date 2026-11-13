@@ -276,3 +276,29 @@ No UI change. Nothing imports the new modules yet, and the placeholder art is no
   - Framing puts the place at the centre of the part of the view the panel leaves open, which is about the opposite third on desktop (phone sheets do not pan).
   - Grid violation in `art:check` means a size that disagrees with the manifest or exceeds the panorama.
 - **Not verified:** the swap runs on `Uint32Array` in tests only; real `ImageData`, decode flags, and cross-browser colour come with Phase 4 and Phase 7.
+
+### Phase 3: Art direction (in progress, 13 November 2026)
+
+- **Comps:** GPT Image 2.6 is blocked on the free Higgsfield plan, so you generated three 16:9 comps in ChatGPT instead (`docs/art/camp-comp-{a,b,c}.png`, 1664×936). No Higgsfield credits were spent on the final comps; two cheap `z_image` test jobs (about 0.3 credits) were submitted before the switch and not used.
+- **Decision:** **A, classic 16-bit warm firelight.** B is richer but loses its fine texture at 270 px tall; C is flatter than the Galaxy.
+- **Palette check:** none of the comps has a recoverable pixel grid (grid detection returns 1; they are resampled, with 140k to 360k unique colours). Comp A resized to 480×270 and snapped to the master palette keeps its look with 76 colours, so the master palette is viable for the final layers.
+- **Pipeline additions:** sidecars now accept `width` (resize to art pixels before quantizing), `crop` (source rows to keep), and `materials` (restrict a layer to named materials, so biome colours stay recolourable). `colorsForMaterials` and `materialNames` are in `masterPalette.ts`; 2 new unit tests (180 total).
+- **Note:** comps are 16:9 (480×270 base), while the panorama is 960×270, so layers are produced as wide strips (see `art-src/camp/layer-prompts.md`).
+- **Next:** you generate batch 1 (11 images, prompts in `art-src/camp/layer-prompts.md`); I convert, check at 1× and 4×, and show them for approval. Phase 3 is done when you approve the plates and `art:check` passes within the ≤150 KB first-load budget.
+
+### Phase 3: Batch 1 plates (13 November 2026)
+
+Ten ChatGPT sources (sky, ridge, trees, ground, foreground, wagon, waystone, firepit, bedrolls sheet, props sheet) converted to **17 on-palette PNGs** (4 full panorama layers plus foreground, 12 sprites). `art:check` passes; total art is **about 69 KB** (budget ≤150 KB first load).
+
+- **Review images:** `docs/art/camp-batch1-panorama-1x.png` (960×270), `camp-batch1-fire-4x.png` (4× crop around the fire), and `camp-batch1-biome-variants.png` (the same art recoloured for desert, frozen, volcanic, gas, rocky). `npm run art:review -- <dir> [worldType]` regenerates them.
+- **Scale decision:** props are scaled to about 1 art pixel per generated pixel (wagon 104 px wide); wide strips are scaled so the whole 1536×1024 canvas becomes 405×270, then mirrored to 960 wide so seams always match.
+- **Recolour proof:** the runtime palette swap works on the real art. The ground, pines, hills, and sky take each world's colours while wood, canvas, cloth, and the waystone glow stay fixed.
+- **Pipeline additions:** `scale`, `layer` (tile, offsetY, mirrorDown), `sprites`, `gap`, `key`, `materials`; sprite-sheet slicing with connected components; `glow` added to the master palette; `art:review`.
+- **Known gaps:**
+  - `foreground`: the tree trunks are cut flat where the generated canvas ended, so they look like stumps at the panorama edge. Needs a regenerate with trunks that run off the top of the canvas.
+  - Ground: a faint mirror seam about 45 px above the panorama bottom.
+  - Sky: the Milky Way chevrons where it mirrors; acceptable but visible.
+  - The hearth star and fire are not baked; they stay procedural (Phase 6).
+  - Placements in `art:review` are provisional until the renderer exists.
+- **Not yet made:** skylines and grounds for the other five world types (all five recolour the terrestrial set today, so pines stay pines), adventurer sprites, and the Phase 3 sign-off.
+- **Tests:** 185 unit tests (slice and compose tests added). `src/App.test.tsx` "routes a successful registration into the authenticated shell" is flaky in full runs: it also fails about half the time on the pristine commit in a clean worktree, so it is pre-existing and unrelated to this work.

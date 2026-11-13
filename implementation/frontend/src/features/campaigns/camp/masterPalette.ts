@@ -19,6 +19,7 @@ export const masterFixed: Record<string, readonly string[]> = {
   wood: ['#2b1a12', '#4a2e1c', '#6e4528', '#946036'],
   canvas: ['#3a3340', '#5a5060', '#8a7f86', '#c2b6a8'],
   brass: ['#6a4a1c', '#a07a2c', '#d6b050'],
+  glow: ['#1f6a8a', '#2fa4c8', '#7fe0f0', '#d8fbff'],
   fire: ['#7a1e12', '#c0401a', '#f08a24', '#ffc857', '#fff1b0'],
   cloak0: ['#5a1f2a', '#8a2f3c', '#b84a52'],
   cloak1: ['#1f3a5a', '#2f5a8a', '#4a82b8'],
@@ -39,3 +40,15 @@ export const masterFixed: Record<string, readonly string[]> = {
 export function masterColors(): string[] {
   return [...Object.values(masterBiome), ...Object.values(masterFixed)].flat()
 }
+
+/** Colours of the named materials, for restricting a layer to what it may use. */
+export function colorsForMaterials(names: readonly string[]): string[] {
+  const all: Record<string, readonly string[]> = { ...masterBiome, ...masterFixed }
+  return names.flatMap((name) => {
+    if (!all[name]) throw new Error(`Unknown material "${name}"`)
+    return [...all[name]]
+  })
+}
+
+/** Names of every material, biome and fixed. */
+export const materialNames = [...Object.keys(masterBiome), ...Object.keys(masterFixed)]
