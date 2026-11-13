@@ -15,6 +15,7 @@ import {
 import {
   availableLocations,
   campLocations,
+  tent,
   waystone,
   waystoneHit,
   type CampLocation,
@@ -37,7 +38,11 @@ import { useCampView, type CampMeasure } from './camp/useCampView'
 import { useDestinationDialog } from './camp/useDestinationDialog'
 import { CampSettings } from './camp/CampSettings'
 import type { CampBackground } from './camp/campBackground'
+import { ToastRegion } from './camp/CampToasts'
+import type { CampToast } from './camp/useCampToasts'
+import { UnsavedChangesDialog } from '../characters/UnsavedChangesDialog'
 import './camp/camp.css'
+import './camp/journal.css'
 
 const CampLandscape = lazy(() => import('./camp/CampLandscape'))
 
@@ -85,7 +90,12 @@ export function CampaignCamp({
   cancelDelete,
   overview,
   party,
+  characters,
   settings,
+  characterFolio = false,
+  hasUnsavedChanges = false,
+  toasts = [],
+  onDismissToast = () => {},
 }: {
   title: ReactNode
   notice: string | null
@@ -111,7 +121,15 @@ export function CampaignCamp({
   cancelDelete: () => void
   overview: ReactNode
   party: ReactNode
+  characters: ReactNode
   settings: ReactNode
+  /** My characters shows a full sheet, so its journal opens wide. */
+  characterFolio?: boolean
+  /** The open destination holds edits that closing would lose. */
+  hasUnsavedChanges?: boolean
+  /** Brief confirmations, shown inside the journal. */
+  toasts?: readonly CampToast[]
+  onDismissToast?: (id: number) => void
 }) {
   const [artFailed, setArtFailed] = useState(false)
   const [ready, setReady] = useState(false)
@@ -131,8 +149,28 @@ export function CampaignCamp({
     isOwner,
     scope: campRef,
   })
+  const [leaveAsked, setLeaveAsked] = useState(false)
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
+  // My characters wears the leather journal. The variant outlives the close so the
+  // exit animation keeps the same look.
+  const wantedVariant =
+    active?.id === 'characters' ? (characterFolio ? 'folio' : 'journal') : undefined
+  const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | undefined>(undefined)
+  if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
+  const variant = active ? wantedVariant : lastVariant
+  const guarded = active?.id === 'characters' && hasUnsavedChanges
+
+  /** Closing with unsaved edits asks first. */
+  function requestClose() {
+    if (isDeleting) return
+    if (guarded) {
+      // An unsaved-changes question inside the journal already has the focus.
+      if (!dialogRef.current?.querySelector('[data-unsaved-prompt]')) setLeaveAsked(true)
+      return
+    }
+    close()
+  }
   const ramps = useMemo(() => campRamps(world), [world])
   const { figures, overflow } = useMemo(() => partyFigures(roster), [roster])
   const highlight = hovered ?? focused ?? active?.id ?? null
@@ -174,6 +212,10 @@ export function CampaignCamp({
       stone.style.height = `${rect.height}px`
       stone.style.visibility = isInFrame(rect, viewport) ? 'visible' : 'hidden'
     }
+    // The tent's lantern glow follows it across the scene.
+    const tentFoot = projectToDevice(tent, view)
+    scene.style.setProperty('--camp-tent-x', `${tentFoot.x / current.dpr}px`)
+    scene.style.setProperty('--camp-tent-y', `${(tentFoot.y - 20 * view.scale) / current.dpr}px`)
     for (const plate of scene.querySelectorAll<HTMLElement>('[data-camp-name-at]')) {
       const [x, y] = (plate.dataset.campNameAt ?? '').split(',').map(Number)
       const foot = projectToDevice({ x, y }, view)
@@ -219,7 +261,8 @@ export function CampaignCamp({
     measure: CampMeasure | null
     location: CampLocation | null
     before: number | null
-  }>({ measure: null, location: null, before: null })
+    folio: boolean
+  }>({ measure: null, location: null, before: null, folio: false })
   useLayoutEffect(() => {
     if (!measure) return
     const memory = cameraMemory.current
@@ -250,10 +293,15 @@ export function CampaignCamp({
         rig.panTo(memory.before ?? rest, closePanMs)
         memory.before = null
       }
+    } else if (active && memory.folio !== characterFolio) {
+      // The journal opened wider or narrower: frame the place in what is left.
+      const target = frameFor(active)
+      if (target !== null) rig.panTo(target, openPanMs)
     }
     memory.measure = measure
     memory.location = active
-  }, [measure, active, rig, dialogRef])
+    memory.folio = characterFolio
+  }, [measure, active, characterFolio, rig, dialogRef])
 
   // Drag or swipe the panorama; a small movement is still a click.
   useEffect(() => {
@@ -489,9 +537,10 @@ export function CampaignCamp({
         aria-labelledby={active ? `camp-${active.id}-heading` : undefined}
         className="camp-ledger"
         data-panel-side={panelSide}
+        data-variant={variant}
         onCancel={(event) => {
           event.preventDefault()
-          close()
+          requestClose()
         }}
         ref={dialogRef}
       >
@@ -500,7 +549,7 @@ export function CampaignCamp({
             <button
               className="camp-ledger__back"
               disabled={isDeleting}
-              onClick={close}
+              onClick={requestClose}
               ref={closeRef}
               type="button"
             >
@@ -513,9 +562,24 @@ export function CampaignCamp({
             </p>
             <section hidden={active?.id !== 'overview'}>{overview}</section>
             <section hidden={active?.id !== 'party'}>{party}</section>
+            <section hidden={active?.id !== 'characters'}>{characters}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>
+        <ToastRegion onDismiss={onDismissToast} toasts={toasts} />
+        {leaveAsked && guarded && (
+          <div data-unsaved-prompt>
+            <UnsavedChangesDialog
+              discardLabel="Discard and leave"
+              message="You have edits that haven't been saved. Leaving the tent now will discard them."
+              onDiscard={() => {
+                setLeaveAsked(false)
+                close()
+              }}
+              onKeep={() => setLeaveAsked(false)}
+            />
+          </div>
+        )}
       </dialog>
     </section>
   )

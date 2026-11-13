@@ -10,12 +10,12 @@ import type {
   CharacterVitals,
   SheetVisibility,
 } from './characterTypes'
-import { normalizeSheet } from './characterValidation'
+import { normalizeSheet, portraitExtension } from './characterValidation'
 
 type Functions = Database['public']['Functions']
 
 const summaryFields =
-  'id,campaign_id,owner_id,name,species,class_name,subclass,background,level,status,in_party,sheet_visibility,status_changed_at,created_at,updated_at'
+  'id,campaign_id,owner_id,name,species,class_name,subclass,background,level,status,in_party,sheet_visibility,portrait_path,status_changed_at,created_at,updated_at'
 const sheetFields = 'character_id,max_hp,current_hp,temp_hp,armor_class,speed,sheet,updated_at'
 
 type SheetRow = Omit<CharacterSheet, 'sheet'> & { sheet: unknown }
@@ -158,7 +158,75 @@ export async function updateCharacterSheetBody(
   return toSheet(data as SheetRow)
 }
 
-export async function deleteCharacter(characterId: string) {
+const portraitBucket = 'character-portraits'
+
+/** Best effort: a leftover picture is harmless, so a failed removal never fails the caller. */
+async function discardPortraitObject(path: string | null | undefined) {
+  if (!path) return
+  try {
+    await supabase.storage.from(portraitBucket).remove([path])
+  } catch {
+    // Ignored: see above.
+  }
+}
+
+/**
+ * Stores a new picture and points the character at it, then drops the old one. Each
+ * upload gets a fresh name, so a failure after the upload leaves the old picture intact.
+ */
+export async function uploadCharacterPortrait(
+  characterId: string,
+  file: File,
+  previousPath: string | null,
+): Promise<CharacterSummary> {
+  const extension = portraitExtension(file.type)
+  if (!extension) throw new Error('portrait_type_invalid')
+  const path = `${characterId}/${crypto.randomUUID()}.${extension}`
+
+  const upload = await supabase.storage
+    .from(portraitBucket)
+    .upload(path, file, { contentType: file.type, cacheControl: '31536000' })
+  if (upload.error) throw upload.error
+
+  try {
+    const { data, error } = await supabase
+      .from('characters')
+      .update({ portrait_path: path })
+      .eq('id', characterId)
+      .select(summaryFields)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) throw denied('character_update_denied')
+    await discardPortraitObject(previousPath)
+    return data as CharacterSummary
+  } catch (failure) {
+    await discardPortraitObject(path)
+    throw failure
+  }
+}
+
+export async function removeCharacterPortrait(characterId: string, path: string) {
+  const { data, error } = await supabase
+    .from('characters')
+    .update({ portrait_path: null })
+    .eq('id', characterId)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw denied('character_update_denied')
+  await discardPortraitObject(path)
+}
+
+/** A short-lived link to a portrait; only members who may read the character get one. */
+export async function getCharacterPortraitUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(portraitBucket).createSignedUrl(path, 3600)
+  if (error) throw error
+  return data.signedUrl
+}
+
+export async function deleteCharacter(characterId: string, portraitPath?: string | null) {
+  // The picture's storage rules need the character row, so it goes first.
+  await discardPortraitObject(portraitPath)
   const { data, error } = await supabase
     .from('characters')
     .delete()
@@ -181,6 +249,7 @@ const characterErrors: Record<string, string> = {
   character_level_invalid: 'Level must be between 1 and 20.',
   character_update_denied: 'This character could not be updated by this account.',
   character_delete_denied: 'This character could not be deleted by this account.',
+  portrait_type_invalid: 'Choose a PNG, JPEG, or WebP picture.',
   sheet_unavailable: 'This sheet is no longer available.',
   sheet_conflict: 'This sheet changed on another device. Reload it to see the latest version.',
 }

@@ -31,6 +31,28 @@ export const limits = {
   sheetBytes: 60_000,
 } as const
 
+/** Portrait pictures: the types the bucket accepts, by file extension, and the size cap. */
+export const portraitTypes = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+} as const
+export const portraitMaxBytes = 2 * 1024 * 1024
+
+export function portraitExtension(type: string) {
+  return Object.hasOwn(portraitTypes, type)
+    ? portraitTypes[type as keyof typeof portraitTypes]
+    : null
+}
+
+/** A message when the file cannot be a portrait, or null when it can. */
+export function validatePortraitFile(file: Pick<File, 'type' | 'size'>): string | null {
+  if (!portraitExtension(file.type)) return 'Choose a PNG, JPEG, or WebP picture.'
+  if (file.size > portraitMaxBytes) return 'Choose a picture of 2 MB or less.'
+  if (file.size === 0) return 'That file is empty.'
+  return null
+}
+
 // eslint-disable-next-line no-control-regex
 const controlCharacters = /[\u0000-\u001f\u007f-\u009f]/
 

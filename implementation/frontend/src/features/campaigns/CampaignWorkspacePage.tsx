@@ -2,11 +2,16 @@ import { useQuery } from '@tanstack/react-query'
 import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { campaignCharactersOptions } from '../characters/characterQueries'
+import { CharacterTent, type TentView } from '../characters/CharacterTent'
+import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
+import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
 import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
+import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
 import { planetAppearance } from './planetModel'
@@ -47,6 +52,13 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   )
   const management = useCampaignManagement(campaignId, userId)
   const membership = useCampaignMembership(campaignId, userId)
+  const characterActions = useCharacterActions(campaignId, userId)
+  const [tentView, setTentView] = useState<TentView>({ type: 'list' })
+  const [characterDirty, setCharacterDirty] = useState(false)
+  const toasts = useCampToasts()
+  const [characterConfirmation, setCharacterConfirmation] = useState<CharacterConfirmation | null>(
+    null,
+  )
   const [confirmation, setConfirmation] = useState<MembershipConfirmation | null>(null)
   // Which action the current membership error belongs to, so it shows beside its own control.
   const [membershipErrorFor, setMembershipErrorFor] = useState<'party' | 'settings'>('party')
@@ -59,6 +71,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const rosterQuery = useQuery({
     queryKey: ['campaigns', 'roster', campaignId, userId],
     queryFn: () => getCampaignRoster(campaignId),
+    enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+  })
+  const charactersQuery = useQuery({
+    ...campaignCharactersOptions(campaignId, userId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
   const campaign = campaignQuery.data
@@ -205,6 +221,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
 
   return (
     <CampaignCamp
+      characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
+      hasUnsavedChanges={characterDirty}
+      onDismissToast={toasts.dismiss}
+      toasts={toasts.toasts}
       cancelDelete={() => {
         if (isConfirmingDelete) {
           management.clearError()
@@ -212,8 +232,16 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         }
         membership.clearError()
         setConfirmation(null)
+        characterActions.clearError()
+        setCharacterConfirmation(null)
+        setTentView({ type: 'list' })
+        setCharacterDirty(false)
       }}
-      isDeleting={management.isDeleting || membership.pendingAction !== null}
+      isDeleting={
+        management.isDeleting ||
+        membership.pendingAction !== null ||
+        characterActions.pendingAction !== null
+      }
       isOwner={isOwner}
       notice={notice}
       landfallKey={arrivedFromGalaxy ? location.key : null}
@@ -276,6 +304,26 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
             />
           )}
         </CampaignPartyMembers>
+      }
+      characters={
+        <CharacterTent
+          actions={characterActions}
+          characters={charactersQuery.data ?? []}
+          confirmation={characterConfirmation}
+          onConfirmationChange={(next) => {
+            characterActions.clearError()
+            setCharacterConfirmation(next)
+          }}
+          onDirtyChange={setCharacterDirty}
+          onNotice={toasts.push}
+          onRetry={() => charactersQuery.refetch()}
+          onViewChange={setTentView}
+          status={
+            charactersQuery.isError ? 'error' : charactersQuery.isSuccess ? 'success' : 'pending'
+          }
+          userId={userId}
+          view={tentView}
+        />
       }
       settings={
         <>

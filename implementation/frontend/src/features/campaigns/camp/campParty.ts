@@ -3,7 +3,16 @@
 
 import { adventurerAppearance, type AdventurerAppearance } from './adventurerAppearance'
 import { adventurerSize } from './adventurerSprites'
-import { bedrollSeats, firePit, seatParty, wagon, bedrolls, type RosterMember } from './campLayout'
+import {
+  bedrollSeats,
+  bedrolls,
+  firePit,
+  seatParty,
+  tent,
+  wagon,
+  type CampLocationId,
+  type RosterMember,
+} from './campLayout'
 
 export type PartyFigure = {
   /** Profile id, the stable key for the figure and its label. */
@@ -77,10 +86,11 @@ export const minNameUnit = 2
 
 /** Image ids of the objects that make up a destination, for its outline. */
 export function outlineTargets(
-  location: 'overview' | 'party' | 'settings' | null,
+  location: CampLocationId | null,
   figures: readonly PartyFigure[],
 ): Set<string> {
   if (location === 'overview') return new Set([firePit.id])
+  if (location === 'characters') return new Set([tent.id])
   if (location === 'settings') return new Set([wagon.id])
   if (location === 'party') {
     return new Set([...bedrolls.map(({ id }) => id), ...figures.map(({ spriteId }) => spriteId)])

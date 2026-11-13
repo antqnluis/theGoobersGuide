@@ -9,13 +9,17 @@ import type { RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import {
   accountId,
   type Campaign,
+  type CharacterState,
   type MembershipFailure,
   campDraws,
   campLog,
   corsHeaders,
   enterFromGalaxy,
   mockCampaignApi,
+  mockCharacter,
+  mockCharacters,
   mockMembership,
+  mockSheet,
   mockRoster,
   openCamp,
   ownerId,
@@ -353,6 +357,8 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
   ]) {
     await page.setViewportSize({ width, height })
     const desktop = width >= 900 && height >= 481
+    // The fourth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
+    await page.evaluate(() => window.scrollTo(0, 0))
     await expect(camp).toHaveAttribute('data-camp-ready', 'true')
 
     // The canvas is drawn 1:1 in device pixels, so every art pixel stays a whole block.
@@ -376,12 +382,13 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     // Scene buttons that are in frame are usable; the rest leave the tab order.
     const signs = page.locator('[data-camp-sign]')
     const total = await signs.count()
-    expect(total).toBe(3)
+    expect(total).toBe(4)
     let inFrame = 0
     for (let index = 0; index < total; index += 1) {
       const sign = signs.nth(index)
       if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
-        inFrame += 1
+        // The tent stands off-frame at rest, so it is not counted; Places opens it.
+        if ((await sign.getAttribute('data-location')) !== 'characters') inFrame += 1
         await expect(sign).toBeInViewport({ ratio: 1 })
         await sign.click({ trial: true })
         const box = (await sign.boundingBox())!
@@ -390,7 +397,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
         await expect(sign).toBeHidden()
       }
     }
-    if (desktop) expect(inFrame).toBe(total)
+    if (desktop) expect(inFrame).toBe(total - 1)
 
     // Places is the complete, always-available navigation.
     await expect(places).toBeVisible()
@@ -600,7 +607,8 @@ test('keeps the wagon scenery but gives members no settings control', async ({ p
   await page.setViewportSize({ width: 1440, height: 900 })
   const camp = await openCamp(page)
 
-  await expect(page.locator('[data-camp-sign]')).toHaveCount(2)
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(3)
+  await expect(page.locator('[data-camp-sign][data-location="characters"]')).toHaveCount(1)
   await expect(page.locator('[data-camp-sign][data-location="settings"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Campaign settings/ })).toHaveCount(0)
   await expect(camp.locator('.camp-name')).toHaveText(['game_master', 'player_one'])
@@ -989,7 +997,7 @@ test('stays usable at 200% browser zoom', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
 
   const places = page.getByRole('list', { name: 'Camp places' })
-  await expect(places.getByRole('button')).toHaveCount(3)
+  await expect(places.getByRole('button')).toHaveCount(4)
   for (const button of await places.getByRole('button').all()) {
     await expect(button).toBeInViewport({ ratio: 1 })
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
@@ -2417,3 +2425,518 @@ test('a player sets a display name from the header and the Party shows others by
     page.getByRole('button', { name: 'Remove Aria (player_two) from the campaign' }),
   ).toBeVisible()
 })
+
+// --- The tent: My characters --------------------------------------------------------
+
+const tentEntry = (page: Page) => places(page).getByRole('button', { name: /^My characters/ })
+const dialogFits = (page: Page) =>
+  page.evaluate(() => {
+    const body = document.querySelector('.camp-ledger__body')!
+    return (
+      body.scrollWidth <= body.clientWidth &&
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  })
+
+async function openTent(page: Page, state: CharacterState = { characters: [], sheets: [] }) {
+  await mockCampaignApi(page, [redHand])
+  const mock = await mockCharacters(page, state)
+  const camp = await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await expect(dialog).toBeVisible()
+  return { camp, dialog, state, mock }
+}
+
+function withCharacter(overrides: Parameters<typeof mockCharacter>[0] = {}): CharacterState {
+  const character = mockCharacter(overrides)
+  return { characters: [character], sheets: [mockSheet(character.id)] }
+}
+
+test('the tent opens from Places, pans the camera to it, and starts empty', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { camp, dialog } = await openTent(page)
+
+  await expect(camp).toHaveAttribute('data-camp-state', 'characters')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  const panel = await dialog.evaluate((el: HTMLElement) => el.offsetWidth)
+  const side = await dialog.getAttribute('data-panel-side')
+  expect(side).toBe('right')
+  await expect(camp).toHaveAttribute(
+    'data-camera-x',
+    String(
+      cameraToFrame({ worldX: 130, visible: 480, panelFraction: panel / 1440, panelSide: 'right' }),
+    ),
+  )
+  await expect(dialog.getByText('You have no character in this campaign yet.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeFocused()
+})
+
+test('a member can open the tent too', async ({ page }) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  await mockCampaignApi(page, [campaign], { memberMode: true })
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page, campaign)
+  await tentEntry(page).click()
+  await expect(page.getByRole('dialog', { name: 'My characters' })).toBeVisible()
+})
+
+test('creating a character joins the party by default and persists across a reload', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  const form = dialog.getByRole('form', { name: 'Create a character' })
+  await expect(form.getByLabel('Join the party')).toBeChecked()
+
+  // Validation runs on submit and focuses the first problem.
+  await form.getByRole('button', { name: 'Create character' }).click()
+  await expect(form.getByLabel('Name', { exact: true })).toBeFocused()
+  await expect(form.getByText('Enter a name of up to 80 characters.')).toBeVisible()
+
+  await form.getByLabel('Name', { exact: true }).fill('Brand')
+  await form.getByLabel(/Species/).fill('Elf')
+  await form.getByLabel(/Class/).fill('Fighter')
+  await form.getByLabel('Level').fill('3')
+  await form.getByRole('button', { name: 'Create character' }).click()
+
+  await expect(dialog.getByText('Character created.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Brand' })).toBeFocused()
+  const standing = dialog.getByRole('list', { name: 'Character standing' })
+  await expect(standing.getByText('Active')).toBeVisible()
+  await expect(standing.getByText('In the party')).toBeVisible()
+  expect(state.characters).toHaveLength(1)
+  expect(state.characters[0]).toMatchObject({ in_party: true, status: 'active', level: 3 })
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  await expect(
+    page.getByRole('dialog', { name: 'My characters' }).getByRole('heading', { name: 'Brand' }),
+  ).toBeVisible()
+})
+
+test('unticking "Join the party" creates a character outside the party', async ({ page }) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Wren')
+  await dialog.getByLabel('Join the party').uncheck()
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(
+    dialog.getByRole('list', { name: 'Character standing' }).getByText('Not in the party'),
+  ).toBeVisible()
+  expect(state.characters[0].in_party).toBe(false)
+})
+
+test('edits details, vitals, and the sheet, and keeps them after a reload', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  // The display only edits HP in place; everything else is in the one editor.
+  await expect(dialog.getByLabel('Strength score')).toHaveCount(0)
+  await expect(dialog.getByLabel('Maximum HP')).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Brand the Bold')
+  await dialog.getByLabel('Level').fill('5')
+  await dialog.getByRole('button', { name: 'Save details' }).click()
+  await expect(dialog.getByText('Character saved.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Edit Brand the Bold' })).toBeVisible()
+
+  await dialog.getByLabel('Maximum HP').fill('40')
+  await dialog.getByLabel('Armor class').fill('17')
+  await dialog.getByRole('button', { name: 'Save stats' }).click()
+  await expect(dialog.getByText('Stats saved.')).toBeVisible()
+
+  await dialog.getByLabel('Strength score').fill('18')
+  await dialog.getByLabel('Strength saving throw proficiency').check()
+  await dialog.getByLabel('Athletics proficiency').selectOption('proficient')
+  await dialog.getByRole('button', { name: 'Add attack' }).click()
+  await dialog.getByLabel('Attack 1 name').fill('Greataxe')
+  await dialog.getByLabel('Features and traits').fill('Rage')
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByText('Character sheet saved.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  await dialog.getByLabel('Current HP').fill('25')
+  await dialog.getByRole('button', { name: 'Save stats' }).click()
+  await expect(dialog.getByText('Stats saved.').last()).toBeVisible()
+
+  expect(state.characters[0]).toMatchObject({ name: 'Brand the Bold', level: 5 })
+  expect(state.sheets[0]).toMatchObject({ max_hp: 40, current_hp: 25, armor_class: 17 })
+  expect(state.sheets[0].sheet).toMatchObject({
+    abilities: { str: 18 },
+    saving_throws: ['str'],
+    skills: { athletics: 'proficient' },
+    features: 'Rage',
+  })
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  const reopened = page.getByRole('dialog', { name: 'My characters' })
+  await reopened.getByRole('button', { name: 'Open Brand the Bold' }).click()
+  await expect(reopened.getByLabel('Current HP')).toHaveValue('25')
+  await reopened.getByRole('button', { name: 'Edit character' }).click()
+  await expect(reopened.getByLabel('Strength score')).toHaveValue('18')
+  await expect(reopened.getByLabel('Attack 1 name')).toHaveValue('Greataxe')
+  await expect(reopened.getByLabel('Features and traits')).toHaveValue('Rage')
+})
+
+test('a sheet saved on another device is not overwritten', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Features and traits').fill('My edit')
+  // Another device saves first.
+  state.sheets[0].sheet = { version: 1, features: 'Theirs' }
+  state.sheets[0].updated_at = '2026-11-13T23:59:59.000Z'
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(
+    'This sheet changed on another device. Reload it to see the latest version.',
+  )
+  expect(state.sheets[0].sheet).toEqual({ version: 1, features: 'Theirs' })
+  await expect(dialog.getByLabel('Features and traits')).toHaveValue('My edit')
+
+  await dialog.getByRole('button', { name: 'Discard changes' }).click()
+  await expect(dialog.getByLabel('Features and traits')).toHaveValue('Theirs')
+})
+
+test('retiring moves a character to Previous characters and allows a replacement', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Retire', exact: true }).click()
+  await expect(dialog.getByRole('group', { name: 'Confirm: Retire' })).toContainText(
+    "Retire Brand? They'll leave the party",
+  )
+  await dialog.getByRole('button', { name: 'Yes, retire' }).click()
+  await expect(dialog.getByText('Brand retired.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ status: 'retired', in_party: false })
+
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  const history = dialog.getByRole('region', { name: 'Previous characters' })
+  await expect(history.getByText('Brand')).toBeVisible()
+  await expect(history.getByText(/^Retired /)).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Second Wind')
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Second Wind' })).toBeVisible()
+
+  // The old character cannot come back while the replacement is active.
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Return to active' }).click()
+  await dialog.getByRole('button', { name: 'Yes, return to active' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(
+    'You already have an active character here. Retire them or mark them deceased first.',
+  )
+})
+
+test('a character marked deceased can be returned to active when the slot is free', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Mark deceased' }).click()
+  await dialog.getByRole('button', { name: 'Yes, mark deceased' }).click()
+  await expect(dialog.getByText('Brand is marked deceased.')).toBeVisible()
+  expect(state.characters[0].status).toBe('deceased')
+
+  await dialog.getByRole('button', { name: 'Return to active' }).click()
+  await dialog.getByRole('button', { name: 'Yes, return to active' }).click()
+  await expect(dialog.getByText('Brand is active again.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ status: 'active', in_party: false })
+})
+
+test('joining, leaving, and sharing apply immediately', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter({ in_party: false }))
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  await expect(dialog.getByText('Brand joined the party.')).toBeVisible()
+  expect(state.characters[0].in_party).toBe(true)
+  await dialog.getByRole('button', { name: 'Leave the party' }).click()
+  await expect(dialog.getByText('Brand left the party.')).toBeVisible()
+
+  const share = dialog.getByLabel('Share sheet with campaign members')
+  await share.click()
+  await expect(share).toBeChecked()
+  await expect(dialog.getByText("Brand's sheet is shared with campaign members.")).toBeVisible()
+  expect(state.characters[0].sheet_visibility).toBe('campaign')
+  await share.click()
+  await expect(share).not.toBeChecked()
+  await expect(dialog.getByText("Brand's sheet is private.")).toBeVisible()
+  expect(state.characters[0].sheet_visibility).toBe('private')
+})
+
+test('deleting needs a confirmation, can be cancelled, and removes the character', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Delete character' }).click()
+  await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toContainText(
+    "Delete Brand permanently? Their sheet will be removed and this can't be undone.",
+  )
+  await expect(dialog.getByRole('button', { name: 'Yes, delete character' })).toBeFocused()
+
+  await dialog.getByRole('button', { name: 'Keep Brand' }).click()
+  await expect(dialog.getByRole('button', { name: 'Delete character' })).toBeFocused()
+  expect(state.characters).toHaveLength(1)
+
+  await dialog.getByRole('button', { name: 'Delete character' }).click()
+  await dialog.getByRole('button', { name: 'Yes, delete character' }).click()
+  await expect(dialog.getByText('Character deleted.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  expect(state.characters).toHaveLength(0)
+  expect(state.sheets).toHaveLength(0)
+})
+
+test('failures show safe copy and retry works', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const state: CharacterState = { characters: [], sheets: [] }
+  let listFails = true
+  let createFails: CharacterFailureOrNull = { status: 500, message: 'boom' }
+  type CharacterFailureOrNull = { status: number; message: string } | null
+  await mockCharacters(page, state, {
+    fail: (target) => {
+      if (target === 'characters' && listFails) return { status: 500, message: 'boom' }
+      if (target === 'create_character') return createFails
+      return null
+    },
+  })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await expect(dialog.getByRole('alert')).toContainText('Your characters could not be loaded.')
+
+  listFails = false
+  await dialog.getByRole('button', { name: 'Try again' }).click()
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Brand')
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't create this character. Check your connection and try again.",
+  )
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Brand')
+
+  createFails = { status: 400, message: 'character_campaign_unavailable' }
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText("You're no longer a member of this campaign.")
+
+  createFails = null
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByText('Character created.')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+})
+
+test('the tent stays open while a character change is pending', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const state = withCharacter()
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, state, { hold: () => held })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Leave the party' }).click()
+  await expect(dialog.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+
+  release()
+  await expect(dialog.getByText('Brand left the party.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+})
+
+test('closing the tent forgets an open form and returns to the list on reopening', async ({
+  page,
+}) => {
+  const { dialog } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Draft')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  // A filled-in form asks before it is lost.
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Draft')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Discard and leave' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(tentEntry(page)).toBeFocused()
+
+  await tentEntry(page).click()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveCount(0)
+})
+
+test('unsaved sheet edits are guarded when going back or closing', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Spells', { exact: true }).fill('Light')
+  await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Save sheet' })).toBeEnabled()
+
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Spells', { exact: true })).toHaveValue('Light')
+
+  // Escape inside the question means "keep editing", not "close the tent".
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(prompt).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(prompt).toBeHidden()
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByText('Character sheet saved.')).toBeVisible()
+  await expect(dialog.getByText('All changes saved')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  await expect(dialog.getByRole('button', { name: 'Open Brand' })).toBeVisible()
+})
+
+test('character toasts fade on their own and can be dismissed', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter({ in_party: false }))
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  const toast = dialog.getByText('Brand joined the party.')
+  await expect(toast).toBeVisible()
+  await dialog.getByRole('button', { name: 'Dismiss notification' }).click()
+  await expect(toast).toHaveCount(0)
+})
+
+for (const [width, height] of [
+  [375, 812],
+  [768, 1024],
+  [1440, 900],
+] as const) {
+  test(`the character folio fits at ${width}px and keeps Save stats in reach`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openTent(page, withCharacter())
+    await dialog.getByRole('button', { name: 'Open Brand' }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+
+    // The save bar stays on screen however far the sheet is scrolled.
+    await dialog.locator('.camp-ledger__body').evaluate((el) => el.scrollTo(0, el.scrollHeight))
+    const save = dialog.getByRole('button', { name: 'Save stats' })
+    await expect(save).toBeInViewport()
+    expect(await save.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(
+      40,
+    )
+    await expect(save).toBeDisabled()
+    await dialog.getByLabel('Current HP').fill('35')
+    await expect(save).toBeEnabled()
+    expect(await dialogFits(page)).toBe(true)
+  })
+}
+
+test('a portrait can be uploaded, replaced, and removed, and shows on the list', async ({
+  page,
+}) => {
+  const { dialog, state, mock } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  )
+
+  // A file the bucket would refuse is stopped before it is sent.
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'a.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') })
+  await expect(dialog.getByRole('alert')).toContainText('Choose a PNG, JPEG, or WebP picture.')
+  expect(mock.objects.size).toBe(0)
+
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png })
+  await expect(dialog.getByText('Portrait updated.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Change picture' })).toBeVisible()
+  expect(state.characters[0].portrait_path).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/)
+  const first = state.characters[0].portrait_path!
+  await expect(dialog.locator('.portrait-editor img')).toBeVisible()
+
+  // Replacing swaps the file and deletes the old one.
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'me2.png', mimeType: 'image/png', buffer: png })
+  await expect(async () => {
+    expect(state.characters[0].portrait_path).not.toBe(first)
+  }).toPass()
+  expect(mock.objects.has(first)).toBe(false)
+  expect(mock.objects.size).toBe(1)
+
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  await expect(dialog.locator('.tent-card img')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByRole('button', { name: 'Remove picture' }).click()
+  await expect(dialog.getByText('Portrait removed.')).toBeVisible()
+  expect(state.characters[0].portrait_path).toBeNull()
+  expect(mock.objects.size).toBe(0)
+  await expect(dialog.getByRole('button', { name: 'Upload picture' })).toBeVisible()
+})
+
+test('the tent works by keyboard alone', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  await tentEntry(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeFocused()
+
+  await page.getByRole('button', { name: 'Create a character' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('Name', { exact: true })).toBeFocused()
+  await page.keyboard.type('Keyboard Kay')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Keyboard Kay' })).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(tentEntry(page)).toBeFocused()
+})
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['tablet', 768, 1024],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`the tent, its sheet, and its confirmations fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const long = 'The Unfathomably Long-Named Wanderer of the Shattered Coast'
+    const { dialog } = await openTent(page, withCharacter({ name: long, species: 'Half-Elf' }))
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: `Open ${long}` }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: 'Edit character' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Add attack' }).click()
+    await dialog.getByLabel('Attack 1 notes').fill('x'.repeat(80))
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+    await page.getByRole('button', { name: 'Discard and go back' }).click()
+
+    await dialog.getByRole('button', { name: 'Delete character' }).click()
+    await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: new RegExp(`^Keep `) }).click()
+  })
+}

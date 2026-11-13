@@ -10,10 +10,21 @@ vi.mock('./camp/CampLandscape', () => ({ default: () => null }))
 
 afterEach(cleanup)
 
-function campElement({ isOwner = true, isDeleting = false, cancelDelete = vi.fn() } = {}) {
+function campElement({
+  isOwner = true,
+  isDeleting = false,
+  cancelDelete = vi.fn(),
+  hasUnsavedChanges = false,
+}: {
+  isOwner?: boolean
+  isDeleting?: boolean
+  cancelDelete?: () => void
+  hasUnsavedChanges?: boolean
+} = {}) {
   return (
     <CampaignCamp
       cancelDelete={cancelDelete}
+      hasUnsavedChanges={hasUnsavedChanges}
       isDeleting={isDeleting}
       isOwner={isOwner}
       notice={null}
@@ -27,6 +38,7 @@ function campElement({ isOwner = true, isDeleting = false, cancelDelete = vi.fn(
       world={planetAppearance('camp-test')}
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
+      characters={<h2 id="camp-characters-heading">My characters</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
     />
@@ -38,6 +50,42 @@ function renderCamp(options: Parameters<typeof campElement>[0] = {}) {
   const view = render(campElement({ ...options, cancelDelete }))
   return { ...view, cancelDelete }
 }
+
+describe('CampaignCamp unsaved characters', () => {
+  async function openTent(hasUnsavedChanges: boolean) {
+    const user = userEvent.setup()
+    const out = renderCamp({ hasUnsavedChanges })
+    await user.click(screen.getByRole('button', { name: /My characters\s*Tent/ }))
+    return { ...out, user }
+  }
+
+  it('asks before closing the tent with unsaved edits, and stays if told to', async () => {
+    const { cancelDelete, user } = await openTent(true)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute(
+      'data-camp-state',
+      'characters',
+    )
+  })
+
+  it('closes once the player discards', async () => {
+    const { cancelDelete, user } = await openTent(true)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('closes straight away with nothing to lose', async () => {
+    const { cancelDelete, user } = await openTent(false)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+})
 
 const pendingCamp = (isDeleting: boolean) => campElement({ isDeleting })
 
@@ -83,6 +131,30 @@ describe('CampaignCamp destinations', () => {
     expect(screen.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
     document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
     await vi.waitFor(() => expect(state()).toHaveAttribute('data-camp-state', 'idle'))
+  })
+
+  it('opens the tent as My characters for everyone, and cannot close while a character change is pending', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /My characters\s*Tent/,
+    })
+
+    await user.click(entry)
+    const state = () => document.querySelector('[data-camp-state]')
+    expect(state()).toHaveAttribute('data-camp-state', 'characters')
+    expect(screen.getByRole('dialog', { name: 'My characters' })).toBeVisible()
+
+    // The workspace folds a pending character action into isDeleting.
+    rerender(pendingCamp(true))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    expect(state()).toHaveAttribute('data-camp-state', 'characters')
+
+    rerender(pendingCamp(false))
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(state()).toHaveAttribute('data-camp-state', 'idle')
+    expect(entry).toHaveFocus()
   })
 
   it('names Places entries by label and object, and hides settings from members', () => {
@@ -147,6 +219,7 @@ describe('CampaignCamp frame loop cleanup', () => {
           world={planetAppearance('camp-test')}
           overview={<h2 id="camp-overview-heading">Overview</h2>}
           party={<h2 id="camp-party-heading">Party</h2>}
+          characters={<h2 id="camp-characters-heading">Characters</h2>}
           settings={<h2 id="camp-settings-heading">Settings</h2>}
           title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
         />,

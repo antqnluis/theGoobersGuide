@@ -95,11 +95,30 @@ describe('hit targets at the resting camera', () => {
     [1440, 900, 2],
     [844, 390, 3],
   ])('shows every destination inside the %i x %i scene (dpr %i)', (width, height, dpr) => {
-    for (const { world, hit } of campLocations) {
+    // The tent stands off-frame at rest by design: the Places list opens it and the camera pans there.
+    for (const { id, world, hit } of campLocations.filter(({ id }) => id !== 'characters')) {
       const rect = hitRect(world, hit, restView(width, height, dpr), dpr)
-      expect(isInFrame(rect, { width, height })).toBe(true)
+      expect(isInFrame(rect, { width, height }), id).toBe(true)
     }
   })
+
+  it.each([
+    [1280, 720, 1],
+    [1440, 900, 1],
+    [1920, 1080, 1],
+    [1440, 900, 2],
+    [844, 390, 3],
+    [375, 812, 3],
+  ])(
+    'brings the tent into the %i x %i scene when its place is revealed (dpr %i)',
+    (width, height, dpr) => {
+      const tent = campLocations.find(({ id }) => id === 'characters')!
+      const base = restView(width, height, dpr)
+      const visible = visibleWidth(base.deviceWidth, base.scale)
+      const view = { ...base, cameraX: cameraToPlace(tent.world.x, visible) }
+      expect(isInFrame(hitRect(tent.world, tent.hit, view, dpr), { width, height })).toBe(true)
+    },
+  )
 
   it('never makes a target smaller than 44 CSS pixels', () => {
     for (const { world, hit } of campLocations) {

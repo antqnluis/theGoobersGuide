@@ -1,4 +1,8 @@
-import { getCharacterSheet, listCampaignCharacters } from './characterService'
+import {
+  getCharacterPortraitUrl,
+  getCharacterSheet,
+  listCampaignCharacters,
+} from './characterService'
 
 /** Key prefixes live under ['campaigns'] so ownership transfers invalidate them too. */
 export const campaignCharactersKey = (campaignId: string, userId: string) =>
@@ -12,6 +16,17 @@ export function campaignCharactersOptions(campaignId: string, userId: string) {
   return {
     queryKey: campaignCharactersKey(campaignId, userId),
     queryFn: () => listCampaignCharacters(campaignId),
+  }
+}
+
+/** A portrait's signed link. The path changes with every upload, so it is the whole key. */
+export function characterPortraitOptions(path: string | null) {
+  return {
+    queryKey: ['campaigns', 'characters', 'portrait', path] as const,
+    queryFn: () => getCharacterPortraitUrl(path ?? ''),
+    enabled: Boolean(path),
+    // Links last an hour; refresh well before they lapse.
+    staleTime: 30 * 60 * 1000,
   }
 }
 

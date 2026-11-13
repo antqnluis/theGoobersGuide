@@ -1,0 +1,174 @@
+/** Tiny hand-drawn pixel icons for the journal, one string per row, `#` filled. */
+const grids = {
+  heart: [
+    '.##...##.',
+    '####.####',
+    '#########',
+    '#########',
+    '.#######.',
+    '..#####..',
+    '...###...',
+    '....#....',
+  ],
+  shield: [
+    '.#######.',
+    '#########',
+    '#########',
+    '#########',
+    '#########',
+    '.#######.',
+    '..#####..',
+    '...###...',
+    '....#....',
+  ],
+  boot: [
+    '..####...',
+    '..####...',
+    '..####...',
+    '..####...',
+    '..#####..',
+    '..######.',
+    '#########',
+    '#########',
+  ],
+  flame: [
+    '...#...',
+    '...##..',
+    '..###..',
+    '..####.',
+    '.#####.',
+    '#######',
+    '#######',
+    '.#####.',
+    '..###..',
+  ],
+  grave: [
+    '..###..',
+    '..###..',
+    '#######',
+    '#######',
+    '..###..',
+    '..###..',
+    '..###..',
+    '..###..',
+    '..###..',
+  ],
+  flag: [
+    '#####...',
+    '######..',
+    '#######.',
+    '######..',
+    '#####...',
+    '#.......',
+    '#.......',
+    '#.......',
+    '#.......',
+  ],
+  sword: [
+    '........#',
+    '.......##',
+    '......##.',
+    '.....##..',
+    '#...##...',
+    '.#.##....',
+    '..###....',
+    '.####....',
+    '#...#....',
+  ],
+  tent: [
+    '.....#.....',
+    '....###....',
+    '...#####...',
+    '..#######..',
+    '.####.####.',
+    '#####.#####',
+    '#####.#####',
+    '#####.#####',
+  ],
+  book: [
+    '.#######.',
+    '##.....##',
+    '#.#####.#',
+    '#.......#',
+    '#.#####.#',
+    '#.......#',
+    '##.....##',
+    '.#######.',
+  ],
+  lantern: [
+    '...#...',
+    '..###..',
+    '.#####.',
+    '##...##',
+    '##.#.##',
+    '##.#.##',
+    '##...##',
+    '.#####.',
+    '..###..',
+  ],
+  lock: [
+    '..###..',
+    '.#...#.',
+    '.#...#.',
+    '#######',
+    '#######',
+    '###.###',
+    '###.###',
+    '#######',
+    '#######',
+  ],
+  eye: ['...###...', '.#######.', '####.####', '.#######.', '...###...'],
+  star: ['....#....', '...###...', '#########', '.#######.', '..#####..', '.###.###.', '.##...##.'],
+  quill: [
+    '......##',
+    '.....###',
+    '....###.',
+    '...###..',
+    '..###...',
+    '.###....',
+    '###.....',
+    '#.......',
+  ],
+} as const
+
+export type PixelIconName = keyof typeof grids
+
+/** Path data for a grid: one horizontal run of filled cells per subpath. */
+function pathFor(rows: readonly string[]) {
+  const runs: string[] = []
+  rows.forEach((row, y) => {
+    for (const match of row.matchAll(/#+/g)) {
+      runs.push(`M${match.index} ${y}h${match[0].length}v1h-${match[0].length}z`)
+    }
+  })
+  return runs.join('')
+}
+
+/** Decorative: always hidden from assistive technology, coloured by `currentColor`. */
+export function PixelIcon({
+  name,
+  scale = 2,
+  className,
+}: {
+  name: PixelIconName
+  /** CSS pixels per art pixel. */
+  scale?: number
+  className?: string
+}) {
+  const rows = grids[name]
+  const width = rows[0].length
+  return (
+    <svg
+      aria-hidden="true"
+      className={className ? `pixel-icon ${className}` : 'pixel-icon'}
+      fill="currentColor"
+      focusable="false"
+      height={rows.length * scale}
+      shapeRendering="crispEdges"
+      viewBox={`0 0 ${width} ${rows.length}`}
+      width={width * scale}
+    >
+      <path d={pathFor(rows)} />
+    </svg>
+  )
+}

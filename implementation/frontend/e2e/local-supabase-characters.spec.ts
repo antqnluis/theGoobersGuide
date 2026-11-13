@@ -1165,3 +1165,81 @@ test('the sheet body saves only against its previous updated_at (optimistic conc
     await cleanup(players, ids)
   }
 })
+
+test('portraits: only the owner writes; campaign members read; outsiders and other members cannot', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest, other, outsider } = players
+  const ids: string[] = []
+  const png = () =>
+    new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], { type: 'image/png' })
+  try {
+    const campaignId = await createCampaign(owner, 'M2 portraits')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = seedCharacter(campaignId, guest.id, 'Pictured Pip')
+    const otherCharacterId = seedCharacter(campaignId, other.id, 'Other Olive')
+    const path = `${characterId}/${crypto.randomUUID()}.png`
+    const bucket = (player: Player) => player.client.storage.from('character-portraits')
+
+    // Another member cannot put a picture on someone else's character; neither can an outsider.
+    expect(
+      (await bucket(other).upload(`${characterId}/${crypto.randomUUID()}.png`, png())).error,
+    ).not.toBeNull()
+    expect(
+      (await bucket(outsider).upload(`${characterId}/${crypto.randomUUID()}.png`, png())).error,
+    ).not.toBeNull()
+    // Nor a file at a path that names no character, or of a type the bucket refuses.
+    expect(
+      (await bucket(guest).upload(`${RANDOM_ID}/${crypto.randomUUID()}.png`, png())).error,
+    ).not.toBeNull()
+    const gif = new Blob(['GIF89a'], { type: 'image/gif' })
+    expect(
+      (await bucket(guest).upload(`${characterId}/${crypto.randomUUID()}.png`, gif)).error,
+    ).not.toBeNull()
+
+    // The owner can, and points the row at it.
+    expect((await bucket(guest).upload(path, png(), { contentType: 'image/png' })).error).toBeNull()
+    const set = await guest.client
+      .from('characters')
+      .update({ portrait_path: path })
+      .eq('id', characterId)
+      .select('id')
+      .maybeSingle()
+    expect(set.error).toBeNull()
+    expect(set.data).not.toBeNull()
+
+    // The path must name this character: someone else's folder is refused by the database.
+    const foreign = await guest.client
+      .from('characters')
+      .update({ portrait_path: `${otherCharacterId}/${crypto.randomUUID()}.png` })
+      .eq('id', characterId)
+      .select('id')
+    expect(foreign.error).not.toBeNull()
+    // And a member cannot change another player's character row.
+    const stolen = await other.client
+      .from('characters')
+      .update({ portrait_path: null })
+      .eq('id', characterId)
+      .select('id')
+    expect(stolen.data ?? []).toHaveLength(0)
+
+    // Members of the campaign read it (owner of the campaign, the player, another member).
+    for (const player of [owner, guest, other]) {
+      const signed = await bucket(player).createSignedUrl(path, 60)
+      expect(signed.error).toBeNull()
+      expect(signed.data?.signedUrl).toBeTruthy()
+    }
+    // Outsiders get nothing.
+    expect((await bucket(outsider).createSignedUrl(path, 60)).error).not.toBeNull()
+
+    // Only the owner removes it.
+    await bucket(other).remove([path])
+    expect((await bucket(guest).createSignedUrl(path, 60)).error).toBeNull()
+    expect((await bucket(guest).remove([path])).error).toBeNull()
+    expect((await bucket(guest).createSignedUrl(path, 60)).error).not.toBeNull()
+  } finally {
+    await cleanup(players, ids)
+  }
+})

@@ -1,7 +1,7 @@
 /** Size of the authored panorama in base art pixels. */
 export const panorama = { width: 960, height: 270 } as const
 
-export type CampLocationId = 'overview' | 'party' | 'settings'
+export type CampLocationId = 'overview' | 'party' | 'characters' | 'settings'
 
 export type CampLocation = {
   id: CampLocationId
@@ -46,6 +46,16 @@ export const campLocations: readonly CampLocation[] = [
     ownerOnly: false,
   },
   {
+    id: 'characters',
+    label: 'My characters',
+    place: 'Tent',
+    world: { x: 130, y: 240 },
+    hit: { width: 50, height: 35 },
+    plate: 'above',
+    plateAlign: 'center',
+    ownerOnly: false,
+  },
+  {
     id: 'settings',
     label: 'Campaign settings',
     place: 'Steward’s wagon',
@@ -82,7 +92,6 @@ export const restFocusX = 384
 export type CampProp = { id: string; x: number; y: number; flip?: boolean }
 
 export const dormantProps: readonly CampProp[] = [
-  { id: 'empty-tent', x: 130, y: 240 },
   { id: 'map-table', x: 690, y: 242 },
   { id: 'journal-crates', x: 770, y: 244 },
 ]
@@ -92,6 +101,9 @@ export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
 
 /** The waystone's click target in base art pixels, standing on its spot (the sprite is 44×60). */
 export const waystoneHit = { width: 44, height: 60 } as const
+
+/** The player's tent, the "My characters" destination. */
+export const tent: CampProp = { id: 'empty-tent', x: 130, y: 240 }
 
 /** The steward's wagon, a destination for owners and parked scenery for members. */
 export const wagon: CampProp = { id: 'wagon', x: 240, y: 244 }

@@ -11,6 +11,7 @@ import {
   partySeats,
   resolveLocation,
   seatParty,
+  tent,
   wagon,
   waystone,
   type RosterMember,
@@ -28,8 +29,17 @@ const member = (
 
 describe('owner gating', () => {
   it('offers the wagon to owners only', () => {
-    expect(availableLocations(true).map(({ id }) => id)).toEqual(['overview', 'party', 'settings'])
-    expect(availableLocations(false).map(({ id }) => id)).toEqual(['overview', 'party'])
+    expect(availableLocations(true).map(({ id }) => id)).toEqual([
+      'overview',
+      'party',
+      'characters',
+      'settings',
+    ])
+    expect(availableLocations(false).map(({ id }) => id)).toEqual([
+      'overview',
+      'party',
+      'characters',
+    ])
     expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
     expect(parkedLocations(true)).toEqual([])
   })
@@ -46,7 +56,7 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...[wagon, firePit, waystone, ...bedrolls, ...dormantProps],
+      ...[wagon, tent, firePit, waystone, ...bedrolls, ...dormantProps],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)
@@ -59,6 +69,19 @@ describe('layout table', () => {
   it('has unique seats and no dormant prop that is a destination', () => {
     expect(new Set(partySeats.map(({ x, y }) => `${x},${y}`)).size).toBe(partySeats.length)
     expect(dormantProps.map(({ id }) => id)).not.toContain('settings')
+  })
+
+  it('makes the tent a destination for everyone, standing where the dormant tent was', () => {
+    const location = campLocations.find(({ id }) => id === 'characters')
+    expect(location).toMatchObject({
+      label: 'My characters',
+      place: 'Tent',
+      world: { x: tent.x, y: tent.y },
+      ownerOnly: false,
+    })
+    expect(tent.id).toBe('empty-tent')
+    expect(dormantProps.map(({ id }) => id)).not.toContain('empty-tent')
+    expect(resolveLocation('characters', false)?.id).toBe('characters')
   })
 })
 

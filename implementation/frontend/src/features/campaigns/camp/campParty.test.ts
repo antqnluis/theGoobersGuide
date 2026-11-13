@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bedrollSeats, bedrolls, firePit, partySeats, wagon, type RosterMember } from './campLayout'
+import {
+  bedrollSeats,
+  bedrolls,
+  firePit,
+  partySeats,
+  tent,
+  wagon,
+  type RosterMember,
+} from './campLayout'
 import { figureSize, outlineTargets, partyFigures, spriteIdFor } from './campParty'
 
 const member = (index: number, role = 'member', username: string | null = `player_${index}`) =>
@@ -77,6 +85,7 @@ describe('outlineTargets', () => {
 
   it('outlines the object behind each destination', () => {
     expect(outlineTargets('overview', figures)).toEqual(new Set([firePit.id]))
+    expect(outlineTargets('characters', figures)).toEqual(new Set([tent.id]))
     expect(outlineTargets('settings', figures)).toEqual(new Set([wagon.id]))
     expect(outlineTargets(null, figures).size).toBe(0)
   })

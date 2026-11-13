@@ -6,6 +6,7 @@ import {
   createCharacter,
   deleteCharacter,
   isCharacterUnavailable,
+  removeCharacterPortrait,
   isSheetConflict,
   setCharacterInParty,
   setCharacterStatus,
@@ -13,6 +14,7 @@ import {
   updateCharacterDetails,
   updateCharacterSheetBody,
   updateCharacterVitals,
+  uploadCharacterPortrait,
 } from './characterService'
 import type {
   CharacterDetails,
@@ -23,7 +25,15 @@ import type {
 } from './characterTypes'
 
 export type CharacterAction =
-  'create' | 'details' | 'status' | 'party' | 'visibility' | 'vitals' | 'sheet' | 'delete'
+  | 'create'
+  | 'details'
+  | 'status'
+  | 'party'
+  | 'visibility'
+  | 'vitals'
+  | 'sheet'
+  | 'delete'
+  | 'portrait'
 
 const fallbackCopy: Record<CharacterAction, string> = {
   create: "We couldn't create this character. Check your connection and try again.",
@@ -34,6 +44,7 @@ const fallbackCopy: Record<CharacterAction, string> = {
   vitals: "We couldn't save these stats. Check your connection and try again.",
   sheet: "We couldn't save this sheet. Check your connection and try again.",
   delete: "We couldn't delete this character. Check your connection and try again.",
+  portrait: "We couldn't save this picture. Check your connection and try again.",
 }
 
 /**
@@ -130,9 +141,21 @@ export function useCharacterActions(campaignId: string, userId: string) {
       }
     })
 
-  const remove = (characterId: string) =>
+  const setPortrait = (characterId: string, file: File, previousPath: string | null) =>
+    run('portrait', characterId, async () => {
+      await uploadCharacterPortrait(characterId, file, previousPath)
+      await refreshCharacters()
+    })
+
+  const clearPortrait = (characterId: string, path: string) =>
+    run('portrait', characterId, async () => {
+      await removeCharacterPortrait(characterId, path)
+      await refreshCharacters()
+    })
+
+  const remove = (characterId: string, portraitPath?: string | null) =>
     run('delete', characterId, async () => {
-      await deleteCharacter(characterId)
+      await deleteCharacter(characterId, portraitPath)
       queryClient.removeQueries({ queryKey: characterSheetKey(characterId, userId) })
       await refreshCharacters()
     })
@@ -149,6 +172,8 @@ export function useCharacterActions(campaignId: string, userId: string) {
     changeVisibility,
     saveVitals,
     saveSheet,
+    setPortrait,
+    clearPortrait,
     remove,
   }
 }

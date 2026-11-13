@@ -185,6 +185,7 @@ export type Database = {
           level: number
           name: string
           owner_id: string
+          portrait_path: string | null
           sheet_visibility: string
           species: string | null
           status: string
@@ -203,6 +204,7 @@ export type Database = {
           level?: number
           name: string
           owner_id?: string
+          portrait_path?: string | null
           sheet_visibility?: string
           species?: string | null
           status?: string
@@ -220,6 +222,7 @@ export type Database = {
           level?: number
           name?: string
           owner_id?: string
+          portrait_path?: string | null
           sheet_visibility?: string
           species?: string | null
           status?: string

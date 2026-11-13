@@ -4,8 +4,10 @@ import {
   defaultSheetBody,
   limits,
   normalizeSheet,
+  portraitMaxBytes,
   toCharacterDetails,
   validateCharacterDetails,
+  validatePortraitFile,
   validateSheetBody,
   validateVitals,
 } from './characterValidation'
@@ -237,5 +239,20 @@ describe('validateSheetBody', () => {
     const body = valid()
     mutate(body)
     expect(validateSheetBody(body).length).toBeGreaterThan(0)
+  })
+})
+
+describe('portrait files', () => {
+  it('accepts PNG, JPEG, and WebP within the size cap', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/webp']) {
+      expect(validatePortraitFile({ type, size: 1000 })).toBeNull()
+    }
+    expect(validatePortraitFile({ type: 'image/png', size: portraitMaxBytes })).toBeNull()
+  })
+
+  it('refuses other types, oversized, and empty files', () => {
+    expect(validatePortraitFile({ type: 'image/gif', size: 10 })).toMatch(/PNG, JPEG, or WebP/)
+    expect(validatePortraitFile({ type: 'image/png', size: portraitMaxBytes + 1 })).toMatch(/2 MB/)
+    expect(validatePortraitFile({ type: 'image/png', size: 0 })).toMatch(/empty/)
   })
 })

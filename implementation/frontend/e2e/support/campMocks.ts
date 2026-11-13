@@ -165,6 +165,12 @@ export async function mockCampaignApi(
       return
     }
 
+    // No characters unless a test layers mockCharacters on top.
+    if (path.endsWith('/rest/v1/characters') && method === 'GET') {
+      await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
+      return
+    }
+
     if (path.endsWith('/rest/v1/rpc/get_campaign_party') && method === 'POST') {
       const { p_campaign_id: campaignId } = request.postDataJSON() as { p_campaign_id: string }
       const campaign = campaigns.find((item) => item.id === campaignId)
@@ -378,4 +384,292 @@ export async function mockMembership(
     await route.fulfill({ status: 204, headers })
   })
   return { calls, requests }
+}
+
+export type MockCharacter = {
+  id: string
+  campaign_id: string
+  owner_id: string
+  name: string
+  species: string | null
+  class_name: string | null
+  subclass: string | null
+  background: string | null
+  level: number
+  status: 'active' | 'retired' | 'deceased'
+  in_party: boolean
+  sheet_visibility: 'private' | 'campaign'
+  portrait_path: string | null
+  status_changed_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type MockSheet = {
+  character_id: string
+  max_hp: number | null
+  current_hp: number | null
+  temp_hp: number
+  armor_class: number | null
+  speed: number | null
+  sheet: Record<string, unknown>
+  updated_at: string
+}
+
+export type CharacterState = { characters: MockCharacter[]; sheets: MockSheet[] }
+
+let stamp = 0
+const nextStamp = () => new Date(Date.UTC(2026, 10, 13, 12, 0, 0, 0) + ++stamp * 1000).toISOString()
+let counter = 0
+
+export function mockCharacter(overrides: Partial<MockCharacter> = {}): MockCharacter {
+  counter += 1
+  return {
+    id: `00000000-0000-4000-8000-${String(1000 + counter).padStart(12, '0')}`,
+    campaign_id: redHand.id,
+    owner_id: accountId,
+    name: 'Brand',
+    species: 'Elf',
+    class_name: 'Fighter',
+    subclass: null,
+    background: null,
+    level: 3,
+    status: 'active',
+    in_party: true,
+    sheet_visibility: 'private',
+    portrait_path: null,
+    status_changed_at: now,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  }
+}
+
+export function mockSheet(characterId: string, overrides: Partial<MockSheet> = {}): MockSheet {
+  return {
+    character_id: characterId,
+    max_hp: null,
+    current_hp: null,
+    temp_hp: 0,
+    armor_class: null,
+    speed: null,
+    sheet: { version: 1 },
+    updated_at: nextStamp(),
+    ...overrides,
+  }
+}
+
+export type CharacterFailure = { status: number; message: string } | null
+
+/**
+ * Stateful characters, sheets, and the three lifecycle RPCs, layered over
+ * `mockCampaignApi` (later routes win). Writes mutate `state` so refetches show the
+ * result, the way row-level security and the database rules would: only the signed-in
+ * account's own characters change, one character can be active, and a private sheet is
+ * invisible to everyone else.
+ */
+export async function mockCharacters(
+  page: Page,
+  state: CharacterState,
+  options: {
+    /** Return a failure to refuse the next call to this table or RPC. */
+    fail?: (target: string) => CharacterFailure
+    /** Holds each write until the promise settles. */
+    hold?: () => Promise<void> | undefined
+  } = {},
+) {
+  const calls: string[] = []
+  await page.route('**/rest/v1/**', async (route) => {
+    const request = route.request()
+    const method = request.method()
+    const url = new URL(request.url())
+    const path = url.pathname
+    const headers = corsHeaders()
+    const target = path.split('/rest/v1/')[1] ?? ''
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const table = target.replace(/^rpc\//, '')
+    if (
+      !['characters', 'character_sheets'].includes(table) &&
+      !['create_character', 'set_character_status', 'set_character_in_party'].includes(table)
+    ) {
+      return route.fallback()
+    }
+
+    const isWrite = method !== 'GET'
+    if (isWrite) calls.push(`${method} ${table}`)
+    if (isWrite) await options.hold?.()
+    const failure = options.fail?.(table)
+    if (failure) {
+      return route.fulfill({
+        status: failure.status,
+        headers,
+        json: { code: failure.status >= 500 ? 'XX000' : 'P0001', message: failure.message },
+      })
+    }
+
+    const eq = (name: string) => {
+      const value = url.searchParams.get(name)
+      return value?.startsWith('eq.') ? value.slice(3) : null
+    }
+    const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object')
+    const respond = (rows: unknown[], status = 200) => {
+      if (!wantsObject) return route.fulfill({ status, headers, json: rows })
+      if (rows.length !== 1) {
+        return route.fulfill({
+          status: 406,
+          headers,
+          json: {
+            code: 'PGRST116',
+            details: `The result contains ${rows.length} rows`,
+            message: 'JSON object requested, multiple (or no) rows returned',
+          },
+        })
+      }
+      return route.fulfill({ status, headers, json: rows[0] })
+    }
+    const fail = (message: string) =>
+      route.fulfill({ status: 400, headers, json: { code: 'P0001', message } })
+
+    const isMine = (character: MockCharacter) => character.owner_id === accountId
+    const body = method === 'GET' || method === 'DELETE' ? {} : request.postDataJSON()
+
+    if (table === 'characters' && method === 'GET') {
+      const campaignId = eq('campaign_id')
+      return respond(
+        state.characters.filter((character) => !campaignId || character.campaign_id === campaignId),
+      )
+    }
+    if (table === 'characters' && method === 'PATCH') {
+      const id = eq('id')
+      const row = state.characters.find((character) => character.id === id && isMine(character))
+      if (!row) return respond([])
+      Object.assign(row, body, { updated_at: new Date().toISOString() })
+      return respond([row])
+    }
+    if (table === 'characters' && method === 'DELETE') {
+      const index = state.characters.findIndex(
+        (character) => character.id === eq('id') && isMine(character),
+      )
+      if (index < 0) return respond([])
+      const [removed] = state.characters.splice(index, 1)
+      state.sheets = state.sheets.filter((sheet) => sheet.character_id !== removed.id)
+      return respond([{ id: removed.id }])
+    }
+
+    if (table === 'character_sheets') {
+      const id = eq('character_id')
+      const owner = state.characters.find((character) => character.id === id)
+      const sheet = state.sheets.find((item) => item.character_id === id)
+      const visible =
+        owner && sheet && (isMine(owner) || owner.sheet_visibility === 'campaign') ? [sheet] : []
+      if (method === 'GET') return respond(visible)
+      if (method === 'PATCH') {
+        const stampFilter = eq('updated_at')
+        const writable = owner && sheet && isMine(owner) ? sheet : null
+        if (!writable || (stampFilter && stampFilter !== writable.updated_at)) return respond([])
+        Object.assign(writable, body, { updated_at: nextStamp() })
+        return respond([writable])
+      }
+    }
+
+    if (table === 'create_character') {
+      const input = body as {
+        p_campaign_id: string
+        p_name: string
+        p_species?: string
+        p_class_name?: string
+        p_subclass?: string
+        p_background?: string
+        p_level?: number
+        p_in_party?: boolean
+      }
+      if (state.characters.some((c) => isMine(c) && c.status === 'active')) {
+        return fail('character_active_exists')
+      }
+      const row = mockCharacter({
+        campaign_id: input.p_campaign_id,
+        name: input.p_name,
+        species: input.p_species ?? null,
+        class_name: input.p_class_name ?? null,
+        subclass: input.p_subclass ?? null,
+        background: input.p_background ?? null,
+        level: input.p_level ?? 1,
+        in_party: input.p_in_party ?? false,
+        created_at: new Date().toISOString(),
+        status_changed_at: new Date().toISOString(),
+      })
+      state.characters.push(row)
+      state.sheets.push(mockSheet(row.id))
+      return route.fulfill({ status: 200, headers, json: row.id })
+    }
+
+    if (table === 'set_character_status' || table === 'set_character_in_party') {
+      const input = body as { p_character_id: string; p_status?: string; p_in_party?: boolean }
+      const row = state.characters.find((c) => c.id === input.p_character_id && isMine(c))
+      if (!row) return fail('character_unavailable')
+      if (table === 'set_character_status') {
+        const next = input.p_status as MockCharacter['status']
+        if (next === 'active' && row.status !== 'active') {
+          if (state.characters.some((c) => isMine(c) && c.status === 'active')) {
+            return fail('character_active_exists')
+          }
+        }
+        if (next !== row.status) {
+          row.status = next
+          row.status_changed_at = new Date().toISOString()
+          if (next !== 'active') row.in_party = false
+        }
+      } else {
+        if (input.p_in_party && row.status !== 'active') return fail('character_not_active')
+        row.in_party = Boolean(input.p_in_party)
+      }
+      return route.fulfill({ status: 204, headers })
+    }
+
+    return route.fallback()
+  })
+
+  // Storage: uploads, signed links, the picture itself, and removals, kept in `objects`.
+  const objects = new Set<string>()
+  await page.route('**/storage/v1/**', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    const path = decodeURIComponent(new URL(request.url()).pathname.split('/storage/v1/')[1] ?? '')
+    const method = request.method()
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const bucket = 'character-portraits'
+    if (method === 'POST' && path.startsWith(`object/sign/${bucket}/`)) {
+      const name = path.slice(`object/sign/${bucket}/`.length)
+      if (!objects.has(name))
+        return route.fulfill({ status: 404, headers, json: { message: 'Object not found' } })
+      return route.fulfill({
+        status: 200,
+        headers,
+        json: { signedURL: `/object/sign/${bucket}/${name}?token=mock` },
+      })
+    }
+    if (method === 'POST' && path.startsWith(`object/${bucket}/`)) {
+      const name = path.slice(`object/${bucket}/`.length)
+      objects.add(name)
+      return route.fulfill({ status: 200, headers, json: { Id: name, Key: `${bucket}/${name}` } })
+    }
+    if (method === 'DELETE' && path === `object/${bucket}`) {
+      const { prefixes } = request.postDataJSON() as { prefixes: string[] }
+      for (const name of prefixes) objects.delete(name)
+      return route.fulfill({ status: 200, headers, json: [] })
+    }
+    if (method === 'GET' && path.startsWith(`object/sign/${bucket}/`)) {
+      const onePixelPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      )
+      return route.fulfill({
+        status: 200,
+        headers: { ...headers, 'content-type': 'image/png' },
+        body: onePixelPng,
+      })
+    }
+    return route.fallback()
+  })
+  return { calls, objects }
 }

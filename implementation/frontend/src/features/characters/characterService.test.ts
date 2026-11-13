@@ -14,10 +14,27 @@ import {
   updateCharacterDetails,
   updateCharacterSheetBody,
   updateCharacterVitals,
+  uploadCharacterPortrait,
+  removeCharacterPortrait,
+  getCharacterPortraitUrl,
 } from './characterService'
 import { defaultSheetBody } from './characterValidation'
 
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn(), from: vi.fn() } }))
+vi.mock('../../lib/supabase', () => ({
+  supabase: { rpc: vi.fn(), from: vi.fn(), storage: { from: vi.fn() } },
+}))
+
+/** A storage bucket double that records uploads and removals. */
+function bucket(overrides: Record<string, unknown> = {}) {
+  const api = {
+    upload: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    remove: vi.fn().mockResolvedValue({ data: [], error: null }),
+    createSignedUrl: vi.fn().mockResolvedValue({ data: { signedUrl: 'https://x/y' }, error: null }),
+    ...overrides,
+  }
+  vi.mocked(supabase.storage.from).mockReturnValue(api as never)
+  return api
+}
 
 const campaignId = '00000000-0000-4000-8000-000000000011'
 const characterId = '00000000-0000-4000-8000-000000000021'
@@ -243,5 +260,66 @@ describe('error copy', () => {
     expect(isCharacterUnavailable({ message: 'character_not_active' })).toBe(false)
     expect(isSheetConflict({ message: 'sheet_conflict' })).toBe(true)
     expect(isSheetConflict({ message: 'other' })).toBe(false)
+  })
+})
+
+describe('portraits', () => {
+  const file = new File(['x'], 'me.png', { type: 'image/png' })
+  const row = { id: characterId, portrait_path: 'new' }
+
+  it('uploads under the character, points the row at it, then drops the old picture', async () => {
+    const storage = bucket()
+    const calls = builder({ data: row, error: null })
+    await expect(
+      uploadCharacterPortrait(characterId, file, `${characterId}/old.png`),
+    ).resolves.toBe(row)
+    const [path, , options] = storage.upload.mock.calls[0]
+    expect(path).toMatch(new RegExp(`^${characterId}/[0-9a-f-]{36}\\.png$`))
+    expect(options).toMatchObject({ contentType: 'image/png' })
+    expect(calls).toContainEqual(['update', [{ portrait_path: path }]])
+    expect(storage.remove).toHaveBeenCalledWith([`${characterId}/old.png`])
+  })
+
+  it('removes the new file again when the row could not be updated', async () => {
+    const storage = bucket()
+    builder({ data: null, error: null })
+    await expect(uploadCharacterPortrait(characterId, file, null)).rejects.toThrow(
+      'character_update_denied',
+    )
+    expect(storage.remove).toHaveBeenCalledWith([storage.upload.mock.calls[0][0]])
+  })
+
+  it('stops when the upload itself fails, leaving the row alone', async () => {
+    bucket({ upload: vi.fn().mockResolvedValue({ data: null, error: new Error('too big') }) })
+    builder({ data: row, error: null })
+    await expect(uploadCharacterPortrait(characterId, file, null)).rejects.toThrow('too big')
+    expect(supabase.from).not.toHaveBeenCalled()
+  })
+
+  it('refuses a file type the bucket does not take', async () => {
+    bucket()
+    await expect(
+      uploadCharacterPortrait(characterId, new File(['x'], 'a.gif', { type: 'image/gif' }), null),
+    ).rejects.toThrow('portrait_type_invalid')
+  })
+
+  it('clears the path, then removes the file', async () => {
+    const storage = bucket()
+    const calls = builder({ data: { id: characterId }, error: null })
+    await removeCharacterPortrait(characterId, 'p')
+    expect(calls).toContainEqual(['update', [{ portrait_path: null }]])
+    expect(storage.remove).toHaveBeenCalledWith(['p'])
+  })
+
+  it('returns a signed link', async () => {
+    bucket()
+    await expect(getCharacterPortraitUrl('p')).resolves.toBe('https://x/y')
+  })
+
+  it('removes the picture before deleting the character', async () => {
+    const storage = bucket()
+    builder({ data: { id: characterId }, error: null })
+    await deleteCharacter(characterId, 'p')
+    expect(storage.remove).toHaveBeenCalledWith(['p'])
   })
 })
