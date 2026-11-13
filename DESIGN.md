@@ -198,6 +198,7 @@ Text on camp chrome measures at least 7:1; do not introduce a colour in `camp.cs
 
 - Touch: horizontal drags pan; vertical drags still scroll the page. Every scene button, Places row, and the gear is at least 44px.
 - Motion: idle effects run at roughly 14 draws a second, none while the tab is hidden or under reduced motion.
+- The waystone on the high road is a pointer-only shortcut back to the galaxy (hidden from assistive tech and the tab order); "Back to campaigns" in the header is the accessible route.
 - Scene buttons outside the visible frame leave the tab order; focusing a Place in the list pans the camera to it.
 
 See the [camp plan](docs/M02-Landfall-Camp.md) for the destination map, camera, and interaction details.

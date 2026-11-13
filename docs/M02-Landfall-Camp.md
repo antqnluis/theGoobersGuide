@@ -398,9 +398,9 @@ The camp now moves: landfall descent, camera pans to a destination, a living fir
 - **Tests:** 7 new unit tests (`campBackground.test.ts`), two e2e tests (header placement, all choices, keyboard, Escape and outside click, reload persistence, per-campaign privacy, revert; phone fit with storage blocked).
 
 
-### Phase 7: Performance and cross-browser (in progress, 13 November 2026)
+### Phase 7: Performance, cross-browser, and final QA (13 November 2026)
 
-Done so far: the measurement harness and the opt-in browser projects. The Impeccable audit, DESIGN.md update, contrast and zoom checks, the VoiceOver pass, and the waystone shortcut are still to do.
+Harness, browser projects, audit and polish, DESIGN.md update, waystone shortcut, 200% zoom check, and phone-Safari project are done. Firefox, a real-device Safari pass, and VoiceOver remain manual or unverified (see the end of this entry).
 
 - **Shared e2e helpers:** the API mocks, sign-in, roster, and camp watchers moved from `campaigns.spec.ts` into `e2e/support/campMocks.ts` so the perf spec can reuse them. No assertion changed.
 - **Perf harness:** `npm run test:perf` (`playwright.perf.config.ts`, one worker, builds and serves with `vite preview`, so it needs port 4173 free). `e2e/perf/camp.perf.ts` counts effect-canvas clears, takes CDP `Performance.getMetrics` heap samples after `HeapProfiler.collectGarbage` at 5 s and 60 s of idle and after 50 open, wheel-pan, close cycles, watches long animation frames, and reads image bytes and a chunk gzip table. It writes `test-results/perf-report.json`.
@@ -420,3 +420,15 @@ Done so far: the measurement harness and the opt-in browser projects. The Impecc
 - **Phase 6 leftovers:** the sky chevron on tall views and the faint inverted hills mid-descent did not reproduce in captures at 1440×2000, 900×1900, and the descent at 1440×900. Left unchanged.
 - **Results:** lint, format:check, build, `art:check` pass; unit 276 pass; `test:e2e` 51 pass; `test:perf` 2 pass.
 - **Not verified:** Firefox, Mobile Safari, a real Safari keyboard pass; real-GPU frame pacing; Impeccable audit, contrast, 200% zoom, VoiceOver; `test:local-supabase` was not rerun this phase.
+
+**Phase 7 close-out (13 November 2026):**
+- **Audit, polish, DESIGN.md:** committed earlier (`867c4d5`): always-mounted live regions for camp and journal notices, the settings popover closes on tab-out, camp colours are `--camp-*` tokens documented in DESIGN.md with text at 7:1 or better on camp chrome, and the "Individual campaign camp" section replaces the village one.
+- **Waystone shortcut:** an `aria-hidden`, `tabindex=-1` button over the waystone returns to the galaxy (`onLeave` in `CampaignCamp`, navigating to `/app/campaigns`). It follows the camera like the other buttons, is hidden while off-frame (it is, at rest), is at least 44 px, and shows a "Back to campaigns" plate on hover. The header link stays the single accessible route. Dormant props are still unlabeled and unfocusable.
+- **200% zoom:** an e2e test at 720×450 (a 1440×900 window at 200%) checks no horizontal scroll, header, Places, and Back in view at 44 px or more, open and close.
+- **Phone Safari:** the `mobile-safari` project now runs only `e2e/camp-touch.spec.ts` (tap to open Places, full-screen sheet, canvas sized to the device, waystone hidden). The wider suite assumes a mouse and a wheel, and 22 of its 44 tests failed there for that reason. The sheet measures 10 px under `innerWidth` in that emulation; the cause is its classic scrollbar (visual viewport width), so the test compares against `visualViewport.width`.
+- **Results:** lint, format:check, build, `art:check` pass; unit 276 pass; `test:e2e` 53 pass; `test:local-supabase` 3 pass; `test:perf` 2 pass; WebKit 49 of 56 pass (the same seven, all focus-by-click and 310 px-width assumptions, plus one galaxy WebGL test); mobile-safari 1 of 1 passes. Chunk gzip: camp 5.5 KB (budget 25), eager app 176.2 KB (was 174.6), CSS 14.7 KB.
+- **Unresolved or not verified:**
+  - Firefox does not launch from this session ("Could not find profile folder"), so it is untested.
+  - The seven WebKit failures are unexamined test assumptions; a real Safari keyboard pass with Full Keyboard Access is still needed.
+  - VoiceOver smoke test, real-GPU and high-DPR frame pacing, iOS hardware, and the title morph into the descent are manual checks I could not run.
+  - `src/App.test.tsx` registration test remains intermittently flaky in full runs (pre-existing; passed in the last run).

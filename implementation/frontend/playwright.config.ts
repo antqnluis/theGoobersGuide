@@ -25,7 +25,12 @@ export default defineConfig({
       ? [
           { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
           { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-          { name: 'mobile-safari', use: { ...devices['iPhone 14'] } },
+          // The wider suite assumes a mouse and a wheel; phones run the touch spec only.
+          {
+            name: 'mobile-safari',
+            testMatch: /camp-touch\.spec\.ts/,
+            use: { ...devices['iPhone 14'] },
+          },
         ]
       : []),
   ],

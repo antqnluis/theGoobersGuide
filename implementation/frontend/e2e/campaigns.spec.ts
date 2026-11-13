@@ -968,6 +968,59 @@ test('pans to a place that is out of frame when it takes focus', async ({ page }
   await expect(wagon).toBeVisible()
 })
 
+test('stays usable at 200% browser zoom', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  // 200% zoom on a 1440×900 window: half the CSS pixels, twice the device pixel ratio.
+  await page.setViewportSize({ width: 720, height: 450 })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const camp = await openCamp(page)
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(720)
+  await expect(page.getByRole('heading', { name: redHand.name, exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
+
+  const places = page.getByRole('list', { name: 'Camp places' })
+  await expect(places.getByRole('button')).toHaveCount(3)
+  for (const button of await places.getByRole('button').all()) {
+    await expect(button).toBeInViewport({ ratio: 1 })
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  }
+  await places.getByRole('button', { name: /^Overview/ }).click()
+  await expect(camp).toHaveAttribute('data-camp-state', 'overview')
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: 'Back to camp' })).toBeInViewport({ ratio: 1 })
+  await page.keyboard.press('Escape')
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+})
+
+test('the waystone is a pointer-only shortcut back to the galaxy', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const stone = page.locator('[data-camp-waystone]')
+
+  // Off-frame at rest, hidden from assistive tech and the tab order always.
+  await expect(stone).toBeHidden()
+  await expect(stone).toHaveAttribute('aria-hidden', 'true')
+  await expect(stone).toHaveAttribute('tabindex', '-1')
+  await expect(page.getByRole('link', { name: 'Back to campaigns' })).toHaveCount(1)
+
+  // Scroll the panorama to the high road, and the stone is in frame and clickable.
+  const box = (await page.locator('.camp-scene').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(9000, 0)
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  await expect(stone).toBeInViewport({ ratio: 1 })
+  const size = (await stone.boundingBox())!
+  expect(size.width).toBeGreaterThanOrEqual(44)
+  expect(size.height).toBeGreaterThanOrEqual(44)
+
+  await stone.click()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+})
+
 test('lets the player pick a camp background, remembered per campaign on this device', async ({
   page,
 }, testInfo) => {

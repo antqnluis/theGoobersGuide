@@ -273,6 +273,36 @@
   background: transparent;
 }
 
+.camp-waystone {
+  position: absolute;
+  cursor: pointer;
+  border-radius: var(--radius-control);
+  padding: 0;
+  background: transparent;
+}
+
+.camp-waystone span {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 2px);
+  border: 1px solid var(--camp-plate-hot-edge);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  color: var(--camp-cream);
+  background: var(--camp-plate-hot);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--camp-shadow) 70%, transparent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.camp-waystone:hover span {
+  opacity: 1;
+}
+
 .camp-sign span {
   position: absolute;
   left: 50%;

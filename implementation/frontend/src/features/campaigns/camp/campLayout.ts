@@ -90,6 +90,9 @@ export const dormantProps: readonly CampProp[] = [
 /** Where the high-road waystone stands, a pointer shortcut back to the galaxy. */
 export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
 
+/** The waystone's click target in base art pixels, standing on its spot (the sprite is 44×60). */
+export const waystoneHit = { width: 44, height: 60 } as const
+
 /** The steward's wagon, a destination for owners and parked scenery for members. */
 export const wagon: CampProp = { id: 'wagon', x: 240, y: 244 }
 

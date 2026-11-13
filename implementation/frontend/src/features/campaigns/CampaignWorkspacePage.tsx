@@ -176,6 +176,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       landfallKey={arrivedFromGalaxy ? location.key : null}
       background={background}
       onBackgroundChange={setBackground}
+      onLeave={() => navigate('/app/campaigns')}
       roster={roster}
       world={world}
       title={

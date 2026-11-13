@@ -15,6 +15,8 @@ import {
 import {
   availableLocations,
   campLocations,
+  waystone,
+  waystoneHit,
   type CampLocation,
   type CampLocationId,
   type RosterMember,
@@ -73,6 +75,7 @@ export function CampaignCamp({
   world,
   background,
   onBackgroundChange,
+  onLeave,
   roster,
   landfallKey,
   isOwner,
@@ -89,6 +92,8 @@ export function CampaignCamp({
   /** The player's background choice, and how to change it. */
   background: CampBackground
   onBackgroundChange: (background: CampBackground) => void
+  /** Returns to the galaxy: the waystone's pointer shortcut (the header link is the accessible one). */
+  onLeave: () => void
   /** The loaded roster; empty while loading, on error, or when none is available. */
   roster: readonly RosterMember[]
   /**
@@ -154,6 +159,15 @@ export function CampaignCamp({
       sign.style.height = `${rect.height}px`
       // Off-frame buttons leave the tab order and the click targets.
       sign.style.visibility = isInFrame(rect, viewport) ? 'visible' : 'hidden'
+    }
+    const stone = scene.querySelector<HTMLElement>('[data-camp-waystone]')
+    if (stone) {
+      const rect = hitRect(waystone, waystoneHit, view, current.dpr)
+      stone.style.left = `${rect.left}px`
+      stone.style.top = `${rect.top}px`
+      stone.style.width = `${rect.width}px`
+      stone.style.height = `${rect.height}px`
+      stone.style.visibility = isInFrame(rect, viewport) ? 'visible' : 'hidden'
     }
     for (const plate of scene.querySelectorAll<HTMLElement>('[data-camp-name-at]')) {
       const [x, y] = (plate.dataset.campNameAt ?? '').split(',').map(Number)
@@ -441,6 +455,19 @@ export function CampaignCamp({
         )}
         {!artFailed && ready && names()}
         {!artFailed && ready && available.map(sign)}
+        {/* A pointer shortcut only: "Back to campaigns" in the header is the accessible route. */}
+        {!artFailed && ready && (
+          <button
+            aria-hidden="true"
+            className="camp-waystone"
+            data-camp-waystone
+            onClick={onLeave}
+            tabIndex={-1}
+            type="button"
+          >
+            <span>Back to campaigns</span>
+          </button>
+        )}
       </div>
 
       <nav aria-labelledby="camp-places-heading" className="camp-directory">
