@@ -2,7 +2,7 @@
 
 ## Status
 
-**Audit complete; awaiting review.** Nothing has been implemented. No migrations were run, no RLS policies were changed, and no data was modified. This document proposes the architecture and milestones for review before implementation begins.
+**Architecture approved (2026-11-13).** The decisions are recorded under [Approved decisions](#approved-decisions). Nothing has been implemented yet. The implementation-ready plan for M1 is [M03.1 — Membership Lifecycle](M03.1-Membership-Lifecycle.md). This document remains the overarching architecture reference and roadmap for M1–M8.
 
 ## Method and evidence
 
@@ -229,8 +229,8 @@ M8 Imports (character Markdown, DM handoffs): after M3 and M6
 
 | # | Milestone | Scope | Depends on | Tests that prove it |
 | --- | --- | --- | --- | --- |
-| **M1** | Membership lifecycle | `leave_campaign`, `remove_campaign_member`, `transfer_campaign_ownership`. Decide the owner-deletion FK. Optional `get_campaign_party` with display names. Display-name editing on the existing profile column. Generated types. | — | Integration: member leaves → loses campaign and roster reads. Owner removes → same. Owner cannot remove self or leave. Transfer swaps both owner representations atomically, and the old owner loses edit rights. Non-owners are denied. Unit and e2e: Party and Settings confirmations, error and pending states. |
-| **M2** | Characters and party | `characters`, `character_sheets`, membership-checked inserts, party flag, sheet visibility. "My character" (tent) destination: create, edit, view sheet. The Party panel lists each member's in-party characters. | M1 (departure semantics) | Integration: cross-user denial of private sheets, including **for the campaign owner**. A party-visible sheet is readable by members. A non-member cannot create a character in the campaign. Immutable keys. Leaving clears `in_party`. Unit: sheet validation. e2e: create, edit, and refresh persistence, plus empty, loading, and error states. |
+| **M1** | Membership lifecycle ([plan](M03.1-Membership-Lifecycle.md)) | `leave_campaign`, `remove_campaign_member`, `transfer_campaign_ownership`. Decide the owner-deletion FK. Generated types. | — | Integration: member leaves → loses campaign and roster reads. Owner removes → same. Owner cannot remove self or leave. Transfer swaps both owner representations atomically, and the old owner loses edit rights. Non-owners are denied. Unit and e2e: Party and Settings confirmations, error and pending states. |
+| **M2** | Characters and party | `characters`, `character_sheets`, membership-checked inserts, party flag, sheet visibility. `get_campaign_party` with display names and display-name editing on the existing profile column (moved from M1, D5 approved 2026-11-13). "My character" (tent) destination: create, edit, view sheet. The Party panel lists each member's in-party characters. | M1 (departure semantics) | Integration: cross-user denial of private sheets, including **for the campaign owner**. A party-visible sheet is readable by members. A non-member cannot create a character in the campaign. Immutable keys. Leaving clears `in_party`. Unit: sheet validation. e2e: create, edit, and refresh persistence, plus empty, loading, and error states. |
 | **M3** | Inventory and currency | `character_items`, currency columns, `adjust_character_currency`. Inventory and money sections of the sheet. | M2 | Integration: visibility follows the sheet. Concurrent deltas both apply. Negative balances are rejected. Non-owners cannot write. e2e: add, edit, and remove items and adjust coins across a refresh. |
 | **M4** | Notes | `notes` (private/campaign). Journal crates destination with list, editor, and visibility toggle. | M1 | Integration: a private note is invisible to everyone else, including the owner. A campaign note is editable by members. Only the author changes visibility or deletes. A stale-version update fails. e2e: create, edit, toggle, and delete flows. |
 | **M5** | Adventures core | `adventures`, `adventure_participants` (creator only), `adventure_objectives`, `adventure_updates`, `create_adventure`. Map table destination: My Adventures, main adventure, detail, status, next step, objectives, updates. | M2 | Integration: personal adventures are invisible to all non-participants (no list leakage, count, or title). Main adventures are visible and editable by members. Creator-only archive. Immutable keys. e2e: create, update, complete, and reopen. |
@@ -240,10 +240,22 @@ M8 Imports (character Markdown, DM handoffs): after M3 and M6
 
 **Recommended order:** M1 → M2 → M3 → M4 → M5 → M6, then M7 and M8. M4 can run in parallel with M2 and M3 because it touches different tables and a different destination. The dice roller can be built at any point.
 
-## Decisions needed before implementation
+## Approved decisions
 
-1. **Owner account deletion:** keep the cascade (the campaign dies with its owner), or switch to `restrict` and require a transfer first (recommended once other players' data exists)?
-2. **Party definition for shared adventures:** owners of in-party characters (per the product rules, recommended), or all campaign members (simpler)?
-3. **Default sheet visibility:** `private` (recommended, consistent with privacy-by-default) or `party`?
-4. **Campaign notes:** editable by all members (recommended), or author-only with member read?
-5. **Integration test layout:** keep extending the Playwright `test:local-supabase` script (recommended, no new tooling), or add pgTAP via `supabase test db` (a new backend script)?
+Approved 2026-11-13:
+
+1. **Owner account deletion:** require an ownership transfer before deleting an account that owns campaigns (`campaigns.owner_id` becomes `on delete restrict`). Deliberately deleting a whole campaign stays possible with confirmation.
+2. **Party definition:** campaign members who own an active, in-party character.
+3. **Character sheets:** private by default, with explicit owner-controlled sharing.
+4. **Shared campaign notes:** all current members can edit them. Only the author can delete them or change their visibility.
+5. **Integration testing:** extend the existing Playwright `test:local-supabase` suite.
+
+Additional requirements for every milestone:
+
+- Correct the underlying PostgreSQL default privileges (finding 1), and keep revoking and granting explicitly in each migration.
+- Define data retention and access for members who leave, are removed, or rejoin (specified in [M03.1 §6](M03.1-Membership-Lifecycle.md#6-data-retention-and-ownership-rules)).
+- Make ownership transfers atomic so ownership can never be left inconsistent.
+- Preserve existing campaign data and any future player-owned data during migrations.
+- Keep privacy by default, with authorization enforced by Supabase RLS rather than frontend checks.
+- Make migrations and tests safe to run against the local development database without a reset.
+- Preserve existing authentication, invitations, campaign management, and Supabase integrations.
