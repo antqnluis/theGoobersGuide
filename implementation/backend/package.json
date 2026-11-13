@@ -8,6 +8,7 @@
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
     "db:migrate": "supabase migration up --local",
+    "db:types": "supabase gen types typescript --local --schema public > ../frontend/src/types/database.ts",
     "db:reset": "supabase db reset --local"
   },
   "type": "commonjs",
