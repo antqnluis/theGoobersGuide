@@ -151,6 +151,7 @@ export function spriteLayers(
  */
 export function composeAdventurer(
   appearance: Pick<AdventurerAppearance, 'headwear' | 'pack'>,
+  frame: 0 | 1 = 0,
 ): Array<string | null> {
   const { width, height } = adventurerSize
   const out: Array<string | null> = new Array(width * height).fill(null)
@@ -167,6 +168,25 @@ export function composeAdventurer(
   paint(layers.pack, height - layers.pack.length, 0)
   paint(layers.body, 0, bodyInset)
   paint(layers.head, 0, bodyInset)
+  return frame === 0 ? out : exhale(out)
+}
+
+/** Rows the legs and bedroll keep still while the body breathes. */
+const stillRows = 3
+
+/**
+ * The exhale frame: the head and torso sink one pixel while the crossed legs
+ * stay put, which reads as a breath at the camp's low frame rate.
+ */
+function exhale(pixels: Array<string | null>) {
+  const { width, height } = adventurerSize
+  const moving = height - stillRows
+  const out = pixels.slice()
+  for (let y = 0; y < moving; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      out[y * width + x] = y === 0 ? null : pixels[(y - 1) * width + x]
+    }
+  }
   return out
 }
 
@@ -180,6 +200,7 @@ export function spriteColors() {
  */
 export function renderAdventurer(
   appearance: Pick<AdventurerAppearance, 'headwear' | 'pack' | 'cloak' | 'skin'>,
+  frame: 0 | 1 = 0,
 ): Uint32Array {
   const swap = new Map<string, string>()
   masterFixed.cloak0.forEach((hex, step) =>
@@ -188,7 +209,7 @@ export function renderAdventurer(
   masterFixed.skin0.forEach((hex, step) =>
     swap.set(hex, masterFixed[`skin${appearance.skin}`][step]),
   )
-  return Uint32Array.from(composeAdventurer(appearance), (hex) =>
+  return Uint32Array.from(composeAdventurer(appearance, frame), (hex) =>
     hex ? packRgba(hexToRgb(swap.get(hex) ?? hex)) : 0,
   )
 }

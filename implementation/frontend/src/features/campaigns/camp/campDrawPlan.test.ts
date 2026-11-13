@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
 import { planScene, type ImageSizes } from './campDrawPlan'
-import { partyFigures } from './campParty'
+import { frameSpriteId, partyFigures, type PartyFigure } from './campParty'
 import { panorama } from './campLayout'
 import type { CampKind } from './campPalette'
 import type { View } from './campProjection'
@@ -149,10 +149,13 @@ describe('planScene with a party', () => {
   }))
   const { figures } = partyFigures(roster)
   const ops = planScene(view, 'terrestrial', sizes, figures)
+  // Members start on alternate breathing frames, so a figure's op id depends on its phase.
+  const opId = (figure: PartyFigure, bob = 0) =>
+    frameSpriteId(figure.spriteId, (bob + figure.phase) % 2)
 
   it('draws each figure as a whole-pixel 16 x 16 sprite standing on its seat', () => {
     for (const figure of figures) {
-      const op = ops.find(({ id }) => id === figure.spriteId)!
+      const op = ops.find(({ id }) => id === opId(figure))!
       expect(op).toBeDefined()
       expect([op.dw, op.dh]).toEqual([16 * view.scale, 16 * view.scale])
       for (const value of [op.dx, op.dy]) expect(Number.isInteger(value)).toBe(true)
@@ -162,13 +165,55 @@ describe('planScene with a party', () => {
 
   it('draws a figure on a bedroll after it, and the back seats before the fire pit', () => {
     const order = ops.map(({ id }) => id)
-    expect(order.indexOf(figures[0].spriteId)).toBeGreaterThan(order.indexOf('bedroll-red'))
-    expect(order.indexOf(figures[1].spriteId)).toBeGreaterThan(order.indexOf('bedroll-blue'))
-    expect(order.indexOf(figures[6].spriteId)).toBeLessThan(order.indexOf('bedroll-red'))
+    expect(order.indexOf(opId(figures[0]))).toBeGreaterThan(order.indexOf('bedroll-red'))
+    expect(order.indexOf(opId(figures[1]))).toBeGreaterThan(order.indexOf('bedroll-blue'))
+    expect(order.indexOf(opId(figures[6]))).toBeLessThan(order.indexOf('bedroll-red'))
     expect(order.lastIndexOf('foreground')).toBe(order.length - 1)
   })
 
   it('adds nothing for an empty party', () => {
     expect(planScene(view, 'terrestrial', sizes, [])).toEqual(planScene(view, 'terrestrial', sizes))
+  })
+
+  it('breathes: the party alternates frames and never all at once', () => {
+    const first = planScene(view, 'terrestrial', sizes, figures, 0).map(({ id }) => id)
+    const second = planScene(view, 'terrestrial', sizes, figures, 1).map(({ id }) => id)
+    expect(first).not.toEqual(second)
+    for (const figure of figures) {
+      expect(first).toContain(opId(figure, 0))
+      expect(second).toContain(opId(figure, 1))
+    }
+    expect(new Set(figures.map(({ phase }) => phase)).size).toBe(2)
+  })
+})
+
+describe('planScene during the landfall descent', () => {
+  const rest = viewFor(1440, 900)
+  const high = { ...rest, cameraY: 40 }
+  const find = (view: View, id: string) =>
+    planScene(view, 'terrestrial', sizes).find((op) => op.id === id)!
+
+  it('slides each layer down by its own share, so the sky barely moves', () => {
+    const drop = (id: string) => find(high, id).dy - find(rest, id).dy
+    expect(drop('sky')).toBe(Math.round(40 * 0.1) * rest.scale)
+    expect(drop('ridge')).toBeGreaterThan(drop('sky'))
+    expect(drop('trees')).toBeGreaterThan(drop('ridge'))
+    expect(drop('ground')).toBe(40 * rest.scale)
+    expect(drop('foreground')).toBeGreaterThan(drop('ground'))
+  })
+
+  it('moves props with the ground and keeps every coordinate whole', () => {
+    expect(find(high, 'wagon').dy - find(rest, 'wagon').dy).toBe(40 * rest.scale)
+    for (const op of planScene(high, 'terrestrial', sizes)) {
+      for (const value of [op.dx, op.dy, op.dw, op.dh]) expect(Number.isInteger(value)).toBe(true)
+    }
+  })
+
+  it('still covers the space above the sky while the camera looks up', () => {
+    const sky = planScene(high, 'terrestrial', sizes).filter(({ id }) => id === 'sky')
+    const bottoms = sky.map(({ dy, dh }) => dy + dh)
+    const tops = sky.map(({ dy }) => dy)
+    expect(Math.min(...tops)).toBeLessThanOrEqual(0)
+    expect(Math.max(...bottoms)).toBeGreaterThanOrEqual(high.deviceHeight)
   })
 })

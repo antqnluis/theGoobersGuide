@@ -2,7 +2,7 @@
 // pixels: the camera x is the panorama column at the left edge of the view, in
 // base art pixels, and is always an integer so motion snaps to the pixel grid.
 
-import { panorama, restFocusX } from './campLayout'
+import { panorama, restFocusX } from './campLayout.ts'
 
 /**
  * The integer scale from base art pixels to device pixels. The panorama fills

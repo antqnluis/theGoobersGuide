@@ -5,6 +5,7 @@
 import type { AdventurerAppearance } from './adventurerAppearance'
 import { adventurerSize, renderAdventurer } from './adventurerSprites'
 import { assetIdsFor, artUrl } from './campArt'
+import { frameSpriteId } from './campParty'
 import {
   applyPaletteSwap,
   buildSwapLut,
@@ -92,14 +93,19 @@ export function loadCampImages(world: CampWorld): Promise<CampImages> {
 }
 
 const sprites = new Map<string, CampImage>()
-const keptSprites = 64
+const keptSprites = 128
 
 /** A party member's finished sprite on its own canvas, cached by look. */
-export function adventurerImage(spriteId: string, look: AdventurerAppearance): CampImage {
-  let image = sprites.get(spriteId)
+export function adventurerImage(
+  spriteId: string,
+  look: AdventurerAppearance,
+  frame: 0 | 1 = 0,
+): CampImage {
+  const cacheKey = frameSpriteId(spriteId, frame)
+  let image = sprites.get(cacheKey)
   if (!image) {
     const { width, height } = adventurerSize
-    const pixels = Uint32Array.from(renderAdventurer(look))
+    const pixels = Uint32Array.from(renderAdventurer(look, frame))
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -107,7 +113,7 @@ export function adventurerImage(spriteId: string, look: AdventurerAppearance): C
     if (!context) throw new Error('Canvas is not available')
     context.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), width, height), 0, 0)
     image = { source: canvas, width, height }
-    sprites.set(spriteId, image)
+    sprites.set(cacheKey, image)
     while (sprites.size > keptSprites) sprites.delete(sprites.keys().next().value!)
   }
   return image

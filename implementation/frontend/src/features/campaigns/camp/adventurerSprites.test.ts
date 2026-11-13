@@ -62,3 +62,31 @@ describe('adventurer sprites', () => {
     }
   })
 })
+
+describe('breathing frame', () => {
+  it('sinks the head and torso one pixel and keeps the legs still', () => {
+    const { width, height } = adventurerSize
+    for (const hat of headwear) {
+      for (const pack of packs) {
+        const rest = composeAdventurer({ headwear: hat, pack }, 0)
+        const exhale = composeAdventurer({ headwear: hat, pack }, 1)
+        expect(exhale).not.toEqual(rest)
+        // The bottom rows never move.
+        expect(exhale.slice((height - 3) * width)).toEqual(rest.slice((height - 3) * width))
+        // The top row is empty and each row below is the one above it at rest.
+        expect(exhale.slice(0, width).every((pixel) => pixel === null)).toBe(true)
+        expect(exhale.slice(width, 2 * width)).toEqual(rest.slice(0, width))
+        const allowed = new Set(masterColors())
+        for (const colour of exhale) if (colour) expect(allowed.has(colour)).toBe(true)
+      }
+    }
+  })
+
+  it('recolours the same way as the resting frame', () => {
+    const look = { headwear: 'hood', pack: 'satchel', cloak: 4, skin: 2 } as const
+    const rest = renderAdventurer(look, 0)
+    const exhale = renderAdventurer(look, 1)
+    expect(exhale).not.toEqual(rest)
+    expect(new Set(exhale.filter(Boolean)).size).toBeGreaterThan(5)
+  })
+})

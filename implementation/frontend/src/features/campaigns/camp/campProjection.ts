@@ -9,6 +9,8 @@ export const parallax = {
   ridge: 0.3,
   trees: 0.6,
   ground: 1,
+  /** Only the descent's height uses this: the pinned trees pass fastest. */
+  foreground: 1.25,
 } as const
 
 export type View = {
@@ -29,6 +31,14 @@ export function panoramaOrigin({ cameraX, cameraY = 0, scale, deviceWidth, devic
     y: Math.round(deviceHeight - panorama.height * scale + cameraY * scale),
     extendsHorizontally: panorama.width * scale < deviceWidth,
   }
+}
+
+/**
+ * Device-pixel origin of a parallax layer. The descent's camera height moves
+ * each layer by its own factor, so the sky barely moves while the ground slides.
+ */
+export function layerOrigin(view: View, factor: number) {
+  return panoramaOrigin({ ...view, cameraY: Math.round((view.cameraY ?? 0) * factor) })
 }
 
 /** Horizontal offset of a layer, in whole base pixels. */

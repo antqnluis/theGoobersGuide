@@ -358,3 +358,28 @@ The real roster now sits around the fire, and the hovered, focused, or open dest
 - **Tests:** 222 unit tests (new `campParty.test.ts`, draw-plan cases for figures, seat no-overlap). Three new e2e tests: a 14-member roster with a null username (plates, "+4", each plate over a sprite wearing that member's own cloak and skin, aria-hidden, hidden on a 375 px phone) that first fails the roster and recovers through the panel's retry; members have no wagon control; outlines on hover, focus, and open. The existing 32-member scene test, retry test, and unrelated-account "Campaign not available" test are unchanged and pass.
 - **Results:** lint, format:check, build, `art:check` pass; unit 222 pass; `test:e2e` 40 pass; `test:local-supabase` 3 pass.
 - **Not verified:** plates and outlines at high DPR and in Safari; plate overlap at widths between 900 and 1100 where only part of the ring is in frame; a screen-reader pass (Phase 7).
+
+### Phase 6: Motion (13 November 2026)
+
+The camp now moves: landfall descent, camera pans to a destination, a living fire, drifting world particles, breathing adventurers, drag panning, and a frame loop that pauses and respects reduced motion. No backend or data change.
+
+- **One camera rig** (`camp/campRig.ts`, framework-free, injected clock; `useCampRig` wires it to React):
+  - It owns the integer camera x and y, the pan, the landfall, and the loop.
+  - A new target restarts from where the camera is, so rapid clicks never queue; `targetX` lets a caller remember the settled place mid-pan.
+  - It emits a frame only when the camera moved or the 12 fps sprite clock ticked; at half rate while a panel is open.
+  - It schedules nothing while `document.hidden` and nothing under reduced motion (one frame per change). A 50-mount/unmount test leaves no frame or listener behind.
+- **Landfall:** only on a PUSH from the galaxy that carries `campaignTransition`; the history entry's key is marked on mount, so StrictMode, HMR, a remount, Back, Forward, refresh, and a direct load never replay it. The camera starts high (the first frame is the night sky and the hearth star), descends 1.1 s through layers that each move by their own parallax share, and the fire flares as it settles. It starts after the first paint, so it never waits on or delays data. Reduced motion: no descent. `data-camp-landfall` is `armed`, `playing`, or `done`.
+- **Pan to a destination:** opening frames the place in the part of the view the docked panel leaves open (350 ms); closing returns to where the camera was (300 ms). Full-screen sheets (phones) do not pan. The journal slides in from its side (or up as a sheet). Resizes settle without animating. Focusing a Places entry whose place is off-frame pans to it.
+- **Procedural pixels** (`campFx.ts`, pure and unit tested, on a separate effects canvas so the art canvas stays exactly on palette): flickering flame in the fire ramp, stepped firelight, embers, smoke, the hearth star, twinkling stars (kept above every ridge line), and per-world particles (fireflies, sand, embers, snow through the whole view, dust, wisps). The fire brightens while the campfire is hovered or focused.
+- **Idle animation:** each party member breathes on a 2 fps cycle (a second 16×16 frame where the head and torso sink 1 px), out of phase per member.
+- **Phone drag:** pointer drag pans the panorama, clamped; a drag past 6 px never also clicks; `touch-action: pan-y` keeps vertical page scroll.
+- **Hooks for tests:** `data-camera-x`, `data-animating`, `data-camp-landfall` on the camp root. Scene buttons and name plates are positioned from the camera straight on the DOM, never through React state per frame.
+- **Weight:** camp chunk 5.4 KB gzip (budget 25); eager app chunk 174.6 KB gzip (was 171.8).
+- **Tests:** 262 unit tests (rig with a fake clock, fx determinism and palette, per-layer descent parallax, breathing frame, cleanup loop). Seven new e2e tests: descent only on arrival from the galaxy (not on Forward, goto, or refresh); framing and return for each destination; rapid open, close, and Escape with Tab and Enter during a pan (ends idle, at rest, focus on the opener); reduced motion (instant, never animating, effects stop); about 12 effect frames a second, none while hidden, resumes; phone drag (clamped, does not click); focus pans an off-frame place.
+- **Results:** lint, format:check, build, `art:check` pass; unit 262 pass; `test:e2e` 47 pass (three consecutive full runs after fixing one race); `test:local-supabase` 3 pass.
+- **Deviations and not done:**
+  - Blinks and "sprites look up" are not done: the 16×16 sprites have no faces. Breathing carries the idle life.
+  - Invitation travellers (optional) are not done.
+  - The waystone shortcut is still out: it needs a visible, labelled pointer shortcut design; the camera can now reach it, so it fits in Phase 7.
+  - Mid-descent, the sky's lower rows show faint inverted hills under the ridge for a few frames; polish in Phase 7 with the sky chevron.
+- **Not verified:** the title morph into the descent (manual check, the plan's note); real-GPU and high-DPR frame pacing (software renderer only); frame times and heap growth (Phase 7); Safari and Firefox.

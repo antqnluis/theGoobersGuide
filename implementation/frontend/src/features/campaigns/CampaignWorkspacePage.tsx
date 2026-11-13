@@ -32,6 +32,11 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     navigationType === 'PUSH' && routeState?.campaignTransition?.campaignId === campaignId
       ? routeState.campaignTransition.name
       : null
+  // The descent plays only on a fresh arrival from the galaxy, never on a direct
+  // load, a refresh, or Back and Forward to the same history entry.
+  const [arrivedFromGalaxy] = useState(
+    () => navigationType === 'PUSH' && routeState?.campaignTransition?.campaignId === campaignId,
+  )
   const [notice, setNotice] = useState<string | null>(() =>
     routeState?.campaignCreated ? 'Campaign created.' : null,
   )
@@ -163,6 +168,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       isDeleting={management.isDeleting}
       isOwner={isOwner}
       notice={notice}
+      landfallKey={arrivedFromGalaxy ? location.key : null}
       roster={roster}
       world={world}
       title={

@@ -16,6 +16,8 @@ export type PartyFigure = {
   y: number
   /** Back-to-front order against props: a figure on a bedroll draws after it. */
   depth: number
+  /** 0 or 1: which of the two breathing frames this member starts on. */
+  phase: 0 | 1
   /** Sprites face right; those left of the fire face it, those right mirror. */
   flip: boolean
   label: string
@@ -23,6 +25,24 @@ export type PartyFigure = {
 
 /** How far a bedroll's foot sits below the seat on it. */
 const bedrollDrop = 14
+
+/** The image id of a sprite's breathing frame: 0 is at rest, 1 is the exhale. */
+export function frameSpriteId(spriteId: string, frame: number) {
+  return frame === 0 ? spriteId : `${spriteId}${exhaleSuffix}`
+}
+
+export const exhaleSuffix = '~exhale'
+
+export function baseSpriteId(id: string) {
+  return id.endsWith(exhaleSuffix) ? id.slice(0, -exhaleSuffix.length) : id
+}
+
+/** A stable 0 or 1 per member, so the party never breathes in unison. */
+function phaseFor(profileId: string): 0 | 1 {
+  let sum = 0
+  for (const character of profileId) sum += character.charCodeAt(0)
+  return (sum % 2) as 0 | 1
+}
 
 export function spriteIdFor(look: AdventurerAppearance) {
   return `adventurer-${look.cloak}-${look.skin}-${look.headwear}-${look.pack}`
@@ -37,6 +57,7 @@ export function partyFigures(roster: readonly RosterMember[]) {
       id: member.profile_id,
       spriteId: spriteIdFor(look),
       look,
+      phase: phaseFor(member.profile_id),
       x: seat.x,
       y: seat.y,
       // The first seats sit on bedrolls (drawn at the seat's foot plus a drop);

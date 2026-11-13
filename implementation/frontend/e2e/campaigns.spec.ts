@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { adventurerAppearance } from '../src/features/campaigns/camp/adventurerAppearance.ts'
+import { cameraToFrame, restCameraX } from '../src/features/campaigns/camp/campCamera.ts'
 import { seatParty, type RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
@@ -798,6 +799,7 @@ test('seats the real roster around the fire and recovers from a roster error', a
   expect(await container.evaluate((el) => el.closest('ul, ol, [role="list"]'))).toBeNull()
   expect(await container.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
 
+  await expect(camp).toHaveAttribute('data-animating', 'false')
   await page.mouse.move(700, 300)
   await page.screenshot({ path: testInfo.outputPath('camp-party-1440x900.png') })
 
@@ -881,6 +883,331 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
   await page.keyboard.press('Escape')
   await expect(camp).toHaveAttribute('data-camp-state', 'idle')
   expect(wagonOutline).toBeGreaterThan(0)
+})
+
+declare global {
+  interface Window {
+    __campLog: Array<{ name: string; value: string | null }>
+    __campDraws: number
+  }
+}
+
+/**
+ * Records every change to the camp's motion attributes and counts canvas clears
+ * (one per effects frame), so tests can see what animated and how often.
+ */
+async function watchCamp(page: Page) {
+  await page.addInitScript(() => {
+    window.__campLog = []
+    window.__campDraws = 0
+    const clear = CanvasRenderingContext2D.prototype.clearRect
+    CanvasRenderingContext2D.prototype.clearRect = function (...args) {
+      window.__campDraws += 1
+      return clear.apply(this, args)
+    }
+    const names = ['data-animating', 'data-camp-landfall', 'data-camera-x']
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target as Element
+        if (!target.classList?.contains('camp') || !record.attributeName) continue
+        window.__campLog.push({
+          name: record.attributeName,
+          value: target.getAttribute(record.attributeName),
+        })
+      }
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: names })
+  })
+}
+
+const campLog = (page: Page, name: string) =>
+  page.evaluate(
+    (attribute) => window.__campLog.filter((entry) => entry.name === attribute).map((e) => e.value),
+    name,
+  )
+
+const campDraws = (page: Page) => page.evaluate(() => window.__campDraws)
+
+/** Picks the campaign in the selector and enters it: a fresh arrival from the galaxy. */
+async function enterFromGalaxy(page: Page, campaign: Campaign = redHand) {
+  await page.goto('/app/campaigns')
+  await page.getByRole('button', { name: campaign.name, exact: true }).click()
+  await page.getByRole('link', { name: 'Enter campaign' }).click()
+  await expect(page).toHaveURL(new RegExp(`/app/campaigns/${campaign.id}$`))
+  return page.locator('.camp')
+}
+
+test('descends into camp only on arrival from the galaxy, never on load, refresh, or Back', async ({
+  page,
+}) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(3))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signIn(page)
+
+  const camp = await enterFromGalaxy(page)
+  await expect(camp).toHaveAttribute('data-camp-landfall', 'done', { timeout: 8000 })
+  const animating = await campLog(page, 'data-animating')
+  expect(animating).toContain('true')
+  expect(animating.at(-1)).toBe('false')
+  const landfall = await campLog(page, 'data-camp-landfall')
+  expect(landfall.indexOf('armed')).toBeGreaterThanOrEqual(0)
+  expect(landfall.indexOf('playing')).toBeGreaterThan(landfall.indexOf('armed'))
+  expect(landfall.at(-1)).toBe('done')
+  // The camera only descends: its x stays at the resting column throughout.
+  const rest = String(restCameraX(480))
+  expect(new Set(await campLog(page, 'data-camera-x'))).toEqual(new Set([rest]))
+  // Interaction works the moment it lands.
+  await page.locator('[data-camp-sign][data-location="overview"]').click()
+  await expect(camp).toHaveAttribute('data-camp-state', 'overview')
+  await page.keyboard.press('Escape')
+
+  // Back and Forward return to the same history entry without replaying it.
+  await page.goBack()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await page.goForward()
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(camp).not.toHaveAttribute('data-camp-landfall')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+
+  // A direct load and a refresh open at rest too.
+  await page.goto(`/app/campaigns/${redHand.id}`)
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(camp).not.toHaveAttribute('data-camp-landfall')
+  await page.reload()
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(camp).not.toHaveAttribute('data-camp-landfall')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+})
+
+test('frames a destination on the open side of its panel and comes back', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const rest = String(restCameraX(480))
+  await expect(camp).toHaveAttribute('data-camera-x', rest)
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+
+  for (const [id, worldX] of [
+    ['party', 480],
+    ['overview', 480],
+    ['settings', 240],
+  ] as const) {
+    await page.locator(`[data-camp-sign][data-location="${id}"]`).click()
+    await expect(camp).toHaveAttribute('data-camp-state', id)
+    await expect(camp).toHaveAttribute('data-animating', 'false')
+    const dialog = page.getByRole('dialog')
+    const panel = await dialog.evaluate((el: HTMLElement) => el.offsetWidth)
+    const side = await dialog.getAttribute('data-panel-side')
+    const expected = cameraToFrame({
+      worldX,
+      visible: 480,
+      panelFraction: panel / 1440,
+      panelSide: side as 'left' | 'right',
+    })
+    await expect(camp).toHaveAttribute('data-camera-x', String(expected))
+    expect(side).toBe(worldX > 480 ? 'left' : 'right')
+    // The destination's own button is still in frame, beside the panel.
+    const sign = page.locator(`[data-camp-sign][data-location="${id}"]`)
+    await expect(sign).toBeVisible()
+    await expect(sign).toBeInViewport({ ratio: 1 })
+    const box = (await sign.boundingBox())!
+    const panelBox = (await dialog.boundingBox())!
+    expect(box.x + box.width <= panelBox.x || box.x >= panelBox.x + panelBox.width).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(camp).toHaveAttribute('data-camera-x', rest)
+    await expect(camp).toHaveAttribute('data-animating', 'false')
+    await expect(sign).toBeFocused()
+  }
+
+  // Every step was a pan, not a jump, and never left the panorama.
+  const xs = (await campLog(page, 'data-camera-x')).map(Number)
+  expect(xs.length).toBeGreaterThan(12)
+  expect(xs.every((x) => x >= 0 && x <= 480)).toBe(true)
+})
+
+test('keeps a consistent state and focus through rapid open, close, and Escape', async ({
+  page,
+}) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const places = page.getByRole('list', { name: 'Camp places' })
+  const party = places.getByRole('button', { name: /^Party/ })
+  const overview = places.getByRole('button', { name: /^Overview/ })
+  const back = page.getByRole('button', { name: 'Back to camp' })
+
+  for (let round = 0; round < 6; round += 1) {
+    const place = round % 2 === 0 ? party : overview
+    await place.focus()
+    await page.keyboard.press('Enter')
+    await expect(back).toBeFocused()
+    // Mid-pan: Tab never reaches the scene behind the modal panel, and Escape closes it at once.
+    await page.keyboard.press('Tab')
+    expect(
+      await page.evaluate(
+        () => document.activeElement?.closest('.camp-scene, .camp-directory') ?? null,
+      ),
+    ).toBeNull()
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(place).toBeFocused()
+  }
+
+  // Open, switch away through Escape, and open again before the pan settles.
+  await party.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await overview.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await party.focus()
+  await page.keyboard.press('Enter')
+  await expect(camp).toHaveAttribute('data-camp-state', 'party')
+  await page.keyboard.press('Escape')
+
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  await expect(camp).toHaveAttribute('data-camera-x', String(restCameraX(480)))
+  await expect(party).toBeFocused()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect((await campLog(page, 'data-camera-x')).map(Number).every(Number.isInteger)).toBe(true)
+})
+
+test('moves instantly and never animates under reduced motion', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(4))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await signIn(page)
+  // After signing in, which resets the preference.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const camp = await enterFromGalaxy(page)
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(camp).not.toHaveAttribute('data-camp-landfall')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+
+  const rest = String(restCameraX(480))
+  await expect(camp).toHaveAttribute('data-camera-x', rest)
+  await page.locator('[data-camp-sign][data-location="party"]').click()
+  // The camera is at its frame by the time the panel is open: no easing between.
+  await expect(camp).toHaveAttribute('data-camp-state', 'party')
+  const during = await camp.getAttribute('data-camera-x')
+  expect(during).not.toBe(rest)
+  await page.keyboard.press('Escape')
+  await expect(camp).toHaveAttribute('data-camera-x', rest)
+
+  // Only the settled values were ever written, and nothing was ever animating.
+  expect(await campLog(page, 'data-animating')).not.toContain('true')
+  expect(new Set(await campLog(page, 'data-camera-x'))).toEqual(new Set([rest, during]))
+  // A single static frame: the effects canvas stops redrawing.
+  await page.waitForTimeout(300)
+  const before = await campDraws(page)
+  await page.waitForTimeout(800)
+  expect(await campDraws(page)).toBe(before)
+})
+
+test('draws about twelve effect frames a second, none while hidden, and resumes', async ({
+  page,
+}) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openCamp(page)
+  await page.waitForTimeout(400)
+
+  const start = await campDraws(page)
+  await page.waitForTimeout(1500)
+  const idle = (await campDraws(page)) - start
+  // Twelve effect frames a second, plus an art redraw each time the party breathes.
+  expect(idle / 1.5).toBeGreaterThan(8)
+  expect(idle / 1.5).toBeLessThan(20)
+
+  const hide = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }, hidden)
+  await hide(true)
+  await page.waitForTimeout(150)
+  const paused = await campDraws(page)
+  await page.waitForTimeout(800)
+  expect(await campDraws(page)).toBe(paused)
+
+  await hide(false)
+  await expect.poll(() => campDraws(page)).toBeGreaterThan(paused)
+})
+
+test('drags the panorama on a phone, clamped, without opening what it passes over', async ({
+  page,
+}) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 375, height: 812 })
+  const camp = await openCamp(page)
+  const rest = Number(await camp.getAttribute('data-camera-x'))
+  const scene = page.locator('.camp-scene')
+  const box = (await scene.boundingBox())!
+  const y = box.y + box.height / 2
+
+  await page.mouse.move(box.x + 100, y)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 160, y, { steps: 6 })
+  await page.mouse.move(box.x + 220, y, { steps: 6 })
+  await page.mouse.up()
+  const dragged = Number(await camp.getAttribute('data-camera-x'))
+  // Dragging right moves the camera left, by the pixels dragged over the art scale.
+  expect(dragged).toBeLessThan(rest)
+  expect(rest - dragged).toBeGreaterThan(20)
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+  expect(await campLog(page, 'data-animating')).not.toContain('true')
+
+  // The far edge clamps at the panorama's end.
+  for (let pass = 0; pass < 6; pass += 1) {
+    await page.mouse.move(box.x + 20, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 340, y, { steps: 8 })
+    await page.mouse.up()
+  }
+  await expect(camp).toHaveAttribute('data-camera-x', '0')
+  for (let pass = 0; pass < 6; pass += 1) {
+    await page.mouse.move(box.x + 340, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 20, y, { steps: 8 })
+    await page.mouse.up()
+  }
+  expect(Number(await camp.getAttribute('data-camera-x'))).toBe(960 - 375)
+
+  // A tap that does not move still opens a destination.
+  await page.getByRole('button', { name: /^Overview/ }).click()
+  await expect(camp).toHaveAttribute('data-camp-state', 'overview')
+})
+
+test('pans to a place that is out of frame when it takes focus', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 375, height: 812 })
+  const camp = await openCamp(page)
+  const wagon = page.locator('[data-camp-sign][data-location="settings"]')
+  await expect(wagon).toBeHidden()
+  const rest = await camp.getAttribute('data-camera-x')
+
+  const places = page.getByRole('list', { name: 'Camp places' })
+  await places.getByRole('button', { name: /^Campaign settings/ }).focus()
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  expect(await camp.getAttribute('data-camera-x')).not.toBe(rest)
+  await expect(wagon).toBeVisible()
+  await expect(wagon).toBeInViewport({ ratio: 1 })
+
+  // Opening it from there and closing returns to where the place is in view.
+  await page.keyboard.press('Enter')
+  await expect(camp).toHaveAttribute('data-camp-state', 'settings')
+  await page.keyboard.press('Escape')
+  await expect(wagon).toBeVisible()
 })
 
 test('opens locations from Places when the camp artwork is unavailable', async ({ page }) => {

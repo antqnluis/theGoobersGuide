@@ -2,9 +2,9 @@
 // renderer only has to execute it and tests can check every pixel position.
 
 import { landscapeIds, sceneProps } from './campArt'
-import { layerOffset, panoramaOrigin, parallax, projectToDevice, type View } from './campProjection'
+import { layerOffset, layerOrigin, parallax, projectToDevice, type View } from './campProjection'
 import { panorama } from './campLayout'
-import { figureSize, type PartyFigure } from './campParty'
+import { figureSize, frameSpriteId, type PartyFigure } from './campParty'
 import type { CampKind } from './campPalette'
 
 export type DrawOp = {
@@ -40,7 +40,7 @@ const skyRepeatRows = 170
  */
 function tiledLayer(id: string, factor: number, view: View, repeatUp: number | false): DrawOp[] {
   const { scale } = view
-  const origin = panoramaOrigin(view)
+  const origin = layerOrigin(view, factor)
   const width = panorama.width * scale
   const offset = layerOffset(view.cameraX, factor) * scale
   const first = Math.floor(offset / width)
@@ -78,7 +78,7 @@ function tiledLayer(id: string, factor: number, view: View, repeatUp: number | f
 
 /** Frames pinned to the left and right edges of the view, not the panorama. */
 function pinnedForeground(view: View): DrawOp[] {
-  const origin = panoramaOrigin(view)
+  const origin = layerOrigin(view, parallax.foreground)
   const half = panorama.width / 2
   const dw = half * view.scale
   const common = { id: 'foreground', sy: 0, sw: half, sh: panorama.height, dy: origin.y, dw }
@@ -94,6 +94,8 @@ export function planScene(
   kind: CampKind,
   sizes: ImageSizes,
   figures: readonly PartyFigure[] = [],
+  /** Which breathing frame the party is on; members alternate by their own phase. */
+  bobFrame = 0,
 ): DrawOp[] {
   const { ridge, mid, ground } = landscapeIds(kind)
   const ops: DrawOp[] = [
@@ -131,8 +133,10 @@ export function planScene(
     const size = sizes[prop.id]
     if (size) stand(prop.id, prop, size, prop.y, prop.flip)
   }
-  for (const figure of figures)
-    stand(figure.spriteId, figure, figureSize, figure.depth, figure.flip)
+  for (const figure of figures) {
+    const id = frameSpriteId(figure.spriteId, (bobFrame + figure.phase) % 2)
+    stand(id, figure, figureSize, figure.depth, figure.flip)
+  }
   ops.push(...standing.toSorted((a, b) => a.depth - b.depth).map(({ op }) => op))
   ops.push(...pinnedForeground(view))
   return ops
