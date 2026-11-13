@@ -1,6 +1,6 @@
 import {
-  ViewTransition,
   useCallback,
+  useEffectEvent,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -9,15 +9,19 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
-import { getCampaignMemberCount, listAccessibleCampaigns } from './campaignService'
-import { getOrbitTarget, stepCampaign, type OrbitBounds } from './campaignOrbit'
+import { Outlet, useLocation, useMatch, useNavigate } from 'react-router'
+import { campaignListOptions } from './campaignQueries'
+import { getCampaignMemberCount } from './campaignService'
+import type { SceneBounds } from './orreryCamera'
+import { getOrbitTarget, stepCampaign } from './orreryLayout'
 import { orderPlanets } from './planetModel'
 import { GalaxyBackdrop } from './GalaxyBackdrop'
+import { WorldAnnotation } from './WorldAnnotation'
+import { WorldLedger, compactViewport } from './WorldLedger'
+import { useArrival } from '../arrival/useArrival'
 import { useAuth } from '../auth/useAuth'
 import './galaxy.css'
 
-const compactViewport = '(max-width: 680px)'
 const reducedMotion = '(prefers-reduced-motion: reduce)'
 
 function subscribeToReducedMotion(onChange: () => void) {
@@ -36,6 +40,7 @@ export function CampaignSelectorLayout() {
 }
 
 function CampaignSelector({ userId }: { userId: string }) {
+  const { flight, stage, reportGalaxy } = useArrival()
   const location = useLocation()
   const navigate = useNavigate()
   const isCreating = Boolean(useMatch('/app/campaigns/new'))
@@ -44,19 +49,21 @@ function CampaignSelector({ userId }: { userId: string }) {
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
   const openedFromOverviewAction = useRef(false)
   const sceneRef = useRef<HTMLDivElement>(null)
-  const [orbitBounds, setOrbitBounds] = useState<OrbitBounds | null>(null)
+  const [orbitBounds, setOrbitBounds] = useState<SceneBounds | null>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(() => !window.matchMedia?.(compactViewport).matches)
-  const restoreFocusOnPauseRemoval = useCallback((button: HTMLButtonElement | null) => {
-    if (!button) return
-    return () => {
-      if (document.activeElement === button) disclosureRef.current?.focus()
-    }
-  }, [])
   const [webglReady, setWebglReady] = useState(false)
   const [paused, setPaused] = useState(false)
   const prefersReducedMotion = useSyncExternalStore(subscribeToReducedMotion, getReducedMotion)
   const canPause = webglReady && !prefersReducedMotion
+  const arriving = stage !== 'idle' && stage !== 'fading'
+  const changeAvailability = useCallback(
+    (ready: boolean) => {
+      setWebglReady(ready)
+      reportGalaxy(ready)
+    },
+    [reportGalaxy],
+  )
   const [selection, setSelection] = useState<{ id: string; direction?: -1 | 1 } | null>(null)
   const selectedId = selection?.id ?? null
   const locationState = location.state as { campaignNotice?: string } | null
@@ -64,8 +71,7 @@ function CampaignSelector({ userId }: { userId: string }) {
     locationState?.campaignNotice === 'deleted' ? 'Campaign deleted.' : null,
   )
   const campaignsQuery = useQuery({
-    queryKey: ['campaigns', 'list', userId],
-    queryFn: () => listAccessibleCampaigns(userId),
+    ...campaignListOptions(userId),
     enabled: Boolean(userId) && !isCreating,
   })
 
@@ -146,6 +152,36 @@ function CampaignSelector({ userId }: { userId: string }) {
     if (id) selectCampaign(id, direction)
   }
 
+  function returnToOverview() {
+    const returnFocus = expanded
+      ? (selectedButtonRef.current ?? disclosureRef.current)
+      : disclosureRef.current
+    if (!openedFromOverviewAction.current) returnFocus?.focus()
+    setSelection(null)
+  }
+
+  // Arrow keys travel between worlds and Escape pulls back to the chart, unless
+  // the key already belongs to something the person is working in.
+  const handleKey = useEffectEvent((event: KeyboardEvent) => {
+    if (isCreating || event.defaultPrevented) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('input, textarea, select, dialog, [contenteditable="true"]')) return
+    if (event.key === 'Escape' && selectedCampaign) {
+      event.preventDefault()
+      returnToOverview()
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (orbitIds.length < 2) return
+      event.preventDefault()
+      step(event.key === 'ArrowLeft' ? -1 : 1)
+    }
+  })
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => handleKey(event)
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   if (campaignsQuery.isSuccess && selectedId && !selectedCampaign) {
     setSelection(null)
   }
@@ -156,13 +192,14 @@ function CampaignSelector({ userId }: { userId: string }) {
         planets={planets}
         orbitBounds={orbitBounds}
         targetId={orbitTarget}
-        interactive={!isCreating}
+        interactive={!isCreating && !arriving}
         motionReduced={prefersReducedMotion}
         paused={paused}
-        onAvailabilityChange={setWebglReady}
+        arrival={flight}
+        onAvailabilityChange={changeAvailability}
         onSelect={selectCampaign}
         selectedId={selectedCampaign?.id ?? null}
-        stepDirection={selection?.direction}
+        memberCount={memberCount}
       />
       {isCreating ? (
         <div className="galaxy-create">
@@ -174,113 +211,29 @@ function CampaignSelector({ userId }: { userId: string }) {
           className="galaxy-controls"
           data-details-open={Boolean(selectedCampaign)}
         >
-          <div
-            className="galaxy-index galaxy-surface"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && expanded) {
-                disclosureRef.current?.focus()
-                setExpanded(false)
-              }
-            }}
-          >
-            <h1 id="campaigns-heading">
-              <button
-                aria-controls="galaxy-campaign-list"
-                aria-expanded={expanded}
-                className="galaxy-disclosure"
-                onClick={() => setExpanded(!expanded)}
-                ref={disclosureRef}
-                type="button"
-              >
-                Your campaigns
-                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                  <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-              </button>
-            </h1>
-
-            {notice && (
-              <p className="galaxy-notice" role="status">
-                {notice}
-              </p>
-            )}
-            <div className="galaxy-list-reveal" data-expanded={expanded} id="galaxy-campaign-list">
-              <div aria-hidden={!expanded} className="galaxy-list-scroll" inert={!expanded}>
-                {campaignsQuery.isPending && (
-                  <p className="galaxy-list-message" role="status">
-                    Gathering your campaigns…
-                  </p>
-                )}
-                {campaignsQuery.isError && (
-                  <div className="galaxy-list-message" role="alert">
-                    <h2>Your campaigns could not be loaded.</h2>
-                    <p>Check your connection and try again.</p>
-                    <button
-                      className="galaxy-action"
-                      onClick={() => campaignsQuery.refetch()}
-                      type="button"
-                    >
-                      Try again
-                    </button>
-                  </div>
-                )}
-                {campaignsQuery.isSuccess && campaignsQuery.data.length === 0 && (
-                  <div className="galaxy-list-message">
-                    <h2>Your next story starts here.</h2>
-                    <p>Create a campaign to give your group a shared place to begin.</p>
-                  </div>
-                )}
-                {campaignsQuery.isSuccess && campaignsQuery.data.length > 0 && (
-                  <ul aria-label="Campaign list" className="galaxy-list">
-                    {planets.map((campaign) => (
-                      <li key={campaign.id}>
-                        <button
-                          aria-pressed={selectedId === campaign.id}
-                          className="galaxy-list-button"
-                          onClick={() => selectCampaign(campaign.id)}
-                          ref={selectedId === campaign.id ? selectedButtonRef : undefined}
-                          type="button"
-                        >
-                          {campaign.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-            <div className="galaxy-index-actions">
-              <Link className="galaxy-create-link" to="/app/campaigns/new">
-                <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                Create campaign
-              </Link>
-              {canPause && (
-                <button
-                  aria-label="Pause ambient motion"
-                  aria-pressed={paused}
-                  className="galaxy-motion-toggle"
-                  onClick={() => setPaused((value) => !value)}
-                  ref={restoreFocusOnPauseRemoval}
-                  title={paused ? 'Resume ambient motion' : 'Pause ambient motion'}
-                  type="button"
-                >
-                  <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
-                    {paused ? (
-                      <path d="M5 3.5 12 8l-7 4.5z" stroke="currentColor" strokeWidth="1.5" />
-                    ) : (
-                      <path d="M5.5 3.5v9m5-9v9" stroke="currentColor" strokeWidth="1.5" />
-                    )}
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
+          <WorldLedger
+            canPause={canPause}
+            disclosureRef={disclosureRef}
+            expanded={expanded}
+            notice={notice}
+            onExpandedChange={setExpanded}
+            onRetry={() => void campaignsQuery.refetch()}
+            onSelect={selectCampaign}
+            onTogglePause={() => setPaused((value) => !value)}
+            paused={paused}
+            planets={planets}
+            selectedButtonRef={selectedButtonRef}
+            selectedId={selectedId}
+            userId={userId}
+            status={
+              campaignsQuery.isPending ? 'pending' : campaignsQuery.isError ? 'error' : 'ready'
+            }
+          />
 
           <div aria-hidden="true" className="galaxy-orbit-space" ref={sceneRef} />
 
           <div className="galaxy-orbit-controls">
+            {overviewCampaign && <p className="galaxy-prompt">Choose a world to approach</p>}
             {overviewCampaign && (
               <button
                 className="galaxy-action galaxy-action--primary galaxy-view-campaign"
@@ -317,72 +270,15 @@ function CampaignSelector({ userId }: { userId: string }) {
               {selectedCampaign ? `Selected campaign: ${selectedCampaign.name}` : 'Galaxy overview'}
             </p>
             {selectedCampaign && (
-              <section aria-label="Campaign details" className="galaxy-details galaxy-surface">
-                <div className="galaxy-details__copy" tabIndex={0}>
-                  <ViewTransition
-                    default="none"
-                    key={selectedCampaign.id}
-                    name={'campaign-title-' + selectedCampaign.id}
-                    share="campaign-title-morph"
-                  >
-                    <h2 ref={detailsHeadingRef} tabIndex={-1}>
-                      {selectedCampaign.name}
-                    </h2>
-                  </ViewTransition>
-                  <div className="galaxy-details__meta">
-                    <p className="galaxy-role">
-                      Your role:{' '}
-                      <strong>{selectedCampaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
-                    </p>
-                    <div className="galaxy-details__members">
-                      <p role="status">
-                        {memberCountQuery.isError
-                          ? 'Member count unavailable'
-                          : memberCount === undefined
-                            ? 'Loading member count…'
-                            : `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
-                      </p>
-                      {memberCountQuery.isError && (
-                        <button
-                          className="galaxy-action"
-                          onClick={() => void memberCountQuery.refetch()}
-                          type="button"
-                        >
-                          Retry count
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p>{selectedCampaign.description || 'No description yet.'}</p>
-                </div>
-                <div className="galaxy-details__actions">
-                  <Link
-                    className="galaxy-action galaxy-action--primary"
-                    state={{
-                      campaignTransition: {
-                        campaignId: selectedCampaign.id,
-                        name: selectedCampaign.name,
-                      },
-                    }}
-                    to={`/app/campaigns/${selectedCampaign.id}`}
-                  >
-                    Enter campaign
-                  </Link>
-                  <button
-                    className="galaxy-action"
-                    onClick={() => {
-                      const returnFocus = expanded
-                        ? (selectedButtonRef.current ?? disclosureRef.current)
-                        : disclosureRef.current
-                      if (!openedFromOverviewAction.current) returnFocus?.focus()
-                      setSelection(null)
-                    }}
-                    type="button"
-                  >
-                    Return to galaxy overview
-                  </button>
-                </div>
-              </section>
+              <WorldAnnotation
+                campaign={selectedCampaign}
+                headingRef={detailsHeadingRef}
+                index={planets.indexOf(selectedCampaign)}
+                memberCount={memberCount}
+                memberCountFailed={memberCountQuery.isError}
+                onRetryMemberCount={() => void memberCountQuery.refetch()}
+                onReturn={returnToOverview}
+              />
             )}
           </div>
         </section>

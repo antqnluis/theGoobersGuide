@@ -1,4 +1,4 @@
-import type { CampaignListItem } from './campaignTypes'
+import type { CampaignListItem } from './campaignTypes.ts'
 
 // Each type has its own mineral or atmospheric colors. The two palettes give
 // campaigns of the same type different climates without losing their identity.

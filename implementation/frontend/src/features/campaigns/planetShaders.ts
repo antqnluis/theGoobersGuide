@@ -1,4 +1,4 @@
-// Work in object space for seamless textures and in world space for a fixed sun.
+// Work in object space for seamless textures and in world space for the star's light.
 export const planetVertex = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
@@ -12,11 +12,16 @@ export const planetVertex = /* glsl */ `
   }
 `
 
+// Every world is lit from one point, the star, so each has its own day side.
 const sun = /* glsl */ `
-  const vec3 sunlight = normalize(vec3(-0.85, 0.52, 0.36));
+  uniform vec3 uSunPosition;
   const vec3 sunTint = vec3(1.0, 0.91, 0.80);
+  const vec3 duskTint = vec3(1.0, 0.52, 0.26);
   const vec3 nightTint = vec3(0.075, 0.092, 0.14);
 `
+
+// The atmosphere shell is drawn at this multiple of the planet's radius.
+export const atmosphereScale = 1.18
 
 export const planetSurface = /* glsl */ `
   varying vec3 vLocal;
@@ -163,14 +168,20 @@ export const planetSurface = /* glsl */ `
     float area = dot(dx, tangentX);
     vec3 gradient = (dFdx(relief) * tangentX + dFdy(relief) * tangentY) / max(area, 0.000001);
     vec3 normal = normalize(radial - gradient * smoothstep(0.12, 0.46, facing));
+    vec3 sunlight = normalize(uSunPosition - vWorld);
     float solarAngle = dot(radial, sunlight);
-    float day = smoothstep(-0.10, 0.46, solarAngle);
-    float diffuse = day * (0.31 + 0.93 * max(dot(normal, sunlight), 0.0));
+    // Air carries light past the terminator; a bare world cuts from day to night.
+    float twilight = 0.04 + uHaze * 0.5;
+    float day = smoothstep(-twilight, twilight + 0.28, solarAngle);
+    float diffuse = day * (0.26 + 0.98 * max(dot(normal, sunlight), 0.0));
     vec3 halfVector = normalize(sunlight + viewDir);
     float specular = pow(max(dot(normal, halfVector), 0.0), mix(76.0, 12.0, roughness)) * gloss * day;
-    float rim = pow(1.0 - facing, 3.4) * smoothstep(-0.18, 0.62, solarAngle);
-    vec3 lit = base * (nightTint + diffuse * sunTint);
-    lit += specular * sunTint + uAir * uHaze * rim + emission;
+    // Low sun reddens through a thick atmosphere.
+    float dusk = clamp(uHaze * 2.2, 0.0, 1.0) * (1.0 - smoothstep(-0.05, 0.42, solarAngle));
+    vec3 sunColor = mix(sunTint, duskTint, dusk);
+    float rim = pow(1.0 - facing, 3.4) * smoothstep(-0.30, 0.55, solarAngle);
+    vec3 lit = base * (nightTint + diffuse * sunColor);
+    lit += specular * sunColor + uAir * uHaze * rim * mix(sunTint, duskTint, dusk * 0.6) + emission;
 
     gl_FragColor = vec4(lit, 1.0);
     #include <tonemapping_fragment>
@@ -178,8 +189,44 @@ export const planetSurface = /* glsl */ `
   }
 `
 
+// A thin glow of scattered light that hugs the limb on the star's side.
+export const planetAtmosphere = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec3 vRadial;
+  uniform vec3 uAir;
+  uniform float uHaze;
+
+  ${sun}
+
+  const float shell = ${atmosphereScale.toFixed(2)};
+
+  void main() {
+    vec3 outward = normalize(vRadial);
+    vec3 viewDir = normalize(cameraPosition - vWorld);
+    float along = dot(outward, viewDir);
+    // How far this line of sight passes from the planet's center, in planet radii.
+    float pass = shell * sqrt(max(1.0 - along * along, 0.0));
+    vec3 sunlight = normalize(uSunPosition - vWorld);
+    // Light reaching the point of the limb that this line of sight grazes.
+    float solarAngle = dot(outward - viewDir * along, sunlight) * shell / max(pass, 0.001);
+    float lit = smoothstep(-0.38, 0.42, solarAngle);
+    // The glow brightens when the star is behind the world.
+    float backlight = pow(max(dot(-viewDir, sunlight), 0.0), 3.0);
+    float glow = smoothstep(0.93, 1.0, pass) * exp((1.0 - max(pass, 1.0)) / 0.05);
+    glow *= 1.0 - smoothstep(shell - 0.06, shell, pass);
+    float dusk = 1.0 - smoothstep(-0.10, 0.45, solarAngle);
+    vec3 color = uAir * mix(sunTint, duskTint, dusk * 0.5) * uHaze * glow * lit;
+
+    // Add light only. Alpha stays 0 so the page behind the canvas still shows through.
+    gl_FragColor = vec4(color * (0.8 + 1.8 * backlight), 0.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
 export const planetRing = /* glsl */ `
   varying vec3 vLocal;
+  varying vec3 vWorld;
   varying vec3 vRadial;
   uniform vec3 uDust;
   uniform vec3 uIce;
@@ -195,11 +242,45 @@ export const planetRing = /* glsl */ `
     float gap = smoothstep(0.023, 0.052 + edge, abs(t - 0.59));
     float belts = 0.62 + 0.22 * sin(t * 27.0 + uPhase);
     belts += 0.12 * sin(t * 99.0 + uPhase) * (1.0 - smoothstep(0.008, 0.027, edge));
+    vec3 sunlight = normalize(uSunPosition - vWorld);
     float alongRay = dot(vRadial, sunlight);
     float miss = length(vRadial - sunlight * alongRay);
     float shadow = alongRay < 0.0 ? smoothstep(0.91, 1.10, miss) : 1.0;
     vec3 dust = mix(uDust, uIce, clamp(belts, 0.0, 1.0));
     gl_FragColor = vec4(dust * (0.11 + 0.77 * shadow) * sunTint, envelope * gap * belts);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
+// Moons share one instanced mesh, so their vertex stage applies each instance's own transform.
+export const moonVertex = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec3 vOutward;
+
+  void main() {
+    mat4 placed = modelMatrix * instanceMatrix;
+    vWorld = (placed * vec4(position, 1.0)).xyz;
+    vOutward = mat3(placed) * position;
+    gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
+  }
+`
+
+// Bare rock lit by the star: a hard terminator and no air.
+export const moonSurface = /* glsl */ `
+  varying vec3 vWorld;
+  varying vec3 vOutward;
+  uniform vec3 uRock;
+
+  ${sun}
+
+  void main() {
+    vec3 outward = normalize(vOutward);
+    vec3 sunlight = normalize(uSunPosition - vWorld);
+    float day = smoothstep(-0.04, 0.3, dot(outward, sunlight));
+    vec3 lit = uRock * (nightTint + day * (0.3 + 0.9 * max(dot(outward, sunlight), 0.0)) * sunTint);
+
+    gl_FragColor = vec4(lit, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }

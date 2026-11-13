@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 
 const accountEmail = 'player@example.com'
 const now = new Date().toISOString()
@@ -173,4 +173,78 @@ test('moves the same account panel between the left and right on desktop', async
   await page.getByRole('link', { name: 'Sign in', exact: true }).click()
   await expect.poll(async () => (await panel.boundingBox())!.x).toBeLessThan(leftPosition!.x + 2)
   await expect(page.getByRole('region', { name: 'Create account' })).toHaveCount(0)
+})
+
+async function mockSignIn(page: Page) {
+  await page.route('**/rest/v1/**', async (route) => {
+    const headers = {
+      'access-control-allow-origin': 'http://127.0.0.1:4173',
+      'access-control-allow-headers': '*',
+      'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    }
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers })
+      return
+    }
+    await route.fulfill({ status: 200, headers, contentType: 'application/json', body: '[]' })
+  })
+  await page.route('**/auth/v1/token**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(authSession),
+    })
+  })
+  await page.goto('/login')
+  const signIn = page.getByRole('region', { name: 'Sign in' })
+  await signIn.getByLabel('Username or email').fill(accountEmail)
+  await signIn.getByLabel('Password', { exact: true }).fill('adventure1')
+  await signIn.getByRole('button', { name: 'Sign in' }).click()
+}
+
+test('flies into the galaxy after signing in, then stays out of the way', async ({ page }) => {
+  await mockSignIn(page)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+  const layer = page.locator('.arrival-layer')
+  await expect(layer).toBeVisible()
+  await expect(layer.getByRole('status')).toHaveText('Entering your galaxy.')
+  // The page that was left carries no live form or typed password.
+  await expect(layer.locator('form, input[type="password"]')).toHaveCount(0)
+  await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible({ timeout: 15000 })
+  await expect(layer).toHaveCount(0, { timeout: 9000 })
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+
+  // A reload restores the session straight into the galaxy.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+  await expect(layer).toHaveCount(0)
+})
+
+test('skips the arrival from the keyboard and from the Skip button', async ({ page }) => {
+  await mockSignIn(page)
+  const layer = page.locator('.arrival-layer')
+  await expect(layer).toBeVisible()
+  await page.keyboard.press('Space')
+  await expect(layer).toHaveCount(0, { timeout: 3000 })
+  await expect(page.getByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page).toHaveURL(/\/login$/)
+  await mockSignIn(page)
+  await expect(layer).toBeVisible()
+  await layer.getByRole('button', { name: 'Skip' }).click({ force: true })
+  await expect(layer).toHaveCount(0, { timeout: 3000 })
+})
+
+test('crossfades instead of travelling when motion is reduced', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await mockSignIn(page)
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(page.locator('.arrival-layer')).toHaveCount(0, { timeout: 2000 })
+  await expect(page.locator('canvas[data-galaxy-ready]')).toHaveAttribute(
+    'data-galaxy-travel',
+    'idle',
+  )
 })

@@ -136,6 +136,10 @@
   gap: 6px;
 }
 
+.galaxy-orbit-controls > .galaxy-prompt {
+  pointer-events: none;
+}
+
 .galaxy-orbit-nav {
   display: flex;
   gap: 6px;
@@ -178,6 +182,8 @@
 }
 
 .galaxy-index {
+  --invite-duration: 160ms;
+  --invite-ease: ease-out;
   grid-column: 1;
   grid-row: 1 / -1;
   display: flex;
@@ -188,7 +194,13 @@
   padding: 6px;
 }
 
+.galaxy-index[data-invitations-open='true'] {
+  --invite-duration: 240ms;
+  --invite-ease: cubic-bezier(0.2, 0.75, 0.35, 1);
+}
+
 .galaxy-index h1 {
+  flex: none;
   margin: 0;
   font: 600 1.26rem/1.2 var(--font-display);
 }
@@ -223,14 +235,19 @@
 }
 
 .galaxy-create-link {
-  color: var(--galaxy-accent);
+  color: var(--galaxy-muted);
   font-size: 0.86rem;
-  font-weight: 650;
+  font-weight: 600;
   text-decoration: none;
+}
+
+.galaxy-create-link:hover {
+  color: var(--galaxy-accent);
 }
 
 .galaxy-index-actions {
   display: flex;
+  flex: none;
   align-items: center;
 }
 
@@ -279,6 +296,71 @@
   overscroll-behavior: contain;
 }
 
+.galaxy-invitations {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-top: 1px solid var(--galaxy-rule);
+}
+
+.galaxy-invitations__heading {
+  flex: none;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.galaxy-invitations__heading svg {
+  margin-inline-start: auto;
+}
+
+.galaxy-invitations__count {
+  color: var(--galaxy-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.galaxy-invitations__reveal {
+  transition:
+    grid-template-rows var(--invite-duration) var(--invite-ease),
+    opacity var(--invite-duration) ease-out;
+}
+
+.galaxy-invitations__list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+.galaxy-invitations__list li {
+  padding-block: 10px;
+  border-top: 1px solid var(--galaxy-rule);
+}
+
+.galaxy-invitations__list p {
+  margin: 2px 0 8px;
+  color: var(--galaxy-muted);
+}
+
+.galaxy-invitations__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.galaxy-invitations__actions .galaxy-action {
+  padding-inline: 10px;
+}
+
+.galaxy-invitations__actions [aria-disabled='true'] {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.galaxy-invitations__error {
+  color: #ffc3b7;
+}
+
 .galaxy-list {
   margin: 0;
   padding: 4px;
@@ -286,8 +368,30 @@
 }
 
 .galaxy-list-button {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  gap: 4px;
   border: 1px solid transparent;
   font-size: 0.9rem;
+}
+
+/* The catalogue numeral and owner mark are typeset like a book's contents. */
+.galaxy-list-button__numeral,
+.galaxy-list-button__mark {
+  color: var(--galaxy-muted);
+  font-family: var(--font-display);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.galaxy-list-button__numeral {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+.galaxy-list-button__mark {
+  font-size: 0.68rem;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.1em;
 }
 
 .galaxy-list-button[aria-pressed='true'] {
@@ -295,6 +399,40 @@
   color: var(--galaxy-accent);
   background: #453240;
   font-weight: 700;
+}
+
+.galaxy-list-button[aria-pressed='true']
+  :is(.galaxy-list-button__numeral, .galaxy-list-button__mark) {
+  color: var(--galaxy-accent);
+}
+
+.galaxy-ledger-filter {
+  display: grid;
+  gap: 2px;
+  padding: 4px 8px 0;
+}
+
+.galaxy-ledger-filter label {
+  color: var(--galaxy-muted);
+  font-size: 0.75rem;
+}
+
+.galaxy-ledger-filter input {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--galaxy-rule);
+  border-radius: 4px;
+  color: var(--galaxy-ink);
+  background: #0b0a18;
+  font-size: 0.86rem;
+  accent-color: var(--galaxy-accent);
+}
+
+.galaxy-prompt {
+  margin: 0;
+  color: var(--galaxy-muted);
+  font: italic 400 0.95rem/1.3 var(--font-display);
+  text-wrap: balance;
 }
 
 .galaxy-disclosure:hover,
@@ -337,6 +475,47 @@
   justify-content: flex-end;
 }
 
+.galaxy-plate {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  border: 1px solid var(--galaxy-rule);
+  border-radius: 3px;
+  background: #0b0a18f2;
+  box-shadow:
+    inset 0 0 0 3px #0b0a18f2,
+    inset 0 0 0 4px var(--galaxy-rule),
+    0 14px 30px -14px #000000b3;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  scrollbar-color: #a696c7 #191427;
+}
+
+.galaxy-leader {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.galaxy-leader line {
+  stroke: var(--galaxy-accent);
+  stroke-dasharray: 1;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  /* The line draws in after the camera has landed on the world. */
+  animation: galaxy-leader-draw 250ms cubic-bezier(0.16, 1, 0.3, 1) 700ms both;
+}
+
+.galaxy-leader circle {
+  fill: var(--galaxy-accent);
+  animation: galaxy-leader-dot 160ms ease-out 900ms both;
+}
+
 .galaxy-details {
   display: flex;
   min-height: 0;
@@ -377,6 +556,10 @@
 
 .galaxy-details__meta p {
   font-size: 0.79rem;
+}
+
+.galaxy-catalogue {
+  font-variant-numeric: lining-nums;
 }
 
 .galaxy-details__members {
@@ -476,6 +659,18 @@
   background: #f5d3ae;
 }
 
+@keyframes galaxy-leader-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes galaxy-leader-dot {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes galaxy-detail-arrive {
   from {
     opacity: 0;
@@ -521,7 +716,38 @@
     grid-row: 1;
     width: min(100%, 19rem);
     max-height: min(210px, 28dvh);
-    transition: width 220ms ease;
+    transition:
+      width 220ms ease,
+      max-height var(--invite-duration) var(--invite-ease);
+  }
+
+  .galaxy-index:has([aria-expanded='true']) {
+    max-height: min(270px, 43dvh);
+  }
+
+  .galaxy-index[data-invitations-open='true'] {
+    max-height: min(20rem, 48dvh);
+  }
+
+  .galaxy-campaign-status {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows var(--invite-duration) var(--invite-ease),
+      opacity var(--invite-duration) ease-out,
+      visibility var(--invite-duration);
+  }
+
+  .galaxy-campaign-status > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .galaxy-index[data-invitations-open='true'] .galaxy-campaign-status {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .galaxy-index:not(:has([aria-expanded='true'])) {
@@ -590,6 +816,7 @@
   pointer-events: none;
 }
 
+/* Engraved onto the sky: an ink wash keeps the lettering legible over worlds and stars. */
 .galaxy-planet-label {
   position: absolute;
   top: 0;
@@ -597,24 +824,31 @@
   visibility: hidden;
   max-width: min(12rem, calc(100% - 16px));
   overflow: hidden;
-  padding: 2px 8px;
-  border: 1px solid var(--galaxy-rule);
-  border-radius: 6px;
-  color: var(--galaxy-ink);
-  background: #141025;
+  padding: 1px 7px 2px;
+  border-radius: 3px;
+  color: var(--galaxy-muted);
+  background: #0b0a18b8;
   font-family: 'Source Serif 4', Georgia, serif;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.galaxy-planet-label[data-focal='false'] {
-  color: var(--galaxy-muted);
-  font-size: 0.78rem;
+/* The catalogue numeral counts outward from the hearth, oldest campaign first. */
+.galaxy-planet-label::before {
+  margin-inline-end: 0.5em;
+  color: var(--galaxy-accent);
+  content: attr(data-catalogue);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+.galaxy-planet-label:is([data-focal='true'], [data-hovered='true']) {
+  color: var(--galaxy-ink);
 }
 
 .galaxy-planet-label[data-selected='true'] {
-  border-color: #f5d3ae83;
   color: var(--galaxy-accent);
 }
 

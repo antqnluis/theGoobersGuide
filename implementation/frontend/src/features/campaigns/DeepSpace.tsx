@@ -1,8 +1,8 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useMemo, useRef, type RefObject } from 'react'
-import { AdditiveBlending, Color, type ShaderMaterial } from 'three'
+import { AdditiveBlending, Color, type Group, type ShaderMaterial } from 'three'
 
-import { cameraFov, overviewPose, type SpaceMotion } from './campaignTravel'
+import { cameraFov, type SpaceMotion } from './orreryCamera'
 
 const starVertexShader = /* glsl */ `
   attribute float diameter;
@@ -13,7 +13,10 @@ const starVertexShader = /* glsl */ `
   uniform float pixelRatio;
   uniform float backgroundOffset;
   uniform float flightStreak;
+  uniform float flightRadial;
   uniform float uTime;
+  varying vec2 vOutward;
+  varying float vRadial;
   varying float vPhase;
   varying vec3 vTint;
   varying float vIntensity;
@@ -22,8 +25,8 @@ const starVertexShader = /* glsl */ `
 
   void main() {
     vec3 point = position;
-    float depth = ${overviewPose.position[2].toFixed(1)} - point.z;
-    // Wrap outside the frustum with extra room for the camera's flyby.
+    float depth = -point.z;
+    // Wrap outside the frustum with extra room for an off-center view.
     float span = 2.0 / projectionMatrix[0][0] + 0.48;
     float drift = sin(uTime * 0.15) * 0.0024;
     float offset = (backgroundOffset + drift) * parallax;
@@ -31,10 +34,18 @@ const starVertexShader = /* glsl */ `
 
     vec4 view = modelViewMatrix * vec4(point, 1.0);
     gl_Position = projectionMatrix * view;
+    // The sky is beyond every world, however far the camera pulls back.
+    gl_Position.z = gl_Position.w * 0.9999;
     float coreSize = max(1.0, diameter * pixelRatio * depth / -view.z);
     // Only foreground stars leave a long trail; the distant sky stays legible.
     vTrail = clamp(flightStreak, -1.0, 1.0) * smoothstep(0.45, 2.8, parallax);
-    gl_PointSize = coreSize + abs(vTrail) * 35.0 * pixelRatio;
+    // Arrival: foreground stars streak away from the point the camera flies towards.
+    vec2 vanishing = -vec2(projectionMatrix[2][0], projectionMatrix[2][1]);
+    vec2 away = gl_Position.xy / gl_Position.w - vanishing;
+    float awayLength = length(away);
+    vOutward = awayLength > 0.0001 ? away / awayLength : vec2(1.0, 0.0);
+    vRadial = flightRadial * smoothstep(0.45, 2.8, parallax) * smoothstep(0.04, 0.45, awayLength);
+    gl_PointSize = coreSize + (abs(vTrail) * 35.0 + vRadial * 62.0) * pixelRatio;
     vCoreRatio = coreSize / gl_PointSize;
     vTint = tint;
     vIntensity = intensity;
@@ -47,6 +58,8 @@ const starFragmentShader = /* glsl */ `
   varying float vIntensity;
   varying float vCoreRatio;
   varying float vTrail;
+  varying vec2 vOutward;
+  varying float vRadial;
   varying float vPhase;
   uniform float uTime;
 
@@ -64,6 +77,14 @@ const starFragmentShader = /* glsl */ `
       float across = (sprite.y - along * 0.12) / vCoreRatio;
       trail = exp(-7.0 * across * across) * smoothstep(-0.2, 0.08, along)
         * pow(max(0.0, 1.0 - along), 1.65) * abs(vTrail) * 0.85;
+    }
+    if (vRadial > 0.01) {
+      // Sprite space has y pointing down; the streak runs from the star back towards the centre.
+      vec2 screen = vec2(sprite.x, -sprite.y);
+      float behind = dot(screen, -vOutward);
+      float across = dot(screen, vec2(-vOutward.y, vOutward.x)) / vCoreRatio;
+      trail += exp(-7.0 * across * across) * smoothstep(-0.2, 0.08, behind)
+        * pow(max(0.0, 1.0 - behind), 1.65) * vRadial * 0.9;
     }
     gl_FragColor = vec4(vTint, (light + trail + rays * brightStar * 0.55) * vIntensity * shimmer);
   }
@@ -98,7 +119,7 @@ function makeStars() {
       const depth = band.depth + random() * band.range
       positions[index * 3] = random() - 0.5
       positions[index * 3 + 1] = (random() - 0.5) * depth * 1.24
-      positions[index * 3 + 2] = overviewPose.position[2] - depth
+      positions[index * 3 + 2] = -depth
       const bright = band.bright && random() > 0.955
       diameters[index] = bright ? 6 + random() * 5 : band.diameter * (0.65 + random() * 0.65)
       intensities[index] = bright ? 0.94 : band.intensity * (0.36 + random() * 0.64)
@@ -127,6 +148,7 @@ function Starfield({
       uTime: { value: 0 },
       backgroundOffset: { value: 0 },
       flightStreak: { value: 0 },
+      flightRadial: { value: 0 },
     }),
     [pixelRatio],
   )
@@ -139,6 +161,7 @@ function Starfield({
       material.current.uniforms.uTime.value = time.current
       material.current.uniforms.backgroundOffset.value = spaceMotion.current.offset
       material.current.uniforms.flightStreak.value = spaceMotion.current.streak
+      material.current.uniforms.flightRadial.value = spaceMotion.current.radial
     }
   })
 
@@ -172,6 +195,7 @@ const nebulaVertexShader = /* glsl */ `
   void main() {
     vUv = uv;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_Position.z = gl_Position.w * 0.9999;
   }
 `
 
@@ -284,7 +308,7 @@ function DistantNebulae() {
   return (
     <>
       <mesh
-        position={[span * aspect * galaxyX, span * 0.25, overviewPose.position[2] - depth]}
+        position={[span * aspect * galaxyX, span * 0.25, -depth]}
         rotation={[0, 0, 0.36]}
         scale={[span * 0.14, span * 0.059, 1]}
       >
@@ -303,11 +327,7 @@ function DistantNebulae() {
         return (
           <mesh
             key={cloud.seed}
-            position={[
-              span * aspect * cloud.x,
-              span * cloud.y,
-              overviewPose.position[2] - cloud.depth,
-            ]}
+            position={[span * aspect * cloud.x, span * cloud.y, -cloud.depth]}
             rotation={[0, 0, cloud.tilt]}
             scale={[span * Math.max(aspect, 0.52) * cloud.width, span * cloud.height, 1]}
           >
@@ -335,10 +355,19 @@ export function DeepSpace({
   animate: boolean
   spaceMotion: RefObject<SpaceMotion>
 }) {
+  const sky = useRef<Group>(null)
+
+  // The sky is laid out in front of the camera and travels with it. Turning the
+  // camera pans the stars instead, through the offset in spaceMotion.
+  useFrame(({ camera }) => {
+    sky.current?.position.copy(camera.position)
+    sky.current?.quaternion.copy(camera.quaternion)
+  })
+
   return (
-    <>
+    <group ref={sky}>
       <DistantNebulae />
       <Starfield animate={animate} spaceMotion={spaceMotion} />
-    </>
+    </group>
   )
 }

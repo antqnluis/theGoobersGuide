@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
+import { useArrival } from '../arrival/useArrival'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
 import { isInternalEmail } from './authValidation'
@@ -9,8 +10,11 @@ export function AuthAppShell() {
   const navigate = useNavigate()
   const isSelector = useMatch('/app/campaigns')
   const isCreating = useMatch('/app/campaigns/new')
+  const campaignMatch = useMatch('/app/campaigns/:campaignId')
   const isGalaxy = Boolean(isSelector || isCreating)
+  const isCamp = Boolean(campaignMatch && !isGalaxy)
   const queryClient = useQueryClient()
+  const { snapshot, stage } = useArrival()
   const { acceptSession, session } = useAuth()
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,24 +50,41 @@ export function AuthAppShell() {
   }
 
   return (
-    <div className={isGalaxy ? 'workspace-page galaxy-shell' : 'workspace-page'}>
+    <div
+      className={
+        isGalaxy
+          ? 'workspace-page galaxy-shell'
+          : isCamp
+            ? 'workspace-page workspace-page--camp'
+            : 'workspace-page'
+      }
+      data-arrival={isGalaxy && stage !== 'idle' ? stage : undefined}
+      data-arrival-held={isGalaxy && snapshot ? '' : undefined}
+    >
       <div className="workspace-page__frame">
         <a className="workspace-skip-link" href="#campaign-content">
           Skip to campaign content
         </a>
         <header className="workspace-header">
           <div className="workspace-header__primary">
-            <Link className="auth-brand" to="/app/campaigns">
-              The Goober&apos;s Guide
-            </Link>
-            {!isGalaxy && (
+            {isCamp ? (
+              <Link className="camp-exit" to="/app/campaigns">
+                Back to campaigns
+              </Link>
+            ) : (
+              <Link className="auth-brand" to="/app/campaigns">
+                The Goober&apos;s Guide
+              </Link>
+            )}
+            {!isGalaxy && !isCamp && (
               <nav aria-label="Campaign navigation" className="workspace-navigation">
                 <NavLink to="/app/campaigns">Campaigns</NavLink>
               </nav>
             )}
           </div>
           <div className="workspace-account">
-            <span title={isGalaxy ? accountName : undefined}>{accountName}</span>
+            {isCamp && <div className="camp-header-slot" id="camp-header-slot" />}
+            <span title={isGalaxy || isCamp ? accountName : undefined}>{accountName}</span>
             <button
               className="auth-button auth-button--secondary"
               disabled={isPending}
@@ -83,7 +104,7 @@ export function AuthAppShell() {
         <main className="campaign-app-main" id="campaign-content" tabIndex={-1}>
           <Outlet />
         </main>
-        {!isGalaxy && (
+        {!isGalaxy && !isCamp && (
           <footer className="auth-footer">
             <span>Account session active</span>
             <Link to="/dev/status">Development status</Link>

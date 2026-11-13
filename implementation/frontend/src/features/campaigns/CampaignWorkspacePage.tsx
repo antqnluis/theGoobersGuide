@@ -1,19 +1,27 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ViewTransition, useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
-import { deleteCampaign, getCampaign, getCampaignRoster, updateCampaign } from './campaignService'
-import { toCampaignInput } from './campaignValidation'
+import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
+import { CampaignCamp } from './CampaignCamp'
+import { worldFor } from './camp/campBackground'
+import { useCampBackground, useCampHue } from './camp/useCampBackground'
+import { planetAppearance } from './planetModel'
+import { getCampaign, getCampaignRoster } from './campaignService'
+import { useCampaignManagement } from './useCampaignManagement'
 
 export function CampaignWorkspacePage() {
   const { campaignId = '' } = useParams()
+  return <CampaignWorkspace campaignId={campaignId} key={campaignId} />
+}
+
+function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const { session } = useAuth()
   const userId = session?.user.id ?? ''
   const location = useLocation()
   const navigate = useNavigate()
   const navigationType = useNavigationType()
-  const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const deleteTriggerRef = useRef<HTMLButtonElement>(null)
@@ -26,10 +34,15 @@ export function CampaignWorkspacePage() {
     navigationType === 'PUSH' && routeState?.campaignTransition?.campaignId === campaignId
       ? routeState.campaignTransition.name
       : null
+  // The descent plays only on a fresh arrival from the galaxy, never on a direct
+  // load, a refresh, or Back and Forward to the same history entry.
+  const [arrivedFromGalaxy] = useState(
+    () => navigationType === 'PUSH' && routeState?.campaignTransition?.campaignId === campaignId,
+  )
   const [notice, setNotice] = useState<string | null>(() =>
     routeState?.campaignCreated ? 'Campaign created.' : null,
   )
-  const [mutationError, setMutationError] = useState<string | null>(null)
+  const management = useCampaignManagement(campaignId, userId)
 
   const campaignQuery = useQuery({
     queryKey: ['campaigns', 'detail', campaignId, userId],
@@ -41,13 +54,18 @@ export function CampaignWorkspacePage() {
     queryFn: () => getCampaignRoster(campaignId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
-  const updateMutation = useMutation({
-    mutationFn: (input: ReturnType<typeof toCampaignInput>) => updateCampaign(campaignId, input),
-  })
-  const deleteMutation = useMutation({ mutationFn: () => deleteCampaign(campaignId) })
   const campaign = campaignQuery.data
+  const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
+  const [background, setBackground] = useCampBackground(campaignId)
+  const [hue, setHue] = useCampHue(campaignId)
+  // The player's pick wears the planet's colours; by default the camp is the planet's own.
+  const world = useMemo(
+    () => (planet ? worldFor(planet, background, hue) : null),
+    [planet, background, hue],
+  )
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
-  const roster = rosterQuery.data ?? []
+  const rosterData = rosterQuery.data
+  const roster = useMemo(() => rosterData ?? [], [rosterData])
   const currentRole = isOwner
     ? 'Owner'
     : roster.find((member) => member.profile_id === session?.user.id)?.role === 'owner'
@@ -70,48 +88,36 @@ export function CampaignWorkspacePage() {
   }, [isConfirmingDelete])
 
   const save = async (name: string, description: string) => {
-    setMutationError(null)
-    try {
-      await updateMutation.mutateAsync(toCampaignInput(name, description))
-      await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    if (await management.save(name, description)) {
       setIsEditing(false)
       setNotice('Campaign details saved.')
-    } catch {
-      setMutationError("We couldn't save these changes. Check your connection and try again.")
     }
   }
 
   const remove = async () => {
-    setMutationError(null)
-    try {
-      await deleteMutation.mutateAsync()
-      await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      queryClient.removeQueries({ queryKey: ['campaigns', 'detail', campaignId, userId] })
-      queryClient.removeQueries({ queryKey: ['campaigns', 'roster', campaignId, userId] })
+    if (await management.remove()) {
       navigate('/app/campaigns', { state: { campaignNotice: 'deleted' } })
-    } catch {
-      setMutationError("We couldn't delete this campaign. Check your connection and try again.")
     }
   }
 
   if (campaignQuery.isPending) {
     return (
-      <section className="campaign-page" aria-labelledby="workspace-loading-heading">
+      <section className="campaign-page camp-pending" aria-labelledby="workspace-loading-heading">
         {campaignTransitionTitle ? (
-          <div className="campaign-workspace__heading campaign-workspace__heading--pending">
-            <div className="campaign-workspace__story">
-              <ViewTransition
-                default="none"
-                name={'campaign-title-' + campaignId}
-                share="campaign-title-morph"
-              >
-                <h1 id="workspace-loading-heading">{campaignTransitionTitle}</h1>
-              </ViewTransition>
-              <p className="campaign-loading" role="status">
-                Opening campaign workspace…
-              </p>
-            </div>
-          </div>
+          <>
+            <ViewTransition
+              default="none"
+              name={'campaign-title-' + campaignId}
+              share="campaign-title-morph"
+            >
+              <h1 id="workspace-loading-heading" title={campaignTransitionTitle}>
+                {campaignTransitionTitle}
+              </h1>
+            </ViewTransition>
+            <p className="campaign-loading" role="status">
+              Opening campaign workspace…
+            </p>
+          </>
         ) : (
           <>
             <p className="campaign-loading" role="status">
@@ -128,7 +134,10 @@ export function CampaignWorkspacePage() {
 
   if (campaignQuery.isError) {
     return (
-      <section className="campaign-page campaign-state" aria-labelledby="workspace-error-heading">
+      <section
+        className="campaign-page campaign-state camp-state"
+        aria-labelledby="workspace-error-heading"
+      >
         <h1 id="workspace-error-heading">This workspace could not be opened.</h1>
         <p>Check your connection and try again.</p>
         <button
@@ -138,16 +147,16 @@ export function CampaignWorkspacePage() {
         >
           Try again
         </button>
-        <Link className="campaign-back-link" to="/app/campaigns">
-          Back to campaigns
-        </Link>
       </section>
     )
   }
 
-  if (!campaign) {
+  if (!campaign || !world) {
     return (
-      <section className="campaign-page campaign-state" aria-labelledby="workspace-missing-heading">
+      <section
+        className="campaign-page campaign-state camp-state"
+        aria-labelledby="workspace-missing-heading"
+      >
         <h1 id="workspace-missing-heading">Campaign not available</h1>
         <p>This campaign may have been removed, or your account may not have access.</p>
         <Link className="campaign-inline-link" to="/app/campaigns">
@@ -158,97 +167,115 @@ export function CampaignWorkspacePage() {
   }
 
   return (
-    <section
-      aria-labelledby="campaign-workspace-heading"
-      className="campaign-page campaign-workspace"
-    >
-      <Link className="campaign-back-link" to="/app/campaigns">
-        Back to campaigns
-      </Link>
-      {notice && (
-        <p className="campaign-notice" role="status">
-          {notice}
-        </p>
-      )}
-      <div className="campaign-workspace__heading">
-        <div className="campaign-workspace__story">
-          <ViewTransition
-            default="none"
-            name={'campaign-title-' + campaign.id}
-            share="campaign-title-morph"
-          >
-            <h1 id="campaign-workspace-heading">{campaign.name}</h1>
-          </ViewTransition>
-          <p>{campaign.description || 'No description has been added.'}</p>
-        </div>
-        <aside aria-label="Campaign details" className="campaign-workspace__margin">
-          <p>
-            <span>Your role</span>
-            <strong>{currentRole}</strong>
+    <CampaignCamp
+      cancelDelete={() => {
+        if (isConfirmingDelete) {
+          management.clearError()
+          setIsConfirmingDelete(false)
+        }
+      }}
+      isDeleting={management.isDeleting}
+      isOwner={isOwner}
+      notice={notice}
+      landfallKey={arrivedFromGalaxy ? location.key : null}
+      background={background}
+      onBackgroundChange={setBackground}
+      hue={hue}
+      onHueChange={setHue}
+      onLeave={() => navigate('/app/campaigns')}
+      roster={roster}
+      world={world}
+      title={
+        <ViewTransition
+          default="none"
+          name={'campaign-title-' + campaign.id}
+          share="campaign-title-morph"
+        >
+          <h1 id="campaign-workspace-heading" title={campaign.name}>
+            {campaign.name}
+          </h1>
+        </ViewTransition>
+      }
+      overview={
+        <>
+          <h2 id="camp-overview-heading">{campaign.name}</h2>
+          <p className="camp-ledger__description">
+            {campaign.description || 'No description has been added.'}
           </p>
-          <p>
-            <span>Campaign owner</span>
-            <strong>{ownerUsername}</strong>
-          </p>
-        </aside>
-      </div>
-
-      <section aria-labelledby="campaign-members-heading" className="campaign-members">
-        <div className="campaign-section-heading">
-          <h2 id="campaign-members-heading">People in this campaign</h2>
-        </div>
-        {rosterQuery.isPending && (
-          <p className="campaign-loading" role="status">
-            Loading campaign members…
-          </p>
-        )}
-        {rosterQuery.isError && (
-          <div className="campaign-inline-error" role="alert">
-            <p>Campaign members could not be loaded.</p>
-            <button
-              className="campaign-text-button"
-              onClick={() => rosterQuery.refetch()}
-              type="button"
-            >
-              Try again
-            </button>
-          </div>
-        )}
-        {rosterQuery.isSuccess && roster.length === 0 && (
-          <p className="campaign-members__empty">No member information is available.</p>
-        )}
-        {rosterQuery.isSuccess && roster.length > 0 && (
-          <ul className="campaign-member-list">
-            {roster.map((member) => (
-              <li key={member.profile_id}>
-                <span>
-                  {member.username || (member.role === 'owner' ? 'Campaign owner' : 'Player')}
-                </span>
-                <span className="campaign-member-list__role">
-                  {member.role === 'owner' ? 'Owner' : 'Member'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {isOwner && (
-        <section aria-labelledby="campaign-settings-heading" className="campaign-settings">
-          <h2 id="campaign-settings-heading">Campaign details</h2>
-          {mutationError && (
+          <dl className="camp-ledger__facts">
+            <div>
+              <dt>Your role</dt>
+              <dd>{currentRole}</dd>
+            </div>
+            <div>
+              <dt>Campaign owner</dt>
+              <dd>{ownerUsername}</dd>
+            </div>
+          </dl>
+        </>
+      }
+      party={
+        <>
+          <h2 id="camp-party-heading">People in this campaign</h2>
+          {rosterQuery.isPending && (
+            <p className="campaign-loading" role="status">
+              Loading campaign members…
+            </p>
+          )}
+          {rosterQuery.isError && (
+            <div className="campaign-inline-error" role="alert">
+              <p>Campaign members could not be loaded.</p>
+              <button
+                className="campaign-text-button"
+                onClick={() => rosterQuery.refetch()}
+                type="button"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+          {rosterQuery.isSuccess && roster.length === 0 && (
+            <p className="campaign-members__empty">No member information is available.</p>
+          )}
+          {rosterQuery.isSuccess && roster.length > 0 && (
+            <ul className="campaign-member-list">
+              {roster.map((member) => (
+                <li key={member.profile_id}>
+                  <span>
+                    {member.username || (member.role === 'owner' ? 'Campaign owner' : 'Player')}
+                  </span>
+                  <span className="campaign-member-list__role">
+                    {member.role === 'owner' ? 'Owner' : 'Member'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {isOwner && (
+            <CampaignOutgoingInvitations
+              campaignId={campaign.id}
+              key={campaign.id + userId}
+              userId={userId}
+            />
+          )}
+        </>
+      }
+      settings={
+        <>
+          <h2 id="camp-settings-heading">Campaign settings</h2>
+          {management.error && (
             <p className="campaign-form__feedback" role="alert">
-              {mutationError}
+              {management.error}
             </p>
           )}
           {isEditing ? (
             <CampaignForm
               initialDescription={campaign.description}
               initialName={campaign.name}
-              isPending={updateMutation.isPending}
+              isPending={management.isSaving}
               onCancel={() => {
                 setIsEditing(false)
-                setMutationError(null)
+                management.clearError()
               }}
               onSubmit={save}
               submitLabel="Save changes"
@@ -258,7 +285,7 @@ export function CampaignWorkspacePage() {
               <button
                 className="auth-button auth-button--secondary"
                 onClick={() => {
-                  setMutationError(null)
+                  management.clearError()
                   setIsEditing(true)
                 }}
                 type="button"
@@ -269,7 +296,7 @@ export function CampaignWorkspacePage() {
                 className="campaign-danger-button"
                 ref={deleteTriggerRef}
                 onClick={() => {
-                  setMutationError(null)
+                  management.clearError()
                   setIsConfirmingDelete(true)
                 }}
                 type="button"
@@ -292,16 +319,16 @@ export function CampaignWorkspacePage() {
               <div className="campaign-settings__actions">
                 <button
                   className="campaign-danger-button"
-                  disabled={deleteMutation.isPending}
+                  disabled={management.isDeleting}
                   onClick={remove}
                   type="button"
                   autoFocus
                 >
-                  {deleteMutation.isPending ? 'Deleting campaign…' : 'Yes, delete campaign'}
+                  {management.isDeleting ? 'Deleting campaign…' : 'Yes, delete campaign'}
                 </button>
                 <button
                   className="campaign-text-button"
-                  disabled={deleteMutation.isPending}
+                  disabled={management.isDeleting}
                   onClick={() => {
                     restoreDeleteFocusRef.current = true
                     setIsConfirmingDelete(false)
@@ -313,8 +340,8 @@ export function CampaignWorkspacePage() {
               </div>
             </div>
           )}
-        </section>
-      )}
-    </section>
+        </>
+      }
+    />
   )
 }
