@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { ViewTransition, useEffect, useRef, useState } from 'react'
+import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignCamp } from './CampaignCamp'
+import { planetAppearance } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignManagement } from './useCampaignManagement'
 
@@ -47,6 +48,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
   const campaign = campaignQuery.data
+  const world = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
   const roster = rosterQuery.data ?? []
   const currentRole = isOwner
@@ -85,10 +87,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
 
   if (campaignQuery.isPending) {
     return (
-      <section
-        className="campaign-page lantern-pending"
-        aria-labelledby="workspace-loading-heading"
-      >
+      <section className="campaign-page camp-pending" aria-labelledby="workspace-loading-heading">
         {campaignTransitionTitle ? (
           <>
             <ViewTransition
@@ -121,7 +120,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   if (campaignQuery.isError) {
     return (
       <section
-        className="campaign-page campaign-state lantern-state"
+        className="campaign-page campaign-state camp-state"
         aria-labelledby="workspace-error-heading"
       >
         <h1 id="workspace-error-heading">This workspace could not be opened.</h1>
@@ -137,10 +136,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     )
   }
 
-  if (!campaign) {
+  if (!campaign || !world) {
     return (
       <section
-        className="campaign-page campaign-state lantern-state"
+        className="campaign-page campaign-state camp-state"
         aria-labelledby="workspace-missing-heading"
       >
         <h1 id="workspace-missing-heading">Campaign not available</h1>
@@ -163,6 +162,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       isDeleting={management.isDeleting}
       isOwner={isOwner}
       notice={notice}
+      world={world}
       title={
         <ViewTransition
           default="none"
@@ -177,10 +177,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       overview={
         <>
           <h2 id="camp-overview-heading">{campaign.name}</h2>
-          <p className="lantern-ledger__description">
+          <p className="camp-ledger__description">
             {campaign.description || 'No description has been added.'}
           </p>
-          <dl className="lantern-ledger__facts">
+          <dl className="camp-ledger__facts">
             <div>
               <dt>Your role</dt>
               <dd>{currentRole}</dd>

@@ -13,7 +13,8 @@ if (typeof HTMLDialogElement !== 'undefined') {
   }
 }
 
-function isVisible(element: Element) {
+function isVisible(element: Element, checkVisibilityCSS: boolean) {
+  if (checkVisibilityCSS && getComputedStyle(element).visibility === 'hidden') return false
   for (let node: Element | null = element; node; node = node.parentElement) {
     if (node.hasAttribute('hidden')) return false
     if (node instanceof HTMLDialogElement && !node.open) return false
@@ -22,6 +23,9 @@ function isVisible(element: Element) {
   return true
 }
 
-Element.prototype.checkVisibility ??= function checkVisibility(this: Element) {
-  return isVisible(this)
+Element.prototype.checkVisibility ??= function checkVisibility(
+  this: Element,
+  options?: CheckVisibilityOptions,
+) {
+  return isVisible(this, Boolean(options?.checkVisibilityCSS))
 }

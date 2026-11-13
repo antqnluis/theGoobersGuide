@@ -2,15 +2,26 @@
 // pixels: the camera x is the panorama column at the left edge of the view, in
 // base art pixels, and is always an integer so motion snaps to the pixel grid.
 
-import { panorama } from './campLayout'
+import { panorama, restFocusX } from './campLayout'
 
 /**
  * The integer scale from base art pixels to device pixels. The panorama fills
- * the view's height as closely as a whole multiple allows; leftover height is
- * filled with sky above the ground.
+ * the view's height as closely as a whole multiple allows, capped so a narrow
+ * view still shows `minVisibleWidth` base pixels; leftover height is filled
+ * with sky above the ground.
  */
-export function pixelScale(deviceHeight: number) {
-  return Math.max(1, Math.floor(deviceHeight / panorama.height))
+export function pixelScale(deviceHeight: number, deviceWidth = Infinity) {
+  const byHeight = Math.floor(deviceHeight / panorama.height)
+  const byWidth = Math.floor(deviceWidth / minVisibleWidth)
+  return Math.max(1, Math.min(byHeight, byWidth))
+}
+
+/** The scale never zooms in past showing this many base pixels across. */
+export const minVisibleWidth = 280
+
+/** The camera x of the resting view, centred between the three destinations. */
+export function restCameraX(visible: number) {
+  return cameraToPlace(restFocusX, visible)
 }
 
 /** How many base pixels of the panorama the view shows across. */

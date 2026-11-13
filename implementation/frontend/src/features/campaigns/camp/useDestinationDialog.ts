@@ -1,10 +1,13 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { resolveLocation, type CampLocation, type CampLocationId } from './campLayout'
 
+/** Rendered and not `visibility: hidden`, so it can take focus. */
+const isShown = (element: HTMLElement) => element.checkVisibility({ checkVisibilityCSS: true })
+
 /**
  * Owns which destination is open and the modal dialog's focus handling:
  * focus moves to the close button on open, and returns to the opener (or an
- * equivalent visible control, or the Places trigger) on close.
+ * equivalent visible control, or the first Places button) on close.
  */
 export function useDestinationDialog({
   isOwner,
@@ -23,7 +26,6 @@ export function useDestinationDialog({
   const bodyRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const openerRef = useRef<HTMLButtonElement | null>(null)
-  const placesTriggerRef = useRef<HTMLElement>(null)
   const active: CampLocation | null = resolveLocation(selectedId, isOwner)
 
   useLayoutEffect(() => {
@@ -40,10 +42,10 @@ export function useDestinationDialog({
       const locationId = opener?.dataset.location
       const equivalent = Array.from(
         scope.current?.querySelectorAll<HTMLButtonElement>('button[data-location]') ?? [],
-      ).find((button) => button.dataset.location === locationId && button.checkVisibility())
-      if (opener?.isConnected && opener.checkVisibility()) opener.focus()
+      ).find((button) => button.dataset.location === locationId && isShown(button))
+      if (opener?.isConnected && isShown(opener)) opener.focus()
       else if (equivalent) equivalent.focus()
-      else placesTriggerRef.current?.focus()
+      else scope.current?.querySelector<HTMLElement>('.camp-directory button')?.focus()
     }
   }, [active, scope])
 
@@ -58,5 +60,5 @@ export function useDestinationDialog({
     setSelectedId(null)
   }
 
-  return { active, bodyRef, close, closeRef, dialogRef, open, placesTriggerRef }
+  return { active, bodyRef, close, closeRef, dialogRef, open }
 }

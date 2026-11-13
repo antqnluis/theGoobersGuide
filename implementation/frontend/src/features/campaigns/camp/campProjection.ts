@@ -44,24 +44,6 @@ export function projectToDevice(point: { x: number; y: number }, view: View) {
 
 export type CssRect = { left: number; top: number; width: number; height: number }
 
-/** The CSS-pixel box for a button centred on a panorama position. */
-export function buttonRect(
-  point: { x: number; y: number },
-  view: View,
-  dpr: number,
-  size: { width: number; height: number },
-): CssRect {
-  const device = projectToDevice(point, view)
-  const centreX = device.x / dpr
-  const centreY = device.y / dpr
-  return {
-    left: Math.round(centreX - size.width / 2),
-    top: Math.round(centreY - size.height / 2),
-    width: size.width,
-    height: size.height,
-  }
-}
-
 /** Whether a rect lies wholly inside a CSS viewport; off-frame buttons are hidden. */
 export function isInFrame(rect: CssRect, viewport: { width: number; height: number }) {
   return (
@@ -70,4 +52,26 @@ export function isInFrame(rect: CssRect, viewport: { width: number; height: numb
     rect.left + rect.width <= viewport.width &&
     rect.top + rect.height <= viewport.height
   )
+}
+
+/**
+ * The CSS-pixel click target for an object standing on `point`, sized in base
+ * art pixels but never smaller than `minSize` on either side.
+ */
+export function hitRect(
+  point: { x: number; y: number },
+  box: { width: number; height: number },
+  view: View,
+  dpr: number,
+  minSize = 44,
+): CssRect {
+  const device = projectToDevice(point, view)
+  const width = Math.max(minSize, Math.round((box.width * view.scale) / dpr))
+  const height = Math.max(minSize, Math.round((box.height * view.scale) / dpr))
+  return {
+    left: Math.round(device.x / dpr - width / 2),
+    top: Math.round(device.y / dpr - height),
+    width,
+    height,
+  }
 }

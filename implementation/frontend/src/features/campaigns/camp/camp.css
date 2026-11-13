@@ -1,0 +1,539 @@
+.workspace-page--camp {
+  --camp-night: #181628;
+  --camp-cream: #fff0d7;
+  --camp-brass: #dab98a;
+  --camp-gutter: clamp(16px, 3vw, 48px);
+  --camp-header-height: 62px;
+  position: relative;
+  min-height: 100dvh;
+  padding: 0;
+  color: var(--camp-cream);
+  background: var(--camp-night);
+}
+
+.workspace-page--camp .workspace-page__frame {
+  width: 100%;
+}
+
+.workspace-page--camp .workspace-header {
+  position: absolute;
+  z-index: 3;
+  inset: 0 0 auto;
+  min-height: var(--camp-header-height);
+  flex-wrap: nowrap;
+  padding: 0 var(--camp-gutter);
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid #edd0a539;
+  background: #1d192d;
+}
+
+.workspace-page--camp .workspace-header__primary {
+  width: auto;
+  flex: none;
+}
+
+.workspace-page--camp .workspace-account {
+  min-width: 0;
+  width: auto;
+  align-items: center;
+  gap: clamp(8px, 2vw, 22px);
+  color: var(--camp-cream);
+  flex-flow: row nowrap;
+}
+
+.workspace-page--camp .workspace-account span {
+  overflow: hidden;
+  padding: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-page--camp .workspace-account .auth-button {
+  flex: none;
+  width: auto;
+  min-height: 44px;
+  border: 0;
+  padding: 0 2px;
+  color: var(--camp-cream);
+  background: transparent;
+}
+
+.camp-exit {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  color: var(--camp-cream);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.camp-exit::before,
+.camp-ledger__back::before {
+  width: 7px;
+  height: 7px;
+  border: solid currentColor;
+  border-width: 0 0 1.5px 1.5px;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.camp-exit:hover,
+.workspace-page--camp .workspace-account .auth-button:hover {
+  color: var(--camp-brass);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.workspace-page--camp .workspace-skip-link {
+  z-index: 5;
+}
+
+.workspace-page--camp .workspace-signout-error {
+  position: absolute;
+  z-index: 4;
+  top: var(--camp-header-height);
+  right: var(--camp-gutter);
+  left: var(--camp-gutter);
+  width: fit-content;
+  margin: 8px 0 0 auto;
+  padding: 10px 14px;
+  background: var(--color-paper-light);
+}
+
+.workspace-page--camp :is(.camp-pending, .camp-state) {
+  width: min(calc(100% - 2 * var(--camp-gutter)), 660px);
+  margin: 0 auto;
+  padding: calc(var(--camp-header-height) + 30px) 0 32px;
+  border: 0;
+  overflow-wrap: anywhere;
+}
+
+.camp-pending .campaign-loading,
+.camp-state p,
+.camp-state a {
+  color: var(--camp-cream);
+}
+
+.camp-state .auth-button {
+  color: var(--camp-cream);
+}
+
+/* The camp: heading, the pixel scene, the Places list, and the journal dialog. */
+
+.camp {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  padding: var(--camp-header-height) 0 20px;
+  background: var(--camp-night);
+}
+
+.camp__heading {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px var(--camp-gutter) 14px;
+  pointer-events: none;
+}
+
+:is(.camp__heading, .camp-pending) h1:not(.visually-hidden) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 38ch;
+  margin: 0;
+  color: var(--camp-cream);
+  font: 600 clamp(1.7rem, 3.6vw, 3.25rem) / 1.08 var(--font-display);
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  text-shadow: 0 2px 16px #0e1019;
+}
+
+.camp__notice {
+  justify-self: start;
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--camp-cream);
+  background: #201e1c;
+  font-size: 0.9rem;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+/* The scene is a window onto the panorama. The gradient shows before the art
+   loads and stays if the art fails, in the same colours as the art. */
+.camp-scene {
+  position: relative;
+  height: max(260px, 55svh);
+  overflow: hidden;
+  background: linear-gradient(
+    to bottom,
+    var(--camp-sky-top) 0%,
+    var(--camp-sky-low) 58%,
+    var(--camp-ground-top) 58%,
+    var(--camp-ground-low) 100%
+  );
+}
+
+.camp-canvas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: block;
+  image-rendering: pixelated;
+  animation: camp-fade 200ms ease-out;
+}
+
+@keyframes camp-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.camp-sign {
+  position: absolute;
+  border-radius: var(--radius-control);
+  padding: 0;
+  background: transparent;
+}
+
+.camp-sign span {
+  position: absolute;
+  left: 50%;
+  border: 1px solid #cba473;
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  color: var(--camp-cream);
+  background: #291c24;
+  box-shadow: 0 4px 12px #14100bb3;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.camp-sign[data-plate-align='end'] span {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.camp-sign[data-plate='above'] span {
+  bottom: calc(100% + 2px);
+}
+
+.camp-sign[data-plate='below'] span {
+  top: calc(100% + 2px);
+}
+
+.camp-sign:is(:hover, :focus-visible, [data-active]) {
+  box-shadow: inset 0 0 0 2px #ffe7ac80;
+}
+
+.camp-sign:is(:hover, :focus-visible, [data-active]) span {
+  border-color: #fff0c9;
+  background: #4a2b28;
+}
+
+.camp-directory {
+  width: min(100%, 46rem);
+  margin-inline: auto;
+  padding: 14px var(--camp-gutter) 0;
+}
+
+.camp-directory h2 {
+  margin: 0 0 4px;
+  padding-inline: 8px;
+  color: var(--camp-brass);
+  font: 600 1.2rem / 1.25 var(--font-display);
+}
+
+.camp-directory ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.camp-directory li + li {
+  border-top: 1px solid #b9996952;
+}
+
+.camp-places__destination {
+  display: grid;
+  min-height: 54px;
+  width: 100%;
+  align-content: center;
+  gap: 3px;
+  padding: 5px 8px;
+  color: var(--camp-cream);
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.camp-places__destination span {
+  color: #e1c6a4;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.camp-places__destination:hover {
+  background: #353142;
+}
+
+.workspace-page--camp
+  :is(
+    .camp-exit,
+    .workspace-account button,
+    .camp-sign,
+    .camp-places__destination,
+    .camp-state button,
+    .camp-state a
+  ):focus-visible {
+  outline: 3px solid #ffe7ac;
+  outline-offset: 3px;
+}
+
+/* The journal dialog. */
+
+.camp-ledger {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border-top: 4px solid var(--color-oxblood);
+  padding: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  background: var(--color-paper-light);
+  box-shadow: -8px 5px 44px #1510125c;
+}
+
+.camp-ledger::backdrop {
+  background: #14111e36;
+}
+
+.camp-ledger__layout {
+  display: grid;
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.camp-ledger__bar {
+  padding: 5px clamp(20px, 3vw, 38px);
+  border-bottom: 1px solid #ab9d86;
+  background: #eae1d0;
+}
+
+.camp-ledger__back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  color: #552831;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.camp-ledger__back:hover {
+  text-decoration: underline;
+}
+
+.camp-ledger__back:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.camp-ledger :is(button, input, textarea, a):focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.camp-ledger__body {
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: clamp(22px, 4vw, 44px) clamp(20px, 3vw, 38px) 34px;
+  overflow-wrap: anywhere;
+  scrollbar-color: #8d7c63 var(--color-paper-light);
+}
+
+.camp-ledger__body h2 {
+  margin: 0 0 21px;
+  color: var(--color-ink);
+  font: 600 clamp(1.75rem, 3.5vw, 2.55rem) / 1.08 var(--font-display);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.camp-ledger__description {
+  margin: 0 0 28px;
+  color: var(--color-ink-soft);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.camp-ledger__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+  padding: 16px 0;
+  border-block: 1px solid var(--color-rule);
+}
+
+.camp-ledger__facts dt {
+  color: var(--color-ink-soft);
+  font-size: 0.875rem;
+}
+
+.camp-ledger__facts dd {
+  margin: 3px 0 0;
+  font-weight: 700;
+}
+
+.camp-ledger__notice {
+  margin: 0 0 18px;
+  color: var(--color-forest);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Desktop and tablet landscape: the scene fills the window, Places is a compact
+   row at the bottom left, and the journal docks opposite the place it opened. */
+@media (min-width: 900px) and (min-height: 481px) {
+  .camp {
+    height: 100dvh;
+    min-height: 0;
+    padding: var(--camp-header-height) 0 0;
+    overflow: hidden;
+  }
+
+  .camp-scene {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    height: auto;
+  }
+
+  .camp-directory {
+    position: absolute;
+    z-index: 2;
+    bottom: 18px;
+    left: var(--camp-gutter);
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .camp-directory h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .camp-directory ul {
+    display: flex;
+    gap: 8px;
+  }
+
+  .camp-directory li {
+    border: 0;
+  }
+
+  .camp-directory li + li {
+    border: 0;
+  }
+
+  .camp-places__destination {
+    min-height: 48px;
+    width: auto;
+    border: 1px solid #b99969;
+    border-radius: var(--radius-control);
+    padding: 4px 12px;
+    background: #1b202bd9;
+  }
+
+  .camp-ledger {
+    inset: 12px 12px 12px auto;
+    width: clamp(340px, 39vw, 540px);
+    height: calc(100dvh - 24px);
+    border-inline: 1px solid #9b7d58;
+    border-bottom: 1px solid #9b7d58;
+  }
+
+  .camp-ledger[data-panel-side='left'] {
+    inset-inline: 12px auto;
+    box-shadow: 8px 5px 44px #1510125c;
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace-page--camp {
+    --camp-header-height: 54px;
+  }
+
+  .camp__heading {
+    gap: 12px;
+  }
+}
+
+/* Short landscape phones: the scene takes the height and Places becomes a rail. */
+@media (min-width: 600px) and (max-height: 480px) and (min-aspect-ratio: 1/1) {
+  .workspace-page--camp {
+    --camp-header-height: 52px;
+  }
+
+  .camp {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.46fr);
+    align-content: start;
+    gap: 0 var(--camp-gutter);
+    padding-bottom: 8px;
+  }
+
+  .camp__heading {
+    grid-column: 1 / -1;
+    padding-block: 8px;
+  }
+
+  .camp__heading h1:not(.visually-hidden) {
+    -webkit-line-clamp: 1;
+    max-width: 100%;
+    font-size: clamp(1.35rem, 3.1vw, 2.3rem);
+  }
+
+  .camp-scene {
+    height: max(180px, calc(100dvh - var(--camp-header-height) - 70px));
+  }
+
+  .camp-directory {
+    padding: 0 var(--camp-gutter) 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-canvas {
+    animation: none;
+  }
+}

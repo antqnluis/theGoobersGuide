@@ -86,8 +86,13 @@ export type LayerPlacement = {
    * right half to the right edge. `none` places it once at the left.
    */
   tile: 'mirror' | 'edges' | 'none'
-  /** Row of the canvas where the image's first row lands. */
-  offsetY: number
+  /** Row of the canvas where the image's first row lands. Ignored when `anchor` is set. */
+  offsetY?: number
+  /**
+   * Aligns the painted content instead: its top (or bottom) edge lands on row
+   * `y`, whatever blank rows the source has around it.
+   */
+  anchor?: { edge: 'top' | 'bottom'; y: number }
   /** Repeat the image downwards, flipped, to fill the canvas. */
   mirrorDown?: boolean
 }
@@ -99,18 +104,22 @@ const bounce = (value: number, size: number) => {
 }
 
 export function composeLayer(image: Quantized, placement: LayerPlacement): Quantized {
-  const { width, height, tile, offsetY, mirrorDown = false } = placement
+  const { width, height, tile, anchor, mirrorDown = false } = placement
   const indices = new Int16Array(width * height).fill(-1)
 
-  // Mirroring downwards reflects about the last painted row, not the image edge.
+  const rowIsClear = (row: number) =>
+    image.indices.subarray(row * image.width, (row + 1) * image.width).every((index) => index < 0)
   let firstRow = 0
   let lastRow = image.height - 1
-  if (mirrorDown) {
-    const rowIsClear = (row: number) =>
-      image.indices.subarray(row * image.width, (row + 1) * image.width).every((index) => index < 0)
-    while (firstRow < image.height && rowIsClear(firstRow)) firstRow += 1
-    while (lastRow > firstRow && rowIsClear(lastRow)) lastRow -= 1
-  }
+  while (firstRow < image.height && rowIsClear(firstRow)) firstRow += 1
+  while (lastRow > firstRow && rowIsClear(lastRow)) lastRow -= 1
+
+  // Mirroring downwards reflects about the last painted row, not the image edge.
+  const offsetY = anchor
+    ? anchor.edge === 'top'
+      ? anchor.y - firstRow
+      : anchor.y - (lastRow + 1)
+    : (placement.offsetY ?? 0)
 
   for (let y = 0; y < height; y += 1) {
     const sourceRow = y - offsetY
@@ -133,4 +142,26 @@ export function composeLayer(image: Quantized, placement: LayerPlacement): Quant
     }
   }
   return { width, height, indices }
+}
+
+/**
+ * Row ranges of the separate horizontal bands on a keyed image: runs of rows
+ * holding any painted pixel, split wherever at least `gap` rows are clear.
+ */
+export function findBands(
+  { data, width, height }: { data: Uint8Array | Uint8ClampedArray; width: number; height: number },
+  gap = 20,
+) {
+  const bands: Array<{ top: number; bottom: number }> = []
+  let clearRun = gap
+  for (let y = 0; y < height; y += 1) {
+    let painted = false
+    for (let x = 0; x < width && !painted; x += 1) painted = data[(y * width + x) * 4 + 3] >= 128
+    if (painted) {
+      if (clearRun >= gap) bands.push({ top: y, bottom: y + 1 })
+      else bands[bands.length - 1].bottom = y + 1
+      clearRun = 0
+    } else clearRun += 1
+  }
+  return bands
 }

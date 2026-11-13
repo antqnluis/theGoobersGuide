@@ -1,4 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
+import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
+import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
+import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
 
 const accountId = '00000000-0000-4000-8000-000000000001'
 const ownerId = '00000000-0000-4000-8000-000000000002'
@@ -76,7 +79,8 @@ async function mockCampaignApi(
   page: Page,
   initialCampaigns: Campaign[],
   options: {
-    delayList?: boolean
+    /** Holds the campaign list: true for 500 ms, or until the given promise settles. */
+    delayList?: boolean | Promise<void>
     memberMode?: boolean
     shouldFailList?: () => boolean
     hideFromList?: () => boolean
@@ -97,7 +101,9 @@ async function mockCampaignApi(
 
     if (path.endsWith('/rest/v1/campaigns') && method === 'GET') {
       if (!url.searchParams.has('id') && options.delayList) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await (options.delayList === true
+          ? new Promise((resolve) => setTimeout(resolve, 500))
+          : options.delayList)
       }
       if (!url.searchParams.has('id') && options.shouldFailList?.()) {
         await route.fulfill({
@@ -427,12 +433,18 @@ test('clears selection when a refresh removes access to the campaign', async ({ 
 })
 
 test('shows a loading state while campaigns are fetched', async ({ page }) => {
-  await mockCampaignApi(page, [redHand], { delayList: true })
+  // Hold the list until the loading state has been seen, so a slow machine cannot miss it.
+  let release = () => {}
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await mockCampaignApi(page, [redHand], { delayList: held })
   await signIn(page)
 
   await expect(
     page.getByRole('status').filter({ hasText: 'Gathering your campaigns…' }),
   ).toBeVisible()
+  release()
   await expect(page.getByRole('button', { name: 'The Red Hand', exact: true })).toBeVisible()
 })
 
@@ -515,7 +527,15 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
   }
 })
 
-test('fits the full camp backdrop and keeps destinations usable across viewports', async ({
+async function openCamp(page: Page, campaign: Campaign = redHand) {
+  await signIn(page)
+  await page.goto(`/app/campaigns/${campaign.id}`)
+  const camp = page.locator('.camp')
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  return camp
+}
+
+test('draws the camp scene crisp and keeps destinations usable across viewports', async ({
   page,
 }, testInfo) => {
   const longName = 'The Unwritten Chronicles of the Far Shore and the Lanterns Beyond the Sea'
@@ -530,93 +550,167 @@ test('fits the full camp backdrop and keeps destinations usable across viewports
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     await route.fulfill({ status: 200, headers, json: roster })
   })
-  await signIn(page)
-  await page.goto(`/app/campaigns/${redHand.id}`)
+  const camp = await openCamp(page, { ...redHand, name: longName })
 
   const heading = page.getByRole('heading', { name: longName, exact: true })
-  const party = page.getByRole('button', { name: 'Party', exact: true })
+  const canvas = page.locator('[data-camp-canvas]')
+  const places = page.getByRole('list', { name: 'Camp places' })
   const back = page.getByRole('button', { name: 'Back to camp' })
-  const image = page.locator('[data-camp-backdrop]')
-  const scene = page.locator('[data-camp-plane]')
 
   for (const [width, height] of [
     [320, 568],
     [375, 812],
     [768, 960],
+    [1280, 720],
     [1440, 900],
     [844, 390],
   ]) {
     await page.setViewportSize({ width, height })
-    const usesSceneButtons = width >= 900 && height >= 481
-    const imageName = width <= 480 ? 'lantern-village-small.avif' : 'lantern-village.avif'
+    const desktop = width >= 900 && height >= 481
+    await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+
+    // The canvas is drawn 1:1 in device pixels, so every art pixel stays a whole block.
     await expect
       .poll(() =>
-        image.evaluate((img: HTMLImageElement) =>
-          img.complete && img.naturalWidth > 0 ? img.currentSrc : '',
-        ),
+        canvas.evaluate((element: HTMLCanvasElement) => {
+          const ratio = window.devicePixelRatio
+          return (
+            element.width === Math.round(element.clientWidth * ratio) &&
+            element.height === Math.round(element.clientHeight * ratio)
+          )
+        }),
       )
-      .toContain(imageName)
-    await expect(image).toBeInViewport({ ratio: 1 })
-    const imageBox = (await image.boundingBox())!
-    expect(imageBox.width / imageBox.height).toBeCloseTo(1672 / 941, 2)
+      .toBe(true)
     await expect(heading).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
-    const names = usesSceneButtons
-      ? ['Overview', 'Party', 'Campaign settings']
-      : ['Overview Campfire', 'Party Bedroll circle', 'Campaign settings Steward’s wagon']
-    for (const name of names) {
-      const sign = page.getByRole('button', { name, exact: true })
-      await expect(sign).toBeInViewport({ ratio: 1 })
-      await sign.click({ trial: true })
-      expect((await sign.boundingBox())?.height).toBeGreaterThanOrEqual(44)
-    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
-    await page.screenshot({ path: testInfo.outputPath(`camp-${width}.png`) })
 
-    const partyControl = page.getByRole('button', { name: names[1], exact: true })
-    await partyControl.press('Enter')
+    // Scene buttons that are in frame are usable; the rest leave the tab order.
+    const signs = page.locator('[data-camp-sign]')
+    const total = await signs.count()
+    expect(total).toBe(3)
+    let inFrame = 0
+    for (let index = 0; index < total; index += 1) {
+      const sign = signs.nth(index)
+      if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
+        inFrame += 1
+        await expect(sign).toBeInViewport({ ratio: 1 })
+        await sign.click({ trial: true })
+        const box = (await sign.boundingBox())!
+        expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44)
+      } else {
+        await expect(sign).toBeHidden()
+      }
+    }
+    if (desktop) expect(inFrame).toBe(total)
+
+    // Places is the complete, always-available navigation.
+    await expect(places).toBeVisible()
+    const entries = places.getByRole('button')
+    for (let index = 0; index < (await entries.count()); index += 1) {
+      await entries.nth(index).scrollIntoViewIfNeeded()
+      await expect(entries.nth(index)).toBeVisible()
+      expect((await entries.nth(index).boundingBox())?.height).toBeGreaterThanOrEqual(44)
+    }
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path: testInfo.outputPath(`camp-${width}x${height}.png`) })
+
+    const party = places.getByRole('button', { name: /^Party/ })
+    await party.scrollIntoViewIfNeeded()
+    await party.press('Enter')
     await expect(back).toBeFocused()
-    await expect(page.locator('[data-camp-state]')).toHaveAttribute('data-camp-state', 'party')
     const dialog = page.getByRole('dialog', { name: 'People in this campaign' })
     await expect(dialog).toBeInViewport({ ratio: 1 })
-    if (usesSceneButtons) await expect(scene).not.toHaveCSS('transform', 'none')
-    else expect((await dialog.boundingBox())?.width).toBe(width)
-    await page.screenshot({
-      path: testInfo.outputPath(`party-${width}.png`),
-      animations: 'disabled',
-    })
+    await expect(camp).toHaveAttribute('data-camp-state', 'party')
+    if (!desktop) expect((await dialog.boundingBox())?.width).toBe(width)
     await dialog.getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
     await expect(dialog.getByText('player_31', { exact: true })).toBeInViewport()
     await expect(back).toBeInViewport({ ratio: 1 })
     await page.keyboard.press('Escape')
-    await expect(partyControl).toBeFocused()
-    await expect(page.locator('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+    await expect(party).toBeFocused()
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
   }
 
+  // Opened from a scene button, the dialog returns focus to that button, and
+  // to an equivalent control when a resize hides it meanwhile.
   await page.setViewportSize({ width: 1440, height: 900 })
-  await party.click()
-  await page.setViewportSize({ width: 375, height: 812 })
+  const sceneParty = page.locator('[data-camp-sign][data-location="party"]')
+  await sceneParty.click()
+  await expect(back).toBeFocused()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Party Bedroll circle' })).toBeFocused()
+  await expect(sceneParty).toBeFocused()
 
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await party.click()
-  await expect(scene).toHaveCSS('transform', 'none')
-  await expect(scene).toHaveCSS('transition-duration', '0s')
-  await expect(scene.locator('[data-camp-light]').first()).toHaveCSS('animation-name', 'none')
+  await sceneParty.click()
+  await page.setViewportSize({ width: 375, height: 812 })
+  // The scene re-measures asynchronously; wait until the button has left the frame.
+  await expect(sceneParty).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(places.getByRole('button', { name: /^Party/ })).toBeFocused()
 })
 
-test('opens locations from Places when camp artwork is unavailable', async ({ page }) => {
+test('shows the camp in the colours of its planet for every world type', async ({ page }) => {
+  const kinds = ['terrestrial', 'desert', 'volcanic', 'frozen', 'rocky', 'gas'] as const
+  const found = new Map<string, Campaign>()
+  for (let index = 1; found.size < kinds.length && index < 4000; index += 1) {
+    const id = `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`
+    const kind = planetAppearance(id).kind
+    if (!found.has(kind)) found.set(kind, { ...redHand, id, name: `World ${kind}` })
+  }
+  expect(found.size).toBe(kinds.length)
+  const fixed = new Set(Object.values(masterFixed).flat())
+  const master = new Set(Object.values(masterBiome).flat())
+
+  await mockCampaignApi(page, [...found.values()])
+  await signIn(page)
+  for (const kind of kinds) {
+    const campaign = found.get(kind)!
+    await page.goto(`/app/campaigns/${campaign.id}`)
+    const camp = page.locator('.camp')
+    await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+    await expect(camp).toHaveAttribute('data-camp-world', kind)
+
+    const ramps = campRamps(planetAppearance(campaign.id))
+    const biome = new Set(Object.values(ramps).flat())
+    const colours = await page
+      .locator('[data-camp-canvas]')
+      .evaluate((canvas: HTMLCanvasElement) => {
+        const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+        const seen = new Set<string>()
+        for (let at = 0; at < data.length; at += 4 * 5) {
+          seen.add(
+            '#' +
+              ((1 << 24) | (data[at] << 16) | (data[at + 1] << 8) | data[at + 2])
+                .toString(16)
+                .slice(1),
+          )
+        }
+        return [...seen]
+      })
+    // Biome colours come from this planet's ramps, never the master keys, and
+    // every ramp appears; everything else is a fixed material.
+    expect(colours.filter((colour) => master.has(colour) && !biome.has(colour))).toEqual([])
+    for (const [material, ramp] of Object.entries(ramps)) {
+      expect(
+        colours.filter((colour) => ramp.includes(colour)).length,
+        `${kind} ${material}`,
+      ).toBeGreaterThan(0)
+    }
+    expect(colours.filter((colour) => !biome.has(colour) && !fixed.has(colour))).toEqual([])
+  }
+})
+
+test('opens locations from Places when the camp artwork is unavailable', async ({ page }) => {
   await mockCampaignApi(page, [redHand])
-  await page.route('**/art/lantern-village*', (route) =>
-    route.request().resourceType() === 'image' ? route.abort() : route.fallback(),
-  )
+  await page.route('**/camp/art/**', (route) => route.abort())
   await signIn(page)
   await page.goto(`/app/campaigns/${redHand.id}`)
 
+  const camp = page.locator('.camp')
+  await expect(camp).toHaveAttribute('data-art-failed', 'true')
+  await expect(page.locator('[data-camp-canvas]')).toHaveCount(0)
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(0)
   const places = page.getByRole('list', { name: 'Camp places' })
-  const overview = places.getByRole('button', { name: 'Overview Campfire' })
+  const overview = places.getByRole('button', { name: /^Overview/ })
   await expect(places).toBeVisible()
   await overview.press('Enter')
   const dialog = page.getByRole('dialog', { name: redHand.name })
@@ -625,6 +719,31 @@ test('opens locations from Places when camp artwork is unavailable', async ({ pa
   await expect(overview).toBeFocused()
   await page.getByRole('link', { name: 'Back to campaigns' }).click()
   await expect(page).toHaveURL(/\/app\/campaigns$/)
+})
+
+test('falls back to the gradient when the scene code cannot load', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await page.route('**/CampLandscape*', (route) => route.abort())
+  await signIn(page)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+
+  await expect(page.locator('.camp')).toHaveAttribute('data-art-failed', 'true')
+  const places = page.getByRole('list', { name: 'Camp places' })
+  await places.getByRole('button', { name: /^Party/ }).press('Enter')
+  await expect(page.getByRole('dialog', { name: 'People in this campaign' })).toBeVisible()
+})
+
+test('loads no WebGL code on the camp page', async ({ page }) => {
+  const requested: string[] = []
+  page.on('request', (request) => requested.push(request.url()))
+  await mockCampaignApi(page, [redHand])
+  await signIn(page)
+  requested.length = 0
+  await page.goto(`/app/campaigns/${redHand.id}`)
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  // The tiny loader module may be imported; the scene and the three.js library must not be.
+  const webgl = /\/(three|@react-three)|GalaxyCanvas\.tsx|planetShaders|OrreryWorlds/
+  expect(requested.filter((url) => webgl.test(url))).toEqual([])
 })
 
 test('retries campaign and party loading from the camp', async ({ page }) => {

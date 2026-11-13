@@ -1,0 +1,59 @@
+{
+ "scale": 0.2637,
+ "key": "#ff00ff",
+ "provenance": "ChatGPT, comp A style; desert biome bands",
+ "bands": [
+  {
+   "id": "ridge-desert",
+   "materials": [
+    "haze",
+    "ink"
+   ],
+   "parallax": 0.3,
+   "layer": {
+    "tile": "mirror",
+    "anchor": {
+     "edge": "bottom",
+     "y": 136
+    }
+   }
+  },
+  {
+   "id": "mid-desert",
+   "materials": [
+    "foliage",
+    "rock",
+    "ink",
+    "wood",
+    "ground",
+    "canvas"
+   ],
+   "parallax": 0.6,
+   "layer": {
+    "tile": "mirror",
+    "anchor": {
+     "edge": "bottom",
+     "y": 178
+    }
+   }
+  },
+  {
+   "id": "ground-desert",
+   "materials": [
+    "ground",
+    "foliage",
+    "canvas",
+    "ink"
+   ],
+   "parallax": 1,
+   "layer": {
+    "tile": "mirror",
+    "anchor": {
+     "edge": "top",
+     "y": 168
+    },
+    "mirrorDown": true
+   }
+  }
+ ]
+}

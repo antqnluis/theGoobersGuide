@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   availableLocations,
   campLocations,
+  bedrolls,
   dormantProps,
+  firePit,
   memberLabel,
   panorama,
   parkedLocations,
   partySeats,
   resolveLocation,
   seatParty,
+  wagon,
+  waystone,
   type RosterMember,
 } from './campLayout'
 
@@ -42,7 +46,7 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...dormantProps.map(({ world }) => world),
+      ...[wagon, firePit, waystone, ...bedrolls, ...dormantProps],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)

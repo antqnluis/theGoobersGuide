@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quantized } from './quantize.ts'
-import { composeLayer, findSprites } from './slice.ts'
+import { composeLayer, findBands, findSprites } from './slice.ts'
 
 function sheet(width: number, height: number, rects: Array<[number, number, number, number]>) {
   const data = new Uint8Array(width * height * 4)
@@ -68,5 +68,40 @@ describe('composeLayer', () => {
       mirrorDown: true,
     })
     expect([...out.indices]).toEqual([-1, -1, 0, 1, 2, 3, 4, 5, 4, 5, 2, 3, 0, 1, 0, 1])
+  })
+})
+
+describe('anchoring and bands', () => {
+  const padded: Quantized = {
+    width: 2,
+    height: 6,
+    indices: Int16Array.from([-1, -1, 0, 1, 2, 3, 4, 5, -1, -1, -1, -1]),
+  }
+
+  it('aligns the painted top or bottom edge, ignoring blank rows', () => {
+    const top = composeLayer(padded, {
+      width: 2,
+      height: 6,
+      tile: 'none',
+      anchor: { edge: 'top', y: 1 },
+    })
+    expect([...top.indices]).toEqual([-1, -1, 0, 1, 2, 3, 4, 5, -1, -1, -1, -1])
+    const bottom = composeLayer(padded, {
+      width: 2,
+      height: 6,
+      tile: 'none',
+      anchor: { edge: 'bottom', y: 6 },
+    })
+    expect([...bottom.indices]).toEqual([-1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5])
+  })
+
+  it('finds bands separated by clear rows', () => {
+    const data = new Uint8Array(4 * 30 * 4)
+    for (const y of [2, 3, 4, 20, 21, 27]) data[(y * 4 + 1) * 4 + 3] = 255
+    expect(findBands({ data, width: 4, height: 30 }, 5)).toEqual([
+      { top: 2, bottom: 5 },
+      { top: 20, bottom: 22 },
+      { top: 27, bottom: 28 },
+    ])
   })
 })

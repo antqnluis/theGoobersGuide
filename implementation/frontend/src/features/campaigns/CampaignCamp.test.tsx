@@ -1,7 +1,12 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { planetAppearance } from './planetModel'
 import { CampaignCamp } from './CampaignCamp'
+
+// jsdom has no canvas, so the lazy scene is replaced by nothing here; the real
+// renderer is covered by the draw-plan tests and the browser tests.
+vi.mock('./camp/CampLandscape', () => ({ default: () => null }))
 
 afterEach(cleanup)
 
@@ -12,6 +17,7 @@ function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
       isDeleting={false}
       isOwner={isOwner}
       notice={null}
+      world={planetAppearance('camp-test')}
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
@@ -25,7 +31,7 @@ describe('CampaignCamp destinations', () => {
   it('opens a destination, focuses Back to camp, and restores focus to the opener', async () => {
     const user = userEvent.setup()
     const { cancelDelete } = renderCamp()
-    const scene = screen.getAllByRole('button', { name: 'Party' })[0]
+    const scene = screen.getByRole('button', { name: /Party\s*Bedroll circle/ })
 
     await user.click(scene)
     expect(screen.getByRole('button', { name: 'Back to camp' })).toHaveFocus()
@@ -50,7 +56,7 @@ describe('CampaignCamp destinations', () => {
 
   it('names Places entries by label and object, and hides settings from members', () => {
     renderCamp({ isOwner: false })
-    expect(screen.getAllByRole('list', { name: 'Camp places', hidden: true })).toHaveLength(2)
+    expect(screen.getAllByRole('list', { name: 'Camp places', hidden: true })).toHaveLength(1)
     expect(
       screen.getAllByRole('button', { name: /Party\s*Bedroll circle/ }).length,
     ).toBeGreaterThan(0)

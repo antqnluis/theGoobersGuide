@@ -9,16 +9,13 @@ export type CampLocation = {
   label: string
   /** Name of the object in the scene, appended in the Places list. */
   place: string
-  /**
-   * Anchor as [x, y] percentages of the temporary backdrop. Replaced by
-   * panorama-space anchors from the art manifest when the renderer lands.
-   */
-  anchor: readonly [number, number]
-  /**
-   * Position in the panorama, in base art pixels from its top left. Provisional
-   * until the approved art manifest supplies the final anchors.
-   */
+  /** Where the object stands: bottom centre, in base art pixels from the panorama's top left. */
   world: { x: number; y: number }
+  /** Size of the object's click target in base art pixels, standing on `world`. */
+  hit: { width: number; height: number }
+  /** Where the label plate sits: above or below the object, centred or at its right end. */
+  plate: 'above' | 'below'
+  plateAlign: 'center' | 'end'
   ownerOnly: boolean
 }
 
@@ -28,24 +25,30 @@ export const campLocations: readonly CampLocation[] = [
     id: 'overview',
     label: 'Overview',
     place: 'Campfire',
-    anchor: [19.5, 54.5],
-    world: { x: 480, y: 236 },
+    world: { x: 480, y: 244 },
+    hit: { width: 56, height: 60 },
+    plate: 'above',
+    plateAlign: 'center',
     ownerOnly: false,
   },
   {
     id: 'party',
     label: 'Party',
     place: 'Bedroll circle',
-    anchor: [41.5, 49.5],
-    world: { x: 590, y: 238 },
+    world: { x: 480, y: 262 },
+    hit: { width: 200, height: 44 },
+    plate: 'above',
+    plateAlign: 'end',
     ownerOnly: false,
   },
   {
     id: 'settings',
     label: 'Campaign settings',
     place: 'Steward’s wagon',
-    anchor: [68.2, 54],
-    world: { x: 190, y: 228 },
+    world: { x: 240, y: 244 },
+    hit: { width: 104, height: 80 },
+    plate: 'above',
+    plateAlign: 'center',
     ownerOnly: true,
   },
 ]
@@ -60,25 +63,44 @@ export function resolveLocation(id: CampLocationId | null, isOwner: boolean): Ca
   return availableLocations(isOwner).find((location) => location.id === id) ?? null
 }
 
-/** Which side the panel docks on, opposite the destination. */
-export function panelSideFor(location: CampLocation | null): 'left' | 'right' {
-  return location && location.anchor[0] > 50 ? 'left' : 'right'
-}
-
 /** Owner-only objects stay parked, unlabeled scenery for everyone else. */
 export function parkedLocations(isOwner: boolean): CampLocation[] {
   return campLocations.filter(({ ownerOnly }) => ownerOnly && !isOwner)
 }
 
-/** Dormant scenery reserved for later milestones: never labeled or focusable. */
-export const dormantProps = [
-  { id: 'map-table', world: { x: 760, y: 232 } },
-  { id: 'journal-crate', world: { x: 860, y: 240 } },
-  { id: 'empty-tent', world: { x: 90, y: 236 } },
-] as const
+/**
+ * The panorama column the resting camera centres on: midway across the three
+ * destinations, so a desktop view shows the wagon, the fire, and the bedrolls.
+ */
+export const restFocusX = 384
+
+/** Static scenery drawn at fixed spots, never labeled or focusable. */
+export type CampProp = { id: string; x: number; y: number; flip?: boolean }
+
+export const dormantProps: readonly CampProp[] = [
+  { id: 'empty-tent', x: 130, y: 240 },
+  { id: 'map-table', x: 690, y: 242 },
+  { id: 'journal-crates', x: 770, y: 244 },
+]
 
 /** Where the high-road waystone stands, a pointer shortcut back to the galaxy. */
-export const waystone = { x: 905, y: 226 } as const
+export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
+
+/** The steward's wagon, a destination for owners and parked scenery for members. */
+export const wagon: CampProp = { id: 'wagon', x: 240, y: 244 }
+
+/** The stone-ringed fire pit; the flame itself is drawn in code. */
+export const firePit: CampProp = { id: 'firepit', x: 480, y: 244 }
+
+/** Six bedrolls in a ring around the fire, facing it. */
+export const bedrolls: readonly CampProp[] = [
+  { id: 'bedroll-red', x: 440, y: 260 },
+  { id: 'bedroll-blue', x: 520, y: 260, flip: true },
+  { id: 'bedroll-green', x: 410, y: 256 },
+  { id: 'bedroll-purple', x: 550, y: 256, flip: true },
+  { id: 'bedroll-gold', x: 380, y: 252 },
+  { id: 'bedroll-cream', x: 580, y: 252, flip: true },
+]
 
 /** Seats around the fire, ordered so a small party fills the front row first. */
 export const partySeats = [

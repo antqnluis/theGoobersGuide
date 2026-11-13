@@ -9,6 +9,7 @@ import {
   panPosition,
   panelSideForWorldX,
   pixelScale,
+  restCameraX,
   retarget,
   startPan,
   visibleWidth,
@@ -35,6 +36,13 @@ describe('pixelScale and visibleWidth', () => {
     expect(pixelScale(2436)).toBe(9)
   })
 
+  it('caps the scale so a narrow view still shows 280 base pixels', () => {
+    // A 1536 px wide tablet in portrait: height alone would allow 7x.
+    expect(pixelScale(2048, 1536)).toBe(5)
+    expect(pixelScale(1338, 1125)).toBe(4)
+    expect(pixelScale(1080, 1920)).toBe(4)
+  })
+
   it('reports the base pixels visible across the view', () => {
     expect(visibleWidth(1440, 3)).toBe(480)
     expect(visibleWidth(3440, 5)).toBe(688)
@@ -43,7 +51,7 @@ describe('pixelScale and visibleWidth', () => {
 
 describe('clampCameraX', () => {
   it.each(viewports)('stays inside the panorama at %i x %i (dpr %i)', (width, height, dpr) => {
-    const scale = pixelScale(height * dpr)
+    const scale = pixelScale(height * dpr, width * dpr)
     const visible = visibleWidth(width * dpr, scale)
     for (const requested of [-5000, 0, 137.4, 480, 5000]) {
       const x = clampCameraX(requested, visible)
@@ -88,7 +96,7 @@ describe('framing', () => {
   it.each(viewports)(
     'keeps every destination reachable at %i x %i (dpr %i)',
     (width, height, dpr) => {
-      const visible = visibleWidth(width * dpr, pixelScale(height * dpr))
+      const visible = visibleWidth(width * dpr, pixelScale(height * dpr, width * dpr))
       for (const { world } of campLocations) {
         const x = cameraToPlace(world.x, visible)
         expect(Number.isInteger(x)).toBe(true)
@@ -150,5 +158,16 @@ describe('descentOffset', () => {
     expect(descentOffset(0, 120)).toBe(120)
     expect(descentOffset(1, 120)).toBe(0)
     expect(Number.isInteger(descentOffset(0.37, 120))).toBe(true)
+  })
+})
+
+describe('restCameraX', () => {
+  it('is an integer inside the panorama at every viewport', () => {
+    for (const [width, height, dpr] of viewports) {
+      const visible = visibleWidth(width * dpr, pixelScale(height * dpr, width * dpr))
+      const x = restCameraX(visible)
+      expect(Number.isInteger(x)).toBe(true)
+      expect(x).toBe(clampCameraX(x, visible))
+    }
   })
 })

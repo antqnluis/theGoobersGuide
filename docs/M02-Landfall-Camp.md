@@ -302,3 +302,40 @@ Ten ChatGPT sources (sky, ridge, trees, ground, foreground, wagon, waystone, fir
   - Placements in `art:review` are provisional until the renderer exists.
 - **Not yet made:** skylines and grounds for the other five world types (all five recolour the terrestrial set today, so pines stay pines), adventurer sprites, and the Phase 3 sign-off.
 - **Tests:** 185 unit tests (slice and compose tests added). `src/App.test.tsx` "routes a successful registration into the authenticated shell" is flaky in full runs: it also fails about half the time on the pristine commit in a clean worktree, so it is pre-existing and unrelated to this work.
+
+### Phase 3: Batch 2 and sprites (13 November 2026)
+
+- **Foreground regenerated:** trunks now run off the top edge and the rocks sit flush to the bottom.
+- **Five biome sets built** from `biome-*.png`: ridge, mid layer, and ground per world type (desert dunes and cacti, volcanic cones and basalt, frozen peaks and snow pines, rocky mesas and scree, gas cloud banks and reef highland). `art:build` now splits one image into stacked layers (`bands`, found automatically) and aligns each by its top or bottom edge (`anchor`).
+- **Result:** 32 layers pass `art:check`; total art on disk is about 316 KB for all six worlds, and a single world loads only its own set (sky, ridge, mid, ground, foreground, props, bedrolls), roughly 70 to 80 KB, inside the ≤150 KB budget. Review: `docs/art/camp-batch2-biomes.png` (all six worlds).
+- **Ground line:** moved down to art row 168 so less of the ground is mirrored below the props; ridge and mid layers moved with it.
+- **Adventurer sprites, hand-authored:** `adventurerSprites.ts` draws a 16×16 seated figure (4 headwear × 4 packs) in master palette colours, and `renderAdventurer` recolours the cloak and skin ramps per member (8 cloaks, 5 skins). 4 unit tests (191 total).
+- **Test hardening:** the "shows a loading state while campaigns are fetched" e2e held the list for a fixed 500 ms, which a slow machine could miss; it now holds the list until the loading state has been seen. No assertion removed.
+- **Verification state:** lint, format:check, build, `art:check` pass; `test:e2e` 33 of 34 pass. The one failure, `auth.spec.ts` "skips the arrival from the keyboard and from the Skip button", fails because its sign-out call is not mocked and reaches the local Supabase API, and Docker is not running right now. `test:local-supabase` could not run for the same reason (Docker daemon down). Both need re-running once Docker is up.
+- **Unit-test flake:** `src/App.test.tsx` "routes a successful registration into the authenticated shell" still fails intermittently in full runs (pre-existing, see above).
+- **Still open for sign-off:** your approval of the final plates (`docs/art/camp-batch2-biomes.png`).
+
+**Phase 3 approved (13 November 2026).** Plates approved for all six worlds. Carry-over: rerun `test:e2e` and `test:local-supabase` with Docker running before closing Phase 4.
+
+### Phase 4: Static renderer and biome (13 November 2026)
+
+The camp page now draws the approved art on a canvas, recoloured from the campaign's planet. The Lantern Village picture, its CSS, and its art are gone.
+
+- **Renderer** (`camp/CampLandscape.tsx`, lazy, behind an error boundary and Suspense like the galaxy):
+  - One 2D canvas at device resolution, drawn from whole base-pixel layers at an integer scale (`campDrawPlan.ts` is a pure list of `drawImage` operations, unit tested).
+  - Layers: sky, ridge, mid, ground, props (wagon, tent, fire pit, six bedrolls, map table, crates, waystone), then the foreground pinned to the screen edges. Layers mirror to fill ultra-wide views; the star-rich top of the sky repeats upwards.
+  - The canvas is sized from device pixels, not its container, so a fractional-height box never stretches the art (`useCampView` measures with `devicePixelContentBoxSize`, falling back to rounded CSS × DPR, and re-measures on zoom).
+  - Scale is `min(floor(height / 270), floor(width / 280))`, so narrow views still show 280 base pixels.
+- **Recolour** (`campAssets.ts`): each PNG is fetched and decoded once with no colour conversion, then recoloured with the palette lookup; sources are cached for good and recoloured copies keep the last 3 worlds. A fetch, decode, chunk, or canvas failure sets `data-art-failed` and leaves a CSS gradient built from the same planet ramps; every flow still works through Places.
+- **Shell** (`CampaignCamp.tsx`): scene buttons are DOM buttons placed from the projection (`hitRect`, ≥44 px), shown once the first paint is ready, and `visibility: hidden` when out of frame. Places is one `nav` (a compact row at the bottom left on desktop, large buttons below the scene on phones, a side rail on short landscape). Dialog focus return now treats hidden buttons as absent.
+- **Layout changes:** the wagon moved to x=240 and the resting camera to x=384, so the wagon, fire, and bedroll ring all fit a 480-pixel-wide desktop view; the party hit area is the ring (200 px wide) and its plate sits at the right end so it never overlaps the fire's.
+- **Weight:** the camp chunk is **2.5 KB gzip** (budget 25 KB) and imports no three.js. A world loads only its own art, about 70 KB. The eager app chunk grew by about 3 KB gzip (170.3 KB), from the shell and palette code. In dev the glob also makes 32 tiny URL-module requests; in the build those are plain strings.
+- **Console and network (one probe on a volcanic camp):** no console errors or warnings, no failed requests, ready about 1.4 s after navigation including dev-server compile.
+- **Tests:** 209 unit tests (draw plan, hit targets, scale cap, rest camera). e2e rewritten: the scene draws 1:1 at 320, 375, 768, 1280, 1440, and 844×390 with no horizontal scroll; in-frame scene buttons are in the viewport and ≥44 px while off-frame ones are hidden; Places is always complete; a resize while open still returns focus; **every world type's canvas holds only that planet's ramps plus fixed materials, with every ramp present** (strict recolour check on real pixels); aborting the art or the chunk falls back with Overview and Party still working; the camp page requests no WebGL code.
+- **Results:** lint, format:check, build, `art:check` pass; `test:e2e` 37 pass; `test:local-supabase` 3 pass (Supabase started with `npm run supabase:start`).
+- **Known gaps (by design, for later phases):**
+  - Everything is static: no camera pan, fire, particles, or landfall (Phase 6); the fire and hearth star are not drawn yet.
+  - Party sprites, labels, and the "+N" overflow (Phase 5). The waystone's back-to-galaxy shortcut is not added yet.
+  - The sky's mirrored Milky Way shows a chevron where the repeat flips on tall scenes; polish in Phase 7.
+  - Camp text styles and the Field Journal frame are still the old ledger look (Phase 7, with Impeccable and DESIGN.md).
+  - Screenshots checked by eye at 1440×900, 844×390, 768×960, and 375×812 (DPR 1 only); high-DPR and Safari rendering are unverified.

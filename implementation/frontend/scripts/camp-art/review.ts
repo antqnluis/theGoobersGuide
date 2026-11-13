@@ -60,7 +60,10 @@ function stand(id: string, x: number, y: number, flip = false) {
   blit(sprite, Math.round(x - sprite.width / 2), y - sprite.height, flip)
 }
 
-for (const layer of ['sky', 'ridge', 'trees', 'ground']) blit(load(layer), 0, 0)
+// Each world type has its own ridge, mid layer, and ground; terrestrial keeps the originals.
+const own = (name: string, mid = name) => (kind === 'terrestrial' ? mid : `${name}-${kind}`)
+for (const layer of ['sky', own('ridge'), own('mid', 'trees'), own('ground')])
+  blit(load(layer), 0, 0)
 stand('wagon', 190, 244)
 stand('empty-tent', 300, 240)
 stand('firepit', 480, 244)

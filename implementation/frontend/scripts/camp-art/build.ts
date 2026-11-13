@@ -15,7 +15,7 @@ import type { ManifestLayer } from './checkArt.ts'
 import { encodeIndexedPng } from './png.ts'
 import { artDir, manifestPath, readManifest, sourceDir } from './paths.ts'
 import { detectGridSize, quantizeToGrid, toIndexedImage, type Rgba } from './quantize.ts'
-import { composeLayer, findSprites, type LayerPlacement } from './slice.ts'
+import { composeLayer, findBands, findSprites, type LayerPlacement } from './slice.ts'
 
 type Sidecar = {
   /** Source pixels per art pixel, for a source that is already on a clean grid. */
@@ -28,6 +28,16 @@ type Sidecar = {
   key?: string
   /** Place the result on a full-width panorama layer. */
   layer?: Omit<LayerPlacement, 'width' | 'height'>
+  /**
+   * One image holding several stacked layers, found as bands of painted rows.
+   * Each entry names its band, in top-to-bottom order, and places it.
+   */
+  bands?: Array<{
+    id: string
+    layer: Omit<LayerPlacement, 'width' | 'height'>
+    materials?: string[]
+    parallax?: number
+  }>
   /** Names of the objects on a sheet, in reading order. A single sprite needs none. */
   sprites?: string[]
   /** Objects closer than this many source pixels count as one sprite. */
@@ -111,7 +121,35 @@ for (const name of sources) {
     console.log(`${name} -> ${outId}.png ${image.width}x${image.height} (${note})`)
   }
 
-  if (sidecar.layer) {
+  if (sidecar.bands) {
+    const found = findBands(source)
+    if (found.length !== sidecar.bands.length) {
+      throw new Error(
+        `${name}: found ${found.length} band(s) but the sidecar names ${sidecar.bands.length}`,
+      )
+    }
+    for (const [index, { top, bottom }] of found.entries()) {
+      const band = sidecar.bands[index]
+      const rows = source.data.slice(top * source.width * 4, bottom * source.width * 4)
+      const small = await scaled(
+        { data: rows, width: source.width, height: bottom - top },
+        sidecar.scale ?? 1,
+      )
+      const bandPalette = (band.materials ?? sidecar.materials ?? []).length
+        ? colorsForMaterials(band.materials ?? sidecar.materials!).map(hexToRgb)
+        : palette
+      const composed = composeLayer(quantizeToGrid(small, { palette: bandPalette, cell: 1 }), {
+        ...band.layer,
+        ...panorama,
+      })
+      sidecar.parallax = band.parallax ?? sidecar.parallax
+      write(
+        band.id,
+        toIndexedImage(composed, bandPalette),
+        `band ${index + 1} of ${name}, scale ${sidecar.scale ?? 1}`,
+      )
+    }
+  } else if (sidecar.layer) {
     const small = await scaled(source, sidecar.scale ?? 1)
     const composed = composeLayer(quantize(small, 1), { ...sidecar.layer, ...panorama })
     write(id, toIndexedImage(composed, palette), `layer, scale ${sidecar.scale ?? 1}`)
