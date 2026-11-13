@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "panorama": {
+    "width": 960,
+    "height": 270
+  },
+  "layers": [
+    {
+      "id": "sky",
+      "file": "placeholder-sky.png",
+      "width": 960,
+      "height": 270,
+      "status": "placeholder",
+      "parallax": 0.1,
+      "provenance": "PLACEHOLDER: procedural stand-in from scripts/camp-art/placeholder.ts"
+    },
+    {
+      "id": "ridge",
+      "file": "placeholder-ridge.png",
+      "width": 960,
+      "height": 270,
+      "status": "placeholder",
+      "parallax": 0.3,
+      "provenance": "PLACEHOLDER: procedural stand-in from scripts/camp-art/placeholder.ts"
+    },
+    {
+      "id": "trees",
+      "file": "placeholder-trees.png",
+      "width": 960,
+      "height": 270,
+      "status": "placeholder",
+      "parallax": 0.6,
+      "provenance": "PLACEHOLDER: procedural stand-in from scripts/camp-art/placeholder.ts"
+    },
+    {
+      "id": "ground",
+      "file": "placeholder-ground.png",
+      "width": 960,
+      "height": 270,
+      "status": "placeholder",
+      "parallax": 1,
+      "provenance": "PLACEHOLDER: procedural stand-in from scripts/camp-art/placeholder.ts"
+    }
+  ]
+}

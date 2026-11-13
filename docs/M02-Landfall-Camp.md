@@ -256,3 +256,23 @@ No visual change; the Lantern Village picture is still the temporary backdrop.
 - **Tests:** `src/test/setup.ts` gains `showModal`/`close` and `checkVisibility` polyfills; new `CampaignCamp.test.tsx` covers focus on open, focus restore to a scene button and to a Places entry, and owner gating (3 tests). No e2e assertions removed; two `data-camp-state` assertions added.
 - **Results:** lint, format:check, build pass; unit 82 pass; `test:e2e` 34 pass; `test:local-supabase` 3 pass.
 - **Kept for later phases:** `lantern-*` CSS classes, `campaignVillage.css`, and the `art/lantern-village*` files stay until Phase 4 removes them.
+
+### Phase 2: Pure modules and art pipeline (13 November 2026)
+
+No UI change. Nothing imports the new modules yet, and the placeholder art is not in the build (`dist/` has no placeholder files).
+
+- **Pure modules** in `src/features/campaigns/camp/`:
+  - `campLayout.ts` gains panorama size (960×270), provisional world coordinates per destination, 10 party seats, `seatParty` (owner first, then profile order, `overflow` count), dormant props, waystone, and `parkedLocations`.
+  - `campCamera.ts`: integer `pixelScale`, `clampCameraX` (centres when the view is wider than the panorama), `cameraToFrame`, pans with `retarget` (starts from the current position, never queues), `descentOffset`.
+  - `campProjection.ts`: bottom-anchored `panoramaOrigin`, `projectToDevice`, `buttonRect`, `isInFrame`, parallax factors.
+  - `campPalette.ts` plus import-free `masterPalette.ts` and `oklab.ts`: 5 biome ramps recoloured per world from `planetAppearance`, `buildSwapLut`, `applyPaletteSwap`. Biome table (skyline and particles) is in the module.
+  - `adventurerAppearance.ts`: FNV hash with its own salt; cloak, skin, headwear, pack only.
+- **Pipeline** in `scripts/camp-art/` (runs natively on Node, no build step): a minimal indexed-PNG codec (only IHDR, PLTE, tRNS, IDAT, IEND, so gamma and colour profiles cannot exist), grid detection, OKLab quantizing with background keying, and the check logic. Commands: `art:build`, `art:check`, `art:placeholder`. `sharp` is a devDependency used only by `art:build`. Sources and the sidecar format are described in `art-src/camp/README.md`.
+- **Placeholder art:** four 960×270 layers (sky, ridge, trees, ground, about 2 to 3 kB each), marked `PLACEHOLDER` in `manifest.json`.
+- **Tests:** 96 new unit tests (178 in total): determinism, clamping at 8 viewports, opposite-side framing, retarget without queueing, seat overflow for 32 members, owner gating, palette round trip and distinct, ordered ramps for all 6 types × 2 palettes, unmatched/translucent pixels passing through, PNG round trip, grid detection (4, 6, 8 px), noisy quantizing, and each `art:check` rule.
+- **Results:** lint, format:check, build, `art:check` pass; unit 178 pass; `test:e2e` 34 pass; `test:local-supabase` 3 pass. An `art:build` smoke run on a synthetic 6 px-grid source produced a file that `art:check` passed and `sharp` read back; that file was removed afterwards.
+- **Deviations from the plan:**
+  - Anchors and seats stay in `campLayout.ts` rather than the manifest. The manifest holds layers, sizes, and provenance; Phase 3 decides whether to move anchors once the approved art fixes them.
+  - Framing puts the place at the centre of the part of the view the panel leaves open, which is about the opposite third on desktop (phone sheets do not pan).
+  - Grid violation in `art:check` means a size that disagrees with the manifest or exceeds the panorama.
+- **Not verified:** the swap runs on `Uint32Array` in tests only; real `ImageData`, decode flags, and cross-browser colour come with Phase 4 and Phase 7.
