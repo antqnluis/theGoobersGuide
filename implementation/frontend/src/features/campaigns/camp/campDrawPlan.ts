@@ -4,6 +4,7 @@
 import { landscapeIds, sceneProps } from './campArt'
 import { layerOffset, panoramaOrigin, parallax, projectToDevice, type View } from './campProjection'
 import { panorama } from './campLayout'
+import { figureSize, type PartyFigure } from './campParty'
 import type { CampKind } from './campPalette'
 
 export type DrawOp = {
@@ -88,7 +89,12 @@ function pinnedForeground(view: View): DrawOp[] {
   ]
 }
 
-export function planScene(view: View, kind: CampKind, sizes: ImageSizes): DrawOp[] {
+export function planScene(
+  view: View,
+  kind: CampKind,
+  sizes: ImageSizes,
+  figures: readonly PartyFigure[] = [],
+): DrawOp[] {
   const { ridge, mid, ground } = landscapeIds(kind)
   const ops: DrawOp[] = [
     ...tiledLayer('sky', parallax.sky, view, skyRepeatRows),
@@ -96,12 +102,19 @@ export function planScene(view: View, kind: CampKind, sizes: ImageSizes): DrawOp
     ...tiledLayer(mid, parallax.trees, view, false),
     ...tiledLayer(ground, parallax.ground, view, false),
   ]
-  for (const prop of sceneProps) {
-    const size = sizes[prop.id]
-    if (!size) continue
-    const foot = projectToDevice(prop, view)
+  // Props and seated figures share one back-to-front order. The sort is stable
+  // and props come first, so a figure on a bedroll draws after it.
+  const standing: Array<{ depth: number; op: DrawOp }> = []
+  const stand = (
+    id: string,
+    point: { x: number; y: number },
+    size: { width: number; height: number },
+    depth: number,
+    flipX?: boolean,
+  ) => {
+    const foot = projectToDevice(point, view)
     const op: DrawOp = {
-      id: prop.id,
+      id,
       sx: 0,
       sy: 0,
       sw: size.width,
@@ -110,10 +123,17 @@ export function planScene(view: View, kind: CampKind, sizes: ImageSizes): DrawOp
       dy: foot.y - size.height * view.scale,
       dw: size.width * view.scale,
       dh: size.height * view.scale,
-      flipX: prop.flip,
+      flipX,
     }
-    if (intersects(op, view)) ops.push(op)
+    if (intersects(op, view)) standing.push({ depth, op })
   }
+  for (const prop of sceneProps) {
+    const size = sizes[prop.id]
+    if (size) stand(prop.id, prop, size, prop.y, prop.flip)
+  }
+  for (const figure of figures)
+    stand(figure.spriteId, figure, figureSize, figure.depth, figure.flip)
+  ops.push(...standing.toSorted((a, b) => a.depth - b.depth).map(({ op }) => op))
   ops.push(...pinnedForeground(view))
   return ops
 }

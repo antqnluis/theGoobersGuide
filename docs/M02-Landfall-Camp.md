@@ -339,3 +339,22 @@ The camp page now draws the approved art on a canvas, recoloured from the campai
   - The sky's mirrored Milky Way shows a chevron where the repeat flips on tall scenes; polish in Phase 7.
   - Camp text styles and the Field Journal frame are still the old ledger look (Phase 7, with Impeccable and DESIGN.md).
   - Screenshots checked by eye at 1440×900, 844×390, 768×960, and 375×812 (DPR 1 only); high-DPR and Safari rendering are unverified.
+
+### Phase 5: Party and destinations (13 November 2026)
+
+The real roster now sits around the fire, and the hovered, focused, or open destination is outlined in the scene. No backend or data-flow change: the roster still comes from the existing `get_campaign_roster` query.
+
+- **Party sprites:** `camp/campParty.ts` (pure) turns the roster into figures: owner first, then profile order, ten seats, a seeded look per member, facing the fire, and a depth that puts a figure after its bedroll. `planScene` merges figures with props in one back-to-front order. The renderer builds one cached 16×16 canvas per distinct look (`adventurerImage`, 64 kept).
+- **Roster states:** while the roster loads, fails, or is empty, the bedrolls stay empty (no figures, no plates). The Party panel keeps its loading text, error with "Try again", and empty message; a successful retry seats the party without a reload.
+- **Name plates:** DOM plates (`.camp-names`, `aria-hidden`, `pointer-events: none`, outside every list) above each figure show the username, "Player" for a missing one, or "Campaign owner". Plates are hidden when the scene is under 2 CSS pixels per art pixel (phones), where they overlap and cannot be read; the Party panel names everyone there. A "+N" plate counts members beyond ten.
+- **Outlines:** a second canvas (`data-camp-outline`) draws a 1-art-pixel warm outline (`#ffe7ac`) around the fire pit (Overview), the wagon (Settings), or the bedrolls and seated figures (Party). It shows on pointer hover and keyboard focus of a scene button or Places entry, and stays while the destination is open. Hovering never redraws the scene. The old rectangular hover box is removed.
+- **Owner gating:** members get no settings button, Places entry, or dialog section; the wagon is still drawn as scenery.
+- **Layout changes (from the real renders):**
+  - Seats 6 and 7 moved beside the pit (they were hidden behind it), seat 9 moved inward from the trunks at the view edge, and seat 5 moved to the back row, so the rightmost bedroll (half hidden by foreground bushes) stays empty (`bedrollSeats = 5`).
+  - The Party plate moved to the left of the ring, where it no longer covers sprites or their names.
+  - The "+N" plate sits between the wagon and the ring, not "by the tents": the tent is off-frame at the resting camera.
+- **Not done here:** the waystone's back-to-galaxy shortcut. At the resting camera the waystone (x=880) is out of frame, so it waits for the camera pan in Phase 6. "Party sprites look up" and the brighter fire on hover are Phase 6 (they need the sprite clock and the procedural fire).
+- **Weight:** the camp chunk is 3.2 KB gzip (was 2.5, budget 25 KB); the eager app chunk is 171.8 KB gzip (was 170.3).
+- **Tests:** 222 unit tests (new `campParty.test.ts`, draw-plan cases for figures, seat no-overlap). Three new e2e tests: a 14-member roster with a null username (plates, "+4", each plate over a sprite wearing that member's own cloak and skin, aria-hidden, hidden on a 375 px phone) that first fails the roster and recovers through the panel's retry; members have no wagon control; outlines on hover, focus, and open. The existing 32-member scene test, retry test, and unrelated-account "Campaign not available" test are unchanged and pass.
+- **Results:** lint, format:check, build, `art:check` pass; unit 222 pass; `test:e2e` 40 pass; `test:local-supabase` 3 pass.
+- **Not verified:** plates and outlines at high DPR and in Safari; plate overlap at widths between 900 and 1100 where only part of the ring is in frame; a screen-reader pass (Phase 7).

@@ -199,6 +199,37 @@
   }
 }
 
+/* The outline of the hovered, focused, or open object lives on its own canvas. */
+.camp-canvas--outline {
+  animation: none;
+  pointer-events: none;
+}
+
+/* Name plates for the seated party. Decoration only: the Party panel lists everyone. */
+.camp-names {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.camp-name {
+  position: absolute;
+  /* Neighbouring seats are at least 30 art pixels apart, so plates never overrun them. */
+  max-width: calc(var(--camp-unit) * 30);
+  overflow: hidden;
+  border: 1px solid #cba473;
+  border-radius: 2px;
+  padding: 1px 5px;
+  color: var(--camp-cream);
+  background: #291c24e6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 2px));
+}
+
 .camp-sign {
   position: absolute;
   border-radius: var(--radius-control);
@@ -223,7 +254,8 @@
   pointer-events: none;
 }
 
-.camp-sign[data-plate-align='end'] span {
+.camp-sign[data-plate-align='end'][data-plate='above'] span,
+.camp-sign[data-plate-align='end'][data-plate='below'] span {
   right: 0;
   left: auto;
   transform: none;
@@ -233,12 +265,15 @@
   bottom: calc(100% + 2px);
 }
 
-.camp-sign[data-plate='below'] span {
-  top: calc(100% + 2px);
+.camp-sign[data-plate='left'] span {
+  right: calc(100% + 4px);
+  bottom: 0;
+  left: auto;
+  transform: none;
 }
 
-.camp-sign:is(:hover, :focus-visible, [data-active]) {
-  box-shadow: inset 0 0 0 2px #ffe7ac80;
+.camp-sign[data-plate='below'] span {
+  top: calc(100% + 2px);
 }
 
 .camp-sign:is(:hover, :focus-visible, [data-active]) span {

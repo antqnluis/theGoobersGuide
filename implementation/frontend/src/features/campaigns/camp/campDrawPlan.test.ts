@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
 import { planScene, type ImageSizes } from './campDrawPlan'
+import { partyFigures } from './campParty'
 import { panorama } from './campLayout'
 import type { CampKind } from './campPalette'
 import type { View } from './campProjection'
@@ -136,5 +137,38 @@ describe('planScene', () => {
     const ops = planScene(viewFor(3440, 1440), 'terrestrial', sizes)
     const feet = ops.filter((op) => sizes[op.id]).map((op) => op.dy + op.dh)
     expect(feet).toEqual([...feet].sort((a, b) => a - b))
+  })
+})
+
+describe('planScene with a party', () => {
+  const view = viewFor(1440, 900)
+  const roster = Array.from({ length: 10 }, (_, index) => ({
+    profile_id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    role: index === 0 ? 'owner' : 'member',
+    username: `player_${index}`,
+  }))
+  const { figures } = partyFigures(roster)
+  const ops = planScene(view, 'terrestrial', sizes, figures)
+
+  it('draws each figure as a whole-pixel 16 x 16 sprite standing on its seat', () => {
+    for (const figure of figures) {
+      const op = ops.find(({ id }) => id === figure.spriteId)!
+      expect(op).toBeDefined()
+      expect([op.dw, op.dh]).toEqual([16 * view.scale, 16 * view.scale])
+      for (const value of [op.dx, op.dy]) expect(Number.isInteger(value)).toBe(true)
+      expect(op.flipX).toBe(figure.flip)
+    }
+  })
+
+  it('draws a figure on a bedroll after it, and the back seats before the fire pit', () => {
+    const order = ops.map(({ id }) => id)
+    expect(order.indexOf(figures[0].spriteId)).toBeGreaterThan(order.indexOf('bedroll-red'))
+    expect(order.indexOf(figures[1].spriteId)).toBeGreaterThan(order.indexOf('bedroll-blue'))
+    expect(order.indexOf(figures[6].spriteId)).toBeLessThan(order.indexOf('bedroll-red'))
+    expect(order.lastIndexOf('foreground')).toBe(order.length - 1)
+  })
+
+  it('adds nothing for an empty party', () => {
+    expect(planScene(view, 'terrestrial', sizes, [])).toEqual(planScene(view, 'terrestrial', sizes))
   })
 })

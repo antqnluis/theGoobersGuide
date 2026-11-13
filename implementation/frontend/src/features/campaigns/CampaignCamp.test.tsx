@@ -17,6 +17,7 @@ function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
       isDeleting={false}
       isOwner={isOwner}
       notice={null}
+      roster={[]}
       world={planetAppearance('camp-test')}
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}

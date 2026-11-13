@@ -2,6 +2,8 @@
 // biome materials from the campaign's planet palette. Sources are cached for
 // good; recoloured copies keep only the few most recent worlds.
 
+import type { AdventurerAppearance } from './adventurerAppearance'
+import { adventurerSize, renderAdventurer } from './adventurerSprites'
 import { assetIdsFor, artUrl } from './campArt'
 import {
   applyPaletteSwap,
@@ -87,4 +89,67 @@ export function loadCampImages(world: CampWorld): Promise<CampImages> {
     while (recoloured.size > keptWorlds) recoloured.delete(recoloured.keys().next().value!)
   }
   return pending
+}
+
+const sprites = new Map<string, CampImage>()
+const keptSprites = 64
+
+/** A party member's finished sprite on its own canvas, cached by look. */
+export function adventurerImage(spriteId: string, look: AdventurerAppearance): CampImage {
+  let image = sprites.get(spriteId)
+  if (!image) {
+    const { width, height } = adventurerSize
+    const pixels = Uint32Array.from(renderAdventurer(look))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas is not available')
+    context.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), width, height), 0, 0)
+    image = { source: canvas, width, height }
+    sprites.set(spriteId, image)
+    while (sprites.size > keptSprites) sprites.delete(sprites.keys().next().value!)
+  }
+  return image
+}
+
+/** The warm outline drawn around hovered, focused, or open objects. */
+export const outlineColour = '#ffe7ac'
+
+const outlines = new WeakMap<object, CampImage>()
+
+/**
+ * A one-pixel outline around an image's opaque pixels, on a canvas one pixel
+ * larger on every side. Only the ring is painted, so it can sit over the object.
+ */
+export function outlineImage(image: CampImage): CampImage {
+  const cached = outlines.get(image)
+  if (cached) return cached
+  const width = image.width + 2
+  const height = image.height + 2
+  const read = document.createElement('canvas')
+  read.width = width
+  read.height = height
+  const readContext = read.getContext('2d', { willReadFrequently: true })
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!readContext || !context) throw new Error('Canvas is not available')
+  readContext.drawImage(image.source, 1, 1)
+  const { data } = readContext.getImageData(0, 0, width, height)
+  const solid = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < width && y < height && data[(y * width + x) * 4 + 3] === 255
+  context.fillStyle = outlineColour
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (solid(x, y)) continue
+      if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) {
+        context.fillRect(x, y, 1, 1)
+      }
+    }
+  }
+  const result = { source: canvas, width, height }
+  outlines.set(image, result)
+  return result
 }

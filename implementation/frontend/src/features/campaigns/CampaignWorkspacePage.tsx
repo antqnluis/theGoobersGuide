@@ -50,7 +50,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const campaign = campaignQuery.data
   const world = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
-  const roster = rosterQuery.data ?? []
+  const rosterData = rosterQuery.data
+  const roster = useMemo(() => rosterData ?? [], [rosterData])
   const currentRole = isOwner
     ? 'Owner'
     : roster.find((member) => member.profile_id === session?.user.id)?.role === 'owner'
@@ -162,6 +163,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       isDeleting={management.isDeleting}
       isOwner={isOwner}
       notice={notice}
+      roster={roster}
       world={world}
       title={
         <ViewTransition

@@ -7,12 +7,19 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent,
   type ReactNode,
 } from 'react'
-import { availableLocations, type CampLocation } from './camp/campLayout'
+import {
+  availableLocations,
+  type CampLocation,
+  type CampLocationId,
+  type RosterMember,
+} from './camp/campLayout'
+import { figureSize, minNameUnit, overflowMarker, partyFigures } from './camp/campParty'
 import { panelSideForWorldX } from './camp/campCamera'
 import { campRamps, type CampWorld } from './camp/campPalette'
-import { hitRect, isInFrame } from './camp/campProjection'
+import { hitRect, isInFrame, projectToDevice } from './camp/campProjection'
 import { useCampView } from './camp/useCampView'
 import { useDestinationDialog } from './camp/useDestinationDialog'
 import './camp/camp.css'
@@ -43,6 +50,7 @@ export function CampaignCamp({
   title,
   notice,
   world,
+  roster,
   isOwner,
   isDeleting,
   cancelDelete,
@@ -54,6 +62,8 @@ export function CampaignCamp({
   notice: string | null
   /** The campaign's planet: its type and palette colour the camp. */
   world: CampWorld
+  /** The loaded roster; empty while loading, on error, or when none is available. */
+  roster: readonly RosterMember[]
   isOwner: boolean
   isDeleting: boolean
   cancelDelete: () => void
@@ -63,6 +73,8 @@ export function CampaignCamp({
 }) {
   const [artFailed, setArtFailed] = useState(false)
   const [ready, setReady] = useState(false)
+  const [hovered, setHovered] = useState<CampLocationId | null>(null)
+  const [focused, setFocused] = useState<CampLocationId | null>(null)
   const campRef = useRef<HTMLElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const measure = useCampView(sceneRef)
@@ -75,6 +87,8 @@ export function CampaignCamp({
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
   const ramps = useMemo(() => campRamps(world), [world])
+  const { figures, overflow } = useMemo(() => partyFigures(roster), [roster])
+  const highlight = hovered ?? focused ?? active?.id ?? null
   const onReady = useCallback(() => setReady(true), [])
   const onFail = useCallback(() => setArtFailed(true), [])
 
@@ -86,6 +100,18 @@ export function CampaignCamp({
     '--camp-ground-low': ramps.ground[0],
   } as CSSProperties
 
+  // Hovering or keyboard-focusing a destination outlines it in the scene.
+  function attention(id: CampLocationId) {
+    return {
+      onBlur: () => setFocused(null),
+      onFocus: (event: FocusEvent<HTMLButtonElement>) => {
+        if (event.currentTarget.matches(':focus-visible')) setFocused(id)
+      },
+      onPointerEnter: () => setHovered(id),
+      onPointerLeave: () => setHovered(null),
+    }
+  }
+
   const placeItems = available.map((location) => (
     <li key={location.id}>
       <button
@@ -94,6 +120,7 @@ export function CampaignCamp({
         data-location={location.id}
         onClick={(event) => open(location, event.currentTarget)}
         type="button"
+        {...attention(location.id)}
       >
         {location.label}
         <span>{location.place}</span>
@@ -125,9 +152,45 @@ export function CampaignCamp({
           visibility: inFrame ? 'visible' : 'hidden',
         }}
         type="button"
+        {...attention(location.id)}
       >
         <span>{location.label}</span>
       </button>
+    )
+  }
+
+  /** Name plates above each seated adventurer; decoration, since Party lists everyone. */
+  function names() {
+    if (!measure) return null
+    const { view, dpr } = measure
+    // Too small to read or keep apart: the Party panel still names everyone.
+    const unit = view.scale / dpr
+    if (unit < minNameUnit) return null
+    const plate = (key: string, point: { x: number; y: number }, text: string, extra?: string) => {
+      const foot = projectToDevice(point, view)
+      return (
+        <span
+          className="camp-name"
+          data-camp-name={extra}
+          key={key}
+          style={{
+            left: foot.x / dpr,
+            top: (foot.y - figureSize.height * view.scale) / dpr,
+          }}
+        >
+          {text}
+        </span>
+      )
+    }
+    return (
+      <div
+        aria-hidden="true"
+        className="camp-names"
+        style={{ '--camp-unit': `${unit}px` } as CSSProperties}
+      >
+        {figures.map((figure) => plate(figure.id, figure, figure.label))}
+        {overflow > 0 && plate('overflow', overflowMarker, `+${overflow}`, 'overflow')}
+      </div>
     )
   }
 
@@ -156,6 +219,8 @@ export function CampaignCamp({
             <Suspense fallback={null}>
               <CampLandscape
                 dpr={measure.dpr}
+                figures={figures}
+                highlight={highlight}
                 onFail={onFail}
                 onReady={onReady}
                 view={measure.view}
@@ -164,6 +229,7 @@ export function CampaignCamp({
             </Suspense>
           </SceneBoundary>
         )}
+        {!artFailed && ready && names()}
         {!artFailed && ready && available.map(sign)}
       </div>
 

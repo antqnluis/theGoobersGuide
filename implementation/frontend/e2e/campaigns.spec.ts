@@ -1,4 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
+import { adventurerAppearance } from '../src/features/campaigns/camp/adventurerAppearance.ts'
+import { seatParty, type RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
 import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
@@ -697,6 +699,188 @@ test('shows the camp in the colours of its planet for every world type', async (
     }
     expect(colours.filter((colour) => !biome.has(colour) && !fixed.has(colour))).toEqual([])
   }
+})
+
+/** A roster of an owner, a member without a username, and named members. */
+function partyRoster(count: number): RosterMember[] {
+  return Array.from({ length: count }, (_, index) => ({
+    profile_id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+    role: index === 0 ? 'owner' : 'member',
+    username:
+      index === 1 ? null : index === 0 ? 'game_master' : `player_${String(index).padStart(2, '0')}`,
+  }))
+}
+
+async function mockRoster(page: Page, roster: () => RosterMember[] | 'fail') {
+  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+    const headers = corsHeaders()
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const body = roster()
+    if (body === 'fail') {
+      return route.fulfill({ status: 400, headers, json: { message: 'temporary test failure' } })
+    }
+    await route.fulfill({ status: 200, headers, json: body })
+  })
+}
+
+/** Every colour in a rectangle of the scene canvas, in CSS pixels. */
+async function coloursIn(
+  page: Page,
+  rect: { left: number; top: number; width: number; height: number },
+) {
+  return page.locator('[data-camp-canvas]').evaluate((canvas: HTMLCanvasElement, box) => {
+    const ratio = canvas.width / canvas.clientWidth
+    const { data } = canvas
+      .getContext('2d')!
+      .getImageData(
+        Math.round(box.left * ratio),
+        Math.round(box.top * ratio),
+        Math.round(box.width * ratio),
+        Math.round(box.height * ratio),
+      )
+    const seen = new Set<string>()
+    for (let at = 0; at < data.length; at += 4) {
+      seen.add(
+        '#' +
+          ((1 << 24) | (data[at] << 16) | (data[at + 1] << 8) | data[at + 2]).toString(16).slice(1),
+      )
+    }
+    return [...seen]
+  }, rect)
+}
+
+test('seats the real roster around the fire and recovers from a roster error', async ({
+  page,
+}, testInfo) => {
+  const roster = partyRoster(14)
+  let failing = true
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => (failing ? 'fail' : roster))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const names = page.locator('.camp-name')
+  const canvas = page.locator('[data-camp-canvas]')
+  const checksum = () =>
+    canvas.evaluate((element: HTMLCanvasElement) => {
+      const { data } = element.getContext('2d')!.getImageData(0, 0, element.width, element.height)
+      let hash = 0
+      for (let at = 0; at < data.length; at += 4) hash = (hash * 31 + data[at] + data[at + 1]) | 0
+      return hash
+    })
+
+  // While the roster cannot load, the bedrolls stay empty: no figures, no plates.
+  await expect(names).toHaveCount(0)
+  const empty = await checksum()
+  await page.locator('[data-camp-sign][data-location="party"]').click()
+  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  await expect(names).toHaveCount(0)
+
+  failing = false
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByRole('list').getByText('game_master', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+
+  // Ten seats, the owner first, then the rest in profile order, a missing
+  // username as "Player", and "+N" for the four who did not get a seat.
+  const { seated, overflow } = seatParty(roster)
+  expect(overflow).toBe(4)
+  await expect(names).toHaveCount(seated.length + 1)
+  await expect(names.filter({ hasText: /^\+/ })).toHaveText(`+${overflow}`)
+  await expect(names.filter({ hasNotText: /^\+/ })).toHaveText(seated.map(({ label }) => label))
+  expect(seated[0].label).toBe('game_master')
+  expect(seated.some(({ label }) => label === 'Player')).toBe(true)
+  expect(await checksum()).not.toBe(empty)
+
+  // Plates are decoration: hidden from assistive technology and outside any list.
+  const container = page.locator('.camp-names')
+  await expect(container).toHaveAttribute('aria-hidden', 'true')
+  expect(await container.evaluate((el) => el.closest('ul, ol, [role="list"]'))).toBeNull()
+  expect(await container.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
+
+  await page.mouse.move(700, 300)
+  await page.screenshot({ path: testInfo.outputPath('camp-party-1440x900.png') })
+
+  // Each plate stands over a sprite wearing that member's own cloak and skin.
+  const unit = await container.evaluate((el) =>
+    parseFloat(getComputedStyle(el).getPropertyValue('--camp-unit')),
+  )
+  for (const [index, { member }] of seated.entries()) {
+    const plate = names.nth(index)
+    const look = adventurerAppearance(member.profile_id)
+    const left = await plate.evaluate((el) => parseFloat((el as HTMLElement).style.left))
+    const top = await plate.evaluate((el) => parseFloat((el as HTMLElement).style.top))
+    const colours = await coloursIn(page, {
+      left: left - 8 * unit,
+      top,
+      width: 16 * unit,
+      height: 16 * unit,
+    })
+    expect(colours, member.username ?? 'Player').toContain(masterFixed[`cloak${look.cloak}`][1])
+    expect(colours, member.username ?? 'Player').toContain(masterFixed[`skin${look.skin}`][1])
+  }
+
+  // Too small to read on a phone: the Party panel is the roster there.
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(names).toHaveCount(0)
+})
+
+test('keeps the wagon scenery but gives members no settings control', async ({ page }) => {
+  await mockCampaignApi(page, [{ ...redHand, owner_id: ownerId }], { memberMode: true })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(2)
+  await expect(page.locator('[data-camp-sign][data-location="settings"]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Campaign settings/ })).toHaveCount(0)
+  await expect(camp.locator('.camp-name')).toHaveText(['game_master', 'player_one'])
+
+  // The wagon is still drawn, so a click there reaches only scenery.
+  await page.mouse.click(280, 680)
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+})
+
+test('outlines the hovered, focused, or open destination in the scene', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(3))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const outlined = () =>
+    page.locator('[data-camp-outline]').evaluate((canvas: HTMLCanvasElement) => {
+      const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+      let count = 0
+      for (let at = 3; at < data.length; at += 4) if (data[at] > 0) count += 1
+      return count
+    })
+
+  expect(await outlined()).toBe(0)
+
+  const wagon = page.locator('[data-camp-sign][data-location="settings"]')
+  await wagon.hover()
+  await expect.poll(outlined).toBeGreaterThan(0)
+  const wagonOutline = await outlined()
+  await page.mouse.move(700, 300)
+  await expect.poll(outlined).toBe(0)
+
+  // Bedrolls and seated figures make a bigger outline than the wagon alone.
+  await page.locator('[data-camp-sign][data-location="party"]').hover()
+  await expect.poll(outlined).toBeGreaterThan(0)
+  await page.mouse.move(700, 300)
+  await expect.poll(outlined).toBe(0)
+
+  // Keyboard focus outlines too, and so does an open destination.
+  await page.keyboard.press('Tab')
+  await page.locator('.camp-places__destination').first().focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect.poll(outlined).toBeGreaterThan(0)
+  await page.keyboard.press('Enter')
+  await expect(camp).toHaveAttribute('data-camp-state', 'overview')
+  await expect.poll(outlined).toBeGreaterThan(0)
+  await page.keyboard.press('Escape')
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+  expect(wagonOutline).toBeGreaterThan(0)
 })
 
 test('opens locations from Places when the camp artwork is unavailable', async ({ page }) => {

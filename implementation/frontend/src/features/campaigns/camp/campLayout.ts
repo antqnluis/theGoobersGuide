@@ -13,8 +13,11 @@ export type CampLocation = {
   world: { x: number; y: number }
   /** Size of the object's click target in base art pixels, standing on `world`. */
   hit: { width: number; height: number }
-  /** Where the label plate sits: above or below the object, centred or at its right end. */
-  plate: 'above' | 'below'
+  /**
+   * Where the label plate sits: above or below the object, centred or at its
+   * right end, or beside its left edge at ground level.
+   */
+  plate: 'above' | 'below' | 'left'
   plateAlign: 'center' | 'end'
   ownerOnly: boolean
 }
@@ -37,8 +40,9 @@ export const campLocations: readonly CampLocation[] = [
     place: 'Bedroll circle',
     world: { x: 480, y: 262 },
     hit: { width: 200, height: 44 },
-    plate: 'above',
-    plateAlign: 'end',
+    // Beside the ring's left edge: above it, the plate would cover the sprites and their names.
+    plate: 'left',
+    plateAlign: 'center',
     ownerOnly: false,
   },
   {
@@ -102,18 +106,30 @@ export const bedrolls: readonly CampProp[] = [
   { id: 'bedroll-cream', x: 580, y: 252, flip: true },
 ]
 
-/** Seats around the fire, ordered so a small party fills the front row first. */
+/**
+ * How many seats, from the first, sit on a bedroll. The sixth bedroll (the
+ * rightmost) is half hidden behind the foreground bushes at a desktop view, so
+ * nobody sits there and it stays an empty bedroll.
+ */
+export const bedrollSeats = 5
+
+/**
+ * Seats around the fire, ordered so a small party fills the front row first.
+ * The back seats flank the fire pit rather than sitting behind it, where the
+ * pit would hide them, and stay inside the foreground trees at the view's edge.
+ * Neighbouring seats are at least 30 pixels apart so name plates can sit above.
+ */
 export const partySeats = [
   { x: 440, y: 246 },
   { x: 520, y: 246 },
   { x: 410, y: 242 },
   { x: 550, y: 242 },
   { x: 380, y: 238 },
-  { x: 580, y: 238 },
-  { x: 458, y: 230 },
-  { x: 502, y: 230 },
+  { x: 396, y: 222 },
+  { x: 428, y: 222 },
+  { x: 532, y: 222 },
   { x: 350, y: 236 },
-  { x: 610, y: 236 },
+  { x: 566, y: 220 },
 ] as const
 
 export type RosterMember = { profile_id: string; role: string; username: string | null }
