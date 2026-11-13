@@ -63,7 +63,7 @@ export async function getCampaignMemberCount(campaignId: string): Promise<number
 }
 
 export async function getCampaignRoster(campaignId: string): Promise<CampaignRosterMember[]> {
-  const { data, error } = await supabase.rpc('get_campaign_roster', {
+  const { data, error } = await supabase.rpc('get_campaign_party', {
     p_campaign_id: campaignId,
   })
 

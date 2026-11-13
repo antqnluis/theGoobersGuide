@@ -81,6 +81,27 @@ describe('CampaignOwnershipTransfer', () => {
     expect(onTransfer).toHaveBeenCalledWith('ally', 'player_two')
   })
 
+  it('distinguishes members with the same display name when choosing and confirming', async () => {
+    const user = userEvent.setup()
+    const onTransfer = vi.fn()
+    const members: CampaignRosterMember[] = [
+      roster[0],
+      { ...roster[1], display_name: 'Aria' },
+      { ...roster[2], username: 'player_three', display_name: 'Aria' },
+    ]
+    render(<Harness members={members} onTransfer={onTransfer} />)
+
+    expect(screen.getByRole('radio', { name: 'Aria (player_two)' })).toBeVisible()
+    await user.click(screen.getByRole('radio', { name: 'Aria (player_three)' }))
+    await user.click(screen.getByRole('button', { name: 'Transfer ownership' }))
+
+    expect(screen.getByRole('group', { name: 'Confirm ownership transfer' })).toHaveTextContent(
+      'Make Aria (player_three) the owner of The Red Hand?',
+    )
+    await user.click(screen.getByRole('button', { name: 'Yes, transfer ownership' }))
+    expect(onTransfer).toHaveBeenCalledWith('ghost', 'Aria (player_three)')
+  })
+
   it('goes back to the picker when the owner keeps ownership', async () => {
     const user = userEvent.setup()
     const onTransfer = vi.fn()

@@ -630,6 +630,59 @@ input {
   overflow-wrap: anywhere;
 }
 
+.account-name {
+  position: relative;
+  min-width: 0;
+}
+
+.account-name__button {
+  min-height: 44px;
+  max-width: 100%;
+  border-radius: var(--radius-control);
+  padding: 0 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.account-name__button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.account-name__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: min(20rem, calc(100vw - 32px));
+  gap: 12px;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  padding: 14px;
+  color: var(--color-ink);
+  background: var(--color-paper-light);
+  box-shadow: var(--shadow-panel);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.account-name__title {
+  margin: 0;
+  font: 600 1.05rem / 1.25 var(--font-display);
+}
+
+.account-name__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .workspace-welcome {
   margin-top: 72px;
   padding: 0 0 50px;
@@ -811,9 +864,8 @@ input {
     gap: 12px;
   }
 
-  .workspace-account span {
+  .workspace-account .account-name {
     min-width: 0;
-    padding-top: 12px;
   }
 
   .workspace-welcome {

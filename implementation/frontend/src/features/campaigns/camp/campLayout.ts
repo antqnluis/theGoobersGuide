@@ -137,7 +137,12 @@ export const partySeats = [
   { x: 566, y: 220 },
 ] as const
 
-export type RosterMember = { profile_id: string; role: string; username: string | null }
+export type RosterMember = {
+  profile_id: string
+  role: string
+  username: string | null
+  display_name?: string | null
+}
 
 export type SeatedMember = {
   member: RosterMember

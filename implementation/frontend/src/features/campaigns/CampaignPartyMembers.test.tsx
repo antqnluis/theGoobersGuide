@@ -83,6 +83,30 @@ describe('CampaignPartyMembers', () => {
     expect(screen.getByText(/transfer ownership in Campaign settings first/)).toBeVisible()
   })
 
+  it('shows usernames beside distinct display names in the roster and removal confirmation', async () => {
+    const named: CampaignRosterMember[] = [
+      { profile_id: 'owner', role: 'owner', username: 'game_master', display_name: 'The Warden' },
+      { profile_id: 'ally', role: 'member', username: 'player_two', display_name: 'Aria' },
+      {
+        profile_id: 'same',
+        role: 'member',
+        username: 'player_three',
+        display_name: 'player_three',
+      },
+    ]
+    const { user } = setup({ isOwner: true, roster: named })
+    expect(screen.getByText('The Warden')).toBeVisible()
+    expect(screen.getByText('player_two')).toHaveClass('campaign-member-list__handle')
+    expect(screen.getAllByText('player_three')).toHaveLength(1)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Aria (player_two) from the campaign' }),
+    )
+    expect(
+      screen.getByRole('group', { name: 'Confirm removal of Aria (player_two)' }),
+    ).toHaveTextContent('Remove Aria (player_two) from The Red Hand?')
+  })
+
   it('omits the leave hint when the owner has no other members', () => {
     setup({ isOwner: true, roster: [roster[0]] })
     expect(screen.queryByText(/transfer ownership in Campaign settings first/)).toBeNull()

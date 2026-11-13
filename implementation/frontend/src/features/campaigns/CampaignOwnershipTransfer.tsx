@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import type { CampaignRosterMember } from './campaignTypes'
-import { memberName } from './memberName'
+import { memberLabel } from './memberName'
 import type { MembershipAction, MembershipConfirmation } from './useCampaignMembership'
 
 type CampaignOwnershipTransferProps = {
@@ -69,7 +69,7 @@ export function CampaignOwnershipTransfer({
                   type="radio"
                   value={member.profile_id}
                 />
-                <span>{memberName(member)}</span>
+                <span>{memberLabel(member)}</span>
               </label>
             ))}
           </fieldset>
@@ -99,8 +99,8 @@ export function CampaignOwnershipTransfer({
           role="group"
         >
           <p>
-            Make <strong>{memberName(target)}</strong> the owner of <strong>{campaignName}</strong>?
-            You'll become a regular member and will no longer be able to edit, delete, or invite
+            Make <strong>{memberLabel(target)}</strong> the owner of <strong>{campaignName}</strong>
+            ? You'll become a regular member and will no longer be able to edit, delete, or invite
             players to this campaign.
           </p>
           <div className="campaign-settings__actions">
@@ -108,7 +108,7 @@ export function CampaignOwnershipTransfer({
               autoFocus
               className="campaign-danger-button"
               disabled={busy}
-              onClick={() => onTransfer(target.profile_id, memberName(target))}
+              onClick={() => onTransfer(target.profile_id, memberLabel(target))}
               type="button"
             >
               {pendingAction === 'transfer' ? 'Transferring…' : 'Yes, transfer ownership'}

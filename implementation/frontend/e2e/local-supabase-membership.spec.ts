@@ -669,6 +669,7 @@ test('membership functions are executable only by authenticated users', () => {
        'public.leave_campaign(uuid)',
        'public.remove_campaign_member(uuid, uuid)',
        'public.transfer_campaign_ownership(uuid, uuid)',
+       'public.get_campaign_party(uuid)',
        'private.handle_campaign_member_departure(uuid, uuid)'
      ]) as f,
      unnest(array['anon', 'authenticated', 'service_role', 'public']) as r;`,
@@ -678,5 +679,186 @@ test('membership functions are executable only by authenticated users', () => {
     const [fn, role, allowed] = line.split(':')
     const expected = fn.startsWith('public.') && role === 'authenticated'
     expect(allowed, line).toBe(String(expected))
+  }
+})
+
+test('a member leaves through the Party panel and stays out after a reload', async ({ page }) => {
+  test.setTimeout(90_000)
+  const { players } = await newPlayers(['owner', 'guest'])
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M1 real-stack leave')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${guest.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await page.getByRole('button', { name: 'Party', exact: true }).click()
+    await expect(page.getByRole('list').getByText(owner.username, { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Leave campaign', exact: true }).click()
+    await page.getByRole('button', { name: 'Yes, leave campaign' }).click()
+
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    await expect(
+      page.getByRole('status').filter({ hasText: 'You left the campaign.' }),
+    ).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'M1 real-stack leave' })).toHaveCount(0)
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await expect(page.getByRole('heading', { name: 'Campaign not available' })).toBeVisible()
+
+    expect(await canRead(guest.client, campaignId)).toEqual({ campaigns: 0, members: 0, roster: 0 })
+    expect(await roster(owner.client, campaignId)).toEqual([`${owner.username}:owner`])
+    expect(invariantViolations(campaignId)).toBe('0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('get_campaign_party adds display names for members only and the roster contract is unchanged', async () => {
+  test.setTimeout(90_000)
+  const { players } = await newPlayers(['owner', 'guest', 'outsider'])
+  const { owner, guest, outsider } = players
+  const anonymous = localClient()
+  const ids: string[] = []
+  const party = async (client: Client, id: string) => {
+    const { data, error } = await client.rpc('get_campaign_party', { p_campaign_id: id })
+    expect(error).toBeNull()
+    return data as {
+      profile_id: string
+      role: string
+      username: string
+      display_name: string | null
+    }[]
+  }
+  const setName = (player: Player, name: string | null) =>
+    player.client.from('profiles').update({ display_name: name }).eq('id', player.id).select('id')
+  try {
+    const campaignId = await createCampaign(owner, 'M1 party')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+
+    expect((await party(guest.client, campaignId)).map((row) => row.display_name)).toEqual([
+      null,
+      null,
+    ])
+
+    expect((await setName(guest, 'Aria the Bold')).error).toBeNull()
+    expect((await setName(owner, 'Game Master')).error).toBeNull()
+    const rows = await party(guest.client, campaignId)
+    expect(rows.map((row) => `${row.username}:${row.role}:${row.display_name}`).sort()).toEqual(
+      [`${owner.username}:owner:Game Master`, `${guest.username}:member:Aria the Bold`].sort(),
+    )
+    expect(await party(owner.client, campaignId)).toHaveLength(2)
+
+    // Not a member, unknown campaign, and anonymous callers get nothing or are denied.
+    expect(await party(outsider.client, campaignId)).toEqual([])
+    expect(await party(guest.client, RANDOM_ID)).toEqual([])
+    expect(
+      (await rpcError(anonymous.rpc('get_campaign_party', { p_campaign_id: campaignId }))).code,
+    ).toBe('42501')
+
+    // The roster contract is unchanged.
+    const { data: rosterRows } = await guest.client.rpc('get_campaign_roster', {
+      p_campaign_id: campaignId,
+    })
+    expect(Object.keys((rosterRows as object[])[0]).sort()).toEqual([
+      'profile_id',
+      'role',
+      'username',
+    ])
+
+    // A departed player's name disappears with their access.
+    await rpcOk(guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    expect(await party(guest.client, campaignId)).toEqual([])
+    expect((await party(owner.client, campaignId)).map((row) => row.profile_id)).toEqual([owner.id])
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('display names are bounded and can only be changed by their owner', async () => {
+  test.setTimeout(90_000)
+  const { players } = await newPlayers(['alice', 'bob'])
+  const { alice, bob } = players
+  const update = (client: Client, id: string, name: string | null) =>
+    client.from('profiles').update({ display_name: name }).eq('id', id).select('display_name')
+
+  for (const bad of ['', '   ', ' padded ', 'x'.repeat(41), 'line\nbreak', 'tab\there']) {
+    const result = await update(alice.client, alice.id, bad)
+    expect(result.error?.code, JSON.stringify(bad)).toBe('23514')
+  }
+  expect((await update(alice.client, alice.id, 'x'.repeat(40))).error).toBeNull()
+  expect((await update(alice.client, alice.id, 'Zoë — 日本語')).data).toEqual([
+    { display_name: 'Zoë — 日本語' },
+  ])
+  expect((await update(alice.client, alice.id, null)).data).toEqual([{ display_name: null }])
+
+  // Another player's profile is not visible or writable.
+  const foreign = await update(bob.client, alice.id, 'Hijacked')
+  expect(foreign.data).toEqual([])
+  expect(
+    localDatabaseQuery(
+      `select display_name is null from public.profiles where id = '${alice.id}';`,
+      {},
+    ),
+  ).toBe('t')
+})
+
+test('a player sets a display name in the header and members see it in the Party', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  const { players } = await newPlayers(['owner', 'guest'])
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M1 display name')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${guest.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+    const account = page.locator('.workspace-account')
+    await account.getByRole('button', { name: new RegExp(guest.username) }).click()
+    await page.getByLabel('Display name', { exact: true }).fill('Aria the Bold')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(account.getByRole('button', { name: /Aria the Bold/ })).toBeVisible()
+
+    // Persisted: visible to the owner through the database, and after a reload.
+    const { data } = await owner.client.rpc('get_campaign_party', { p_campaign_id: campaignId })
+    expect(
+      (data as { username: string; display_name: string | null }[]).find(
+        (row) => row.username === guest.username,
+      )?.display_name,
+    ).toBe('Aria the Bold')
+
+    await page.goto(`/app/campaigns/${campaignId}`)
+    await expect(account.getByRole('button', { name: /Aria the Bold/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Party', exact: true }).click()
+    const list = page.getByRole('list').filter({ hasText: owner.username })
+    await expect(list.getByText('Aria the Bold')).toBeVisible()
+    await expect(list.locator('.campaign-member-list__handle')).toHaveText(guest.username)
+
+    // Clearing the name falls back to the username.
+    await page.getByRole('button', { name: 'Back to camp' }).click()
+    await account.getByRole('button', { name: /Aria the Bold/ }).click()
+    await page.getByLabel('Display name', { exact: true }).fill('')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(account.getByRole('button', { name: new RegExp(guest.username) })).toBeVisible()
+  } finally {
+    await cleanup(players, ids)
   }
 })

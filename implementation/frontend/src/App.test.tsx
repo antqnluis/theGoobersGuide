@@ -20,6 +20,11 @@ vi.mock('./features/auth/authService', () => ({
   subscribeToAuthState: vi.fn(),
 }))
 
+vi.mock('./features/auth/profileService', () => ({
+  getOwnDisplayName: vi.fn().mockResolvedValue(null),
+  updateOwnDisplayName: vi.fn(),
+}))
+
 vi.mock('./features/campaigns/campaignService', () => ({
   listAccessibleCampaigns: vi.fn(),
   createCampaign: vi.fn(),

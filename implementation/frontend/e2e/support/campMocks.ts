@@ -165,7 +165,7 @@ export async function mockCampaignApi(
       return
     }
 
-    if (path.endsWith('/rest/v1/rpc/get_campaign_roster') && method === 'POST') {
+    if (path.endsWith('/rest/v1/rpc/get_campaign_party') && method === 'POST') {
       const { p_campaign_id: campaignId } = request.postDataJSON() as { p_campaign_id: string }
       const campaign = campaigns.find((item) => item.id === campaignId)
       const roster = campaign
@@ -248,7 +248,7 @@ export function partyRoster(count: number): RosterMember[] {
 }
 
 export async function mockRoster(page: Page, roster: () => RosterMember[] | 'fail') {
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+  await page.route('**/rest/v1/rpc/get_campaign_party', async (route) => {
     const headers = corsHeaders()
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     const body = roster()
@@ -339,7 +339,7 @@ export async function mockMembership(
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
     requests.push(`${method} ${path.split('/rest/v1/')[1]}`)
 
-    if (rpc === 'get_campaign_roster') {
+    if (rpc === 'get_campaign_party') {
       return route.fulfill({ status: 200, headers, json: roster })
     }
     if (

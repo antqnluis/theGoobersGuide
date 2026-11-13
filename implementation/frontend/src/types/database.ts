@@ -166,6 +166,15 @@ export type Database = {
     }
     Functions: {
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
+      get_campaign_party: {
+        Args: { p_campaign_id: string }
+        Returns: {
+          display_name: string
+          profile_id: string
+          role: string
+          username: string
+        }[]
+      }
       get_campaign_roster: {
         Args: { p_campaign_id: string }
         Returns: {

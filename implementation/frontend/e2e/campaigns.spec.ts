@@ -331,7 +331,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     username: `player_${String(index).padStart(2, '0')}`,
   }))
   await mockCampaignApi(page, [{ ...redHand, name: longName }])
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+  await page.route('**/rest/v1/rpc/get_campaign_party', async (route) => {
     const headers = corsHeaders()
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     await route.fulfill({ status: 200, headers, json: roster })
@@ -1219,7 +1219,7 @@ test('retries campaign and party loading from the camp', async ({ page }) => {
     await pendingCampaign
     await route.fulfill({ status: 400, headers: corsHeaders(), json: error })
   })
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+  await page.route('**/rest/v1/rpc/get_campaign_party', async (route) => {
     const headers = corsHeaders()
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     if (failRoster) {
@@ -2131,7 +2131,7 @@ test('a member leaves from the Party panel by keyboard and lands on the selector
   expect(calls).toEqual(['leave_campaign'])
   // Nothing refetched the campaign or roster after the leave, so no "not available" flash.
   const afterLeave = requests.slice(requests.indexOf('POST rpc/leave_campaign') + 1)
-  expect(afterLeave.filter((entry) => entry.includes('rpc/get_campaign_roster'))).toEqual([])
+  expect(afterLeave.filter((entry) => entry.includes('rpc/get_campaign_party'))).toEqual([])
   expect(afterLeave.filter((entry) => entry.startsWith('GET campaigns'))).not.toContain(
     'GET campaigns?select=*&id=eq.' + campaign.id,
   )
@@ -2364,3 +2364,56 @@ for (const [label, width, height] of [
     expect(await hasNoHorizontalScroll(page)).toBe(true)
   })
 }
+
+test('a player sets a display name from the header and the Party shows others by theirs', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster: RosterMember[] = [
+    { profile_id: accountId, role: 'owner', username: 'player_one', display_name: null },
+    { profile_id: guestId, role: 'member', username: 'player_two', display_name: 'Aria' },
+  ]
+  await mockMembership(page, campaigns, roster)
+  let stored: string | null = null
+  const writes: unknown[] = []
+  await page.route('**/rest/v1/profiles*', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (request.method() === 'PATCH') {
+      writes.push(request.postDataJSON())
+      stored = (request.postDataJSON() as { display_name: string | null }).display_name
+      return route.fulfill({ status: 200, headers, json: [{ display_name: stored }] })
+    }
+    const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object')
+    const row = { display_name: stored }
+    return route.fulfill({ status: 200, headers, json: wantsObject ? row : [row] })
+  })
+  await openCamp(page)
+
+  const account = page.locator('.workspace-account')
+  await expect(account.getByRole('button', { name: /player_one/ })).toBeVisible()
+  await account.getByRole('button', { name: /player_one/ }).click()
+  const field = page.getByLabel('Display name', { exact: true })
+  await expect(field).toBeFocused()
+  await field.fill('x'.repeat(41))
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Use 40 characters or fewer.')).toBeVisible()
+  expect(writes).toEqual([])
+
+  await field.fill('  The Warden  ')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(account.getByRole('button', { name: /The Warden/ })).toBeVisible()
+  await expect(account.getByRole('button', { name: /The Warden/ })).toBeFocused()
+  expect(writes).toEqual([{ display_name: 'The Warden' }])
+
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const list = page.getByRole('list').filter({ hasText: 'player_two' })
+  await expect(list.getByText('Aria', { exact: false }).first()).toBeVisible()
+  await expect(list.locator('.campaign-member-list__handle')).toHaveText('player_two')
+  await expect(
+    page.getByRole('button', { name: 'Remove Aria (player_two) from the campaign' }),
+  ).toBeVisible()
+})

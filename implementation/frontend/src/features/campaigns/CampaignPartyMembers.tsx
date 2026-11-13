@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { MembershipAction, MembershipConfirmation } from './useCampaignMembership'
-import { memberName } from './memberName'
+import { memberHandle, memberLabel } from './memberName'
 import type { CampaignRosterMember } from './campaignTypes'
 
 type CampaignPartyMembersProps = {
@@ -93,7 +93,7 @@ export function CampaignPartyMembers({
       {status === 'success' && roster.length > 0 && (
         <ul className="campaign-member-list">
           {roster.map((member) => {
-            const name = memberName(member)
+            const name = memberLabel(member)
             const confirmingRemoval =
               confirmation?.type === 'remove' && confirmation.profileId === member.profile_id
             const removing = busy && pendingProfileId === member.profile_id
@@ -103,7 +103,12 @@ export function CampaignPartyMembers({
                 key={member.profile_id}
               >
                 <span>
-                  {member.username || (member.role === 'owner' ? 'Campaign owner' : 'Player')}
+                  {member.display_name ||
+                    member.username ||
+                    (member.role === 'owner' ? 'Campaign owner' : 'Player')}
+                  {memberHandle(member) && (
+                    <small className="campaign-member-list__handle"> {memberHandle(member)}</small>
+                  )}
                 </span>
                 <span className="campaign-member-list__role">
                   {member.role === 'owner' ? 'Owner' : 'Member'}

@@ -503,3 +503,8 @@
   gap: 10px;
   overflow-wrap: anywhere;
 }
+
+.campaign-member-list__handle {
+  color: var(--color-ink-soft);
+  font-size: 0.82rem;
+}

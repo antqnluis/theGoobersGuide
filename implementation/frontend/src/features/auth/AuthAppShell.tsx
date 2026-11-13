@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
 import { useArrival } from '../arrival/useArrival'
+import { AccountDisplayName } from './AccountDisplayName'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
 import { isInternalEmail } from './authValidation'
@@ -84,7 +85,11 @@ export function AuthAppShell() {
           </div>
           <div className="workspace-account">
             {isCamp && <div className="camp-header-slot" id="camp-header-slot" />}
-            <span title={isGalaxy || isCamp ? accountName : undefined}>{accountName}</span>
+            <AccountDisplayName
+              fallbackName={accountName}
+              title={isGalaxy || isCamp ? accountName : undefined}
+              userId={session?.user.id ?? ''}
+            />
             <button
               className="auth-button auth-button--secondary"
               disabled={isPending}
