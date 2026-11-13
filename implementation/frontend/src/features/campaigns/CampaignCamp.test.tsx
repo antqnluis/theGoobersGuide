@@ -19,6 +19,8 @@ function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
       notice={null}
       background="campaign"
       onBackgroundChange={vi.fn()}
+      hue={0}
+      onHueChange={vi.fn()}
       onLeave={vi.fn()}
       landfallKey={null}
       roster={[]}
@@ -112,6 +114,8 @@ describe('CampaignCamp frame loop cleanup', () => {
           isOwner
           background="campaign"
           onBackgroundChange={vi.fn()}
+          hue={0}
+          onHueChange={vi.fn()}
           onLeave={vi.fn()}
           landfallKey={round % 2 === 0 ? `entry-${round}` : null}
           notice={null}

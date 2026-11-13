@@ -1,5 +1,11 @@
 import { useCallback, useState } from 'react'
-import { readBackground, writeBackground, type CampBackground } from './campBackground'
+import {
+  readBackground,
+  readHue,
+  writeBackground,
+  writeHue,
+  type CampBackground,
+} from './campBackground'
 
 function browserStorage() {
   try {
@@ -22,4 +28,17 @@ export function useCampBackground(campaignId: string) {
     [campaignId],
   )
   return [background, choose] as const
+}
+
+/** The player's hue shift (degrees) for one campaign, remembered on this device. */
+export function useCampHue(campaignId: string) {
+  const [hue, setHue] = useState(() => readHue(browserStorage(), campaignId))
+  const choose = useCallback(
+    (next: number) => {
+      setHue(next)
+      writeHue(browserStorage(), campaignId, next)
+    },
+    [campaignId],
+  )
+  return [hue, choose] as const
 }

@@ -3,9 +3,13 @@ import { planetAppearance } from '../planetModel'
 import {
   backgroundChoices,
   isCampBackground,
+  isHueShift,
   readBackground,
+  readHue,
+  rotateHue,
   worldFor,
   writeBackground,
+  writeHue,
 } from './campBackground'
 
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -88,5 +92,47 @@ describe('worldFor', () => {
     const world = worldFor(planet, other)
     expect(world.kind).toBe(other)
     expect(world.palette).toEqual(planet.palette)
+  })
+})
+
+describe('hue shift', () => {
+  const planet = planetAppearance('00000000-0000-4000-8000-000000000011')
+
+  it('accepts only whole degrees within range', () => {
+    expect(isHueShift(0)).toBe(true)
+    expect(isHueShift(-180)).toBe(true)
+    expect(isHueShift(181)).toBe(false)
+    expect(isHueShift(12.5)).toBe(false)
+    expect(isHueShift(Number.NaN)).toBe(false)
+  })
+
+  it('remembers a shift per campaign and forgets it at zero', () => {
+    const storage = fakeStorage()
+    writeHue(storage, 'a', 45)
+    writeHue(storage, 'b', -90)
+    expect(readHue(storage, 'a')).toBe(45)
+    expect(readHue(storage, 'b')).toBe(-90)
+    expect(readHue(storage, 'c')).toBe(0)
+    writeHue(storage, 'a', 0)
+    expect(storage.items.has('camp-hue:a')).toBe(false)
+  })
+
+  it('ignores corrupt values and survives storage that throws', () => {
+    expect(readHue(fakeStorage({ 'camp-hue:a': 'banana' }), 'a')).toBe(0)
+    expect(readHue(fakeStorage({ 'camp-hue:a': '999' }), 'a')).toBe(0)
+    expect(readHue(null, 'a')).toBe(0)
+    expect(readHue(broken, 'a')).toBe(0)
+    expect(() => writeHue(broken, 'a', 30)).not.toThrow()
+  })
+
+  it('rotates colours without changing the world type, and a full turn comes back', () => {
+    expect(rotateHue('#c0803c', 0)).toBe('#c0803c')
+    expect(rotateHue('#c0803c', 120)).not.toBe('#c0803c')
+    const world = worldFor(planet, 'campaign', 90)
+    expect(world.kind).toBe(planet.kind)
+    expect(world.palette).not.toEqual(planet.palette)
+    expect(world.palette).toHaveLength(planet.palette.length)
+    expect(world.air).not.toBe(planet.air)
+    expect(worldFor(planet, 'campaign', 0)).toBe(planet)
   })
 })

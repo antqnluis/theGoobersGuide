@@ -75,6 +75,8 @@ export function CampaignCamp({
   world,
   background,
   onBackgroundChange,
+  hue,
+  onHueChange,
   onLeave,
   roster,
   landfallKey,
@@ -92,6 +94,9 @@ export function CampaignCamp({
   /** The player's background choice, and how to change it. */
   background: CampBackground
   onBackgroundChange: (background: CampBackground) => void
+  /** The player's hue shift in degrees, and how to change it. */
+  hue: number
+  onHueChange: (hue: number) => void
   /** Returns to the galaxy: the waystone's pointer shortcut (the header link is the accessible one). */
   onLeave: () => void
   /** The loaded roster; empty while loading, on error, or when none is available. */
@@ -427,7 +432,12 @@ export function CampaignCamp({
       data-camp-world={world.kind}
       ref={campRef}
     >
-      <CampSettings background={background} onChange={onBackgroundChange} />
+      <CampSettings
+        background={background}
+        hue={hue}
+        onChange={onBackgroundChange}
+        onHueChange={onHueChange}
+      />
       <div className="camp__heading">
         {title}
         {/* Always mounted, so a screen reader announces text added to it. */}

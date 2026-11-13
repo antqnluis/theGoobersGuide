@@ -763,6 +763,50 @@
   font-weight: 400;
 }
 
+.camp-settings__hue {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--camp-edge);
+  padding: 8px 8px 4px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.camp-settings__hue label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.camp-settings__hue output {
+  color: var(--camp-brass-soft);
+  font-weight: 400;
+}
+
+.camp-settings__hue input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--camp-brass);
+}
+
+.camp-settings__hue button {
+  min-height: 44px;
+  justify-self: start;
+  border-radius: var(--radius-control);
+  padding: 0 8px;
+  color: var(--camp-cream);
+  background: transparent;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.camp-settings__hue button:disabled {
+  color: var(--camp-brass-soft);
+  cursor: default;
+  opacity: 0.6;
+  text-decoration: none;
+}
+
 .camp-settings__note {
   margin: 4px 8px 2px;
   color: var(--camp-brass-soft);

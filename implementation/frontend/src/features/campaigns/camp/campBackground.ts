@@ -3,6 +3,7 @@
 // choice is cosmetic and personal, so it lives only on this device, per campaign.
 
 import type { CampKind, CampWorld } from './campPalette.ts'
+import { hexToRgb, labToRgb, rgbToHex, rgbToLab } from './oklab.ts'
 
 export type CampBackground = 'campaign' | CampKind
 
@@ -53,7 +54,59 @@ export function writeBackground(
   }
 }
 
-/** The world to draw: the planet's own, or its colours worn by the chosen landscape. */
-export function worldFor(planet: CampWorld, background: CampBackground): CampWorld {
-  return background === 'campaign' ? planet : { ...planet, kind: background }
+// A hue shift turns every colour of the world around the colour wheel, in whole
+// degrees from -180 to 180. Like the background it is personal and per device.
+export const hueRange = { min: -180, max: 180, step: 15 } as const
+
+export function isHueShift(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= hueRange.min &&
+    value <= hueRange.max
+  )
+}
+
+const hueKey = (campaignId: string) => `camp-hue:${campaignId}`
+
+/** The saved hue shift in degrees, or 0 when there is none or storage fails. */
+export function readHue(storage: Storage | null, campaignId: string): number {
+  try {
+    const saved = Number(storage?.getItem(hueKey(campaignId)))
+    return isHueShift(saved) ? saved : 0
+  } catch {
+    return 0
+  }
+}
+
+export function writeHue(storage: Storage | null, campaignId: string, degrees: number) {
+  try {
+    if (degrees === 0) storage?.removeItem(hueKey(campaignId))
+    else storage?.setItem(hueKey(campaignId), String(degrees))
+  } catch {
+    // Private windows and blocked storage: the choice just lasts for this visit.
+  }
+}
+
+/** Turns a colour around the wheel in OKLab, keeping its lightness and chroma. */
+export function rotateHue(hex: string, degrees: number) {
+  const [lightness, a, b] = rgbToLab(hexToRgb(hex))
+  const angle = (degrees * Math.PI) / 180
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  return rgbToHex(labToRgb([lightness, a * cos - b * sin, a * sin + b * cos]))
+}
+
+/**
+ * The world to draw: the planet's own, or its colours worn by the chosen
+ * landscape, with every colour turned by the hue shift.
+ */
+export function worldFor(planet: CampWorld, background: CampBackground, hue = 0): CampWorld {
+  const base = background === 'campaign' ? planet : { ...planet, kind: background }
+  if (hue === 0) return base
+  return {
+    ...base,
+    palette: base.palette.map((color) => rotateHue(color, hue)) as unknown as CampWorld['palette'],
+    air: rotateHue(base.air, hue) as CampWorld['air'],
+  }
 }

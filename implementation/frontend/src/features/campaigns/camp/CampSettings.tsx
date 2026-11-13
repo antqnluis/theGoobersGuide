@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { backgroundChoices, type CampBackground } from './campBackground'
+import { backgroundChoices, hueRange, type CampBackground } from './campBackground'
 
 /** The element in the app header that holds the camp's settings button. */
 export const campHeaderSlotId = 'camp-header-slot'
@@ -12,10 +12,14 @@ export const campHeaderSlotId = 'camp-header-slot'
  */
 export function CampSettings({
   background,
+  hue,
   onChange,
+  onHueChange,
 }: {
   background: CampBackground
+  hue: number
   onChange: (background: CampBackground) => void
+  onHueChange: (hue: number) => void
 }) {
   const [open, setOpen] = useState(false)
   const [slot] = useState(() => document.getElementById(campHeaderSlotId))
@@ -95,6 +99,25 @@ export function CampSettings({
               </span>
             </label>
           ))}
+          <div className="camp-settings__hue">
+            <label htmlFor={`${panelId}-hue`}>
+              Hue
+              <output htmlFor={`${panelId}-hue`}>{hue > 0 ? `+${hue}` : hue}°</output>
+            </label>
+            <input
+              aria-valuetext={`${hue} degrees`}
+              id={`${panelId}-hue`}
+              max={hueRange.max}
+              min={hueRange.min}
+              onChange={(event) => onHueChange(Number(event.currentTarget.value))}
+              step={hueRange.step}
+              type="range"
+              value={hue}
+            />
+            <button disabled={hue === 0} onClick={() => onHueChange(0)} type="button">
+              Reset hue
+            </button>
+          </div>
           <p className="camp-settings__note">Saved on this device for this campaign.</p>
         </div>
       )}
