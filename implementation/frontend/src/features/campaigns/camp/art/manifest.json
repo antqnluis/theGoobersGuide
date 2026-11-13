@@ -1,0 +1,285 @@
+{
+  "version": 1,
+  "panorama": {
+    "width": 960,
+    "height": 270
+  },
+  "layers": [
+    {
+      "id": "sky",
+      "file": "sky.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.1,
+      "provenance": "ChatGPT, comp A style; sky strip, mirrored x2.4; layer, scale 0.2637"
+    },
+    {
+      "id": "ridge-desert",
+      "file": "ridge-desert.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; desert biome bands; band 1 of biome-desert.png, scale 0.2637"
+    },
+    {
+      "id": "ridge-frozen",
+      "file": "ridge-frozen.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; frozen biome bands; band 1 of biome-frozen.png, scale 0.2637"
+    },
+    {
+      "id": "ridge-gas",
+      "file": "ridge-gas.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; gas biome bands; band 1 of biome-gas.png, scale 0.2637"
+    },
+    {
+      "id": "ridge-rocky",
+      "file": "ridge-rocky.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; rocky biome bands; band 1 of biome-rocky.png, scale 0.2637"
+    },
+    {
+      "id": "ridge-volcanic",
+      "file": "ridge-volcanic.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; volcanic biome bands; band 1 of biome-volcanic.png, scale 0.2637"
+    },
+    {
+      "id": "ridge",
+      "file": "ridge.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.3,
+      "provenance": "ChatGPT, comp A style; far ridge, mirrored; layer, scale 0.2637"
+    },
+    {
+      "id": "mid-desert",
+      "file": "mid-desert.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; desert biome bands; band 2 of biome-desert.png, scale 0.2637"
+    },
+    {
+      "id": "mid-frozen",
+      "file": "mid-frozen.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; frozen biome bands; band 2 of biome-frozen.png, scale 0.2637"
+    },
+    {
+      "id": "mid-gas",
+      "file": "mid-gas.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; gas biome bands; band 2 of biome-gas.png, scale 0.2637"
+    },
+    {
+      "id": "mid-rocky",
+      "file": "mid-rocky.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; rocky biome bands; band 2 of biome-rocky.png, scale 0.2637"
+    },
+    {
+      "id": "mid-volcanic",
+      "file": "mid-volcanic.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; volcanic biome bands; band 2 of biome-volcanic.png, scale 0.2637"
+    },
+    {
+      "id": "trees",
+      "file": "trees.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 0.6,
+      "provenance": "ChatGPT, comp A style; mid forest, mirrored; layer, scale 0.2637"
+    },
+    {
+      "id": "bedroll-red",
+      "file": "bedroll-red.png",
+      "width": 43,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "bedroll-blue",
+      "file": "bedroll-blue.png",
+      "width": 43,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "bedroll-green",
+      "file": "bedroll-green.png",
+      "width": 43,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "bedroll-purple",
+      "file": "bedroll-purple.png",
+      "width": 42,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "bedroll-gold",
+      "file": "bedroll-gold.png",
+      "width": 42,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "bedroll-cream",
+      "file": "bedroll-cream.png",
+      "width": 43,
+      "height": 29,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; bedroll sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "ground-desert",
+      "file": "ground-desert.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; desert biome bands; band 3 of biome-desert.png, scale 0.2637"
+    },
+    {
+      "id": "ground-frozen",
+      "file": "ground-frozen.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; frozen biome bands; band 3 of biome-frozen.png, scale 0.2637"
+    },
+    {
+      "id": "ground-gas",
+      "file": "ground-gas.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; gas biome bands; band 3 of biome-gas.png, scale 0.2637"
+    },
+    {
+      "id": "ground-rocky",
+      "file": "ground-rocky.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; rocky biome bands; band 3 of biome-rocky.png, scale 0.2637"
+    },
+    {
+      "id": "ground-volcanic",
+      "file": "ground-volcanic.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; volcanic biome bands; band 3 of biome-volcanic.png, scale 0.2637"
+    },
+    {
+      "id": "firepit",
+      "file": "firepit.png",
+      "width": 56,
+      "height": 37,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; unlit fire pit (flame is procedural); sprite, scale 0.067"
+    },
+    {
+      "id": "ground",
+      "file": "ground.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1,
+      "provenance": "ChatGPT, comp A style; meadow, mirrored; layer, scale 0.2637"
+    },
+    {
+      "id": "map-table",
+      "file": "map-table.png",
+      "width": 47,
+      "height": 35,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; dormant props sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "journal-crates",
+      "file": "journal-crates.png",
+      "width": 32,
+      "height": 38,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; dormant props sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "empty-tent",
+      "file": "empty-tent.png",
+      "width": 50,
+      "height": 35,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; dormant props sheet; sprite, scale 0.1"
+    },
+    {
+      "id": "wagon",
+      "file": "wagon.png",
+      "width": 104,
+      "height": 80,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; steward wagon; sprite, scale 0.12"
+    },
+    {
+      "id": "waystone",
+      "file": "waystone.png",
+      "width": 44,
+      "height": 60,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; waystone; sprite, scale 0.07"
+    },
+    {
+      "id": "foreground",
+      "file": "foreground.png",
+      "width": 960,
+      "height": 270,
+      "status": "final",
+      "parallax": 1.2,
+      "provenance": "ChatGPT, comp A style; framing. full-height canvas, trunks run off the top; layer, scale 0.2637"
+    }
+  ]
+}

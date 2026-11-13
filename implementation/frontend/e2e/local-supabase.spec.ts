@@ -170,17 +170,29 @@ test('registers and signs in by username or email and enforces profile and campa
       const campaignId = new URL(page.url()).pathname.split('/').at(-1)
       expect(campaignId).toBeTruthy()
       campaignIds.push(campaignId!)
-      await expect(page.getByText(emailUsername, { exact: true }).last()).toBeVisible()
+      await page.getByRole('button', { name: 'Party', exact: true }).click()
+      const party = page.getByRole('dialog', { name: 'People in this campaign' })
+      await expect(
+        party.getByRole('listitem').getByText(emailUsername, { exact: true }),
+      ).toBeVisible()
 
       await page.reload()
       await expect(page.getByRole('heading', { name: campaignName })).toBeVisible()
+      await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
       await page.getByRole('button', { name: 'Edit details' }).click()
       await page.getByLabel('Campaign name').fill(`${campaignName} updated`)
       await page.getByRole('button', { name: 'Save changes' }).click()
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Campaign details saved.' }),
+      ).toBeVisible()
+      await page.getByRole('button', { name: 'Back to camp' }).click()
       await expect(page.getByRole('heading', { name: `${campaignName} updated` })).toBeVisible()
 
       await page.reload()
       await expect(page.getByRole('heading', { name: `${campaignName} updated` })).toBeVisible()
+      await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
+      await page.getByRole('button', { name: 'Delete campaign' }).click()
+      await page.getByRole('button', { name: 'Keep campaign' }).click()
       await page.getByRole('button', { name: 'Delete campaign' }).click()
       await page.getByRole('button', { name: 'Yes, delete campaign' }).click()
       await expect(page).toHaveURL(/\/app\/campaigns$/)
@@ -482,6 +494,12 @@ test('campaign invitations grant access only after the addressed player accepts'
 
     await signIn(ownerUsername)
     await page.goto(`/app/campaigns/${campaignId}`)
+    await page.getByRole('button', { name: 'Party', exact: true }).click()
+    await page.getByRole('button', { name: 'Invite player' }).click()
+    await page.getByLabel('Player username').fill(unrelatedUsername)
+    await page.getByRole('button', { name: 'Send invitation' }).click()
+    await page.getByRole('button', { name: `Cancel invitation for ${unrelatedUsername}` }).click()
+    await expect(page.getByText('Invitation cancelled.')).toBeVisible()
     await page.getByRole('button', { name: 'Invite player' }).click()
     await page.getByLabel('Player username').fill(`  ${recipientUsername.toUpperCase()}  `)
     await page.getByRole('button', { name: 'Send invitation' }).click()
@@ -489,6 +507,7 @@ test('campaign invitations grant access only after the addressed player accepts'
     await expect(
       page.getByRole('button', { name: `Cancel invitation for ${recipientUsername}` }),
     ).toBeVisible()
+    await page.getByRole('button', { name: 'Back to camp' }).click()
     await page.getByRole('button', { name: 'Sign out' }).click()
     await expect(page).toHaveURL(/\/login$/)
 
@@ -556,8 +575,10 @@ test('campaign invitations grant access only after the addressed player accepts'
     await expect(page.getByRole('button', { name: campaignName, exact: true })).toBeVisible()
     await page.goto(`/app/campaigns/${campaignId}`)
     await expect(page.getByRole('heading', { name: campaignName })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Campaign settings' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Party', exact: true }).click()
+    await expect(page.getByRole('list').getByText(ownerUsername, { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Invite player' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0)
     expect(await incoming(recipient)).toMatchObject({ data: [], error: null })
     expect(await outgoing(owner, campaignId)).toMatchObject({ data: [], error: null })
     expect(await recipient.rpc('get_campaign_roster', { p_campaign_id: campaignId })).toMatchObject(
