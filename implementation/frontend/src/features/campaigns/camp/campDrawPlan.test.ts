@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
-import { planScene, type ImageSizes } from './campDrawPlan'
+import { foregroundBand, foregroundSplit, planScene, type ImageSizes } from './campDrawPlan'
 import { frameSpriteId, partyFigures, type PartyFigure } from './campParty'
 import { panorama } from './campLayout'
 import type { CampKind } from './campPalette'
@@ -109,7 +109,7 @@ describe('planScene', () => {
     )
   })
 
-  it('pins the foreground frames to the edges of the view', () => {
+  it('pins the foreground trees to the edges of the view', () => {
     for (const [width, height] of [
       [1440, 900],
       [3440, 1440],
@@ -117,11 +117,54 @@ describe('planScene', () => {
     ]) {
       const view = viewFor(width, height, width === 375 ? 3 : 1)
       const frames = planScene(view, 'terrestrial', sizes).filter(({ id }) => id === 'foreground')
-      expect(frames).toHaveLength(2)
-      expect(frames[0].dx).toBe(0)
-      expect(frames[1].dx + frames[1].dw).toBe(view.deviceWidth)
+      const left = frames.filter(({ sx }) => sx === 0)
+      const right = frames.filter(({ sx }) => sx !== 0)
+      expect(left.length).toBeGreaterThanOrEqual(2)
+      expect(right).toHaveLength(left.length)
+      for (const frame of left) expect(frame.dx).toBe(0)
+      for (const frame of right) expect(frame.dx + frame.dw).toBe(view.deviceWidth)
     }
   })
+
+  it.each([
+    [1440, 900, 1],
+    [1440, 1100, 1],
+    [3440, 1440, 1],
+    [2000, 1009, 1],
+    [375, 812, 3],
+    [1280, 720, 1],
+  ])(
+    'runs the trees from the canopy at the top of the screen to the ground at %i x %i',
+    (width, height, dpr) => {
+      const view = viewFor(width, height, dpr)
+      const frames = planScene(view, 'terrestrial', sizes)
+        .filter(({ id }) => id === 'foreground')
+        .filter(({ sx }) => sx === 0)
+      const { scale } = view
+      // The canopy touches the top of the screen and the trunk reaches the bottom.
+      const canopy = frames.find(({ sy }) => sy === 0)!
+      expect(canopy.dy).toBe(0)
+      expect(canopy.dh).toBe(foregroundSplit * scale)
+      const trunk = frames.find(({ sy, sh }) => sy === foregroundSplit && sh > foregroundBand)!
+      expect(trunk.dy + trunk.dh).toBe(view.deviceHeight)
+      // Between them, the bark leaves no gap: the pieces join edge to edge.
+      const spans = frames.map(({ dy, dh }) => [dy, dy + dh]).toSorted((a, b) => a[0] - b[0])
+      let covered = 0
+      for (const [top, bottom] of spans) {
+        expect(top).toBeLessThanOrEqual(covered)
+        covered = Math.max(covered, bottom)
+      }
+      expect(covered).toBe(view.deviceHeight)
+      for (const op of frames) {
+        for (const value of [op.dx, op.dy, op.dw, op.dh]) expect(Number.isInteger(value)).toBe(true)
+      }
+      // Bark copies alternate, starting flipped against the trunk.
+      const bark = frames
+        .filter(({ sy, sh }) => sy === foregroundSplit && sh === foregroundBand)
+        .toSorted((a, b) => b.dy - a.dy)
+      bark.forEach((op, index) => expect(Boolean(op.flipY)).toBe(index % 2 === 0))
+    },
+  )
 
   it('leaves out props that are off screen, and flips mirrored bedrolls', () => {
     const phone = viewFor(375, 812, 3)
@@ -193,13 +236,22 @@ describe('planScene during the landfall descent', () => {
   const find = (view: View, id: string) =>
     planScene(view, 'terrestrial', sizes).find((op) => op.id === id)!
 
+  const trunkOf = (view: View) =>
+    planScene(view, 'terrestrial', sizes).find(
+      ({ id, sy, sh, sx }) =>
+        id === 'foreground' && sx === 0 && sy === foregroundSplit && sh > foregroundBand,
+    )!
+  const high_foreground = () => trunkOf(high)
+  const rest_foreground = () => trunkOf(rest)
+
   it('slides each layer down by its own share, so the sky barely moves', () => {
     const drop = (id: string) => find(high, id).dy - find(rest, id).dy
     expect(drop('sky')).toBe(Math.round(40 * 0.1) * rest.scale)
     expect(drop('ridge')).toBeGreaterThan(drop('sky'))
     expect(drop('trees')).toBeGreaterThan(drop('ridge'))
     expect(drop('ground')).toBe(40 * rest.scale)
-    expect(drop('foreground')).toBeGreaterThan(drop('ground'))
+    const trunkDrop = high_foreground().dy - rest_foreground().dy
+    expect(trunkDrop).toBeGreaterThan(drop('ground'))
   })
 
   it('moves props with the ground and keeps every coordinate whole', () => {

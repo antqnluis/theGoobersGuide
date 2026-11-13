@@ -54,6 +54,21 @@ describe('composeLayer', () => {
     expect([...out.indices.slice(0, 8)]).toEqual([0, 1, -1, -1, -1, -1, -1, 2])
   })
 
+  it('fills below painted columns with the most common bottom colour, leaving others clear', () => {
+    const ragged: Quantized = {
+      width: 4,
+      height: 3,
+      // Columns 0 and 1 end in 6, column 2 ends in 9, column 3 is empty.
+      indices: Int16Array.from([7, -1, -1, -1, 8, 9, -1, -1, 6, 6, 9, -1]),
+    }
+    const out = composeLayer(ragged, { width: 4, height: 6, tile: 'none', fillDownTo: 5 })
+    const column = (x: number) => Array.from({ length: 6 }, (_, y) => out.indices[y * 4 + x])
+    expect(column(0)).toEqual([7, 8, 6, 6, 6, -1])
+    expect(column(1)).toEqual([-1, 9, 6, 6, 6, -1])
+    expect(column(2)).toEqual([-1, -1, 9, 6, 6, -1])
+    expect(column(3)).toEqual(Array(6).fill(-1))
+  })
+
   it('fills downwards by reflecting about the last painted row', () => {
     const padded: Quantized = {
       width: 2,

@@ -76,17 +76,54 @@ function tiledLayer(id: string, factor: number, view: View, repeatUp: number | f
   return ops
 }
 
+/**
+ * The foreground trees are cut in two: the canopy (rows above `foregroundSplit`)
+ * and the trunk and roots below it. The trunk rows between the two are a plain
+ * stretch of bark (`foregroundBand`), so on a view taller than the panorama the
+ * canopy rides at the top of the screen and that bark repeats down to the
+ * trunk, and the trees reach the top instead of ending in mid-air.
+ */
+export const foregroundSplit = 49
+export const foregroundBand = 5
+
 /** Frames pinned to the left and right edges of the view, not the panorama. */
 function pinnedForeground(view: View): DrawOp[] {
+  const { scale } = view
   const origin = layerOrigin(view, parallax.foreground)
   const half = panorama.width / 2
-  const dw = half * view.scale
-  const common = { id: 'foreground', sy: 0, sw: half, sh: panorama.height, dy: origin.y, dw }
-  const dh = panorama.height * view.scale
-  return [
-    { ...common, sx: 0, dx: 0, dh },
-    { ...common, sx: half, dx: view.deviceWidth - dw, dh },
-  ]
+  const dw = half * scale
+  const trunkTop = origin.y + foregroundSplit * scale
+  const bandHeight = foregroundBand * scale
+  const ops: DrawOp[] = []
+  for (const [sx, dx] of [
+    [0, 0],
+    [half, view.deviceWidth - dw],
+  ]) {
+    const base = { id: 'foreground', sx, sw: half, dx, dw }
+    // Bark fills the gap between the canopy at the top of the screen and the
+    // trunk, repeated upwards from the trunk and flipped each time so the seams
+    // match; the copy against the trunk is flipped so it joins the bark exactly.
+    const canopyBottom = foregroundSplit * scale
+    for (let copy = 0; trunkTop - copy * bandHeight > canopyBottom; copy += 1) {
+      ops.push({
+        ...base,
+        sy: foregroundSplit,
+        sh: foregroundBand,
+        dy: trunkTop - (copy + 1) * bandHeight,
+        dh: bandHeight,
+        flipY: copy % 2 === 0,
+      })
+    }
+    ops.push({
+      ...base,
+      sy: foregroundSplit,
+      sh: panorama.height - foregroundSplit,
+      dy: trunkTop,
+      dh: (panorama.height - foregroundSplit) * scale,
+    })
+    ops.push({ ...base, sy: 0, sh: foregroundSplit, dy: 0, dh: canopyBottom })
+  }
+  return ops
 }
 
 export function planScene(

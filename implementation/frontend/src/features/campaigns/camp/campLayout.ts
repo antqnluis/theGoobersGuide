@@ -115,16 +115,18 @@ export const bedrollSeats = 5
 
 /**
  * Seats around the fire, ordered so a small party fills the front row first.
+ * Each of the first five sits in the body of its bedroll, a few pixels toward the
+ * side away from the rolled end and low enough that the legs rest on the mat.
  * The back seats flank the fire pit rather than sitting behind it, where the
  * pit would hide them, and stay inside the foreground trees at the view's edge.
  * Neighbouring seats are at least 30 pixels apart so name plates can sit above.
  */
 export const partySeats = [
-  { x: 440, y: 246 },
-  { x: 520, y: 246 },
-  { x: 410, y: 242 },
-  { x: 550, y: 242 },
-  { x: 380, y: 238 },
+  { x: 445, y: 252 },
+  { x: 515, y: 252 },
+  { x: 415, y: 248 },
+  { x: 545, y: 248 },
+  { x: 385, y: 244 },
   { x: 396, y: 222 },
   { x: 428, y: 222 },
   { x: 532, y: 222 },

@@ -383,3 +383,40 @@ The camp now moves: landfall descent, camera pans to a destination, a living fir
   - The waystone shortcut is still out: it needs a visible, labelled pointer shortcut design; the camera can now reach it, so it fits in Phase 7.
   - Mid-descent, the sky's lower rows show faint inverted hills under the ridge for a few frames; polish in Phase 7 with the sky chevron.
 - **Not verified:** the title morph into the descent (manual check, the plan's note); real-GPU and high-DPR frame pacing (software renderer only); frame times and heap growth (Phase 7); Safari and Firefox.
+
+**Phase 6 follow-up (13 November 2026), after review of a real render:**
+- **Party seating:** the first five seats moved into the body of their bedrolls (a few pixels away from the rolled end, legs resting on the mat), where before the figures sat at the mat's upper edge. Their draw depth now follows the bedroll's own.
+- **Wheel scroll:** the mouse wheel and trackpad scroll the panorama sideways, in addition to dragging. A vertical wheel pans only where the page itself cannot scroll (the stacked phone layout keeps its page scroll); a sideways gesture always pans. Trackpad-sized steps follow directly, wheel notches ease over 160 ms, both clamp. Pinch-zoom (ctrl+wheel) is left alone.
+- **Tests:** two new e2e tests (desktop wheel with clamping; phone keeps page scroll, sideways wheel pans).
+- **Background match (second review):** in the five non-terrestrial worlds the far ridge ended on a straight cut at row 135 while the nearer mid layer is sparse (cacti, columns, reef), so a band of starry sky showed between them and the mountains sat too high. The pipeline gained a `fillDownTo` layer option that fills below each painted column with the layer's most common bottom-edge colour (one flat colour, so dithering never streaks), and the ridges were re-anchored lower per world (desert 24 rows, volcanic and rocky 12, gas 8; frozen and terrestrial unchanged, their tree layer already closes the gap). `art:build` regenerated only the five `ridge-*.png` files; a check over all six worlds finds no uncovered row between the ridge top and the ground. One new pipeline unit test.
+- **Side trees reach the top (second review):** on a view taller than the 270-row panorama the pinned foreground trunks ended in mid-air where the art's top row was. The foreground is now drawn in pieces: the canopy (rows 0 to 48) rides at the top of the screen, a plain 5-row stretch of bark (rows 49 to 53) repeats down from it, flipped each time so seams match and the copy against the trunk joins exactly, and the trunk and roots below row 49 stay on the ground line. The rows were picked by measuring the art: both trunks are bare bark there. No art file changed. The descent's extra height fills with the same bark. Tests: tree pieces join edge to edge from the top of the screen to the bottom at six viewports (including 2000×1009), whole pixels, bark flips alternate.
+
+**Phase 6 follow-up: camp background settings (13 November 2026).** A gear button in the app header, on the camp page only, beside the account name and Sign out, opens a small panel to choose the camp background.
+- **Choices:** "Campaign's world" (default, follows the planet) and the six landscapes (grass and pines, dunes, ash and basalt, snow, scree, cloud reef). A pick wears the campaign's own planet colours in that landscape, with that landscape's particles.
+- **Saving:** this device only, per campaign, in `localStorage` (`camp-background:<campaignId>`); choosing the campaign's world again removes the entry. No database change, so another device starts from the planet's world. Blocked or throwing storage is tolerated: the pick lasts for the visit.
+- **Behaviour:** the panel stays open while you compare; Escape closes it and returns focus to the gear, as does a click elsewhere; radios are native (arrow keys work), ≥44 px rows, and the gear is 44 px. The camp keeps showing its current frame until the new art has loaded.
+- **Tests:** 7 new unit tests (`campBackground.test.ts`), two e2e tests (header placement, all choices, keyboard, Escape and outside click, reload persistence, per-campaign privacy, revert; phone fit with storage blocked).
+
+
+### Phase 7: Performance and cross-browser (in progress, 13 November 2026)
+
+Done so far: the measurement harness and the opt-in browser projects. The Impeccable audit, DESIGN.md update, contrast and zoom checks, the VoiceOver pass, and the waystone shortcut are still to do.
+
+- **Shared e2e helpers:** the API mocks, sign-in, roster, and camp watchers moved from `campaigns.spec.ts` into `e2e/support/campMocks.ts` so the perf spec can reuse them. No assertion changed.
+- **Perf harness:** `npm run test:perf` (`playwright.perf.config.ts`, one worker, builds and serves with `vite preview`, so it needs port 4173 free). `e2e/perf/camp.perf.ts` counts effect-canvas clears, takes CDP `Performance.getMetrics` heap samples after `HeapProfiler.collectGarbage` at 5 s and 60 s of idle and after 50 open, wheel-pan, close cycles, watches long animation frames, and reads image bytes and a chunk gzip table. It writes `test-results/perf-report.json`.
+- **Results (Chromium, software renderer, so times are relative only):**
+  - Camp chunk 5.3 KB gzip (budget 25); first-load camp art 69 KB (budget 150).
+  - Idle 14 effect draws a second (budget 8 to 20); 0 hidden; 0 under reduced motion.
+  - Heap 4.22 MB at 5 s, 4.26 MB at 60 s (+0.05 MB); after 50 cycles 5.58 MB (+1.32 MB, budget 2).
+  - No frames over 50 ms while idle. Reported, not budgeted: two long frames at mount (89 ms and 221 ms, the art decode and palette swap) and 25 over-50 ms frames across the 50 cycles (worst 86 ms, with forced GC and synthetic input).
+- **Cross-browser:** the swiftshader flags moved into the chromium project; `PW_ALL=1` (`npm run test:e2e:browsers`) adds Firefox, WebKit, and iPhone 14 Safari. Firefox and WebKit are installed (`npx playwright install firefox webkit`).
+  - **WebKit (desktop Safari engine): 44 of 51 pass.** The seven failures are test assumptions, not app faults found so far:
+    - Tab and click do not focus buttons and links in Safari by default, so five focus checks fail (auth show-password, skip link, two invitation focus returns, camp outline on Tab). Programmatic focus is untested in that engine's results. Worth a real Safari keyboard check with Full Keyboard Access on.
+    - At 320 px WebKit keeps a classic 10 px scrollbar, so the full-screen phone sheet is 310 px, not 320. That is correct layout; the test expects the viewport width.
+    - One galaxy test (travelling labels) fails; it is the WebGL selector, not the camp, and was not investigated.
+  - **Fixed:** the crisp-canvas check (it passed in WebKit afterwards; the same test then fails on the 310 px width above) compared the canvas to `clientWidth`, which rounds half pixels differently per engine; it now uses the layout box. The camp canvas itself was already the right size.
+  - **Mobile Safari (iPhone 14): not usable as is.** `page.mouse.wheel` is unsupported there, and the suite's camera and viewport assumptions (set for desktop Chromium) do not hold under the device profile. Needs per-test gating before it means anything.
+  - **Firefox: not run.** It will not launch from this session ("Could not find profile folder"), even with a scratch temp directory.
+- **Phase 6 leftovers:** the sky chevron on tall views and the faint inverted hills mid-descent did not reproduce in captures at 1440×2000, 900×1900, and the descent at 1440×900. Left unchanged.
+- **Results:** lint, format:check, build, `art:check` pass; unit 276 pass; `test:e2e` 51 pass; `test:perf` 2 pass.
+- **Not verified:** Firefox, Mobile Safari, a real Safari keyboard pass; real-GPU frame pacing; Impeccable audit, contrast, 200% zoom, VoiceOver; `test:local-supabase` was not rerun this phase.

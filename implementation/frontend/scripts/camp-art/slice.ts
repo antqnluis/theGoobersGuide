@@ -95,6 +95,12 @@ export type LayerPlacement = {
   anchor?: { edge: 'top' | 'bottom'; y: number }
   /** Repeat the image downwards, flipped, to fill the canvas. */
   mirrorDown?: boolean
+  /**
+   * Fills below each painted column down to this row (exclusive) with the layer's
+   * most common bottom-edge colour, so a distant ridge never leaves sky showing
+   * below it where the nearer layers are sparse.
+   */
+  fillDownTo?: number
 }
 
 const bounce = (value: number, size: number) => {
@@ -139,6 +145,29 @@ export function composeLayer(image: Quantized, placement: LayerPlacement): Quant
       } else column = x
       if (column < 0 || column >= image.width) continue
       indices[y * width + x] = image.indices[row * image.width + column]
+    }
+  }
+  if (placement.fillDownTo) {
+    // One flat colour (the most common among the columns' lowest painted pixels),
+    // so ragged edges and dithering never streak down the fill.
+    const lowest: number[] = []
+    const lastRows: number[] = []
+    for (let x = 0; x < width; x += 1) {
+      let last = height - 1
+      while (last >= 0 && indices[last * width + x] < 0) last -= 1
+      lastRows.push(last)
+      if (last >= 0) lowest.push(indices[last * width + x])
+    }
+    const counts = new Map<number, number>()
+    for (const index of lowest) counts.set(index, (counts.get(index) ?? 0) + 1)
+    const [flat] = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0] ?? [-1]
+    if (flat >= 0) {
+      for (let x = 0; x < width; x += 1) {
+        if (lastRows[x] < 0) continue
+        for (let y = lastRows[x] + 1; y < Math.min(height, placement.fillDownTo); y += 1) {
+          indices[y * width + x] = flat
+        }
+      }
     }
   }
   return { width, height, indices }

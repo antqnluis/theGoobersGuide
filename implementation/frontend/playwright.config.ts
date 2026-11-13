@@ -10,14 +10,24 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
-    // Headless Chromium needs a software renderer on machines without an exposed GPU.
-    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Headless Chromium needs a software renderer on machines without an exposed GPU.
+        launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+      },
     },
+    // Opt-in engines: `npm run test:e2e:browsers` (needs `npx playwright install firefox webkit`).
+    ...(process.env.PW_ALL
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+          { name: 'mobile-safari', use: { ...devices['iPhone 14'] } },
+        ]
+      : []),
   ],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',

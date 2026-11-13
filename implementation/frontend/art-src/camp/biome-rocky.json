@@ -14,8 +14,9 @@
     "tile": "mirror",
     "anchor": {
      "edge": "bottom",
-     "y": 136
-    }
+     "y": 148
+    },
+    "fillDownTo": 205
    }
   },
   {

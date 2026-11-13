@@ -5,6 +5,8 @@ import { useAuth } from '../auth/useAuth'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignCamp } from './CampaignCamp'
+import { worldFor } from './camp/campBackground'
+import { useCampBackground } from './camp/useCampBackground'
 import { planetAppearance } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignManagement } from './useCampaignManagement'
@@ -53,7 +55,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
   const campaign = campaignQuery.data
-  const world = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
+  const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
+  const [background, setBackground] = useCampBackground(campaignId)
+  // The player's pick wears the planet's colours; by default the camp is the planet's own.
+  const world = useMemo(() => (planet ? worldFor(planet, background) : null), [planet, background])
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
   const rosterData = rosterQuery.data
   const roster = useMemo(() => rosterData ?? [], [rosterData])
@@ -169,6 +174,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       isOwner={isOwner}
       notice={notice}
       landfallKey={arrivedFromGalaxy ? location.key : null}
+      background={background}
+      onBackgroundChange={setBackground}
       roster={roster}
       world={world}
       title={

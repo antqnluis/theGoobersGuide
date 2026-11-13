@@ -83,6 +83,7 @@ export function AuthAppShell() {
             )}
           </div>
           <div className="workspace-account">
+            {isCamp && <div className="camp-header-slot" id="camp-header-slot" />}
             <span title={isGalaxy || isCamp ? accountName : undefined}>{accountName}</span>
             <button
               className="auth-button auth-button--secondary"

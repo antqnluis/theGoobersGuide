@@ -15,7 +15,8 @@
     "anchor": {
      "edge": "bottom",
      "y": 136
-    }
+    },
+    "fillDownTo": 205
    }
   },
   {

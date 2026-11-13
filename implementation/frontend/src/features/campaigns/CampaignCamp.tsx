@@ -33,6 +33,8 @@ import type { RigFrame } from './camp/campRig'
 import { useCampRig } from './camp/useCampRig'
 import { useCampView, type CampMeasure } from './camp/useCampView'
 import { useDestinationDialog } from './camp/useDestinationDialog'
+import { CampSettings } from './camp/CampSettings'
+import type { CampBackground } from './camp/campBackground'
 import './camp/camp.css'
 
 const CampLandscape = lazy(() => import('./camp/CampLandscape'))
@@ -40,6 +42,8 @@ const CampLandscape = lazy(() => import('./camp/CampLandscape'))
 /** How long the camera takes to frame a destination, and to come back. */
 const openPanMs = 350
 const closePanMs = 300
+/** A wheel notch eases the camera over this long. */
+const wheelPanMs = 160
 /** A drag must travel this many CSS pixels before it pans instead of clicking. */
 const dragThreshold = 6
 
@@ -67,6 +71,8 @@ export function CampaignCamp({
   title,
   notice,
   world,
+  background,
+  onBackgroundChange,
   roster,
   landfallKey,
   isOwner,
@@ -80,6 +86,9 @@ export function CampaignCamp({
   notice: string | null
   /** The campaign's planet: its type and palette colour the camp. */
   world: CampWorld
+  /** The player's background choice, and how to change it. */
+  background: CampBackground
+  onBackgroundChange: (background: CampBackground) => void
   /** The loaded roster; empty while loading, on error, or when none is available. */
   roster: readonly RosterMember[]
   /**
@@ -268,12 +277,30 @@ export function CampaignCamp({
       event.preventDefault()
       event.stopPropagation()
     }
+    // The wheel scrolls the panorama sideways. A vertical wheel does so only where
+    // the page itself cannot scroll, so the stacked phone layout keeps its scroll.
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return
+      const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      const page = document.documentElement
+      if (!horizontal && page.scrollHeight > page.clientHeight + 1) return
+      const lineHeight = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scene.clientHeight : 1
+      const delta = (horizontal ? event.deltaX : event.deltaY) * lineHeight
+      if (delta === 0) return
+      event.preventDefault()
+      const base = Math.round((delta * dpr) / view.scale)
+      // Small steps (a trackpad) follow the fingers; a wheel notch eases.
+      if (Math.abs(delta) < 40) rig.dragTo(rig.cameraX + base)
+      else rig.panTo(rig.targetX + base, wheelPanMs)
+    }
+    scene.addEventListener('wheel', onWheel, { passive: false })
     scene.addEventListener('pointerdown', onDown)
     scene.addEventListener('pointermove', onMove)
     scene.addEventListener('pointerup', onEnd)
     scene.addEventListener('pointercancel', onEnd)
     scene.addEventListener('click', onClick, true)
     return () => {
+      scene.removeEventListener('wheel', onWheel)
       scene.removeEventListener('pointerdown', onDown)
       scene.removeEventListener('pointermove', onMove)
       scene.removeEventListener('pointerup', onEnd)
@@ -386,6 +413,7 @@ export function CampaignCamp({
       data-camp-world={world.kind}
       ref={campRef}
     >
+      <CampSettings background={background} onChange={onBackgroundChange} />
       <div className="camp__heading">
         {title}
         {notice && !active && (

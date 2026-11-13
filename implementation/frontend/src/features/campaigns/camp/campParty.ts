@@ -23,9 +23,6 @@ export type PartyFigure = {
   label: string
 }
 
-/** How far a bedroll's foot sits below the seat on it. */
-const bedrollDrop = 14
-
 /** The image id of a sprite's breathing frame: 0 is at rest, 1 is the exhale. */
 export function frameSpriteId(spriteId: string, frame: number) {
   return frame === 0 ? spriteId : `${spriteId}${exhaleSuffix}`
@@ -60,9 +57,9 @@ export function partyFigures(roster: readonly RosterMember[]) {
       phase: phaseFor(member.profile_id),
       x: seat.x,
       y: seat.y,
-      // The first seats sit on bedrolls (drawn at the seat's foot plus a drop);
+      // The first seats sit on bedrolls, so they draw with (and, on a tie, after) the bedroll;
       // the rest sit on bare ground behind or beside the fire.
-      depth: index < bedrollSeats ? seat.y + bedrollDrop : seat.y,
+      depth: index < bedrollSeats ? bedrolls[index].y : seat.y,
       flip: seat.x > firePit.x,
       label,
     }

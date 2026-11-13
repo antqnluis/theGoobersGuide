@@ -74,7 +74,9 @@ export default function CampLandscape({
   const artRef = useRef<HTMLCanvasElement>(null)
   const outlineRef = useRef<HTMLCanvasElement>(null)
   const fxRef = useRef<HTMLCanvasElement>(null)
-  const [images, setImages] = useState<CampImages | null>(null)
+  // The art is paired with the variant it was loaded for, so a change of world
+  // keeps showing the old frame until the new art is ready.
+  const [loaded, setLoaded] = useState<{ variant: string; images: CampImages } | null>(null)
   const variant = variantKey(world)
   const ramps = useMemo(() => campRamps(world), [world])
   // The newest highlight, for frames drawn between renders.
@@ -84,8 +86,8 @@ export default function CampLandscape({
   useEffect(() => {
     let cancelled = false
     loadCampImages(world).then(
-      (loaded) => {
-        if (!cancelled) setImages(loaded)
+      (images) => {
+        if (!cancelled) setLoaded({ variant, images })
       },
       () => {
         if (!cancelled) onFail()
@@ -99,6 +101,7 @@ export default function CampLandscape({
   }, [variant, onFail])
 
   // The world's art plus both breathing frames of every distinct party look.
+  const images = loaded?.variant === variant ? loaded.images : null
   const all = useMemo(() => {
     if (!images) return null
     const merged: CampImages = { ...images }

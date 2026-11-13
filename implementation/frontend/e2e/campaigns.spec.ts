@@ -1,238 +1,25 @@
 import { expect, type Page, test } from '@playwright/test'
 import { adventurerAppearance } from '../src/features/campaigns/camp/adventurerAppearance.ts'
 import { cameraToFrame, restCameraX } from '../src/features/campaigns/camp/campCamera.ts'
-import { seatParty, type RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
+import { seatParty } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
 import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
-
-const accountId = '00000000-0000-4000-8000-000000000001'
-const ownerId = '00000000-0000-4000-8000-000000000002'
-const accountEmail = 'player@example.com'
-const now = new Date().toISOString()
-const authSession = {
-  access_token: 'mock-access-token',
-  token_type: 'bearer',
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  refresh_token: 'mock-refresh-token',
-  user: {
-    id: accountId,
-    aud: 'authenticated',
-    role: 'authenticated',
-    email: accountEmail,
-    email_confirmed_at: now,
-    app_metadata: { provider: 'email', providers: ['email'] },
-    user_metadata: { username: 'player_one' },
-    created_at: now,
-    updated_at: now,
-  },
-}
-
-type Campaign = {
-  id: string
-  owner_id: string
-  name: string
-  description: string | null
-  created_at: string
-  updated_at: string
-}
-
-const redHand: Campaign = {
-  id: '00000000-0000-4000-8000-000000000011',
-  owner_id: accountId,
-  name: 'The Red Hand',
-  description: 'A quiet town has begun to forget its own history.',
-  created_at: now,
-  updated_at: now,
-}
-
-function corsHeaders() {
-  return {
-    'access-control-allow-origin': 'http://127.0.0.1:4173',
-    'access-control-allow-headers': '*',
-    'access-control-expose-headers': 'content-range',
-    'access-control-allow-methods': 'GET, HEAD, POST, PATCH, DELETE, OPTIONS',
-  }
-}
-
-async function signIn(page: Page) {
-  await page.route('**/auth/v1/token**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      headers: corsHeaders(),
-      contentType: 'application/json',
-      body: JSON.stringify(authSession),
-    })
-  })
-
-  // The sign-in arrival has its own spec; here it crossfades so the galaxy is ready at once.
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto('/login')
-  const signInForm = page.getByRole('region', { name: 'Sign in' })
-  await signInForm.getByLabel('Username or email').fill(accountEmail)
-  await signInForm.getByLabel('Password', { exact: true }).fill('adventure1')
-  await signInForm.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/app\/campaigns$/)
-  await expect(page.locator('.arrival-layer')).toHaveCount(0)
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-}
-
-async function mockCampaignApi(
-  page: Page,
-  initialCampaigns: Campaign[],
-  options: {
-    /** Holds the campaign list: true for 500 ms, or until the given promise settles. */
-    delayList?: boolean | Promise<void>
-    memberMode?: boolean
-    shouldFailList?: () => boolean
-    hideFromList?: () => boolean
-    memberCount?: (campaignId: string) => Promise<number | null>
-  } = {},
-) {
-  const campaigns = initialCampaigns.map((campaign) => ({ ...campaign }))
-  await page.route('**/rest/v1/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname
-    const method = request.method()
-
-    if (method === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers: corsHeaders() })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaigns') && method === 'GET') {
-      if (!url.searchParams.has('id') && options.delayList) {
-        await (options.delayList === true
-          ? new Promise((resolve) => setTimeout(resolve, 500))
-          : options.delayList)
-      }
-      if (!url.searchParams.has('id') && options.shouldFailList?.()) {
-        await route.fulfill({
-          status: 400,
-          headers: corsHeaders(),
-          json: { message: 'temporary test failure' },
-        })
-        return
-      }
-
-      const idFilter = url.searchParams.get('id')
-      const result = idFilter?.startsWith('eq.')
-        ? campaigns.filter((campaign) => campaign.id === idFilter.slice(3))
-        : options.hideFromList?.()
-          ? []
-          : campaigns
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: result })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaign_members') && method === 'HEAD') {
-      const id = url.searchParams.get('campaign_id')?.slice(3) ?? ''
-      const count = options.memberCount
-        ? await options.memberCount(id)
-        : campaigns.some((campaign) => campaign.id === id)
-          ? options.memberMode
-            ? 2
-            : 1
-          : 0
-      await route.fulfill({
-        status: count === null ? 400 : 200,
-        headers: {
-          ...corsHeaders(),
-          ...(count === null ? {} : { 'content-range': `*/${count}` }),
-        },
-      })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaign_members') && method === 'GET') {
-      const result = campaigns.flatMap((campaign) => {
-        if (options.memberMode) {
-          return campaign.owner_id === ownerId
-            ? [{ campaign_id: campaign.id, profile_id: accountId, role: 'member' }]
-            : []
-        }
-        return campaign.owner_id === accountId
-          ? [{ campaign_id: campaign.id, profile_id: accountId, role: 'owner' }]
-          : []
-      })
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: result })
-      return
-    }
-
-    if (
-      method === 'POST' &&
-      (path.endsWith('/list_my_campaign_invitations') ||
-        path.endsWith('/list_campaign_outgoing_invitations'))
-    ) {
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/rpc/get_campaign_roster') && method === 'POST') {
-      const { p_campaign_id: campaignId } = request.postDataJSON() as { p_campaign_id: string }
-      const campaign = campaigns.find((item) => item.id === campaignId)
-      const roster = campaign
-        ? [
-            {
-              profile_id: campaign.owner_id,
-              role: 'owner',
-              username: campaign.owner_id === accountId ? 'player_one' : 'game_master',
-            },
-            ...(campaign.owner_id === accountId
-              ? []
-              : [{ profile_id: accountId, role: 'member', username: 'player_one' }]),
-          ]
-        : []
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: roster })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaigns') && method === 'POST') {
-      const input = request.postDataJSON() as { name: string; description: string | null }
-      const campaign: Campaign = {
-        ...input,
-        id: '00000000-0000-4000-8000-000000000099',
-        owner_id: accountId,
-        created_at: now,
-        updated_at: now,
-      }
-      campaigns.unshift(campaign)
-      await route.fulfill({ status: 201, headers: corsHeaders(), json: { id: campaign.id } })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaigns') && method === 'PATCH') {
-      const idFilter = url.searchParams.get('id')?.slice(3)
-      const campaign = campaigns.find((item) => item.id === idFilter && item.owner_id === accountId)
-      if (!campaign) {
-        await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
-        return
-      }
-      Object.assign(campaign, request.postDataJSON(), { updated_at: new Date().toISOString() })
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: [campaign] })
-      return
-    }
-
-    if (path.endsWith('/rest/v1/campaigns') && method === 'DELETE') {
-      const idFilter = url.searchParams.get('id')?.slice(3)
-      const index = campaigns.findIndex(
-        (item) => item.id === idFilter && item.owner_id === accountId,
-      )
-      const deleted = index < 0 ? [] : [{ id: campaigns.splice(index, 1)[0].id }]
-      await route.fulfill({ status: 200, headers: corsHeaders(), json: deleted })
-      return
-    }
-
-    await route.fulfill({
-      status: 404,
-      headers: corsHeaders(),
-      json: { message: 'Unexpected API request' },
-    })
-  })
-  return campaigns
-}
+import {
+  type Campaign,
+  campDraws,
+  campLog,
+  corsHeaders,
+  enterFromGalaxy,
+  mockCampaignApi,
+  mockRoster,
+  openCamp,
+  ownerId,
+  partyRoster,
+  redHand,
+  signIn,
+  watchCamp,
+} from './support/campMocks.ts'
 
 test('selects by keyboard, opens the workspace explicitly, and returns to the overview', async ({
   page,
@@ -530,14 +317,6 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
   }
 })
 
-async function openCamp(page: Page, campaign: Campaign = redHand) {
-  await signIn(page)
-  await page.goto(`/app/campaigns/${campaign.id}`)
-  const camp = page.locator('.camp')
-  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
-  return camp
-}
-
 test('draws the camp scene crisp and keeps destinations usable across viewports', async ({
   page,
 }, testInfo) => {
@@ -576,10 +355,12 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     await expect
       .poll(() =>
         canvas.evaluate((element: HTMLCanvasElement) => {
+          // Layout size, not clientWidth: that rounds half pixels differently per engine.
           const ratio = window.devicePixelRatio
+          const box = element.getBoundingClientRect()
           return (
-            element.width === Math.round(element.clientWidth * ratio) &&
-            element.height === Math.round(element.clientHeight * ratio)
+            element.width === Math.round(box.width * ratio) &&
+            element.height === Math.round(box.height * ratio)
           )
         }),
       )
@@ -701,28 +482,6 @@ test('shows the camp in the colours of its planet for every world type', async (
     expect(colours.filter((colour) => !biome.has(colour) && !fixed.has(colour))).toEqual([])
   }
 })
-
-/** A roster of an owner, a member without a username, and named members. */
-function partyRoster(count: number): RosterMember[] {
-  return Array.from({ length: count }, (_, index) => ({
-    profile_id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
-    role: index === 0 ? 'owner' : 'member',
-    username:
-      index === 1 ? null : index === 0 ? 'game_master' : `player_${String(index).padStart(2, '0')}`,
-  }))
-}
-
-async function mockRoster(page: Page, roster: () => RosterMember[] | 'fail') {
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
-    const headers = corsHeaders()
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
-    const body = roster()
-    if (body === 'fail') {
-      return route.fulfill({ status: 400, headers, json: { message: 'temporary test failure' } })
-    }
-    await route.fulfill({ status: 200, headers, json: body })
-  })
-}
 
 /** Every colour in a rectangle of the scene canvas, in CSS pixels. */
 async function coloursIn(
@@ -884,57 +643,6 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
   await expect(camp).toHaveAttribute('data-camp-state', 'idle')
   expect(wagonOutline).toBeGreaterThan(0)
 })
-
-declare global {
-  interface Window {
-    __campLog: Array<{ name: string; value: string | null }>
-    __campDraws: number
-  }
-}
-
-/**
- * Records every change to the camp's motion attributes and counts canvas clears
- * (one per effects frame), so tests can see what animated and how often.
- */
-async function watchCamp(page: Page) {
-  await page.addInitScript(() => {
-    window.__campLog = []
-    window.__campDraws = 0
-    const clear = CanvasRenderingContext2D.prototype.clearRect
-    CanvasRenderingContext2D.prototype.clearRect = function (...args) {
-      window.__campDraws += 1
-      return clear.apply(this, args)
-    }
-    const names = ['data-animating', 'data-camp-landfall', 'data-camera-x']
-    new MutationObserver((records) => {
-      for (const record of records) {
-        const target = record.target as Element
-        if (!target.classList?.contains('camp') || !record.attributeName) continue
-        window.__campLog.push({
-          name: record.attributeName,
-          value: target.getAttribute(record.attributeName),
-        })
-      }
-    }).observe(document, { subtree: true, attributes: true, attributeFilter: names })
-  })
-}
-
-const campLog = (page: Page, name: string) =>
-  page.evaluate(
-    (attribute) => window.__campLog.filter((entry) => entry.name === attribute).map((e) => e.value),
-    name,
-  )
-
-const campDraws = (page: Page) => page.evaluate(() => window.__campDraws)
-
-/** Picks the campaign in the selector and enters it: a fresh arrival from the galaxy. */
-async function enterFromGalaxy(page: Page, campaign: Campaign = redHand) {
-  await page.goto('/app/campaigns')
-  await page.getByRole('button', { name: campaign.name, exact: true }).click()
-  await page.getByRole('link', { name: 'Enter campaign' }).click()
-  await expect(page).toHaveURL(new RegExp(`/app/campaigns/${campaign.id}$`))
-  return page.locator('.camp')
-}
 
 test('descends into camp only on arrival from the galaxy, never on load, refresh, or Back', async ({
   page,
@@ -1187,6 +895,56 @@ test('drags the panorama on a phone, clamped, without opening what it passes ove
   await expect(camp).toHaveAttribute('data-camp-state', 'overview')
 })
 
+test('scrolls the panorama sideways with the wheel, clamped', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const rest = Number(await camp.getAttribute('data-camera-x'))
+  const scene = page.locator('.camp-scene')
+  const box = (await scene.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+
+  // A vertical wheel scrolls right where the page itself cannot scroll.
+  await page.mouse.wheel(0, 300)
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  const right = Number(await camp.getAttribute('data-camera-x'))
+  expect(right).toBeGreaterThan(rest)
+  await page.mouse.wheel(0, -300)
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  expect(Number(await camp.getAttribute('data-camera-x'))).toBe(rest)
+
+  // A horizontal gesture scrolls the same way, and both ends clamp.
+  await page.mouse.wheel(-5000, 0)
+  await expect.poll(async () => Number(await camp.getAttribute('data-camera-x'))).toBe(0)
+  await page.mouse.wheel(0, 9000)
+  await expect.poll(async () => Number(await camp.getAttribute('data-camera-x'))).toBe(960 - 480)
+  expect((await campLog(page, 'data-camera-x')).map(Number).every(Number.isInteger)).toBe(true)
+  await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+})
+
+test('keeps the page scroll on a phone, where only a sideways wheel pans', async ({ page }) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 375, height: 600 })
+  const camp = await openCamp(page)
+  const rest = await camp.getAttribute('data-camera-x')
+  const box = (await page.locator('.camp-scene').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight),
+  ).toBe(true)
+
+  await page.mouse.wheel(0, 200)
+  await page.waitForTimeout(250)
+  expect(await camp.getAttribute('data-camera-x')).toBe(rest)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.mouse.wheel(150, 0)
+  await expect.poll(() => camp.getAttribute('data-camera-x')).not.toBe(rest)
+})
+
 test('pans to a place that is out of frame when it takes focus', async ({ page }) => {
   await watchCamp(page)
   await mockCampaignApi(page, [redHand])
@@ -1208,6 +966,130 @@ test('pans to a place that is out of frame when it takes focus', async ({ page }
   await expect(camp).toHaveAttribute('data-camp-state', 'settings')
   await page.keyboard.press('Escape')
   await expect(wagon).toBeVisible()
+})
+
+test('lets the player pick a camp background, remembered per campaign on this device', async ({
+  page,
+}, testInfo) => {
+  const other = { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'The Pale Road' }
+  await mockCampaignApi(page, [redHand, other])
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const camp = await openCamp(page)
+  const own = (await camp.getAttribute('data-camp-world'))!
+  const gear = page.getByRole('button', { name: 'Camp background settings' })
+
+  // The gear sits in the header beside the account name and Sign out.
+  await expect(gear).toBeVisible()
+  const header = page.locator('.workspace-header')
+  expect(await header.evaluate((el, node) => el.contains(node), await gear.elementHandle())).toBe(
+    true,
+  )
+  expect(Math.min(...Object.values((await gear.boundingBox())!).slice(2))).toBeGreaterThanOrEqual(
+    44,
+  )
+  await expect(gear).toHaveAttribute('aria-expanded', 'false')
+
+  await gear.click()
+  await expect(gear).toHaveAttribute('aria-expanded', 'true')
+  const group = page.getByRole('group', { name: 'Camp background' })
+  await expect(group).toBeVisible()
+  await expect(group.getByRole('radio')).toHaveCount(7)
+  // The current choice has focus, and it is the campaign's own world.
+  await expect(group.getByRole('radio', { name: /Campaign’s world/ })).toBeChecked()
+  await expect(group.getByRole('radio', { name: /Campaign’s world/ })).toBeFocused()
+  await page.screenshot({ path: testInfo.outputPath('camp-settings-1440x900.png') })
+
+  // Choosing a landscape redraws the camp in it; the panel stays open to compare.
+  const kinds: Array<[RegExp, string]> = [
+    [/Dunes/, 'desert'],
+    [/Snow/, 'frozen'],
+    [/Cloud reef/, 'gas'],
+    [/Grass and pines/, 'terrestrial'],
+  ]
+  for (const [name, kind] of kinds) {
+    await group.getByRole('radio', { name }).check()
+    await expect(camp).toHaveAttribute('data-camp-world', kind)
+    await expect(group).toBeVisible()
+    await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  }
+
+  // Keyboard: arrow keys move through the group, Escape closes and returns to the gear.
+  await group.getByRole('radio', { name: /Dunes/ }).check()
+  await group.getByRole('radio', { name: /Dunes/ }).press('ArrowDown')
+  await expect(camp).toHaveAttribute('data-camp-world', 'volcanic')
+  await page.keyboard.press('Escape')
+  await expect(group).toHaveCount(0)
+  await expect(gear).toBeFocused()
+  await expect(gear).toHaveAttribute('aria-expanded', 'false')
+  // Escape in the panel does not close an open destination or leave the page.
+  await expect(page).toHaveURL(new RegExp(`${redHand.id}$`))
+
+  // A click elsewhere closes it too.
+  await gear.click()
+  await expect(group).toBeVisible()
+  await page.mouse.click(720, 400)
+  await expect(group).toHaveCount(0)
+
+  // The choice survives a reload, is private to this campaign, and can be undone.
+  await page.reload()
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  await expect(camp).toHaveAttribute('data-camp-world', 'volcanic')
+  await page.goto(`/app/campaigns/${other.id}`)
+  await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+  const otherOwn = await camp.getAttribute('data-camp-world')
+  expect(otherOwn).toBe(planetAppearance(other.id).kind)
+  await page.goto(`/app/campaigns/${redHand.id}`)
+  await expect(camp).toHaveAttribute('data-camp-world', 'volcanic')
+  await gear.click()
+  await group.getByRole('radio', { name: /Campaign’s world/ }).check()
+  await expect(camp).toHaveAttribute('data-camp-world', own)
+  expect(
+    await page.evaluate((id) => window.localStorage.getItem(`camp-background:${id}`), redHand.id),
+  ).toBeNull()
+
+  // Everything else still works afterwards.
+  await page.keyboard.press('Escape')
+  await page.locator('[data-camp-sign][data-location="overview"]').click()
+  await expect(camp).toHaveAttribute('data-camp-state', 'overview')
+})
+
+test('keeps the background settings usable on a phone and when storage is blocked', async ({
+  page,
+}, testInfo) => {
+  // Only the camp's own key is blocked, so signing in still works.
+  await page.addInitScript(() => {
+    const proto = Storage.prototype as unknown as Record<string, (...args: string[]) => unknown>
+    for (const method of ['getItem', 'setItem', 'removeItem']) {
+      const original = proto[method]
+      proto[method] = function (this: Storage, ...args: string[]) {
+        if (String(args[0]).startsWith('camp-background:')) {
+          throw new DOMException('blocked', 'SecurityError')
+        }
+        return original.apply(this, args)
+      }
+    }
+  })
+  await mockCampaignApi(page, [redHand])
+  await page.setViewportSize({ width: 375, height: 812 })
+  const camp = await openCamp(page)
+  const gear = page.getByRole('button', { name: 'Camp background settings' })
+  await expect(gear).toBeInViewport({ ratio: 1 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375)
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
+
+  await gear.click()
+  const group = page.getByRole('group', { name: 'Camp background' })
+  await expect(group).toBeInViewport({ ratio: 1 })
+  for (const radio of await group.getByRole('radio').all()) {
+    expect(
+      (await radio.locator('xpath=ancestor::label').boundingBox())!.height,
+    ).toBeGreaterThanOrEqual(44)
+  }
+  await page.screenshot({ path: testInfo.outputPath('camp-settings-375x812.png') })
+  // With storage blocked the pick still applies for this visit.
+  await group.getByRole('radio', { name: /Snow/ }).check()
+  await expect(camp).toHaveAttribute('data-camp-world', 'frozen')
+  await expect(page.getByText('Opening campaign workspace…')).toHaveCount(0)
 })
 
 test('opens locations from Places when the camp artwork is unavailable', async ({ page }) => {

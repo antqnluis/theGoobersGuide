@@ -621,3 +621,96 @@
     animation: none;
   }
 }
+
+/* The camp's settings gear in the app header, and its background panel. */
+.camp-header-slot {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.camp-settings {
+  position: relative;
+}
+
+.camp-settings__button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--camp-cream);
+  background: transparent;
+}
+
+.camp-settings__button:is(:hover, [aria-expanded='true']) {
+  color: var(--camp-brass);
+}
+
+.workspace-page--camp .camp-settings :is(button, input):focus-visible {
+  outline: 3px solid #ffe7ac;
+  outline-offset: 3px;
+}
+
+.camp-settings__panel {
+  /* Anchored under the header at the page's right edge, wherever the gear sits. */
+  position: fixed;
+  z-index: 6;
+  top: calc(var(--camp-header-height) + 6px);
+  right: var(--camp-gutter);
+  display: grid;
+  width: min(19rem, calc(100vw - 2 * var(--camp-gutter)));
+  gap: 2px;
+  margin: 0;
+  border: 1px solid #b99969;
+  border-radius: var(--radius-control);
+  padding: 8px;
+  color: var(--camp-cream);
+  background: #1d192d;
+  box-shadow: 0 10px 30px #0b0912cc;
+}
+
+.camp-settings__title {
+  margin: 0;
+  padding: 4px 8px 6px;
+  color: var(--camp-brass);
+  font: 600 1.05rem / 1.25 var(--font-display);
+}
+
+.camp-settings__choice {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--radius-control);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.camp-settings__choice:hover,
+.camp-settings__choice:has(input:checked) {
+  background: #353142;
+}
+
+.camp-settings__choice input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: #dab98a;
+}
+
+.camp-settings__choice small {
+  display: block;
+  color: #e1c6a4;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.camp-settings__note {
+  margin: 4px 8px 2px;
+  color: #cdb596;
+  font-size: 0.78rem;
+}
