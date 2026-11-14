@@ -9,6 +9,7 @@ import type { RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import {
   accountId,
   type Campaign,
+  type CharacterFailure,
   type CharacterState,
   type MembershipFailure,
   campDraws,
@@ -19,6 +20,7 @@ import {
   mockCharacter,
   mockAppearances,
   mockCharacters,
+  mockItem,
   mockMembership,
   mockSheet,
   mockRoster,
@@ -157,7 +159,7 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toContainText(
-    "Delete The Red Hand: Reframed permanently? Its details, member list, and every player's characters and character sheets will be removed. This can't be undone.",
+    "Delete The Red Hand: Reframed permanently? Its details, member list, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
   )
   await page.getByRole('button', { name: 'Keep campaign' }).click()
   const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
@@ -2681,7 +2683,7 @@ test('deleting needs a confirmation, can be cancelled, and removes the character
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
   await dialog.getByRole('button', { name: 'Delete character' }).click()
   await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toContainText(
-    "Delete Brand permanently? Their sheet will be removed and this can't be undone.",
+    "Delete Brand permanently? Their sheet, inventory, and coins will be removed and this can't be undone.",
   )
   await expect(dialog.getByRole('button', { name: 'Yes, delete character' })).toBeFocused()
 
@@ -2783,14 +2785,14 @@ test('unsaved sheet edits are guarded when going back or closing', async ({ page
   const { dialog } = await openTent(page, withCharacter())
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
   await dialog.getByRole('button', { name: 'Edit character' }).click()
-  await dialog.getByLabel('Spells', { exact: true }).fill('Light')
+  await dialog.getByRole('textbox', { name: 'Spells', exact: true }).fill('Light')
   await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Save sheet' })).toBeEnabled()
 
   await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
   const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
   await prompt.getByRole('button', { name: 'Keep editing' }).click()
-  await expect(dialog.getByLabel('Spells', { exact: true })).toHaveValue('Light')
+  await expect(dialog.getByRole('textbox', { name: 'Spells', exact: true })).toHaveValue('Light')
 
   // Escape inside the question means "keep editing", not "close the tent".
   await page.getByRole('button', { name: 'Back to camp' }).click()
@@ -3173,7 +3175,7 @@ test('clicking outside asks about unsaved sheet edits instead of discarding them
   const { dialog } = await openTent(page, withCharacter())
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
   await dialog.getByRole('button', { name: 'Edit character' }).click()
-  await dialog.getByLabel('Spells', { exact: true }).fill('Light')
+  await dialog.getByRole('textbox', { name: 'Spells', exact: true }).fill('Light')
   await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
 
   const point = await outsidePoint(page)
@@ -3185,7 +3187,7 @@ test('clicking outside asks about unsaved sheet edits instead of discarding them
   const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
   await expect(prompt).toBeVisible()
   await prompt.getByRole('button', { name: 'Keep editing' }).click()
-  await expect(dialog.getByLabel('Spells', { exact: true })).toHaveValue('Light')
+  await expect(dialog.getByRole('textbox', { name: 'Spells', exact: true })).toHaveValue('Light')
 })
 
 test('clicking outside does nothing while a character change is pending', async ({ page }) => {
@@ -3327,3 +3329,421 @@ test('a failed look save shows an alert and keeps the choices', async ({ page })
   ).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Teal cloak' })).toBeChecked()
 })
+
+// --- Coins and inventory (M03.3) ------------------------------------------------------
+
+/** A character with a few items, opened in the tent's display view. */
+async function openSheet(
+  page: Page,
+  options: {
+    character?: Parameters<typeof mockCharacter>[0]
+    sheet?: Parameters<typeof mockSheet>[1]
+    items?: (characterId: string) => ReturnType<typeof mockItem>[]
+    fail?: (target: string) => CharacterFailure
+  } = {},
+) {
+  await mockCampaignApi(page, [redHand])
+  const character = mockCharacter(options.character)
+  const state: CharacterState = {
+    characters: [character],
+    sheets: [mockSheet(character.id, options.sheet)],
+    items: options.items?.(character.id) ?? [],
+  }
+  const mock = await mockCharacters(page, state, { fail: options.fail })
+  const camp = await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: `Open ${character.name}` }).click()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeVisible()
+  return { camp, dialog, state, mock, character }
+}
+
+const sampleItems = (characterId: string) => [
+  mockItem(characterId, { name: 'Rope', weight: 10 }),
+  mockItem(characterId, { name: 'Longsword', weight: 3, equipped: true }),
+  mockItem(characterId, {
+    name: 'Healing potion',
+    quantity: 4,
+    weight: 0.5,
+    description: 'Restores 2d4 + 2 hit points.',
+  }),
+]
+
+test('the Coins and Inventory tabs jump to their sections and start empty', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  const tabs = dialog.getByRole('navigation', { name: 'Sheet sections' })
+  await expect(tabs.getByRole('button')).toHaveText([
+    'Vitals',
+    'Abilities',
+    'Skills',
+    'Attacks',
+    'Spells',
+    'Coins',
+    'Inventory',
+    'Notes',
+  ])
+  await tabs.getByRole('button', { name: 'Coins' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Coins' })).toBeFocused()
+  await tabs.getByRole('button', { name: 'Inventory' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeFocused()
+
+  await expect(dialog.getByText('No items yet.')).toBeVisible()
+  await expect(dialog.getByText('≈ 0 gp in all')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toBeVisible()
+})
+
+test('spells have their own section, apart from features and notes', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  const spells = dialog.getByRole('region', { name: 'Spells' })
+  await expect(spells.getByRole('textbox', { name: 'Spells', exact: true })).toBeVisible()
+  const notes = dialog.getByRole('region', { name: 'Features and notes' })
+  await expect(notes.getByLabel('Features and traits')).toBeVisible()
+  await expect(notes.getByLabel('Notes and backstory')).toBeVisible()
+  await expect(notes.getByRole('textbox', { name: 'Spells', exact: true })).toHaveCount(0)
+  await dialog
+    .getByRole('navigation', { name: 'Sheet sections' })
+    .getByRole('button', { name: 'Spells' })
+    .click()
+  await expect(dialog.getByRole('heading', { name: 'Spells' })).toBeFocused()
+})
+
+test('coins are added and spent', async ({ page }) => {
+  const { dialog, state } = await openSheet(page)
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+
+  await coins.getByLabel(/Gold/).fill('10')
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByText('Added 10 gp and 5 sp.')).toBeVisible()
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('10 gp')
+  await expect(dialog.locator('[data-coin="sp"]')).toContainText('5 sp')
+  await expect(dialog.getByText('≈ 10.5 gp in all')).toBeVisible()
+  await expect(coins.getByLabel(/Gold/)).toHaveValue('')
+  expect(state.sheets[0]).toMatchObject({ gp: 10, sp: 5, cp: 0 })
+
+  await coins.getByLabel(/Gold/).fill('3')
+  await coins.getByLabel(/Silver/).fill('2')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 3 gp and 2 sp.')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 7, sp: 3, cp: 0 })
+})
+
+test('spending more than the purse holds shows the copy and keeps the balances', async ({
+  page,
+}) => {
+  const { dialog, state } = await openSheet(page, { sheet: { gp: 5, sp: 1 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  await coins.getByLabel(/Gold/).fill('2')
+  await coins.getByLabel(/Silver/).fill('4')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "You don't have enough coins for that. Nothing was spent.",
+  )
+  expect(state.sheets[0]).toMatchObject({ gp: 5, sp: 1, cp: 0 })
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('5 gp')
+  // What was typed stays, so the player can adjust it.
+  await expect(coins.getByLabel(/Silver/)).toHaveValue('4')
+
+  await coins.getByLabel(/Silver/).fill('1')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(dialog.getByText('Spent 2 gp and 1 sp.')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 3, sp: 0 })
+})
+
+test('coin fields explain what is wrong before anything is sent', async ({ page }) => {
+  const { dialog, mock } = await openSheet(page)
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(coins.getByRole('alert')).toHaveText('Enter an amount for at least one coin.')
+  await coins.getByLabel(/Silver/).fill('1.5')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(coins.getByLabel(/Silver/)).toBeFocused()
+  await expect(coins.getByLabel(/Silver/)).toHaveAccessibleDescription(
+    'Enter a whole number up to 9,999,999.',
+  )
+  expect(mock.calls).toEqual([])
+})
+
+test('items can be added, edited, equipped, attuned, counted, and removed', async ({ page }) => {
+  const { dialog, state } = await openSheet(page)
+
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeFocused()
+  await dialog.getByLabel('Name', { exact: true }).fill('Healing potion')
+  await dialog.getByLabel('Quantity').fill('4')
+  await dialog.getByLabel(/Weight/).fill('0.5')
+  await dialog.getByLabel(/Description/).fill('Restores 2d4 + 2 hit points.')
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByText('Added Healing potion.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toBeFocused()
+  const potion = dialog.locator('.inventory-item', { hasText: 'Healing potion' })
+  await expect(potion).toContainText('Quantity 4')
+  await expect(potion).toContainText('0.5 lb each')
+  await potion.getByText('Description').click()
+  await expect(potion.getByText('Restores 2d4 + 2 hit points.')).toBeVisible()
+  expect(state.items).toHaveLength(1)
+
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 3')
+  await potion.getByRole('button', { name: 'Add one Healing potion' }).click()
+  await potion.getByRole('button', { name: 'Add one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 5')
+  expect(state.items![0].quantity).toBe(5)
+
+  await potion.getByRole('button', { name: 'Equip Healing potion' }).click()
+  await expect(potion.getByText('Equipped', { exact: true })).toBeVisible()
+  await potion.getByRole('button', { name: 'Attune Healing potion' }).click()
+  await expect(potion.getByText('Attuned', { exact: true })).toBeVisible()
+  expect(state.items![0]).toMatchObject({ equipped: true, attuned: true })
+  await potion.getByRole('button', { name: 'Unequip Healing potion' }).click()
+  await expect(potion.getByText('Equipped', { exact: true })).toHaveCount(0)
+
+  await potion.getByRole('button', { name: 'Edit Healing potion' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Greater healing potion')
+  await dialog.getByRole('button', { name: 'Save item' }).click()
+  await expect(dialog.getByText('Saved Greater healing potion.')).toBeVisible()
+  await expect(dialog.getByText('Greater healing potion', { exact: true })).toBeVisible()
+  expect(state.items![0].name).toBe('Greater healing potion')
+
+  // A reload keeps the stored items, coins, and everything else.
+  await page.reload()
+  await tentEntry(page).click()
+  await page.getByRole('button', { name: 'Open Brand' }).click()
+  await expect(page.getByText('Greater healing potion', { exact: true })).toBeVisible()
+  await expect(page.getByText('Quantity 5')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Remove Greater healing potion' }).click()
+  const confirm = page.getByRole('group', { name: 'Confirm removing Greater healing potion' })
+  await expect(confirm).toContainText('Remove Greater healing potion from Brand’s inventory?')
+  await expect(page.getByRole('button', { name: 'Yes, remove item' })).toBeFocused()
+  await page.getByRole('button', { name: 'Keep item' }).click()
+  await expect(page.getByRole('button', { name: 'Remove Greater healing potion' })).toBeFocused()
+  expect(state.items).toHaveLength(1)
+
+  await page.getByRole('button', { name: 'Remove Greater healing potion' }).click()
+  await page.getByRole('button', { name: 'Yes, remove item' }).click()
+  await expect(page.getByText('Removed Greater healing potion.')).toBeVisible()
+  await expect(page.getByText('No items yet.')).toBeVisible()
+  expect(state.items).toHaveLength(0)
+})
+
+test('the list shows carried weight, equipped items first, and the attunement warning', async ({
+  page,
+}) => {
+  const { dialog } = await openSheet(page, { items: sampleItems })
+  const names = dialog.locator('.inventory-item__name')
+  await expect(names).toHaveText(['Longsword', 'Healing potion', 'Rope'])
+  // 3 + 4 × 0.5 + 10 = 15 lb, against Strength 10 × 15 = 150 lb.
+  await expect(dialog.getByText('Carrying 15 lb of 150 lb')).toBeVisible()
+  await expect(dialog.getByText('3 items')).toBeVisible()
+
+  for (const name of ['Rope', 'Longsword', 'Healing potion']) {
+    await dialog.getByRole('button', { name: `Attune ${name}` }).click()
+    await expect(dialog.getByRole('button', { name: `End attunement to ${name}` })).toBeVisible()
+  }
+  await expect(dialog.getByText('Attuned 3 of 3')).toBeVisible()
+  await expect(dialog.getByText('More than 3 attuned items')).toHaveCount(0)
+
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Ring of Protection')
+  await dialog.getByLabel('Attuned').check()
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByText('More than 3 attuned items')).toBeVisible()
+})
+
+test('an item changed on another device shows the latest version after a conflict', async ({
+  page,
+}) => {
+  const { dialog, state } = await openSheet(page, { items: sampleItems })
+  const rope = dialog.locator('.inventory-item', { hasText: 'Rope' })
+  await rope.getByRole('button', { name: 'Edit Rope' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('My rope')
+
+  // Another device renames it first; the stamp moves on.
+  const stored = state.items!.find((row) => row.name === 'Rope')!
+  stored.name = 'Their rope'
+  stored.updated_at = new Date().toISOString()
+
+  await dialog.getByRole('button', { name: 'Save item' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    'This item changed on another device. The latest version is shown.',
+  )
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Their rope')
+  expect(stored.name).toBe('Their rope')
+})
+
+test('an item removed on another device reports it and refreshes the list', async ({ page }) => {
+  const { dialog, state } = await openSheet(page, { items: sampleItems })
+  state.items!.splice(
+    state.items!.findIndex((row) => row.name === 'Rope'),
+    1,
+  )
+  await dialog.getByRole('button', { name: 'Equip Rope' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText('This item is no longer available.')
+  await expect(dialog.getByText('Rope', { exact: true })).toHaveCount(0)
+})
+
+test('server failures show safe copy and retry works for coins and items', async ({ page }) => {
+  let failing: 'list' | 'coins' | 'item' | null = 'list'
+  const { dialog, state } = await openSheet(page, {
+    items: sampleItems,
+    fail: (target) => {
+      const broken =
+        (target === 'character_items' && failing === 'list') ||
+        (target === 'adjust_character_currency' && failing === 'coins') ||
+        (target === 'adjust_character_item_quantity' && failing === 'item')
+      return broken ? { status: 500, message: 'boom' } : null
+    },
+  })
+  await expect(dialog.getByRole('alert')).toContainText('The inventory could not be loaded.')
+  failing = null
+  await dialog.getByRole('button', { name: 'Try again' }).click()
+  await expect(dialog.getByText('Healing potion', { exact: true })).toBeVisible()
+
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  failing = 'coins'
+  await coins.getByLabel(/Gold/).fill('1')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't update the coins. Check your connection and try again.",
+  )
+  expect(state.sheets[0].gp).toBe(0)
+  await expect(coins.getByLabel(/Gold/)).toHaveValue('1')
+  failing = null
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByText('Added 1 gp.')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+  const potion = dialog.locator('.inventory-item', { hasText: 'Healing potion' })
+  failing = 'item'
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't update this item. Check your connection and try again.",
+  )
+  await expect(potion).toContainText('Quantity 4')
+  failing = null
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 3')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+})
+
+test('the tent stays open while a coin or item change is pending', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const character = mockCharacter()
+  const state: CharacterState = {
+    characters: [character],
+    sheets: [mockSheet(character.id)],
+    items: sampleItems(character.id),
+  }
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, state, { hold: () => held })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Equip Rope' }).click()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  // Only that item waits; the others stay usable.
+  await expect(dialog.getByRole('button', { name: 'Equip Rope' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Equip Healing potion' })).toBeEnabled()
+
+  release()
+  await expect(dialog.getByRole('button', { name: 'Unequip Rope' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+})
+
+test('an open item form with changes is guarded when leaving', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Lantern')
+  // The save bar is not involved: the item has its own button.
+  await expect(dialog.getByText('All changes saved')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Lantern')
+
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(prompt).toBeHidden()
+  await expect(dialog).toBeHidden()
+})
+
+test('a shared sheet shows coins and items read-only in the Party panel', async ({ page }) => {
+  const state = partyCharacters()
+  const sorrel = state.characters[1]
+  state.sheets[1].gp = 42
+  state.items = [
+    mockItem(sorrel.id, { name: 'Wand of Sparks', quantity: 1, equipped: true }),
+    mockItem(sorrel.id, { name: 'Spell components', quantity: 12 }),
+  ]
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+
+  await expect(dialog.getByRole('heading', { name: 'Coins' })).toBeVisible()
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('42 gp')
+  await expect(dialog.getByText('Wand of Sparks')).toBeVisible()
+  await expect(dialog.getByText('Quantity 12')).toBeVisible()
+  await expect(dialog.getByRole('form', { name: 'Add or spend coins' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^(Use|Add) one / })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^(Equip|Remove|Edit) / })).toHaveCount(0)
+  await expect(dialog.getByRole('navigation', { name: 'Sheet sections' })).toHaveCount(0)
+  expect(await dialogFits(page)).toBe(true)
+})
+
+test('an unshared sheet shows no coins or items to anyone else', async ({ page }) => {
+  const state = partyCharacters()
+  const dray = state.characters[2]
+  state.items = [mockItem(dray.id, { name: 'Secret dagger' })]
+  const dialog = await openParty(page, state)
+  await expect(dialog.getByRole('button', { name: /View Dray/ })).toHaveCount(0)
+  await expect(dialog.getByText('Secret dagger')).toHaveCount(0)
+})
+
+for (const [label, width, height] of [
+  ['phone', 390, 844],
+  ['tablet', 820, 1180],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`coins and inventory fit a ${label} without horizontal scrolling`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openSheet(page, {
+      character: { name: 'The Unfathomably Long-Named Wanderer of the Shattered Coast' },
+      sheet: { gp: 9_999_999, sp: 9_999_999, cp: 9_999_999 },
+      items: (characterId) => [
+        ...sampleItems(characterId),
+        mockItem(characterId, {
+          name: 'A Remarkably Over-Described Ceremonial Staff of Many Unpronounceable Virtues',
+          description: 'x'.repeat(300),
+          weight: 99999.99,
+          quantity: 9999,
+        }),
+      ],
+    })
+    await dialog.getByRole('button', { name: 'Coins', exact: true }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Inventory', exact: true }).click()
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: 'Add item' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await dialog.getByRole('button', { name: 'Remove Rope' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Keep item' }).click()
+
+    // Touch targets for the quantity buttons are at least 44 px.
+    const box = await dialog.getByRole('button', { name: 'Use one Rope' }).boundingBox()
+    expect(box!.width).toBeGreaterThanOrEqual(44)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+  })
+}

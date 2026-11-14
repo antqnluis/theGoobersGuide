@@ -457,8 +457,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
             >
               <p>
                 Delete <strong>{campaign.name}</strong> permanently? Its details, member list, and
-                every player's characters and character sheets will be removed. This can't be
-                undone.
+                every player's characters, character sheets, and inventories will be removed. This
+                can't be undone.
               </p>
               <div className="campaign-settings__actions">
                 <button

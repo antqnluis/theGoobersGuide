@@ -1121,3 +1121,238 @@
 .sheet-quickhp dt {
   margin-bottom: 6px;
 }
+
+/* Coins. */
+.coins {
+  display: grid;
+  gap: 12px;
+}
+
+.coin-purse {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.coin-purse__coin {
+  min-width: 0;
+  border: 1px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+}
+
+.coin-purse__coin dt {
+  color: var(--journal-ink-soft);
+  font: 700 0.7rem / 1.25 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coin-purse__coin dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--journal-ink-soft);
+  font: 600 0.9rem / 1.2 var(--journal-font-ui);
+}
+
+.coin-purse__coin dd strong {
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.2 var(--journal-font-display);
+}
+
+.coin-purse__coin[data-coin='gp'] {
+  border-style: solid;
+  border-color: var(--journal-brass-deep);
+  background: color-mix(in srgb, var(--journal-lantern-wash) 55%, transparent);
+}
+
+.coins__total {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.coin-form {
+  display: grid;
+  gap: 12px;
+  border-top: 1px dashed var(--journal-rule);
+  padding-top: 12px;
+}
+
+.coin-form__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.coin-form .journal-actions,
+.item-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Inventory. */
+.inventory {
+  display: grid;
+  gap: 12px;
+}
+
+.inventory__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.inventory__summary [data-over] {
+  color: var(--journal-oxblood-deep);
+  font-weight: 700;
+}
+
+.inventory__warning {
+  margin: 0;
+  border-left: 4px solid var(--journal-lantern);
+  padding: 6px 10px;
+  color: var(--journal-ink);
+  background: var(--journal-lantern-wash);
+  font-weight: 700;
+}
+
+.inventory__add {
+  justify-self: start;
+}
+
+.inventory-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inventory-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--journal-field) 35%, transparent);
+}
+
+.inventory-item[data-equipped] {
+  border-color: var(--journal-brass-deep);
+  border-left-width: 4px;
+}
+
+.inventory-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+
+.inventory-item__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 600 1.05rem / 1.25 var(--journal-font-display);
+}
+
+.inventory-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.inventory-item__details summary {
+  min-height: 28px;
+  cursor: pointer;
+  color: var(--journal-ink);
+  font-weight: 700;
+}
+
+.inventory-item__details .sheet-text {
+  margin: 6px 0 0;
+}
+
+.inventory-item__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-item__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inventory-item__count output {
+  min-width: 2.5ch;
+  text-align: center;
+  font: 600 1.1rem / 1 var(--journal-font-display);
+}
+
+.inventory-item__step {
+  min-width: var(--journal-touch);
+  padding-inline: 0;
+  font-size: 1.25rem;
+}
+
+.inventory-item__controls .journal-button {
+  min-height: var(--journal-touch);
+}
+
+.inventory-item--editing {
+  padding: 12px;
+}
+
+.item-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.item-form__name,
+.item-form__description,
+.item-form__flags,
+.item-form__actions {
+  grid-column: 1 / -1;
+}
+
+.item-form__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+
+.character-share {
+  display: grid;
+  gap: 2px;
+}
+
+.character-share-hint {
+  max-width: 34ch;
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+@container page (max-width: 24rem) {
+  .coin-form__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .item-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

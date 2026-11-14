@@ -25,13 +25,18 @@ import {
   type SkillProficiency,
 } from './characterTypes'
 import { limits, validateSheetBody, validateVitals } from './characterValidation'
+import { CharacterCoins, type CoinActions } from './CharacterCoins'
+import { CharacterInventory, type InventoryActions } from './CharacterInventory'
+import { carryingCapacity } from './inventoryRules'
 import { PixelIcon, type PixelIconName } from './PixelIcon'
-import type { useCharacterActions } from './useCharacterActions'
+import { inventoryActions, type useCharacterActions } from './useCharacterActions'
 
 export type SheetActions = Pick<
   ReturnType<typeof useCharacterActions>,
   'saveVitals' | 'saveSheet' | 'pendingAction' | 'pendingCharacterId'
->
+> &
+  CoinActions &
+  InventoryActions
 
 type CharacterSheetProps = {
   character: CharacterSummary
@@ -103,6 +108,7 @@ export function CharacterSheet({
       quickHp={quickHp && readOnly && Boolean(actions)}
       readOnly={readOnly || !actions}
       sheet={query.data}
+      userId={userId}
     />
   )
 }
@@ -146,6 +152,9 @@ const sectionTabs: readonly (readonly [string, string, PixelIconName])[] = [
   ['abilities', 'Abilities', 'shield'],
   ['skills', 'Skills', 'book'],
   ['attacks', 'Attacks', 'sword'],
+  ['spells', 'Spells', 'flame'],
+  ['coins', 'Coins', 'coin'],
+  ['inventory', 'Inventory', 'pack'],
   ['notes', 'Notes', 'quill'],
 ]
 
@@ -158,6 +167,7 @@ function SheetContent({
   quickHp,
   readOnly,
   sheet,
+  userId,
 }: {
   actions?: SheetActions
   character: CharacterSummary
@@ -167,6 +177,7 @@ function SheetContent({
   quickHp: boolean
   readOnly: boolean
   sheet: CharacterSheetData
+  userId: string
 }) {
   const level = character.level
   const vitalsFormId = useId()
@@ -174,7 +185,12 @@ function SheetContent({
   const [vitalsErrors, setVitalsErrors] = useState<string[]>([])
   const [body, setBody] = useState<CharacterSheetBody>(sheet.sheet)
   const [bodyErrors, setBodyErrors] = useState<string[]>([])
-  const busy = actions?.pendingAction != null && actions.pendingCharacterId === character.id
+  // Coins and items save on their own, so they never lock the stats and sheet fields.
+  const busy =
+    actions?.pendingAction != null &&
+    actions.pendingCharacterId === character.id &&
+    !inventoryActions.includes(actions.pendingAction)
+  const [itemFormDirty, setItemFormDirty] = useState(false)
   const savingVitals = busy && actions?.pendingAction === 'vitals'
   const savingSheet = busy && actions?.pendingAction === 'sheet'
 
@@ -185,14 +201,18 @@ function SheetContent({
   // The save bar serves the full editor, and the display's current-HP quick edit.
   const hasBar = !readOnly || quickHp
   const dirty = hasBar && (bodyDirty || vitalsDirty)
+  // Coins and items are interactive wherever the owner works (display and edit views).
+  const owned = hasBar && Boolean(actions)
+  // An open item form with typed input also counts as unsaved when leaving.
+  const unsaved = dirty || (owned && itemFormDirty)
 
   const reportRef = useRef(onDirtyChange)
   useEffect(() => {
     reportRef.current = onDirtyChange
   })
   useEffect(() => {
-    reportRef.current?.(dirty)
-  }, [dirty])
+    reportRef.current?.(unsaved)
+  }, [unsaved])
   useEffect(() => () => reportRef.current?.(false), [])
 
   const update = (change: (current: CharacterSheetBody) => CharacterSheetBody) => {
@@ -649,6 +669,41 @@ function SheetContent({
               )}
             </section>
 
+            <section
+              aria-labelledby={`sheet-spells-title-${character.id}`}
+              className="sheet-section"
+              id={`sheet-section-spells-${character.id}`}
+            >
+              <h3
+                className="journal-section-title"
+                id={`sheet-spells-title-${character.id}`}
+                tabIndex={-1}
+              >
+                <PixelIcon name="flame" />
+                Spells
+              </h3>
+              {readOnly ? (
+                <p className="sheet-text">{body.spells || 'Nothing recorded.'}</p>
+              ) : (
+                <div className="journal-field">
+                  <label className="visually-hidden" htmlFor={`sheet-spells-${character.id}`}>
+                    Spells
+                  </label>
+                  <textarea
+                    className="journal-input"
+                    disabled={busy}
+                    id={`sheet-spells-${character.id}`}
+                    maxLength={limits.text}
+                    onChange={(event) =>
+                      update((current) => ({ ...current, spells: event.target.value }))
+                    }
+                    rows={5}
+                    value={body.spells}
+                  />
+                </div>
+              )}
+            </section>
+
             <section aria-labelledby={`sheet-standing-${character.id}`} className="sheet-section">
               <h3 className="journal-section-title" id={`sheet-standing-${character.id}`}>
                 <PixelIcon name="star" />
@@ -706,22 +761,68 @@ function SheetContent({
 
           <div className="sheet-page">
             <section
-              aria-labelledby={`sheet-notes-${character.id}`}
+              aria-labelledby={`sheet-coins-${character.id}`}
+              className="sheet-section"
+              id={`sheet-section-coins-${character.id}`}
+            >
+              <h3
+                className="journal-section-title"
+                id={`sheet-coins-${character.id}`}
+                tabIndex={-1}
+              >
+                <PixelIcon name="coin" />
+                Coins
+              </h3>
+              <CharacterCoins
+                actions={owned ? actions : undefined}
+                characterId={character.id}
+                onNotice={onNotice}
+                purse={{ cp: sheet.cp, sp: sheet.sp, gp: sheet.gp }}
+              />
+            </section>
+
+            <section
+              aria-labelledby={`sheet-inventory-${character.id}`}
+              className="sheet-section"
+              id={`sheet-section-inventory-${character.id}`}
+            >
+              <h3
+                className="journal-section-title"
+                id={`sheet-inventory-${character.id}`}
+                tabIndex={-1}
+              >
+                <PixelIcon name="pack" />
+                Inventory
+              </h3>
+              <CharacterInventory
+                actions={owned ? actions : undefined}
+                capacity={carryingCapacity(body)}
+                characterId={character.id}
+                characterName={character.name}
+                onFormDirtyChange={setItemFormDirty}
+                onNotice={onNotice}
+                userId={userId}
+              />
+            </section>
+          </div>
+
+          <div className="sheet-page">
+            <section
+              aria-labelledby={`sheet-notes-title-${character.id}`}
               className="sheet-section"
               id={`sheet-section-notes-${character.id}`}
             >
               <h3
                 className="journal-section-title"
-                id={`sheet-notes-${character.id}`}
+                id={`sheet-notes-title-${character.id}`}
                 tabIndex={-1}
               >
                 <PixelIcon name="quill" />
-                Features, spells, and notes
+                Features and notes
               </h3>
               {(
                 [
                   ['features', 'Features and traits'],
-                  ['spells', 'Spells'],
                   ['notes', 'Notes and backstory'],
                 ] as const
               ).map(([name, label]) =>

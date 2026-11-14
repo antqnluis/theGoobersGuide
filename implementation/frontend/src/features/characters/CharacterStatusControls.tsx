@@ -146,8 +146,8 @@ export function CharacterStatusControls({
       <div ref={rootRef}>
         <div aria-label="Confirm character deletion" className="journal-confirm" role="group">
           <p>
-            Delete <strong>{name}</strong> permanently? Their sheet will be removed and this can't
-            be undone. To keep them as history, retire them instead.
+            Delete <strong>{name}</strong> permanently? Their sheet, inventory, and coins will be
+            removed and this can't be undone. To keep them as history, retire them instead.
           </p>
           <div className="journal-actions">
             <button
@@ -175,15 +175,23 @@ export function CharacterStatusControls({
 
   const everyday = (
     <div className="character-controls__everyday">
-      <div className="journal-check">
-        <input
-          checked={character.sheet_visibility === 'campaign'}
-          disabled={busy}
-          id={`character-share-${character.id}`}
-          onChange={(event) => onChangeVisibility(event.target.checked ? 'campaign' : 'private')}
-          type="checkbox"
-        />
-        <label htmlFor={`character-share-${character.id}`}>Share sheet with campaign members</label>
+      <div className="character-share">
+        <div className="journal-check">
+          <input
+            checked={character.sheet_visibility === 'campaign'}
+            disabled={busy}
+            aria-describedby={`character-share-hint-${character.id}`}
+            id={`character-share-${character.id}`}
+            onChange={(event) => onChangeVisibility(event.target.checked ? 'campaign' : 'private')}
+            type="checkbox"
+          />
+          <label htmlFor={`character-share-${character.id}`}>
+            Share sheet with campaign members
+          </label>
+        </div>
+        <small className="character-share-hint" id={`character-share-hint-${character.id}`}>
+          Members can see this sheet, including coins and inventory.
+        </small>
       </div>
       {character.status === 'active' && (
         <button

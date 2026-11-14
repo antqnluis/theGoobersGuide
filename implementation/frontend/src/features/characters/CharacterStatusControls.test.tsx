@@ -50,6 +50,9 @@ describe('CharacterStatusControls', () => {
     setup()
     expect(screen.getByRole('button', { name: 'Leave the party' })).toBeInTheDocument()
     expect(screen.getByLabelText('Share sheet with campaign members')).not.toBeChecked()
+    expect(screen.getByLabelText('Share sheet with campaign members')).toHaveAccessibleDescription(
+      'Members can see this sheet, including coins and inventory.',
+    )
     expect(screen.getByRole('button', { name: 'Retire' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark deceased' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete character' })).toBeInTheDocument()
@@ -127,7 +130,7 @@ describe('CharacterStatusControls', () => {
     await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
     const group = screen.getByRole('group', { name: 'Confirm character deletion' })
     expect(group).toHaveTextContent(
-      "Delete Brand permanently? Their sheet will be removed and this can't be undone. To keep them as history, retire them instead.",
+      "Delete Brand permanently? Their sheet, inventory, and coins will be removed and this can't be undone. To keep them as history, retire them instead.",
     )
     expect(screen.getByRole('button', { name: 'Yes, delete character' })).toHaveFocus()
     expect(out.handlers.onDelete).not.toHaveBeenCalled()

@@ -6,21 +6,37 @@ import { CharacterSheet, type SheetActions } from './CharacterSheet'
 import { getCharacterSheet } from './characterService'
 import { character, sheet, userId } from './characterTestData'
 import { defaultSheetBody } from './characterValidation'
+import { listCharacterItems } from './inventoryService'
 
 vi.mock('./characterService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterService')>()),
   getCharacterSheet: vi.fn(),
 }))
 
+vi.mock('./inventoryService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./inventoryService')>()),
+  listCharacterItems: vi.fn(),
+}))
+
 afterEach(cleanup)
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.mocked(listCharacterItems).mockResolvedValue([])
+})
 
 function actions(overrides: Partial<SheetActions> = {}) {
   return {
     saveVitals: vi.fn().mockResolvedValue(true),
     saveSheet: vi.fn().mockResolvedValue(true),
+    adjustCurrency: vi.fn().mockResolvedValue(true),
+    addItem: vi.fn().mockResolvedValue(true),
+    editItem: vi.fn().mockResolvedValue(true),
+    changeItemFlag: vi.fn().mockResolvedValue(true),
+    changeItemQuantity: vi.fn().mockResolvedValue(true),
+    removeItem: vi.fn().mockResolvedValue(true),
     pendingAction: null,
     pendingCharacterId: null,
+    pendingItemId: null,
     ...overrides,
   } satisfies SheetActions
 }
@@ -318,11 +334,11 @@ describe('CharacterSheet save bar and unsaved edits', () => {
     vi.mocked(getCharacterSheet).mockResolvedValue(sheet())
     const user = renderWithDirty(vi.fn())
     await user.type(await screen.findByLabelText('Speed'), '5')
-    await user.type(screen.getByLabelText('Spells'), 'Light')
+    await user.type(screen.getByRole('textbox', { name: 'Spells' }), 'Light')
     expect(screen.getByText('Unsaved stats and sheet changes')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(screen.getByLabelText('Speed')).toHaveValue(30)
-    expect(screen.getByLabelText('Spells')).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Spells' })).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Save stats' })).toBeDisabled()
   })
 
@@ -342,7 +358,7 @@ describe('CharacterSheet save bar and unsaved edits', () => {
       </QueryClientProvider>,
     )
     const user = userEvent.setup()
-    await user.type(await screen.findByLabelText('Spells'), 'Light')
+    await user.type(await screen.findByRole('textbox', { name: 'Spells' }), 'Light')
     view.unmount()
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
   })

@@ -418,11 +418,32 @@ export type MockSheet = {
   temp_hp: number
   armor_class: number | null
   speed: number | null
+  cp: number
+  sp: number
+  gp: number
   sheet: Record<string, unknown>
   updated_at: string
 }
 
-export type CharacterState = { characters: MockCharacter[]; sheets: MockSheet[] }
+export type MockItem = {
+  id: string
+  character_id: string
+  name: string
+  quantity: number
+  weight: number | null
+  description: string | null
+  equipped: boolean
+  attuned: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type CharacterState = {
+  characters: MockCharacter[]
+  sheets: MockSheet[]
+  /** Inventory rows; created empty when a test does not bring any. */
+  items?: MockItem[]
+}
 
 let stamp = 0
 const nextStamp = () => new Date(Date.UTC(2026, 10, 13, 12, 0, 0, 0) + ++stamp * 1000).toISOString()
@@ -459,7 +480,29 @@ export function mockSheet(characterId: string, overrides: Partial<MockSheet> = {
     temp_hp: 0,
     armor_class: null,
     speed: null,
+    cp: 0,
+    sp: 0,
+    gp: 0,
     sheet: { version: 1 },
+    updated_at: nextStamp(),
+    ...overrides,
+  }
+}
+
+let itemCounter = 0
+
+export function mockItem(characterId: string, overrides: Partial<MockItem> = {}): MockItem {
+  itemCounter += 1
+  return {
+    id: `00000000-0000-4000-8000-${String(5000 + itemCounter).padStart(12, '0')}`,
+    character_id: characterId,
+    name: 'Rope',
+    quantity: 1,
+    weight: null,
+    description: null,
+    equipped: false,
+    attuned: false,
+    created_at: new Date(Date.UTC(2026, 10, 14, 10, 0, itemCounter)).toISOString(),
     updated_at: nextStamp(),
     ...overrides,
   }
@@ -485,6 +528,8 @@ export async function mockCharacters(
   } = {},
 ) {
   const calls: string[] = []
+  state.items ??= []
+  const items = state.items
   await page.route('**/rest/v1/**', async (route) => {
     const request = route.request()
     const method = request.method()
@@ -495,8 +540,14 @@ export async function mockCharacters(
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
     const table = target.replace(/^rpc\//, '')
     if (
-      !['characters', 'character_sheets'].includes(table) &&
-      !['create_character', 'set_character_status', 'set_character_in_party'].includes(table)
+      !['characters', 'character_sheets', 'character_items'].includes(table) &&
+      ![
+        'create_character',
+        'set_character_status',
+        'set_character_in_party',
+        'adjust_character_currency',
+        'adjust_character_item_quantity',
+      ].includes(table)
     ) {
       return route.fallback()
     }
@@ -559,6 +610,9 @@ export async function mockCharacters(
       if (index < 0) return respond([])
       const [removed] = state.characters.splice(index, 1)
       state.sheets = state.sheets.filter((sheet) => sheet.character_id !== removed.id)
+      for (let at = items.length - 1; at >= 0; at--) {
+        if (items[at].character_id === removed.id) items.splice(at, 1)
+      }
       return respond([{ id: removed.id }])
     }
 
@@ -576,6 +630,92 @@ export async function mockCharacters(
         Object.assign(writable, body, { updated_at: nextStamp() })
         return respond([writable])
       }
+    }
+
+    // Inventory: readable like the sheet, writable by the owner only (plan §3).
+    const characterOf = (characterId: string | null | undefined) =>
+      state.characters.find((character) => character.id === characterId)
+    const readable = (characterId: string) => {
+      const owner = characterOf(characterId)
+      return Boolean(owner && (isMine(owner) || owner.sheet_visibility === 'campaign'))
+    }
+    const writable = (characterId: string) => {
+      const owner = characterOf(characterId)
+      return Boolean(owner && isMine(owner))
+    }
+
+    if (table === 'character_items') {
+      if (method === 'GET') {
+        const characterId = eq('character_id') ?? ''
+        return respond(
+          readable(characterId) ? items.filter((row) => row.character_id === characterId) : [],
+        )
+      }
+      if (method === 'POST') {
+        const input = body as Partial<MockItem> & { character_id: string }
+        if (!writable(input.character_id)) {
+          return route.fulfill({
+            status: 403,
+            headers,
+            json: { code: '42501', message: 'new row violates row-level security policy' },
+          })
+        }
+        if (items.filter((row) => row.character_id === input.character_id).length >= 200) {
+          return fail('item_limit_reached')
+        }
+        const row = mockItem(input.character_id, input)
+        items.push(row)
+        return respond([row], 201)
+      }
+      const row = items.find((candidate) => candidate.id === eq('id'))
+      const stampFilter = eq('updated_at')
+      const allowed =
+        row && writable(row.character_id) && (!stampFilter || stampFilter === row.updated_at)
+      if (method === 'PATCH') {
+        if (!row || !allowed) return respond([])
+        Object.assign(row, body, { updated_at: nextStamp() })
+        return respond([row])
+      }
+      if (method === 'DELETE') {
+        if (!row || !allowed) return respond([])
+        items.splice(items.indexOf(row), 1)
+        return respond([{ id: row.id }])
+      }
+    }
+
+    if (table === 'adjust_character_currency') {
+      const input = body as { p_character_id: string; p_cp?: number; p_sp?: number; p_gp?: number }
+      const owner = characterOf(input.p_character_id)
+      const sheet = state.sheets.find((row) => row.character_id === input.p_character_id)
+      if (!owner || !isMine(owner) || !sheet) return fail('character_unavailable')
+      const next = {
+        cp: sheet.cp + (input.p_cp ?? 0),
+        sp: sheet.sp + (input.p_sp ?? 0),
+        gp: sheet.gp + (input.p_gp ?? 0),
+      }
+      if (Object.values(next).some((value) => value < 0)) return fail('currency_insufficient')
+      if (Object.values(next).some((value) => value > 9_999_999)) {
+        return fail('currency_limit_exceeded')
+      }
+      if (next.cp !== sheet.cp || next.sp !== sheet.sp || next.gp !== sheet.gp) {
+        Object.assign(sheet, next, { updated_at: nextStamp() })
+      }
+      return route.fulfill({
+        status: 200,
+        headers,
+        json: [{ ...next, updated_at: sheet.updated_at }],
+      })
+    }
+
+    if (table === 'adjust_character_item_quantity') {
+      const input = body as { p_item_id: string; p_delta: number }
+      const row = items.find((candidate) => candidate.id === input.p_item_id)
+      if (!row || !writable(row.character_id)) return fail('item_unavailable')
+      const quantity = row.quantity + input.p_delta
+      if (quantity < 0) return fail('item_quantity_insufficient')
+      if (quantity > 9999) return fail('item_quantity_invalid')
+      if (input.p_delta !== 0) Object.assign(row, { quantity, updated_at: nextStamp() })
+      return route.fulfill({ status: 200, headers, json: row.quantity })
     }
 
     if (table === 'create_character') {

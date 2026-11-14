@@ -55,7 +55,8 @@ export type CharacterAction =
   | 'item-quantity'
   | 'item-delete'
 
-const inventoryActions: readonly CharacterAction[] = [
+/** The coin and item actions: immediate saves, separate from the sheet's own editing. */
+export const inventoryActions: readonly CharacterAction[] = [
   'currency',
   'item-add',
   'item-edit',
