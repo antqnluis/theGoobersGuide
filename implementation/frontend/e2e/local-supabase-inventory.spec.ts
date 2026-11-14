@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { localDatabaseQuery, sqlError } from './support/localSupabase.ts'
+import { localClient, localDatabaseQuery, sqlError } from './support/localSupabase.ts'
 import {
   cleanup,
   createCampaign,
   invite,
   newPlayers,
   RANDOM_ID,
+  rpcError,
   rpcOk,
   type Player,
 } from './support/localPlayers.ts'
@@ -192,8 +193,8 @@ rollback;`),
 ${insertItem({ name: `repeat('x', 80)`, quantity: '0', weight: '0', description: `repeat('d', 2000)` })};
 ${insertItem({ name: `'Max'`, quantity: '9999', weight: '99999.99', description: `E'line one\\nline\\ttwo'` })};
 ${insertItem({ name: `'Fractional'`, weight: '0.25' })};
-select 'rows:' || count(*) || ',weight:' || (select weight from public.character_items where name = 'Fractional')
-from public.character_items;
+select 'rows:' || count(*) || ',weight:' || (select weight from public.character_items where character_id = ${CHARACTER} and name = 'Fractional')
+from public.character_items where character_id = ${CHARACTER};
 rollback;`,
       {},
     )
@@ -210,7 +211,7 @@ rollback;`,
 insert into public.characters (id, campaign_id, owner_id, name, status)
   values ('00000000-0000-4000-8000-0000000000e2', ${CAMPAIGN}, ${MEMBER}, 'Second', 'retired');
 ${insertItem()};
-update public.character_items set ${change};
+update public.character_items set ${change} where character_id = ${CHARACTER};
 rollback;`),
         change,
       ).toContain('item_reassignment_forbidden')
@@ -245,7 +246,7 @@ rollback;`),
 ${second}
 ${fill}
 ${insertItem({ name: "'Elsewhere'" }, "'00000000-0000-4000-8000-0000000000e2'")};
-delete from public.character_items where name = 'Item 1';
+delete from public.character_items where character_id = ${CHARACTER} and name = 'Item 1';
 ${insertItem({ name: "'Replacement'" })};
 select 'counts:' || (select count(*) from public.character_items where character_id = ${CHARACTER})
   || ',' || (select count(*) from public.character_items where character_id = '00000000-0000-4000-8000-0000000000e2');
@@ -283,9 +284,9 @@ rollback;`,
     const result = localDatabaseQuery(
       `${fixture}
 ${insertItem({ name: "'Rope'", updated_at: "now() - interval '1 day'" })};
-select 'stale:' || (updated_at < now() - interval '1 hour') from public.character_items;
-update public.character_items set quantity = 2;
-select 'moved:' || (updated_at > now() - interval '1 minute') from public.character_items;
+select 'stale:' || (updated_at < now() - interval '1 hour') from public.character_items where character_id = ${CHARACTER};
+update public.character_items set quantity = 2 where character_id = ${CHARACTER};
+select 'moved:' || (updated_at > now() - interval '1 minute') from public.character_items where character_id = ${CHARACTER};
 rollback;`,
       {},
     )
@@ -901,6 +902,449 @@ test('deleting a character or a campaign removes its items, including a departed
         {},
       ),
     ).toBe('0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+// --- Phase 2: delta RPCs, departure, concurrency, and the sheet token -----------------
+
+type PurseRow = { cp: number; sp: number; ep: number; gp: number; pp: number; updated_at: string }
+type Deltas = {
+  p_cp?: number | null
+  p_sp?: number | null
+  p_ep?: number | null
+  p_gp?: number | null
+  p_pp?: number | null
+}
+
+function adjustCurrency(player: Player, characterId: string, deltas: Deltas = {}) {
+  return player.client.rpc('adjust_character_currency', { p_character_id: characterId, ...deltas })
+}
+
+async function currencyOk(player: Player, characterId: string, deltas: Deltas) {
+  const { data, error } = await adjustCurrency(player, characterId, deltas)
+  expect(error?.message ?? null).toBeNull()
+  return (data as PurseRow[])[0]
+}
+
+function adjustQuantity(player: Player, itemId: string, delta: number | null) {
+  return player.client.rpc('adjust_character_item_quantity', { p_item_id: itemId, p_delta: delta })
+}
+
+function sheetStamp(characterId: string) {
+  return localDatabaseQuery(
+    `select updated_at::text from public.character_sheets where character_id = '${characterId}';`,
+    {},
+  )
+}
+
+// The invariants of plan §4.5 for one campaign. Returns the number of violations.
+function inventoryViolations(campaignId: string) {
+  return localDatabaseQuery(
+    `select
+       (select count(*) from public.character_sheets s join public.characters c on c.id = s.character_id
+        where c.campaign_id = '${campaignId}'
+          and (least(s.cp, s.sp, s.ep, s.gp, s.pp) < 0 or greatest(s.cp, s.sp, s.ep, s.gp, s.pp) > 9999999))
+     + (select count(*) from (
+          select i.character_id from public.character_items i join public.characters c on c.id = i.character_id
+          where c.campaign_id = '${campaignId}' group by i.character_id having count(*) > 200) over_cap)
+     + (select count(*) from public.character_items i join public.characters c on c.id = i.character_id
+        where c.campaign_id = '${campaignId}' and (i.quantity < 0 or i.quantity > 9999));`,
+    {},
+  )
+}
+
+test('the delta RPCs are executable only by authenticated users', () => {
+  for (const fn of [
+    'public.adjust_character_currency(uuid, integer, integer, integer, integer, integer)',
+    'public.adjust_character_item_quantity(uuid, integer)',
+  ]) {
+    expect(
+      localDatabaseQuery(
+        `select string_agg(r || ':' || has_function_privilege(r, '${fn}', 'execute'), ',' order by r)
+         from unnest(array['${ROLES.join("','")}']) r;`,
+        {},
+      ),
+      fn,
+    ).toBe('anon:false,authenticated:true,public:false,service_role:false')
+  }
+})
+
+test('adjust_character_currency adds and spends atomically and validates its input', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 currency')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId)
+
+    // Several denominations in one call; the result matches the row, and a null delta is zero.
+    const first = await currencyOk(guest, characterId, { p_gp: 15, p_sp: 4, p_cp: null })
+    expect(first).toMatchObject({ cp: 0, sp: 4, ep: 0, gp: 15, pp: 0 })
+    expect(purse(characterId)).toBe('0,4,0,15,0')
+    expect(first.updated_at).not.toBeNull()
+    expect(new Date(first.updated_at).getTime()).toBe(new Date(sheetStamp(characterId)).getTime())
+
+    // Add and spend in the same call (a trade).
+    const trade = await currencyOk(guest, characterId, { p_gp: 5, p_sp: -3, p_pp: 1 })
+    expect(trade).toMatchObject({ cp: 0, sp: 1, ep: 0, gp: 20, pp: 1 })
+    expect(new Date(trade.updated_at).getTime()).toBeGreaterThan(
+      new Date(first.updated_at).getTime(),
+    )
+
+    // Overspending one denomination changes nothing, including the ones that would stay positive.
+    const before = purse(characterId)
+    const stampBefore = sheetStamp(characterId)
+    for (const deltas of [
+      { p_gp: 3, p_sp: -2 },
+      { p_gp: -21 },
+      { p_cp: -1 },
+      { p_pp: -1, p_ep: -1 },
+    ]) {
+      expect(
+        (await rpcError(adjustCurrency(guest, characterId, deltas))).message,
+        JSON.stringify(deltas),
+      ).toBe('currency_insufficient')
+    }
+    expect(purse(characterId)).toBe(before)
+    expect(sheetStamp(characterId)).toBe(stampBefore)
+
+    // Spending everything is allowed (exactly zero).
+    expect(await currencyOk(guest, characterId, { p_gp: -20, p_sp: -1, p_pp: -1 })).toMatchObject({
+      sp: 0,
+      gp: 0,
+      pp: 0,
+    })
+
+    // The upper limit refuses the whole change.
+    await currencyOk(guest, characterId, { p_pp: 9_999_999 })
+    expect((await rpcError(adjustCurrency(guest, characterId, { p_pp: 1, p_gp: 5 }))).message).toBe(
+      'currency_limit_exceeded',
+    )
+    expect(purse(characterId)).toBe('0,0,0,0,9999999')
+    await currencyOk(guest, characterId, { p_pp: -9_999_999 })
+
+    // Out-of-range deltas and a missing character are argument errors (22023).
+    for (const deltas of [{ p_gp: 10_000_000 }, { p_cp: -10_000_000 }, { p_pp: 2_147_483_647 }]) {
+      const failure = await rpcError(adjustCurrency(guest, characterId, deltas))
+      expect([failure.code, failure.message], JSON.stringify(deltas)).toEqual([
+        '22023',
+        'currency_amount_invalid',
+      ])
+    }
+    const missing = await rpcError(adjustCurrency(guest, null as unknown as string, { p_gp: 1 }))
+    expect([missing.code, missing.message]).toEqual(['22023', 'currency_required'])
+
+    // An all-zero call is a no-op: no write, the stamp does not move.
+    const stamp = sheetStamp(characterId)
+    const noop = await currencyOk(guest, characterId, {})
+    expect(noop).toMatchObject({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 })
+    expect(sheetStamp(characterId)).toBe(stamp)
+    await currencyOk(guest, characterId, { p_gp: null, p_cp: 0 })
+    expect(sheetStamp(characterId)).toBe(stamp)
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('adjust_character_currency is unavailable to everyone but the character owner', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest, other, outsider } = players
+  const anonymous = localClient()
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 currency access')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = await createdCharacter(guest, campaignId)
+    await currencyOk(guest, characterId, { p_gp: 10 })
+    await guest.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+
+    // A shared sheet is readable by members but still cannot be spent by them.
+    const answers: unknown[] = []
+    for (const who of [other, owner, outsider]) {
+      answers.push(await rpcError(adjustCurrency(who, characterId, { p_gp: -5 })))
+    }
+    answers.push(await rpcError(adjustCurrency(guest, RANDOM_ID, { p_gp: -5 })))
+    for (const answer of answers) {
+      expect(answer).toEqual({ code: 'P0001', message: 'character_unavailable' })
+    }
+    expect(purse(characterId)).toBe('0,0,0,10,0')
+
+    // Anonymous callers have no EXECUTE.
+    const denied = await rpcError(
+      anonymous.rpc('adjust_character_currency', { p_character_id: characterId, p_gp: -5 }),
+    )
+    expect(denied.code).toBe('42501')
+
+    // A departed owner gets the same answer; rejoining restores it.
+    await rpcOk(guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    expect(await rpcError(adjustCurrency(guest, characterId, { p_gp: 1 }))).toEqual({
+      code: 'P0001',
+      message: 'character_unavailable',
+    })
+    expect(purse(characterId)).toBe('0,0,0,10,0')
+    await invite(owner, campaignId, guest)
+    expect(await currencyOk(guest, characterId, { p_gp: -4 })).toMatchObject({ gp: 6 })
+
+    // Removal behaves the same.
+    await rpcOk(
+      owner.client.rpc('remove_campaign_member', {
+        p_campaign_id: campaignId,
+        p_profile_id: guest.id,
+      }),
+    )
+    expect((await rpcError(adjustCurrency(guest, characterId, { p_gp: 1 }))).message).toBe(
+      'character_unavailable',
+    )
+    expect(purse(characterId)).toBe('0,0,0,6,0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('adjust_character_item_quantity adjusts, bounds, and hides items from everyone else', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest, other, outsider } = players
+  const anonymous = localClient()
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 quantity')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = await createdCharacter(guest, campaignId)
+    const item = (await addItem(guest, characterId, { name: 'Arrows', quantity: 5 })).data!
+
+    const quantity = async (delta: number | null) => {
+      const { data, error } = await adjustQuantity(guest, item.id, delta)
+      expect(error?.message ?? null).toBeNull()
+      return data
+    }
+    expect(await quantity(3)).toBe(8)
+    expect(await quantity(-8)).toBe(0)
+    expect(itemRow(item.id)).toContain('Arrows|0|')
+    expect(await quantity(9999)).toBe(9999)
+    expect(await quantity(-9999)).toBe(0)
+
+    // Below zero and above the maximum change nothing.
+    await quantity(2)
+    expect((await rpcError(adjustQuantity(guest, item.id, -3))).message).toBe(
+      'item_quantity_insufficient',
+    )
+    await quantity(9997)
+    expect((await rpcError(adjustQuantity(guest, item.id, 1))).message).toBe(
+      'item_quantity_invalid',
+    )
+    expect(itemRow(item.id)).toContain('Arrows|9999|')
+    await quantity(-9997)
+
+    // A zero delta returns the current value without writing.
+    const stamp = localDatabaseQuery(
+      `select updated_at::text from public.character_items where id = '${item.id}';`,
+      {},
+    )
+    expect(await quantity(0)).toBe(2)
+    expect(
+      localDatabaseQuery(
+        `select updated_at::text from public.character_items where id = '${item.id}';`,
+        {},
+      ),
+    ).toBe(stamp)
+
+    // Argument errors (22023).
+    for (const delta of [10_000, -10_000]) {
+      const failure = await rpcError(adjustQuantity(guest, item.id, delta))
+      expect([failure.code, failure.message], String(delta)).toEqual([
+        '22023',
+        'item_quantity_invalid',
+      ])
+    }
+    for (const call of [
+      adjustQuantity(guest, item.id, null),
+      adjustQuantity(guest, null as unknown as string, 1),
+    ]) {
+      const failure = await rpcError(call)
+      expect([failure.code, failure.message]).toEqual(['22023', 'item_required'])
+    }
+
+    // Other members (even with the sheet shared), the campaign owner, an outsider, and an unknown
+    // item all get the same answer; anonymous callers have no EXECUTE.
+    await guest.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+    for (const call of [
+      adjustQuantity(other, item.id, -1),
+      adjustQuantity(owner, item.id, -1),
+      adjustQuantity(outsider, item.id, -1),
+      adjustQuantity(guest, RANDOM_ID, -1),
+    ]) {
+      expect(await rpcError(call)).toEqual({ code: 'P0001', message: 'item_unavailable' })
+    }
+    expect(
+      (
+        await rpcError(
+          anonymous.rpc('adjust_character_item_quantity', { p_item_id: item.id, p_delta: -1 }),
+        )
+      ).code,
+    ).toBe('42501')
+    expect(itemRow(item.id)).toContain('Arrows|2|')
+
+    // A departed owner is refused; rejoining restores it.
+    await rpcOk(guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    expect((await rpcError(adjustQuantity(guest, item.id, 1))).message).toBe('item_unavailable')
+    expect(itemRow(item.id)).toContain('Arrows|2|')
+    await invite(owner, campaignId, guest)
+    expect(await quantity(1)).toBe(3)
+
+    await rpcOk(
+      owner.client.rpc('remove_campaign_member', {
+        p_campaign_id: campaignId,
+        p_profile_id: guest.id,
+      }),
+    )
+    expect((await rpcError(adjustQuantity(guest, item.id, 1))).message).toBe('item_unavailable')
+    expect(itemRow(item.id)).toContain('Arrows|3|')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('the sheet token moves with coin changes: a body save needs the returned updated_at', async () => {
+  test.setTimeout(60_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 sheet token')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId)
+
+    const save = (features: string, previous: string) =>
+      guest.client
+        .from('character_sheets')
+        .update({ sheet: { version: 1, features } })
+        .eq('character_id', characterId)
+        .eq('updated_at', previous)
+        .select('updated_at')
+        .maybeSingle()
+    const { data: initial } = await guest.client
+      .from('character_sheets')
+      .select('updated_at')
+      .eq('character_id', characterId)
+      .single()
+
+    const adjusted = await currencyOk(guest, characterId, { p_gp: 3 })
+    expect(adjusted.updated_at).not.toBe(initial!.updated_at)
+
+    // The token read before the adjustment no longer matches; the returned one does.
+    expect((await save('Old token', initial!.updated_at)).data).toBeNull()
+    expect((await save('New token', adjusted.updated_at)).data).not.toBeNull()
+    // The coins survive a body save.
+    expect(purse(characterId)).toBe('0,0,0,3,0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('concurrent coin, quantity, and membership changes keep the invariants', async () => {
+  test.setTimeout(120_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 concurrency')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId)
+    const parallel = <T>(count: number, make: (n: number) => PromiseLike<T>) =>
+      Promise.all(Array.from({ length: count }, (_, n) => make(n)))
+
+    // Ten parallel +1 gp all apply.
+    const adds = await parallel(10, () => adjustCurrency(guest, characterId, { p_gp: 1 }))
+    expect(adds.filter((result) => result.error)).toHaveLength(0)
+    expect(purse(characterId)).toBe('0,0,0,10,0')
+    expect(inventoryViolations(campaignId)).toBe('0')
+
+    // 10 gp and ten parallel -1 gp: exactly ten succeed. Then 5 gp and ten spends: five succeed.
+    await currencyOk(guest, characterId, { p_gp: -5 })
+    const spends = await parallel(10, () => adjustCurrency(guest, characterId, { p_gp: -1 }))
+    expect(spends.filter((result) => !result.error)).toHaveLength(5)
+    expect(
+      spends.filter((result) => result.error?.message === 'currency_insufficient'),
+    ).toHaveLength(5)
+    expect(purse(characterId)).toBe('0,0,0,0,0')
+    expect(inventoryViolations(campaignId)).toBe('0')
+
+    // Mixed adds and spends across denominations stay consistent.
+    await parallel(6, (n) =>
+      adjustCurrency(guest, characterId, n % 2 === 0 ? { p_sp: 2, p_cp: 1 } : { p_sp: -1 }),
+    )
+    const mixed = purse(characterId).split(',').map(Number)
+    expect(mixed.every((value) => value >= 0)).toBe(true)
+    expect(inventoryViolations(campaignId)).toBe('0')
+
+    // Parallel quantity deltas all apply in order and never go below zero.
+    const item = (await addItem(guest, characterId, { name: 'Darts', quantity: 4 })).data!
+    const deltas = await parallel(10, () => adjustQuantity(guest, item.id, -1))
+    expect(deltas.filter((result) => !result.error)).toHaveLength(4)
+    expect(
+      deltas.filter((result) => result.error?.message === 'item_quantity_insufficient'),
+    ).toHaveLength(6)
+    expect(itemRow(item.id)).toContain('Darts|0|')
+    const ups = await parallel(10, () => adjustQuantity(guest, item.id, 3))
+    expect(ups.filter((result) => result.error)).toHaveLength(0)
+    expect(itemRow(item.id)).toContain('Darts|30|')
+    expect(inventoryViolations(campaignId)).toBe('0')
+
+    // A currency adjustment racing the owner's removal either applies or is unavailable.
+    for (let round = 0; round < 3; round++) {
+      const before = Number(purse(characterId).split(',')[3])
+      const [adjust, remove] = await Promise.all([
+        adjustCurrency(guest, characterId, { p_gp: 1 }),
+        owner.client.rpc('remove_campaign_member', {
+          p_campaign_id: campaignId,
+          p_profile_id: guest.id,
+        }),
+      ])
+      expect(remove.error?.message ?? null).toBeNull()
+      const after = Number(purse(characterId).split(',')[3])
+      if (adjust.error) {
+        expect(adjust.error.message).toBe('character_unavailable')
+        expect(after).toBe(before)
+      } else {
+        expect(after).toBe(before + 1)
+      }
+      // After removal, nothing gets through.
+      expect((await rpcError(adjustCurrency(guest, characterId, { p_gp: 1 }))).message).toBe(
+        'character_unavailable',
+      )
+      expect(inventoryViolations(campaignId)).toBe('0')
+      await invite(owner, campaignId, guest)
+    }
+
+    // Quantity delta racing the owner's leave.
+    const [quantityRace, leave] = await Promise.all([
+      adjustQuantity(guest, item.id, 1),
+      guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }),
+    ])
+    expect(leave.error?.message ?? null).toBeNull()
+    if (quantityRace.error) {
+      expect(quantityRace.error.message).toBe('item_unavailable')
+    }
+    expect(inventoryViolations(campaignId)).toBe('0')
   } finally {
     await cleanup(players, ids)
   }
