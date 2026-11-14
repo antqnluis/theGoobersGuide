@@ -16,7 +16,8 @@ type Functions = Database['public']['Functions']
 
 const summaryFields =
   'id,campaign_id,owner_id,name,species,class_name,subclass,background,level,status,in_party,sheet_visibility,portrait_path,status_changed_at,created_at,updated_at'
-const sheetFields = 'character_id,max_hp,current_hp,temp_hp,armor_class,speed,sheet,updated_at'
+const sheetFields =
+  'character_id,max_hp,current_hp,temp_hp,armor_class,speed,cp,sp,gp,sheet,updated_at'
 
 type SheetRow = Omit<CharacterSheet, 'sheet'> & { sheet: unknown }
 

@@ -61,11 +61,41 @@ export type CharacterVitals = Pick<
   'max_hp' | 'current_hp' | 'temp_hp' | 'armor_class' | 'speed'
 >
 
+export const denominations = ['cp', 'sp', 'gp'] as const
+export type Denomination = (typeof denominations)[number]
+
+/** The coin purse: whole coins per denomination, written only through the delta RPC. */
+export type CharacterPurse = Record<Denomination, number>
+
 /** A sheet row with its body normalized to a complete version-1 object. */
-export type CharacterSheet = CharacterVitals & {
-  character_id: string
-  updated_at: string
-  sheet: CharacterSheetBody
+export type CharacterSheet = CharacterVitals &
+  CharacterPurse & {
+    character_id: string
+    updated_at: string
+    sheet: CharacterSheetBody
+  }
+
+/** One inventory row (weight arrives as a number or null). */
+export type CharacterItem = Tables['character_items']['Row']
+
+/** An item as typed into the form. Weight and description stay text until normalized. */
+export type CharacterItemInput = {
+  name: string
+  quantity: number
+  weight: string
+  description: string
+  equipped: boolean
+  attuned: boolean
+}
+
+/** An item as stored: trimmed, empty weight and description as null. */
+export type CharacterItemValues = {
+  name: string
+  quantity: number
+  weight: number | null
+  description: string | null
+  equipped: boolean
+  attuned: boolean
 }
 
 /** Editable summary fields as typed into the form. */

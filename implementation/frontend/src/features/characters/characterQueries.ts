@@ -1,3 +1,4 @@
+import { listCharacterItems } from './inventoryService'
 import {
   getCharacterPortraitUrl,
   getCharacterSheet,
@@ -10,6 +11,13 @@ export const campaignCharactersKey = (campaignId: string, userId: string) =>
 
 export const characterSheetKey = (characterId: string, userId: string) =>
   ['campaigns', 'characters', 'sheet', characterId, userId] as const
+
+/** Every inventory query, for invalidation when membership changes (items are per character). */
+export const characterItemsPrefix = ['campaigns', 'characters', 'items'] as const
+
+/** Inventory rows. Under the characters prefix so leaving or removal marks them stale too. */
+export const characterItemsKey = (characterId: string, userId: string) =>
+  ['campaigns', 'characters', 'items', characterId, userId] as const
 
 /** Every character the signed-in member may see in the campaign, oldest first. */
 export function campaignCharactersOptions(campaignId: string, userId: string) {
@@ -34,5 +42,14 @@ export function characterSheetOptions(characterId: string, userId: string) {
   return {
     queryKey: characterSheetKey(characterId, userId),
     queryFn: () => getCharacterSheet(characterId),
+  }
+}
+
+/** The character's items; pass `enabled: false` until the sheet itself is readable. */
+export function characterItemsOptions(characterId: string, userId: string, enabled = true) {
+  return {
+    queryKey: characterItemsKey(characterId, userId),
+    queryFn: () => listCharacterItems(characterId),
+    enabled,
   }
 }

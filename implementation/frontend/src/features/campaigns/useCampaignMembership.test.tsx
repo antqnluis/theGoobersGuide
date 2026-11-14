@@ -24,11 +24,26 @@ const detailKey = ['campaigns', 'detail', campaignId, userId]
 const rosterKey = ['campaigns', 'roster', campaignId, userId]
 const outgoingKey = ['campaigns', 'invitations', 'outgoing', campaignId, userId]
 const charactersKey = ['campaigns', 'characters', campaignId, userId]
+const itemsKey = [
+  'campaigns',
+  'characters',
+  'items',
+  '00000000-0000-4000-8000-000000000021',
+  userId,
+]
 const otherDetailKey = ['campaigns', 'detail', 'another-campaign', userId]
 
 function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey, otherDetailKey]) {
+  for (const key of [
+    listKey,
+    detailKey,
+    rosterKey,
+    outgoingKey,
+    charactersKey,
+    itemsKey,
+    otherDetailKey,
+  ]) {
     queryClient.setQueryData(key, 'cached')
   }
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -60,7 +75,7 @@ describe('useCampaignMembership', () => {
 
     expect(left).toBe(true)
     expect(leaveCampaign).toHaveBeenCalledWith(campaignId)
-    for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey]) {
+    for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey, itemsKey]) {
       expect(stale(queryClient, key)).toBe(true)
     }
     expect(stale(queryClient, otherDetailKey)).toBe(false)
@@ -123,6 +138,7 @@ describe('useCampaignMembership', () => {
     expect(stale(queryClient, rosterKey)).toBe(true)
     expect(stale(queryClient, listKey)).toBe(true)
     expect(stale(queryClient, charactersKey)).toBe(true)
+    expect(stale(queryClient, itemsKey)).toBe(true)
     expect(stale(queryClient, detailKey)).toBe(false)
     expect(result.current.pendingProfileId).toBeNull()
     expect(result.current.pendingAction).toBeNull()

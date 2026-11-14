@@ -125,13 +125,23 @@ describe('queries and writes', () => {
   })
 
   it('reads a sheet with its body normalized, or null when hidden', async () => {
-    builder({
-      data: { character_id: characterId, max_hp: 10, sheet: { version: 1, features: 'Rage' } },
+    const calls = builder({
+      data: {
+        character_id: characterId,
+        max_hp: 10,
+        gp: 12,
+        sp: 3,
+        sheet: { version: 1, features: 'Rage' },
+      },
       error: null,
     })
     const sheet = await getCharacterSheet(characterId)
     expect(sheet?.sheet).toEqual({ ...defaultSheetBody(), features: 'Rage' })
     expect(sheet?.max_hp).toBe(10)
+    // The purse columns are selected and passed through with the sheet.
+    expect(sheet).toMatchObject({ gp: 12, sp: 3 })
+    const selected = calls.find(([method]) => method === 'select')?.[1][0] as string
+    expect(selected.split(',')).toEqual(expect.arrayContaining(['cp', 'sp', 'gp']))
 
     builder({ data: null, error: null })
     await expect(getCharacterSheet(characterId)).resolves.toBeNull()

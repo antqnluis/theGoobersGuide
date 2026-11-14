@@ -50,6 +50,9 @@ const sheet: CharacterSheet = {
   temp_hp: 0,
   armor_class: null,
   speed: null,
+  cp: 0,
+  sp: 0,
+  gp: 0,
   updated_at: 'new-stamp',
   sheet: defaultSheetBody(),
 }

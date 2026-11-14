@@ -7,7 +7,7 @@ import {
   removeCampaignMember,
   transferCampaignOwnership,
 } from './campaignMembership'
-import { campaignCharactersKey } from '../characters/characterQueries'
+import { campaignCharactersKey, characterItemsPrefix } from '../characters/characterQueries'
 import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
@@ -65,7 +65,14 @@ export function useCampaignMembership(campaignId: string, userId: string) {
     }
     // Stale, not refetched: the page is about to leave, and a refetch would flash
     // "Campaign not available" before the navigation lands.
-    for (const queryKey of [detailKey, rosterKey, outgoingKey, listKey, charactersKey]) {
+    for (const queryKey of [
+      detailKey,
+      rosterKey,
+      outgoingKey,
+      listKey,
+      charactersKey,
+      characterItemsPrefix,
+    ]) {
       void queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     }
     return true
@@ -80,6 +87,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
         queryClient.invalidateQueries({ queryKey: rosterKey }),
         queryClient.invalidateQueries({ queryKey: listKey }),
         queryClient.invalidateQueries({ queryKey: charactersKey }),
+        queryClient.invalidateQueries({ queryKey: characterItemsPrefix }),
       ])
       return true
     } catch (failure) {

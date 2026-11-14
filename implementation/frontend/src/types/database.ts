@@ -181,13 +181,64 @@ export type Database = {
           },
         ]
       }
+      character_items: {
+        Row: {
+          attuned: boolean
+          character_id: string
+          created_at: string
+          description: string | null
+          equipped: boolean
+          id: string
+          name: string
+          quantity: number
+          updated_at: string
+          weight: number | null
+        }
+        ComputedFields: never
+        Insert: {
+          attuned?: boolean
+          character_id: string
+          created_at?: string
+          description?: string | null
+          equipped?: boolean
+          id?: string
+          name: string
+          quantity?: number
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          attuned?: boolean
+          character_id?: string
+          created_at?: string
+          description?: string | null
+          equipped?: boolean
+          id?: string
+          name?: string
+          quantity?: number
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_items_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       character_sheets: {
         Row: {
           armor_class: number | null
           character_id: string
+          cp: number
           current_hp: number | null
+          gp: number
           max_hp: number | null
           sheet: NonNullable<Json>
+          sp: number
           speed: number | null
           temp_hp: number
           updated_at: string
@@ -196,9 +247,12 @@ export type Database = {
         Insert: {
           armor_class?: number | null
           character_id: string
+          cp?: number
           current_hp?: number | null
+          gp?: number
           max_hp?: number | null
           sheet?: NonNullable<Json>
+          sp?: number
           speed?: number | null
           temp_hp?: number
           updated_at?: string
@@ -206,9 +260,12 @@ export type Database = {
         Update: {
           armor_class?: number | null
           character_id?: string
+          cp?: number
           current_hp?: number | null
+          gp?: number
           max_hp?: number | null
           sheet?: NonNullable<Json>
+          sp?: number
           speed?: number | null
           temp_hp?: number
           updated_at?: string
@@ -329,6 +386,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_character_currency: {
+        Args: { p_character_id: string; p_cp?: number; p_gp?: number; p_sp?: number }
+        Returns: {
+          cp: number
+          gp: number
+          sp: number
+          updated_at: string
+        }[]
+      }
+      adjust_character_item_quantity: {
+        Args: { p_delta: number; p_item_id: string }
+        Returns: number
+      }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
       create_character: {
         Args: {

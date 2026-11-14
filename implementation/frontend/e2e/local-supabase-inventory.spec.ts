@@ -106,20 +106,29 @@ test.describe('catalog and privileges', () => {
   })
 
   test('the purse columns are readable, never writable, by authenticated', () => {
-    const purse = ['cp', 'sp', 'ep', 'gp', 'pp']
+    const purse = ['cp', 'sp', 'gp']
     const withPrivilege = (role: string, privilege: string) =>
       localDatabaseQuery(
         `select coalesce(string_agg(c, ',' order by c), '') from unnest(array['${purse.join("','")}']) c
          where has_column_privilege('${role}', 'public.character_sheets', c, '${privilege}');`,
         {},
       )
-    expect(withPrivilege('authenticated', 'select')).toBe('cp,ep,gp,pp,sp')
+    expect(withPrivilege('authenticated', 'select')).toBe('cp,gp,sp')
     for (const privilege of ['insert', 'update']) {
       expect(withPrivilege('authenticated', privilege), privilege).toBe('')
     }
     for (const role of ['anon', 'service_role', 'public']) {
       expect(withPrivilege(role, 'select'), role).toBe('')
     }
+
+    // Coins stop at gold: there are no electrum or platinum columns.
+    expect(
+      localDatabaseQuery(
+        `select count(*) from information_schema.columns
+         where table_schema = 'public' and table_name = 'character_sheets' and column_name in ('ep', 'pp');`,
+        {},
+      ),
+    ).toBe('0')
 
     // The existing column grants on the sheet are unchanged.
     expect(
@@ -260,8 +269,9 @@ rollback;`,
     for (const [change, label] of [
       ['gp = -1', 'negative'],
       ['cp = -1', 'negative cp'],
-      ['pp = 10000000', 'above the limit'],
+      ['gp = 10000000', 'above the limit'],
       ['sp = 10000000', 'above the limit sp'],
+      ['cp = 10000000', 'above the limit cp'],
     ]) {
       expect(
         sqlError(`${fixture}
@@ -272,8 +282,8 @@ rollback;`),
     }
     const result = localDatabaseQuery(
       `${fixture}
-update public.character_sheets set cp = 9999999, gp = 0, pp = 9999999 where character_id = ${CHARACTER};
-select 'ok:' || cp || ',' || pp from public.character_sheets where character_id = ${CHARACTER};
+update public.character_sheets set cp = 9999999, sp = 0, gp = 9999999 where character_id = ${CHARACTER};
+select 'ok:' || cp || ',' || gp from public.character_sheets where character_id = ${CHARACTER};
 rollback;`,
       {},
     )
@@ -376,7 +386,7 @@ function itemCount(characterId: string) {
 
 function purse(characterId: string) {
   return localDatabaseQuery(
-    `select cp || ',' || sp || ',' || ep || ',' || gp || ',' || pp
+    `select cp || ',' || sp || ',' || gp
      from public.character_sheets where character_id = '${characterId}';`,
     {},
   )
@@ -394,7 +404,7 @@ async function visibleItems(player: Player, characterId: string) {
 async function visiblePurse(player: Player, characterId: string) {
   const { data, error } = await player.client
     .from('character_sheets')
-    .select('cp, sp, ep, gp, pp')
+    .select('cp, sp, gp')
     .eq('character_id', characterId)
   expect(error).toBeNull()
   return data!.length
@@ -411,15 +421,15 @@ test('a new character starts with an empty purse and no items', async () => {
     await invite(owner, campaignId, guest)
     const characterId = await createdCharacter(guest, campaignId)
 
-    expect(purse(characterId)).toBe('0,0,0,0,0')
+    expect(purse(characterId)).toBe('0,0,0')
     expect(itemCount(characterId)).toBe(0)
     const { data, error } = await guest.client
       .from('character_sheets')
-      .select('cp, sp, ep, gp, pp')
+      .select('cp, sp, gp')
       .eq('character_id', characterId)
       .single()
     expect(error).toBeNull()
-    expect(data).toEqual({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 })
+    expect(data).toEqual({ cp: 0, sp: 0, gp: 0 })
   } finally {
     await cleanup(players, ids)
   }
@@ -680,7 +690,7 @@ test('the API cannot create items for others, move items, set balances, or force
 
     // Balances cannot be written directly, by anyone, including the sheet's owner.
     for (const who of [guest, other, owner]) {
-      for (const column of ['cp', 'sp', 'ep', 'gp', 'pp']) {
+      for (const column of ['cp', 'sp', 'gp']) {
         const result = await who.client
           .from('character_sheets')
           .update({ [column]: 5 })
@@ -689,7 +699,7 @@ test('the API cannot create items for others, move items, set balances, or force
         expect(result.error?.code, `${who.username} ${column}`).toBe('42501')
       }
     }
-    expect(purse(guestCharacter)).toBe('0,0,0,0,0')
+    expect(purse(guestCharacter)).toBe('0,0,0')
   } finally {
     await cleanup(players, ids)
   }
@@ -786,7 +796,7 @@ test('leaving or removal keeps items and coins and revokes access; rejoining res
     const removedItem = (await addItem(other, removedId, { name: 'Removed bow' })).data!
     localDatabaseQuery(
       `update public.character_sheets set gp = 40, cp = 7 where character_id = '${leaverId}';
-       update public.character_sheets set pp = 2 where character_id = '${removedId}';`,
+       update public.character_sheets set sp = 2 where character_id = '${removedId}';`,
       {},
     )
     for (const [player, id] of [
@@ -801,7 +811,7 @@ test('leaving or removal keeps items and coins and revokes access; rejoining res
     // Leave: the data stays, every read and write stops, and remaining members stop seeing it.
     await rpcOk(guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
     expect(itemRow(leaverItem.id)).toBe(`Leaver sword|3|~|false|false|${leaverId}`)
-    expect(purse(leaverId)).toBe('7,0,0,40,0')
+    expect(purse(leaverId)).toBe('7,0,40')
     expect(await visibleItems(guest, leaverId)).toBe(0)
     expect(await visiblePurse(guest, leaverId)).toBe(0)
     expect([await visibleItems(owner, leaverId), await visibleItems(other, leaverId)]).toEqual([
@@ -833,7 +843,7 @@ test('leaving or removal keeps items and coins and revokes access; rejoining res
       }),
     )
     expect(itemRow(removedItem.id)).toBe(`Removed bow|1|~|false|false|${removedId}`)
-    expect(purse(removedId)).toBe('0,0,0,0,2')
+    expect(purse(removedId)).toBe('0,2,0')
     expect(await visibleItems(other, removedId)).toBe(0)
     expect(await visibleItems(owner, removedId)).toBe(0)
     expect((await addItem(other, removedId, { name: 'Late' })).error?.code).toBe('42501')
@@ -909,13 +919,11 @@ test('deleting a character or a campaign removes its items, including a departed
 
 // --- Phase 2: delta RPCs, departure, concurrency, and the sheet token -----------------
 
-type PurseRow = { cp: number; sp: number; ep: number; gp: number; pp: number; updated_at: string }
+type PurseRow = { cp: number; sp: number; gp: number; updated_at: string }
 type Deltas = {
   p_cp?: number | null
   p_sp?: number | null
-  p_ep?: number | null
   p_gp?: number | null
-  p_pp?: number | null
 }
 
 function adjustCurrency(player: Player, characterId: string, deltas: Deltas = {}) {
@@ -945,7 +953,7 @@ function inventoryViolations(campaignId: string) {
     `select
        (select count(*) from public.character_sheets s join public.characters c on c.id = s.character_id
         where c.campaign_id = '${campaignId}'
-          and (least(s.cp, s.sp, s.ep, s.gp, s.pp) < 0 or greatest(s.cp, s.sp, s.ep, s.gp, s.pp) > 9999999))
+          and (least(s.cp, s.sp, s.gp) < 0 or greatest(s.cp, s.sp, s.gp) > 9999999))
      + (select count(*) from (
           select i.character_id from public.character_items i join public.characters c on c.id = i.character_id
           where c.campaign_id = '${campaignId}' group by i.character_id having count(*) > 200) over_cap)
@@ -957,7 +965,7 @@ function inventoryViolations(campaignId: string) {
 
 test('the delta RPCs are executable only by authenticated users', () => {
   for (const fn of [
-    'public.adjust_character_currency(uuid, integer, integer, integer, integer, integer)',
+    'public.adjust_character_currency(uuid, integer, integer, integer)',
     'public.adjust_character_item_quantity(uuid, integer)',
   ]) {
     expect(
@@ -984,14 +992,14 @@ test('adjust_character_currency adds and spends atomically and validates its inp
 
     // Several denominations in one call; the result matches the row, and a null delta is zero.
     const first = await currencyOk(guest, characterId, { p_gp: 15, p_sp: 4, p_cp: null })
-    expect(first).toMatchObject({ cp: 0, sp: 4, ep: 0, gp: 15, pp: 0 })
-    expect(purse(characterId)).toBe('0,4,0,15,0')
+    expect(first).toMatchObject({ cp: 0, sp: 4, gp: 15 })
+    expect(purse(characterId)).toBe('0,4,15')
     expect(first.updated_at).not.toBeNull()
     expect(new Date(first.updated_at).getTime()).toBe(new Date(sheetStamp(characterId)).getTime())
 
     // Add and spend in the same call (a trade).
-    const trade = await currencyOk(guest, characterId, { p_gp: 5, p_sp: -3, p_pp: 1 })
-    expect(trade).toMatchObject({ cp: 0, sp: 1, ep: 0, gp: 20, pp: 1 })
+    const trade = await currencyOk(guest, characterId, { p_gp: 5, p_sp: -3, p_cp: 1 })
+    expect(trade).toMatchObject({ cp: 1, sp: 1, gp: 20 })
     expect(new Date(trade.updated_at).getTime()).toBeGreaterThan(
       new Date(first.updated_at).getTime(),
     )
@@ -1002,8 +1010,8 @@ test('adjust_character_currency adds and spends atomically and validates its inp
     for (const deltas of [
       { p_gp: 3, p_sp: -2 },
       { p_gp: -21 },
-      { p_cp: -1 },
-      { p_pp: -1, p_ep: -1 },
+      { p_cp: -2 },
+      { p_cp: -2, p_gp: -1 },
     ]) {
       expect(
         (await rpcError(adjustCurrency(guest, characterId, deltas))).message,
@@ -1014,22 +1022,22 @@ test('adjust_character_currency adds and spends atomically and validates its inp
     expect(sheetStamp(characterId)).toBe(stampBefore)
 
     // Spending everything is allowed (exactly zero).
-    expect(await currencyOk(guest, characterId, { p_gp: -20, p_sp: -1, p_pp: -1 })).toMatchObject({
+    expect(await currencyOk(guest, characterId, { p_gp: -20, p_sp: -1, p_cp: -1 })).toMatchObject({
+      cp: 0,
       sp: 0,
       gp: 0,
-      pp: 0,
     })
 
     // The upper limit refuses the whole change.
-    await currencyOk(guest, characterId, { p_pp: 9_999_999 })
-    expect((await rpcError(adjustCurrency(guest, characterId, { p_pp: 1, p_gp: 5 }))).message).toBe(
+    await currencyOk(guest, characterId, { p_gp: 9_999_999 })
+    expect((await rpcError(adjustCurrency(guest, characterId, { p_gp: 1, p_sp: 5 }))).message).toBe(
       'currency_limit_exceeded',
     )
-    expect(purse(characterId)).toBe('0,0,0,0,9999999')
-    await currencyOk(guest, characterId, { p_pp: -9_999_999 })
+    expect(purse(characterId)).toBe('0,0,9999999')
+    await currencyOk(guest, characterId, { p_gp: -9_999_999 })
 
     // Out-of-range deltas and a missing character are argument errors (22023).
-    for (const deltas of [{ p_gp: 10_000_000 }, { p_cp: -10_000_000 }, { p_pp: 2_147_483_647 }]) {
+    for (const deltas of [{ p_gp: 10_000_000 }, { p_cp: -10_000_000 }, { p_sp: 2_147_483_647 }]) {
       const failure = await rpcError(adjustCurrency(guest, characterId, deltas))
       expect([failure.code, failure.message], JSON.stringify(deltas)).toEqual([
         '22023',
@@ -1042,7 +1050,7 @@ test('adjust_character_currency adds and spends atomically and validates its inp
     // An all-zero call is a no-op: no write, the stamp does not move.
     const stamp = sheetStamp(characterId)
     const noop = await currencyOk(guest, characterId, {})
-    expect(noop).toMatchObject({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 })
+    expect(noop).toMatchObject({ cp: 0, sp: 0, gp: 0 })
     expect(sheetStamp(characterId)).toBe(stamp)
     await currencyOk(guest, characterId, { p_gp: null, p_cp: 0 })
     expect(sheetStamp(characterId)).toBe(stamp)
@@ -1078,7 +1086,7 @@ test('adjust_character_currency is unavailable to everyone but the character own
     for (const answer of answers) {
       expect(answer).toEqual({ code: 'P0001', message: 'character_unavailable' })
     }
-    expect(purse(characterId)).toBe('0,0,0,10,0')
+    expect(purse(characterId)).toBe('0,0,10')
 
     // Anonymous callers have no EXECUTE.
     const denied = await rpcError(
@@ -1092,7 +1100,7 @@ test('adjust_character_currency is unavailable to everyone but the character own
       code: 'P0001',
       message: 'character_unavailable',
     })
-    expect(purse(characterId)).toBe('0,0,0,10,0')
+    expect(purse(characterId)).toBe('0,0,10')
     await invite(owner, campaignId, guest)
     expect(await currencyOk(guest, characterId, { p_gp: -4 })).toMatchObject({ gp: 6 })
 
@@ -1106,7 +1114,7 @@ test('adjust_character_currency is unavailable to everyone but the character own
     expect((await rpcError(adjustCurrency(guest, characterId, { p_gp: 1 }))).message).toBe(
       'character_unavailable',
     )
-    expect(purse(characterId)).toBe('0,0,0,6,0')
+    expect(purse(characterId)).toBe('0,0,6')
   } finally {
     await cleanup(players, ids)
   }
@@ -1253,7 +1261,7 @@ test('the sheet token moves with coin changes: a body save needs the returned up
     expect((await save('Old token', initial!.updated_at)).data).toBeNull()
     expect((await save('New token', adjusted.updated_at)).data).not.toBeNull()
     // The coins survive a body save.
-    expect(purse(characterId)).toBe('0,0,0,3,0')
+    expect(purse(characterId)).toBe('0,0,3')
   } finally {
     await cleanup(players, ids)
   }
@@ -1275,7 +1283,7 @@ test('concurrent coin, quantity, and membership changes keep the invariants', as
     // Ten parallel +1 gp all apply.
     const adds = await parallel(10, () => adjustCurrency(guest, characterId, { p_gp: 1 }))
     expect(adds.filter((result) => result.error)).toHaveLength(0)
-    expect(purse(characterId)).toBe('0,0,0,10,0')
+    expect(purse(characterId)).toBe('0,0,10')
     expect(inventoryViolations(campaignId)).toBe('0')
 
     // 10 gp and ten parallel -1 gp: exactly ten succeed. Then 5 gp and ten spends: five succeed.
@@ -1285,7 +1293,7 @@ test('concurrent coin, quantity, and membership changes keep the invariants', as
     expect(
       spends.filter((result) => result.error?.message === 'currency_insufficient'),
     ).toHaveLength(5)
-    expect(purse(characterId)).toBe('0,0,0,0,0')
+    expect(purse(characterId)).toBe('0,0,0')
     expect(inventoryViolations(campaignId)).toBe('0')
 
     // Mixed adds and spends across denominations stay consistent.
@@ -1311,7 +1319,7 @@ test('concurrent coin, quantity, and membership changes keep the invariants', as
 
     // A currency adjustment racing the owner's removal either applies or is unavailable.
     for (let round = 0; round < 3; round++) {
-      const before = Number(purse(characterId).split(',')[3])
+      const before = Number(purse(characterId).split(',')[2])
       const [adjust, remove] = await Promise.all([
         adjustCurrency(guest, characterId, { p_gp: 1 }),
         owner.client.rpc('remove_campaign_member', {
@@ -1320,7 +1328,7 @@ test('concurrent coin, quantity, and membership changes keep the invariants', as
         }),
       ])
       expect(remove.error?.message ?? null).toBeNull()
-      const after = Number(purse(characterId).split(',')[3])
+      const after = Number(purse(characterId).split(',')[2])
       if (adjust.error) {
         expect(adjust.error.message).toBe('character_unavailable')
         expect(after).toBe(before)

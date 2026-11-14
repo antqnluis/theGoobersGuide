@@ -1,4 +1,4 @@
-import type { CharacterSheet, CharacterSummary } from './characterTypes'
+import type { CharacterItem, CharacterSheet, CharacterSummary } from './characterTypes'
 import { defaultSheetBody } from './characterValidation'
 
 export const userId = '00000000-0000-4000-8000-000000000001'
@@ -34,8 +34,27 @@ export function sheet(overrides: Partial<CharacterSheet> = {}): CharacterSheet {
     temp_hp: 0,
     armor_class: 15,
     speed: 30,
+    cp: 0,
+    sp: 0,
+    gp: 0,
     updated_at: '2026-11-13T10:05:00+00:00',
     sheet: defaultSheetBody(),
+    ...overrides,
+  }
+}
+
+export function item(overrides: Partial<CharacterItem> = {}): CharacterItem {
+  return {
+    id: '00000000-0000-4000-8000-000000000031',
+    character_id: '00000000-0000-4000-8000-000000000021',
+    name: 'Rope',
+    quantity: 1,
+    weight: null,
+    description: null,
+    equipped: false,
+    attuned: false,
+    created_at: '2026-11-14T10:00:00+00:00',
+    updated_at: '2026-11-14T10:00:00+00:00',
     ...overrides,
   }
 }
