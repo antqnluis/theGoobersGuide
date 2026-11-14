@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test e2e/setup.spec.ts e2e/auth.spec.ts e2e/campaigns.spec.ts",
     "test:e2e:browsers": "PW_ALL=1 playwright test e2e/setup.spec.ts e2e/auth.spec.ts e2e/campaigns.spec.ts",
-    "test:local-supabase": "playwright test e2e/local-supabase.spec.ts e2e/local-supabase-membership.spec.ts e2e/local-supabase-characters.spec.ts e2e/local-supabase-appearances.spec.ts",
+    "test:local-supabase": "playwright test e2e/local-supabase.spec.ts e2e/local-supabase-membership.spec.ts e2e/local-supabase-characters.spec.ts e2e/local-supabase-inventory.spec.ts e2e/local-supabase-appearances.spec.ts",
     "test:perf": "playwright test -c playwright.perf.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
