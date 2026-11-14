@@ -5,6 +5,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcError,
   rpcOk,
@@ -1239,6 +1240,99 @@ test('portraits: only the owner writes; campaign members read; outsiders and oth
     expect((await bucket(guest).createSignedUrl(path, 60)).error).toBeNull()
     expect((await bucket(guest).remove([path])).error).toBeNull()
     expect((await bucket(guest).createSignedUrl(path, 60)).error).not.toBeNull()
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('a player creates a character in the tent and a second player opens it from the Party panel', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const { players } = await newPlayers(['owner', 'guest'])
+  const { owner, guest } = players
+  const ids: string[] = []
+  // Light on resources: one context at a time, reduced motion, no screenshots or video.
+  const signIn = async (player: Player) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    return { context, page }
+  }
+  try {
+    const campaignId = await createCampaign(owner, 'M2 real-stack characters')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+
+    // The first player creates a character; it persists across a reload.
+    const first = await signIn(owner)
+    try {
+      const { page } = first
+      await page.goto(`/app/campaigns/${campaignId}`)
+      await page
+        .locator('.camp-directory')
+        .getByRole('button', { name: /^My characters/ })
+        .click()
+      const tent = page.getByRole('dialog', { name: 'My characters' })
+      await tent.getByRole('button', { name: 'Create a character' }).click()
+      await tent.getByLabel('Name', { exact: true }).fill('Brand')
+      await tent.getByLabel(/Species/).fill('Elf')
+      await tent.getByLabel(/Class/).fill('Fighter')
+      await tent.getByRole('button', { name: 'Create character' }).click()
+      await expect(tent.getByRole('heading', { name: 'Brand' })).toBeVisible()
+      await expect(
+        tent.getByRole('list', { name: 'Character standing' }).getByText('In the party'),
+      ).toBeVisible()
+
+      await page.reload()
+      await page
+        .locator('.camp-directory')
+        .getByRole('button', { name: /^My characters/ })
+        .click()
+      await expect(
+        page.getByRole('dialog', { name: 'My characters' }).getByRole('heading', { name: 'Brand' }),
+      ).toBeVisible()
+    } finally {
+      await first.context.close()
+    }
+
+    // The second player sees them in the party, but not their private sheet.
+    const second = await signIn(guest)
+    try {
+      const { page } = second
+      await page.goto(`/app/campaigns/${campaignId}`)
+      const openParty = async () => {
+        await page
+          .locator('.camp-directory')
+          .getByRole('button', { name: /^Party/ })
+          .click()
+        return page.getByRole('dialog', { name: 'People in this campaign' })
+      }
+      const party = await openParty()
+      await expect(party.getByText('1 of 2 members have a character in the party.')).toBeVisible()
+      await expect(party.getByText('Brand')).toBeVisible()
+      await expect(party.getByRole('button', { name: "View Brand's sheet" })).toHaveCount(0)
+
+      // The owner shares the sheet (through the API); a reload shows the button.
+      const shared = await owner.client
+        .from('characters')
+        .update({ sheet_visibility: 'campaign' })
+        .eq('campaign_id', campaignId)
+        .select('id')
+      expect(shared.error).toBeNull()
+      expect(shared.data).toHaveLength(1)
+      await page.reload()
+      const reopened = await openParty()
+      await reopened.getByRole('button', { name: "View Brand's sheet" }).click()
+      await expect(reopened.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+      await expect(reopened.locator('.character-sheet')).toHaveAttribute('data-read-only', 'true')
+    } finally {
+      await second.context.close()
+    }
   } finally {
     await cleanup(players, ids)
   }

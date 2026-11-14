@@ -2,7 +2,7 @@
 
 ## Status
 
-**Architecture approved (2026-11-13).** The decisions are recorded under [Approved decisions](#approved-decisions). **M1 (membership lifecycle) is implemented** (Phases 0–7 of the plan below, including display names); **M2 (characters and party) is in progress** ([plan](M03.2-Characters-and-Party.md), Phases 0–5 done); M3–M8 are not started. The implementation-ready plan for M1 is [M03.1 — Membership Lifecycle](../completed/M03.1-Membership-Lifecycle.md). This document remains the overarching architecture reference and roadmap for M1–M8.
+**Architecture approved (2026-11-13).** The decisions are recorded under [Approved decisions](#approved-decisions). **M1 (membership lifecycle) is implemented** (Phases 0–7 of the plan below, including display names); **M2 (characters and party) is implemented** ([plan](../completed/M03.2-Characters-and-Party.md), [log](../completed/M03.2-Implementation-Log.md), Phases 0–6); M3–M8 are not started. The implementation-ready plan for M1 is [M03.1 — Membership Lifecycle](../completed/M03.1-Membership-Lifecycle.md). This document remains the overarching architecture reference and roadmap for M1–M8.
 
 ## Method and evidence
 

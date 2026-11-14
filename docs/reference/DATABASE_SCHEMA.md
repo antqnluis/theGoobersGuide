@@ -20,7 +20,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Access rules
 
-Row Level Security is enabled on profiles, campaigns, campaign members, and campaign invitations. Anonymous clients have no table access.
+Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, and character sheets. Anonymous clients have no table access.
 
 | Data | Authenticated access |
 | --- | --- |
@@ -53,7 +53,7 @@ All three RPCs are `SECURITY DEFINER`, executable only by `authenticated`, and l
 
 A null argument raises `22023`. Pending invitations stay pending after a transfer, and the new owner manages them. A removed or departed player can be invited again; they rejoin with a new membership row.
 
-`private.handle_campaign_member_departure(campaign_id, profile_id)` runs inside leave and remove and is currently a no-op. It is the one place where later milestones attach departure side effects (for example, clearing a character's `in_party` flag). It may change state but must never delete player-owned rows.
+`private.handle_campaign_member_departure(campaign_id, profile_id)` runs inside leave and remove, after the membership row is deleted. It is the one place where milestones attach departure side effects. It may change state but must never delete player-owned rows. Today it clears `in_party` on the departed player's characters in that campaign (see [Characters and party](#characters-and-party)). Executable by `postgres` only.
 
 ### Retention rules for player-owned data
 
@@ -71,8 +71,64 @@ Migration `20261113100000_harden_default_privileges` revokes the default grants 
 
 `implementation/frontend/src/types/database.ts` is generated. After `npm run db:migrate`, run `npm run db:types` from `implementation/backend`, then `npx prettier --write src/types/database.ts` from `implementation/frontend`. New membership code uses `Database['public']['Functions'][…]` for RPC arguments; the shared Supabase client is not yet typed with `Database`.
 
-## Future character tables
+## Characters and party
 
-Use a profile foreign key for the player who owns a character and a campaign foreign key for its campaign association. Define the character's visibility, editing rules, and deletion behavior in its own migration. A character tied to a campaign should validate the player's membership when the association is created or changed. Follow the retention rules above, and attach departure side effects to `private.handle_campaign_member_departure`.
+Characters exist only inside a campaign and belong to one player. Neither can change after creation. Access depends on current membership, so a departed player's characters are kept but invisible to everyone, including the player, until they rejoin.
+
+### Tables
+
+- `public.characters` is the summary every current member can read: `name` (1–80 characters), optional `species`, `class_name`, `subclass` and `background` (1–60 characters each), `level` (1–20), `status` (`active`, `retired`, `deceased`), `in_party`, `sheet_visibility` (`private` or `campaign`), `portrait_path`, and `status_changed_at`, `created_at` and `updated_at`. Text is trimmed and free of control characters; empty optional fields are stored as null.
+- `public.character_sheets` is the 1:1 body, created with the character and removed only by cascade: `max_hp`, `current_hp`, `temp_hp`, `armor_class`, `speed` (columns, because they change mid-session) and `sheet jsonb`, a version-1 body (abilities, saving throws, skills, attacks, features, spells, notes, alignment, experience). Derived values (modifiers, proficiency bonus, passive Perception) are computed in the client and never stored.
+- `characters.campaign_id` references `campaigns` and `characters.owner_id` references `profiles`, both `ON DELETE CASCADE`. Neither references `campaign_members`, per the retention rules above.
+
+### Integrity
+
+| Rule | Enforced by |
+| --- | --- |
+| One active character per player per campaign | Partial unique index `characters_one_active_per_player_idx (campaign_id, owner_id) WHERE status = 'active'`, so it holds for every write path and under concurrency |
+| Only an active character can be in the party | `characters_party_requires_active` check |
+| `id`, `campaign_id` and `owner_id` never change | `private.guard_character_write` trigger (`character_reassignment_forbidden`), plus no column grant |
+| A character is created, or joins the party, only while its owner is a member | The same trigger (`character_owner_not_member`) |
+| `status_changed_at` follows `status` | The same trigger |
+| Sheet structure and size | `character_sheets_sheet_check`: object of at most 64 KiB, known keys only, ability scores 1–30, known skill values, at most 30 attacks, via `private.character_sheet_is_valid` (pure, executable by `authenticated` because check constraints run under the writing role) |
+| Vitals | `max_hp` 1–9999, `current_hp` 0–`max_hp`, `temp_hp` 0–9999, AC 0–99, speed 0–999 |
+
+Because only one character can be active and only active characters can be in the party, a player has at most one in-party character per campaign.
+
+### Access
+
+RLS is enabled on both tables. `authenticated` has no insert grant, `anon` and `service_role` have none at all.
+
+| Data | Authenticated access |
+| --- | --- |
+| Character summaries (all statuses) | Read by current members of the campaign, for characters whose owner is also a current member. The campaign owner is an ordinary member here. |
+| Summary edits | The owner updates `name`, `species`, `class_name`, `subclass`, `background`, `level`, `sheet_visibility` and `portrait_path` while a member. `status` and `in_party` change only through the RPCs. |
+| Sheet read | The owner always; other current members only when `sheet_visibility = 'campaign'`. **The campaign owner has no override.** |
+| Sheet edit | The owner only, for `max_hp`, `current_hp`, `temp_hp`, `armor_class`, `speed` and `sheet`. The app saves the body with an `updated_at` filter, so a stale save matches no row. |
+| Delete a character | The owner, any status. The sheet and portrait go with it. |
+
+### RPCs
+
+`SECURITY DEFINER`, executable only by `authenticated`. Each locks the campaign row `FOR SHARE` (which conflicts with the membership RPCs' `FOR NO KEY UPDATE`, so character and membership changes serialize, while characters of different players run in parallel), then the character row, in that order.
+
+| RPC | Effect and errors |
+| --- | --- |
+| `create_character(p_campaign_id, p_name, p_species, p_class_name, p_subclass, p_background, p_level, p_in_party)` | Creates an active character and its sheet for the caller; returns the id. `character_campaign_required` (`22023`), `character_name_invalid`, `character_details_invalid`, `character_level_invalid`, `character_campaign_unavailable` (unknown, inaccessible and departed look the same), `character_active_exists`. |
+| `set_character_status(p_character_id, p_status)` | Any move among `active`, `retired` and `deceased`; the one-active rule is the only restriction. Leaving `active` clears `in_party`; returning to `active` does not set it. Same status is a no-op. `character_unavailable`, `character_status_invalid`, `character_active_exists`. |
+| `set_character_in_party(p_character_id, p_in_party)` | Joins or leaves the party. Joining needs an active character (`character_not_active`). Leaving always works. `character_unavailable`. |
+
+A null argument raises `22023` (`character_required`). Errors are `P0001` unless noted.
+
+### Party and lifecycle
+
+- The **party** is derived, not stored: current members who own an active character with `in_party`. The Party panel joins `get_campaign_party` with the characters query in the client.
+- **Leaving or removal** keeps every character and sheet and only clears `in_party` (status is unchanged). Remaining members stop seeing them, and the leaver sees nothing.
+- **Rejoining** restores access to the same rows. `in_party` stays false until the owner re-joins the party. Their still-active character blocks creating another until it is retired, marked deceased or deleted.
+- **Ownership transfer** changes nothing about characters, and the new owner still cannot read private sheets.
+- **Deleting a campaign** deletes its characters and sheets, including a departed player's. **Deleting a member's account** deletes only their own.
+
+### Portraits
+
+A private Storage bucket, `character-portraits` (2 MiB; PNG, JPEG or WebP), holds one picture per upload at `<character id>/<random>.<png|jpg|webp>`. `characters.portrait_path` is constrained to that shape for its own character. A new picture gets a new name, never an overwrite. Anyone who may read the character's summary may read its portrait (it is summary-level, whatever the sheet's visibility); only the owner, while a member, adds one, and only the owner removes one. The helper `private.portrait_character_id(name)` maps an object name to its character.
 
 Apply schema changes to an existing local stack from `implementation/backend` with `npm run db:migrate`.
