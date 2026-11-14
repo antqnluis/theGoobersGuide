@@ -58,10 +58,12 @@ export function spriteIdFor(look: AdventurerAppearance) {
 export function partyFigures(
   roster: readonly RosterMember[],
   characterNames?: ReadonlyMap<string, string>,
+  /** Looks players saved for this campaign; anyone without one keeps their default. */
+  appearances?: ReadonlyMap<string, AdventurerAppearance>,
 ) {
   const { seated, overflow } = seatParty(roster, characterNames)
   const figures: PartyFigure[] = seated.map(({ member, seat, label }, index) => {
-    const look = adventurerAppearance(member.profile_id)
+    const look = appearances?.get(member.profile_id) ?? adventurerAppearance(member.profile_id)
     return {
       id: member.profile_id,
       spriteId: spriteIdFor(look),

@@ -165,6 +165,12 @@ export async function mockCampaignApi(
       return
     }
 
+    // No saved looks unless a test layers mockAppearances on top.
+    if (path.endsWith('/rest/v1/campaign_appearances') && method === 'GET') {
+      await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
+      return
+    }
+
     // No characters unless a test layers mockCharacters on top.
     if (path.endsWith('/rest/v1/characters') && method === 'GET') {
       await route.fulfill({ status: 200, headers: corsHeaders(), json: [] })
@@ -672,4 +678,64 @@ export async function mockCharacters(
     return route.fallback()
   })
   return { calls, objects }
+}
+
+export type MockAppearance = {
+  campaign_id: string
+  profile_id: string
+  cloak: number
+  skin: number
+  headwear: string
+  pack: string
+}
+
+/**
+ * Stateful saved looks and the save RPC, layered over `mockCampaignApi`. Saving writes the
+ * signed-in account's row; deleting removes only their own, as row-level security would.
+ */
+export async function mockAppearances(
+  page: Page,
+  state: { rows: MockAppearance[] },
+  options: { fail?: () => boolean } = {},
+) {
+  const calls: string[] = []
+  await page.route('**/rest/v1/**', async (route) => {
+    const request = route.request()
+    const method = request.method()
+    const target = new URL(request.url()).pathname.split('/rest/v1/')[1] ?? ''
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders() })
+    if (target !== 'campaign_appearances' && target !== 'rpc/set_campaign_appearance') {
+      return route.fallback()
+    }
+    const headers = corsHeaders()
+    if (method !== 'GET') calls.push(`${method} ${target}`)
+    if (method !== 'GET' && options.fail?.()) {
+      return route.fulfill({ status: 500, headers, json: { code: 'XX000', message: 'boom' } })
+    }
+    if (method === 'GET') return route.fulfill({ status: 200, headers, json: state.rows })
+    if (method === 'DELETE') {
+      state.rows = state.rows.filter((row) => row.profile_id !== accountId)
+      return route.fulfill({ status: 204, headers })
+    }
+    const input = request.postDataJSON() as {
+      p_campaign_id: string
+      p_cloak: number
+      p_skin: number
+      p_headwear: string
+      p_pack: string
+    }
+    state.rows = [
+      ...state.rows.filter((row) => row.profile_id !== accountId),
+      {
+        campaign_id: input.p_campaign_id,
+        profile_id: accountId,
+        cloak: input.p_cloak,
+        skin: input.p_skin,
+        headwear: input.p_headwear,
+        pack: input.p_pack,
+      },
+    ]
+    return route.fulfill({ status: 204, headers })
+  })
+  return { calls }
 }

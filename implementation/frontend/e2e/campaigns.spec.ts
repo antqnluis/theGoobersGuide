@@ -17,6 +17,7 @@ import {
   enterFromGalaxy,
   mockCampaignApi,
   mockCharacter,
+  mockAppearances,
   mockCharacters,
   mockMembership,
   mockSheet,
@@ -3233,4 +3234,96 @@ test("camp name plates show each player's active character, else the player", as
 
   const names = page.locator('.camp-names .camp-name')
   await expect(names).toHaveText(['Brand', 'player_two', 'Wren'])
+})
+
+// --- The appearance drawer ----------------------------------------------------------
+
+test('the Party journal has a collapsible Appearance tab that saves and resets a look', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(
+    page,
+    campaigns,
+    memberRoster().map((member) =>
+      member.profile_id === ownerId ? { ...member, profile_id: accountId } : member,
+    ),
+  )
+  const state = { rows: [] as Parameters<typeof mockAppearances>[1]['rows'] }
+  await mockAppearances(page, state)
+  await openCamp(page)
+
+  // The tab belongs to the Party page only, and its panel starts collapsed.
+  await places(page)
+    .getByRole('button', { name: /^Overview/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Appearance' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const tab = page.getByRole('button', { name: 'Appearance' })
+  await expect(tab).toHaveAttribute('aria-expanded', 'false')
+  const panel = page.getByRole('region', { name: 'Your look at the fire' })
+  await expect(panel).toBeHidden()
+
+  // It sticks out beside the journal, toward the scene, and collapses again.
+  await tab.click()
+  await expect(panel).toBeVisible()
+  const ledger = (await page.locator('.camp-ledger').boundingBox())!
+  const drawer = (await panel.boundingBox())!
+  expect(drawer.x + drawer.width).toBeLessThanOrEqual(ledger.x + 4)
+  await tab.click()
+  await expect(panel).toBeHidden()
+  await tab.click()
+
+  await panel.getByRole('radio', { name: 'Violet cloak' }).check()
+  await panel.getByRole('radio', { name: 'Skin tone 5' }).check()
+  await panel.getByRole('radio', { name: 'Bare' }).check()
+  await panel.getByRole('radio', { name: 'None' }).check()
+  await panel.getByRole('button', { name: 'Save look' }).click()
+  await expect(page.getByText('Your look was saved.')).toBeVisible()
+  expect(state.rows).toEqual([
+    expect.objectContaining({
+      profile_id: accountId,
+      cloak: 3,
+      skin: 4,
+      headwear: 'bare',
+      pack: 'none',
+    }),
+  ])
+  await expect(panel.getByRole('button', { name: 'Save look' })).toBeDisabled()
+
+  // Clicking in the drawer, which stands outside the page, does not close the journal.
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('open', '')
+
+  await page.reload()
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  await page.getByRole('button', { name: 'Appearance' }).click()
+  await expect(page.getByRole('radio', { name: 'Violet cloak' })).toBeChecked()
+
+  await page.getByRole('button', { name: 'Reset to default' }).click()
+  await expect(page.getByText('Your look is back to the default.')).toBeVisible()
+  expect(state.rows).toEqual([])
+  await expect(page.getByRole('button', { name: 'Reset to default' })).toBeDisabled()
+})
+
+test('a failed look save shows an alert and keeps the choices', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockAppearances(page, { rows: [] }, { fail: () => true })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  await page.getByRole('button', { name: 'Appearance' }).click()
+  await page.getByRole('radio', { name: 'Teal cloak' }).check()
+  await page.getByRole('button', { name: 'Save look' }).click()
+  await expect(
+    page.getByRole('alert').filter({ hasText: "We couldn't save your look." }),
+  ).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Teal cloak' })).toBeChecked()
 })

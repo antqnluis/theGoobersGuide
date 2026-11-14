@@ -51,6 +51,17 @@ describe('partyFigures', () => {
     ])
   })
 
+  it('draws a saved look in place of the default for that player only', () => {
+    const roster = [member(1, 'owner', 'game_master'), member(2)]
+    const chosen = { cloak: 7, skin: 4, headwear: 'bare', pack: 'none' } as const
+    const { figures } = partyFigures(roster, undefined, new Map([[roster[1].profile_id, chosen]]))
+    const defaults = partyFigures(roster).figures
+    expect(figures[0].look).toEqual(defaults[0].look)
+    expect(figures[1].look).toEqual(chosen)
+    expect(figures[1].spriteId).toBe(spriteIdFor(chosen))
+    expect(figures[1].spriteId).not.toBe(defaults[1].spriteId)
+  })
+
   it('labels an owner without a username as the campaign owner', () => {
     expect(partyFigures([member(1, 'owner', null)]).figures[0].label).toBe('Campaign owner')
   })

@@ -22,6 +22,7 @@ import {
   type CampLocationId,
   type RosterMember,
 } from './camp/campLayout'
+import type { AdventurerAppearance } from './camp/adventurerAppearance'
 import { figureSize, minNameUnit, overflowMarker, partyFigures } from './camp/campParty'
 import {
   cameraToFrame,
@@ -85,6 +86,7 @@ export function CampaignCamp({
   onLeave,
   roster,
   characterNames,
+  appearances,
   landfallKey,
   isOwner,
   isDeleting,
@@ -93,6 +95,7 @@ export function CampaignCamp({
   party,
   characters,
   settings,
+  partyDrawer,
   characterFolio = false,
   partyFolio = false,
   hasUnsavedChanges = false,
@@ -115,6 +118,8 @@ export function CampaignCamp({
   roster: readonly RosterMember[]
   /** Each player's active character's name, by profile id; players without one use their own name. */
   characterNames?: ReadonlyMap<string, string>
+  /** Looks players saved for this campaign, by profile id; others keep the default look. */
+  appearances?: ReadonlyMap<string, AdventurerAppearance>
   /**
    * Set only for a fresh arrival from the galaxy: the history entry's key, so the
    * landfall descent plays once for that arrival and never again.
@@ -127,6 +132,8 @@ export function CampaignCamp({
   party: ReactNode
   characters: ReactNode
   settings: ReactNode
+  /** A collapsible tab on the Party page's side (appearance), shown only there. */
+  partyDrawer?: ReactNode
   /** My characters shows a full sheet, so its journal opens wide. */
   characterFolio?: boolean
   /** The Party panel shows a character's sheet, so it opens wide too. */
@@ -201,8 +208,8 @@ export function CampaignCamp({
   }
   const ramps = useMemo(() => campRamps(world), [world])
   const { figures, overflow } = useMemo(
-    () => partyFigures(roster, characterNames),
-    [roster, characterNames],
+    () => partyFigures(roster, characterNames, appearances),
+    [roster, characterNames, appearances],
   )
   const highlight = hovered ?? focused ?? active?.id ?? null
   const onReady = useCallback(() => setReady(true), [])
@@ -609,6 +616,7 @@ export function CampaignCamp({
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>
+        {active?.id === 'party' && !partyFolio && partyDrawer}
         <ToastRegion onDismiss={onDismissToast} toasts={toasts} />
         {leaveAsked && guarded && (
           <div data-unsaved-prompt>

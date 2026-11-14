@@ -12,6 +12,10 @@ import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
 import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
 import { CampPanel } from './camp/CampPanel'
+import { AppearanceDrawer } from './camp/AppearanceDrawer'
+import { adventurerAppearance } from './camp/adventurerAppearance'
+import { campaignAppearancesOptions } from './camp/campAppearance'
+import { useCampaignAppearance } from './useCampaignAppearance'
 import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
@@ -54,6 +58,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const management = useCampaignManagement(campaignId, userId)
   const membership = useCampaignMembership(campaignId, userId)
   const characterActions = useCharacterActions(campaignId, userId)
+  const appearanceActions = useCampaignAppearance(campaignId, userId)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
   const [characterDirty, setCharacterDirty] = useState(false)
   // A shared sheet opened read-only from the Party panel.
@@ -91,6 +96,11 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       ),
     [charactersData],
   )
+  const appearancesQuery = useQuery({
+    ...campaignAppearancesOptions(campaignId, userId),
+    enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+  })
+  const appearances = appearancesQuery.data
   const campaign = campaignQuery.data
   const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const [background, setBackground] = useCampBackground(campaignId)
@@ -268,6 +278,26 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       onLeave={() => navigate('/app/campaigns')}
       roster={roster}
       characterNames={characterNames}
+      appearances={appearances}
+      partyDrawer={
+        <AppearanceDrawer
+          defaultLook={adventurerAppearance(userId)}
+          error={appearanceActions.error}
+          onClearError={appearanceActions.clearError}
+          onReset={async () => {
+            const done = await appearanceActions.reset()
+            if (done) toasts.push('Your look is back to the default.')
+            return done
+          }}
+          onSave={async (look) => {
+            const done = await appearanceActions.save(look)
+            if (done) toasts.push('Your look was saved.')
+            return done
+          }}
+          pending={appearanceActions.pendingAction}
+          saved={appearances?.get(userId) ?? null}
+        />
+      }
       world={world}
       title={
         <ViewTransition

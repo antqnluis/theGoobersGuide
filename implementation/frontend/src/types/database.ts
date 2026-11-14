@@ -3,6 +3,55 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      campaign_appearances: {
+        Row: {
+          campaign_id: string
+          cloak: number
+          created_at: string
+          headwear: string
+          pack: string
+          profile_id: string
+          skin: number
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          campaign_id: string
+          cloak: number
+          created_at?: string
+          headwear: string
+          pack: string
+          profile_id?: string
+          skin: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          cloak?: number
+          created_at?: string
+          headwear?: string
+          pack?: string
+          profile_id?: string
+          skin?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'campaign_appearances_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'campaign_appearances_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       campaign_invitations: {
         Row: {
           campaign_id: string
@@ -339,6 +388,16 @@ export type Database = {
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
         Returns: string
+      }
+      set_campaign_appearance: {
+        Args: {
+          p_campaign_id: string
+          p_cloak: number
+          p_headwear: string
+          p_pack: string
+          p_skin: number
+        }
+        Returns: undefined
       }
       set_character_in_party: {
         Args: { p_character_id: string; p_in_party: boolean }

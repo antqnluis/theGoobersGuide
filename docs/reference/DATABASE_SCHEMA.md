@@ -131,4 +131,12 @@ A null argument raises `22023` (`character_required`). Errors are `P0001` unless
 
 A private Storage bucket, `character-portraits` (2 MiB; PNG, JPEG or WebP), holds one picture per upload at `<character id>/<random>.<png|jpg|webp>`. `characters.portrait_path` is constrained to that shape for its own character. A new picture gets a new name, never an overwrite. Anyone who may read the character's summary may read its portrait (it is summary-level, whatever the sheet's visibility); only the owner, while a member, adds one, and only the owner removes one. The helper `private.portrait_character_id(name)` maps an object name to its character.
 
+## Camp appearance
+
+`public.campaign_appearances` holds each player's chosen look for their seat at the camp, per campaign: `cloak` (0–7), `skin` (0–4), `headwear` (`hood`, `hat`, `cap`, `bare`) and `pack` (`satchel`, `bedroll`, `quiver`, `none`), keyed by `(campaign_id, profile_id)`. It is cosmetic only. No row means the camp's default look, derived from the profile id.
+
+- Both keys reference their tables with `ON DELETE CASCADE` (never `campaign_members`), so a look survives leaving and rejoining, and is removed with the campaign or the account.
+- RLS is enabled. Current members read the looks of current members (a departed player's look is hidden until they rejoin). `authenticated` can select and delete (to return to the default); there is no insert or update grant.
+- `set_campaign_appearance(p_campaign_id, p_cloak, p_skin, p_headwear, p_pack)` is the only write path: `SECURITY DEFINER`, executable by `authenticated` only, upserting the caller's own row after locking the campaign `FOR SHARE` as a current member. Errors: `appearance_required` and `appearance_invalid` (`22023`), `appearance_campaign_unavailable` (`P0001`, the same for unknown, inaccessible and departed), `appearance_sign_in_required` (`42501`).
+
 Apply schema changes to an existing local stack from `implementation/backend` with `npm run db:migrate`.
