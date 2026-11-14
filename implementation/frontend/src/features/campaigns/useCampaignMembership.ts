@@ -7,6 +7,7 @@ import {
   removeCampaignMember,
   transferCampaignOwnership,
 } from './campaignMembership'
+import { campaignCharactersKey } from '../characters/characterQueries'
 import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
@@ -47,6 +48,8 @@ export function useCampaignMembership(campaignId: string, userId: string) {
   const rosterKey = ['campaigns', 'roster', campaignId, userId]
   const outgoingKey = ['campaigns', 'invitations', 'outgoing', campaignId, userId]
   const listKey = ['campaigns', 'list', userId]
+  // Characters leave the party (and, for the leaver, become unreadable) on departure.
+  const charactersKey = campaignCharactersKey(campaignId, userId)
 
   const clearError = useCallback(() => setError(null), [])
 
@@ -62,7 +65,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
     }
     // Stale, not refetched: the page is about to leave, and a refetch would flash
     // "Campaign not available" before the navigation lands.
-    for (const queryKey of [detailKey, rosterKey, outgoingKey, listKey]) {
+    for (const queryKey of [detailKey, rosterKey, outgoingKey, listKey, charactersKey]) {
       void queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     }
     return true
@@ -76,6 +79,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: rosterKey }),
         queryClient.invalidateQueries({ queryKey: listKey }),
+        queryClient.invalidateQueries({ queryKey: charactersKey }),
       ])
       return true
     } catch (failure) {

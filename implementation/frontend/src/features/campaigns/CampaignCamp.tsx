@@ -93,6 +93,7 @@ export function CampaignCamp({
   characters,
   settings,
   characterFolio = false,
+  partyFolio = false,
   hasUnsavedChanges = false,
   toasts = [],
   onDismissToast = () => {},
@@ -125,6 +126,8 @@ export function CampaignCamp({
   settings: ReactNode
   /** My characters shows a full sheet, so its journal opens wide. */
   characterFolio?: boolean
+  /** The Party panel shows a character's sheet, so it opens wide too. */
+  partyFolio?: boolean
   /** The open destination holds edits that closing would lose. */
   hasUnsavedChanges?: boolean
   /** Brief confirmations, shown inside the journal. */
@@ -155,7 +158,14 @@ export function CampaignCamp({
   // My characters wears the leather journal. The variant outlives the close so the
   // exit animation keeps the same look.
   const wantedVariant =
-    active?.id === 'characters' ? (characterFolio ? 'folio' : 'journal') : undefined
+    active?.id === 'characters'
+      ? characterFolio
+        ? 'folio'
+        : 'journal'
+      : active?.id === 'party' && partyFolio
+        ? 'folio'
+        : undefined
+  const folioOpen = active?.id === 'party' ? partyFolio : characterFolio
   const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | undefined>(undefined)
   if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
   const variant = active ? wantedVariant : lastVariant
@@ -293,15 +303,15 @@ export function CampaignCamp({
         rig.panTo(memory.before ?? rest, closePanMs)
         memory.before = null
       }
-    } else if (active && memory.folio !== characterFolio) {
+    } else if (active && memory.folio !== folioOpen) {
       // The journal opened wider or narrower: frame the place in what is left.
       const target = frameFor(active)
       if (target !== null) rig.panTo(target, openPanMs)
     }
     memory.measure = measure
     memory.location = active
-    memory.folio = characterFolio
-  }, [measure, active, characterFolio, rig, dialogRef])
+    memory.folio = folioOpen
+  }, [measure, active, folioOpen, rig, dialogRef])
 
   // Drag or swipe the panorama; a small movement is still a click.
   useEffect(() => {

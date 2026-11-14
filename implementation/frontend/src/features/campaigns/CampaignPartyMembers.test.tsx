@@ -124,7 +124,7 @@ describe('CampaignPartyMembers', () => {
 
     const group = screen.getByRole('group', { name: 'Confirm removal of player_two' })
     expect(group).toHaveTextContent(
-      "Remove player_two from The Red Hand? They'll lose access until you invite them again.",
+      "Remove player_two from The Red Hand? They'll lose access until you invite them again. Their characters are kept and leave the party.",
     )
     expect(screen.getByRole('button', { name: 'Yes, remove' })).toHaveFocus()
 
@@ -152,7 +152,7 @@ describe('CampaignPartyMembers', () => {
     await user.click(screen.getByRole('button', { name: 'Leave campaign' }))
 
     expect(screen.getByRole('group', { name: 'Confirm leaving the campaign' })).toHaveTextContent(
-      "Leave The Red Hand? You'll lose access until the owner invites you again.",
+      "Leave The Red Hand? You'll lose access until the owner invites you again. Your characters are kept and leave the party.",
     )
     expect(screen.getByRole('button', { name: 'Yes, leave campaign' })).toHaveFocus()
     await user.click(screen.getByRole('button', { name: 'Stay in campaign' }))

@@ -23,11 +23,12 @@ const listKey = ['campaigns', 'list', userId]
 const detailKey = ['campaigns', 'detail', campaignId, userId]
 const rosterKey = ['campaigns', 'roster', campaignId, userId]
 const outgoingKey = ['campaigns', 'invitations', 'outgoing', campaignId, userId]
+const charactersKey = ['campaigns', 'characters', campaignId, userId]
 const otherDetailKey = ['campaigns', 'detail', 'another-campaign', userId]
 
 function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  for (const key of [listKey, detailKey, rosterKey, outgoingKey, otherDetailKey]) {
+  for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey, otherDetailKey]) {
     queryClient.setQueryData(key, 'cached')
   }
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -59,7 +60,7 @@ describe('useCampaignMembership', () => {
 
     expect(left).toBe(true)
     expect(leaveCampaign).toHaveBeenCalledWith(campaignId)
-    for (const key of [listKey, detailKey, rosterKey, outgoingKey]) {
+    for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey]) {
       expect(stale(queryClient, key)).toBe(true)
     }
     expect(stale(queryClient, otherDetailKey)).toBe(false)
@@ -108,7 +109,7 @@ describe('useCampaignMembership', () => {
     )
   })
 
-  it('removes a player and invalidates the roster and campaign list only', async () => {
+  it('removes a player and invalidates the roster, campaign list, and characters only', async () => {
     vi.mocked(removeCampaignMember).mockResolvedValue(undefined)
     const { queryClient, result } = setup()
 
@@ -121,6 +122,7 @@ describe('useCampaignMembership', () => {
     expect(removeCampaignMember).toHaveBeenCalledWith(campaignId, playerId)
     expect(stale(queryClient, rosterKey)).toBe(true)
     expect(stale(queryClient, listKey)).toBe(true)
+    expect(stale(queryClient, charactersKey)).toBe(true)
     expect(stale(queryClient, detailKey)).toBe(false)
     expect(result.current.pendingProfileId).toBeNull()
     expect(result.current.pendingAction).toBeNull()

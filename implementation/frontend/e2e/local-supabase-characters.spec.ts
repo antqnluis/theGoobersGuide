@@ -355,9 +355,9 @@ insert into public.character_sheets (character_id) select id from c;
 with c as (${insertCharacter(OTHER_CAMPAIGN, OUTSIDER, { name: `'Elsewhere'` })} returning id)
 insert into public.character_sheets (character_id) select id from c;
 delete from auth.users where id = ${MEMBER};
-select 'after_account:' || (select count(*) from public.characters) || ',' || (select count(*) from public.character_sheets);
+select 'after_account:' || (select count(*) from public.characters where campaign_id in (${CAMPAIGN}, ${OTHER_CAMPAIGN})) || ',' || (select count(*) from public.character_sheets where character_id in (select id from public.characters where campaign_id in (${CAMPAIGN}, ${OTHER_CAMPAIGN})));
 delete from public.campaigns where id = ${CAMPAIGN};
-select 'after_campaign:' || (select count(*) from public.characters) || ',' || (select count(*) from public.character_sheets);
+select 'after_campaign:' || (select count(*) from public.characters where campaign_id in (${CAMPAIGN}, ${OTHER_CAMPAIGN})) || ',' || (select count(*) from public.character_sheets where character_id in (select id from public.characters where campaign_id in (${CAMPAIGN}, ${OTHER_CAMPAIGN})));
 rollback;`,
     {},
   )

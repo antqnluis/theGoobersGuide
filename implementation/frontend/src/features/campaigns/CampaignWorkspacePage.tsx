@@ -55,6 +55,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const characterActions = useCharacterActions(campaignId, userId)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
   const [characterDirty, setCharacterDirty] = useState(false)
+  // A shared sheet opened read-only from the Party panel.
+  const [partySheetId, setPartySheetId] = useState<string | null>(null)
   const toasts = useCampToasts()
   const [characterConfirmation, setCharacterConfirmation] = useState<CharacterConfirmation | null>(
     null,
@@ -222,6 +224,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   return (
     <CampaignCamp
       characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
+      partyFolio={partySheetId !== null}
       hasUnsavedChanges={characterDirty}
       onDismissToast={toasts.dismiss}
       toasts={toasts.toasts}
@@ -236,6 +239,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         setCharacterConfirmation(null)
         setTentView({ type: 'list' })
         setCharacterDirty(false)
+        setPartySheetId(null)
       }}
       isDeleting={
         management.isDeleting ||
@@ -284,8 +288,15 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       party={
         <CampaignPartyMembers
           campaignName={campaign.name}
+          characters={charactersQuery.data ?? []}
+          charactersStatus={
+            charactersQuery.isError ? 'error' : charactersQuery.isSuccess ? 'success' : 'pending'
+          }
           confirmation={confirmation}
           error={membershipErrorFor === 'party' ? membership.error : null}
+          onSheetChange={setPartySheetId}
+          sheetCharacterId={partySheetId}
+          userId={userId}
           isOwner={isOwner}
           onConfirmationChange={changeConfirmation}
           onLeaveCampaign={leaveCampaign}
@@ -394,8 +405,9 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               role="group"
             >
               <p>
-                Delete <strong>{campaign.name}</strong>? Its campaign details and member list will
-                be removed.
+                Delete <strong>{campaign.name}</strong> permanently? Its details, member list, and
+                every player's characters and character sheets will be removed. This can't be
+                undone.
               </p>
               <div className="campaign-settings__actions">
                 <button

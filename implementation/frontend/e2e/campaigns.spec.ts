@@ -155,7 +155,9 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
 
   await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
-  await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toContainText(
+    "Delete The Red Hand: Reframed permanently? Its details, member list, and every player's characters and character sheets will be removed. This can't be undone.",
+  )
   await page.getByRole('button', { name: 'Keep campaign' }).click()
   const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
   await expect(deleteButton).toBeFocused()
@@ -2124,7 +2126,7 @@ test('a member leaves from the Party panel by keyboard and lands on the selector
 
   const confirm = page.getByRole('group', { name: 'Confirm leaving the campaign' })
   await expect(confirm).toContainText(
-    "Leave The Red Hand? You'll lose access until the owner invites you again.",
+    "Leave The Red Hand? You'll lose access until the owner invites you again. Your characters are kept and leave the party.",
   )
   await expect(page.getByRole('button', { name: 'Yes, leave campaign' })).toBeFocused()
   await page.getByRole('button', { name: 'Stay in campaign' }).click()
@@ -2939,5 +2941,148 @@ for (const [label, width, height] of [
     await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toBeVisible()
     expect(await dialogFits(page)).toBe(true)
     await dialog.getByRole('button', { name: new RegExp(`^Keep `) }).click()
+  })
+}
+
+// --- The Party panel and characters --------------------------------------------------
+
+async function openParty(page: Page, characters: CharacterState) {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  await mockMembership(page, campaigns, memberRoster())
+  await mockCharacters(page, characters)
+  await openCamp(page, campaign)
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'People in this campaign' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+function partyCharacters(): CharacterState {
+  const mine = mockCharacter({ owner_id: accountId, name: 'Brand', sheet_visibility: 'private' })
+  const shared = mockCharacter({
+    owner_id: guestId,
+    name: 'Sorrel',
+    species: 'Gnome',
+    class_name: 'Wizard',
+    level: 5,
+    sheet_visibility: 'campaign',
+  })
+  const hidden = mockCharacter({
+    owner_id: ownerId,
+    name: 'Dray',
+    sheet_visibility: 'private',
+  })
+  const retired = mockCharacter({
+    owner_id: guestId,
+    name: 'Old Sorrel',
+    status: 'retired',
+    in_party: false,
+  })
+  return {
+    characters: [mine, shared, hidden, retired],
+    sheets: [mine, shared, hidden, retired].map((character) =>
+      mockSheet(character.id, { max_hp: 20, current_hp: 11 }),
+    ),
+  }
+}
+
+test("the Party panel shows each member's in-party character and who has one", async ({ page }) => {
+  const state = partyCharacters()
+  state.characters[2].in_party = false
+  const dialog = await openParty(page, state)
+
+  await expect(dialog.getByText('2 of 3 members have a character in the party.')).toBeVisible()
+  const rows = dialog.getByRole('listitem')
+  await expect(rows.filter({ hasText: 'player_one' })).toContainText('Brand')
+  await expect(rows.filter({ hasText: 'player_two' })).toContainText('Sorrel')
+  await expect(rows.filter({ hasText: 'player_two' })).toContainText('Level 5 Gnome Wizard')
+  // A retired character and an out-of-party one are history, not party.
+  await expect(dialog.getByText('Old Sorrel')).toHaveCount(0)
+  await expect(rows.filter({ hasText: 'game_master' })).toContainText('No character in the party')
+  expect(await dialogFits(page)).toBe(true)
+})
+
+test('"View sheet" shows only for own and shared sheets and opens them read-only', async ({
+  page,
+}) => {
+  const dialog = await openParty(page, partyCharacters())
+
+  // Dray's sheet is private: no button and no placeholder.
+  await expect(dialog.getByRole('button', { name: /View Dray/ })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^View .+ sheet$/ })).toHaveCount(2)
+
+  const trigger = dialog.getByRole('button', { name: "View Sorrel's sheet" })
+  await trigger.click()
+  await expect(dialog.getByRole('heading', { name: 'Sorrel' })).toBeFocused()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+  await expect(dialog.getByText('Hit points')).toBeVisible()
+  await expect(dialog.getByLabel('Current HP')).toHaveCount(0)
+  await expect(dialog.locator('.character-sheet')).toHaveAttribute('data-read-only', 'true')
+  await expect(dialog.getByRole('button', { name: /^Save/ })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Edit character' })).toHaveCount(0)
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('data-variant', 'folio')
+  expect(await dialogFits(page)).toBe(true)
+
+  await dialog.getByRole('button', { name: 'Back to party' }).click()
+  await expect(trigger).toBeFocused()
+  await expect(page.locator('.camp-ledger')).not.toHaveAttribute('data-variant', /.+/)
+})
+
+test('the viewer can open their own sheet from the Party panel', async ({ page }) => {
+  const dialog = await openParty(page, partyCharacters())
+  await dialog.getByRole('button', { name: "View Brand's sheet" }).click()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+})
+
+test('an unshared sheet loses its View sheet button', async ({ page }) => {
+  const state = partyCharacters()
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+
+  // The owner unshares it; the next refetch of the list no longer offers the sheet.
+  state.characters[1].sheet_visibility = 'private'
+  await page.reload()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: "View Sorrel's sheet" })).toHaveCount(0)
+})
+
+test('closing the dialog returns the Party panel to its list', async ({ page }) => {
+  const dialog = await openParty(page, partyCharacters())
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: "View Sorrel's sheet" })).toBeVisible()
+})
+
+test('the Party panel remove and leave confirmations say characters are kept', async ({ page }) => {
+  const campaign = redHand
+  const campaigns = await mockCampaignApi(page, [campaign])
+  await mockMembership(page, campaigns, memberRoster())
+  await mockCharacters(page, partyCharacters())
+  await openCamp(page, campaign)
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toContainText(
+    "They'll lose access until you invite them again. Their characters are kept and leave the party.",
+  )
+})
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`the Party panel and a shared sheet fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const dialog = await openParty(page, partyCharacters())
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
   })
 }

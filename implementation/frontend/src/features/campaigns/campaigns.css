@@ -508,3 +508,19 @@
   color: var(--color-ink-soft);
   font-size: 0.82rem;
 }
+
+.campaign-member-list__who {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.campaign-member-list__character {
+  color: var(--color-ink-soft);
+  font-size: 0.88rem;
+}
+
+.campaign-member-list__character strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
