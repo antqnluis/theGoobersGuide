@@ -155,20 +155,21 @@ export function CampaignCamp({
   const [leaveAsked, setLeaveAsked] = useState(false)
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
-  // My characters wears the leather journal. The variant outlives the close so the
-  // exit animation keeps the same look.
-  const wantedVariant =
+  // Every destination wears the leather journal (the folio, wider, for a sheet). The
+  // variant outlives the close so the exit animation keeps the same look.
+  const wantedVariant: 'journal' | 'folio' =
     active?.id === 'characters'
       ? characterFolio
         ? 'folio'
         : 'journal'
       : active?.id === 'party' && partyFolio
         ? 'folio'
-        : undefined
-  const folioOpen = active?.id === 'party' ? partyFolio : characterFolio
+        : 'journal'
+  const folioOpen =
+    active?.id === 'party' ? partyFolio : active?.id === 'characters' ? characterFolio : false
   const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | undefined>(undefined)
   if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
-  const variant = active ? wantedVariant : lastVariant
+  const variant = active ? wantedVariant : (lastVariant ?? 'journal')
   const guarded = active?.id === 'characters' && hasUnsavedChanges
 
   /** Closing with unsaved edits asks first. */

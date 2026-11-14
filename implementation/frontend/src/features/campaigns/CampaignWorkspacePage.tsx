@@ -11,6 +11,7 @@ import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
 import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
+import { CampPanel } from './camp/CampPanel'
 import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
@@ -268,8 +269,12 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         </ViewTransition>
       }
       overview={
-        <>
-          <h2 id="camp-overview-heading">{campaign.name}</h2>
+        <CampPanel
+          headingId="camp-overview-heading"
+          icon="flag"
+          place="Campfire"
+          title={campaign.name}
+        >
           <p className="camp-ledger__description">
             {campaign.description || 'No description has been added.'}
           </p>
@@ -283,7 +288,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               <dd>{ownerUsername}</dd>
             </div>
           </dl>
-        </>
+        </CampPanel>
       }
       party={
         <CampaignPartyMembers
@@ -337,8 +342,12 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         />
       }
       settings={
-        <>
-          <h2 id="camp-settings-heading">Campaign settings</h2>
+        <CampPanel
+          headingId="camp-settings-heading"
+          icon="book"
+          place="Steward’s wagon"
+          title="Campaign settings"
+        >
           {management.error && (
             <p className="campaign-form__feedback" role="alert">
               {management.error}
@@ -433,7 +442,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               </div>
             </div>
           )}
-        </>
+        </CampPanel>
       }
     />
   )

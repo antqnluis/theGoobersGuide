@@ -563,7 +563,8 @@ textarea.journal-input {
   display: none;
 }
 
-/* The scene dims and the tent's lantern glows while the journal is open. */
+/* The scene dims while a journal page is open, and the tent's lantern glows when it is
+   the tent's page. */
 .camp-scene::after {
   position: absolute;
   z-index: 3;
@@ -571,7 +572,7 @@ textarea.journal-input {
   background:
     radial-gradient(
       circle at var(--camp-tent-x, 20%) var(--camp-tent-y, 70%),
-      rgb(255 176 80 / 0.22),
+      rgb(255 176 80 / var(--journal-glow, 0)),
       transparent 240px
     ),
     radial-gradient(ellipse at 30% 70%, transparent 30%, rgb(10 8 24 / 0.6) 100%);
@@ -580,8 +581,12 @@ textarea.journal-input {
   pointer-events: none;
 }
 
-.camp[data-camp-state='characters'] .camp-scene::after {
+.camp[data-camp-state]:not([data-camp-state='idle']) .camp-scene::after {
   opacity: 1;
+}
+
+.camp[data-camp-state='characters'] {
+  --journal-glow: 0.22;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -672,4 +677,391 @@ textarea.journal-input {
   .camp-ledger[data-variant] .camp-ledger__layout {
     padding: 0 6px 6px;
   }
+}
+
+/* Camp pages: Overview, Party, and Campaign settings on the same parchment as the tent.
+   New markup uses the `journal-*` primitives; the older `campaign-*` and `auth-*`
+   controls inside a `.camp-panel` are restyled here so one component serves both the
+   camp and the standalone pages. */
+
+.camp-ledger[data-variant] .camp-ledger__notice {
+  margin: 0;
+  padding: 14px clamp(18px, 3vw, 28px) 0;
+  color: var(--journal-forest);
+  font: 700 0.92rem / 1.4 var(--journal-font-ui);
+}
+
+.camp-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  min-height: 100%;
+  padding: clamp(18px, 3vw, 28px);
+  color: var(--journal-ink);
+}
+
+.camp-panel > * {
+  min-width: 0;
+}
+
+.camp-ledger .camp-panel h2 {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 clamp(1.8rem, 3.4vw, 2.4rem) / 1.05 var(--journal-font-display);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.camp-panel__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -10px;
+}
+
+.camp-panel__eyebrow .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.camp-panel :is(h2, h3):focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 4px;
+}
+
+.camp-panel :is(button, input, textarea, a, summary):focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.camp-panel h3 {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--journal-rule);
+  color: var(--journal-ink);
+  font: 700 0.9rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.camp-panel :is(.campaign-loading, .campaign-members__empty, .camp-ledger__description) {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.55;
+}
+
+.camp-panel .camp-ledger__description {
+  line-height: 1.65;
+}
+
+/* Overview facts as little labelled wells, like the sheet's vitals. */
+.camp-panel .camp-ledger__facts {
+  gap: 12px;
+  padding: 0;
+  border: 0;
+}
+
+.camp-panel .camp-ledger__facts > div {
+  border: 1px dashed var(--journal-line);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--journal-field) 45%, transparent);
+}
+
+.camp-panel .camp-ledger__facts dt {
+  color: var(--journal-ink-soft);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.camp-panel .camp-ledger__facts dd {
+  margin: 4px 0 0;
+  color: var(--journal-ink);
+  font: 600 1.25rem / 1.2 var(--journal-font-display);
+}
+
+/* People, invitations: cards, as in the tent's previous characters. */
+.camp-panel .campaign-member-list {
+  display: grid;
+  gap: 10px;
+  border-top: 0;
+}
+
+.camp-panel .campaign-member-list li {
+  min-height: 56px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--journal-field) 45%, transparent);
+}
+
+.camp-panel .campaign-member-list li {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.camp-panel .campaign-member-list__who {
+  flex: 1 1 9rem;
+}
+
+.camp-panel .campaign-member-list li > :is(button, .campaign-member-list__role) {
+  flex: none;
+  white-space: nowrap;
+}
+
+.camp-panel .campaign-member-list li.campaign-member-list__row--confirming {
+  border-color: var(--journal-oxblood);
+}
+
+.camp-panel .campaign-member-list__role,
+.camp-panel .campaign-member-list__handle,
+.camp-panel .campaign-member-list__character {
+  color: var(--journal-ink-soft);
+}
+
+.camp-panel .campaign-member-list__role {
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.camp-panel .campaign-member-list__character strong {
+  color: var(--journal-ink);
+}
+
+.camp-panel .campaign-invitations {
+  margin-top: 4px;
+}
+
+.camp-panel .campaign-invitations h3,
+.camp-panel .campaign-transfer h3 {
+  margin: 0 0 10px;
+}
+
+/* Buttons: the journal's brass-and-oxblood set. */
+.camp-panel .auth-button,
+.camp-panel .campaign-danger-button,
+.camp-panel .campaign-text-button {
+  min-height: var(--journal-touch);
+  border-radius: var(--journal-radius);
+  font: 700 0.9rem / 1.2 var(--journal-font-ui);
+}
+
+.camp-panel .auth-button {
+  border: 2px solid var(--journal-oxblood-deep);
+  padding: 8px 18px;
+  color: #fff4e0;
+  background: var(--journal-oxblood);
+  box-shadow: 0 3px 0 var(--journal-oxblood-deep);
+  transition:
+    transform 80ms ease,
+    box-shadow 80ms ease,
+    background-color 120ms ease;
+}
+
+.camp-panel .auth-button:hover:not(:disabled) {
+  border-color: var(--journal-oxblood-deep);
+  background: var(--journal-oxblood-deep);
+}
+
+.camp-panel .auth-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--journal-oxblood-deep);
+}
+
+.camp-panel .auth-button:disabled {
+  border-color: #7d6f5d;
+  color: #3f342a;
+  background: var(--journal-page-shade);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.camp-panel .auth-button--secondary {
+  border-color: var(--journal-line);
+  color: var(--journal-ink);
+  background: var(--journal-page-shade);
+  box-shadow: 0 3px 0 var(--journal-line);
+}
+
+.camp-panel .auth-button--secondary:hover:not(:disabled) {
+  border-color: var(--journal-line);
+  color: var(--journal-ink);
+  background: #dccb9f;
+}
+
+.camp-panel .auth-button--secondary:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--journal-line);
+}
+
+.camp-panel .campaign-danger-button {
+  border: 2px solid var(--journal-oxblood);
+  padding: 8px 18px;
+  color: var(--journal-oxblood-deep);
+  text-align: center;
+  text-decoration: none;
+}
+
+.camp-panel .campaign-danger-button:hover:not(:disabled) {
+  color: #fff4e0;
+  background: var(--journal-oxblood);
+}
+
+.camp-panel .campaign-danger-button:disabled {
+  border-color: #7d6f5d;
+  color: #3f342a;
+  cursor: not-allowed;
+}
+
+.camp-panel .campaign-text-button {
+  color: var(--journal-oxblood-deep);
+  text-decoration-color: transparent;
+}
+
+.camp-panel .campaign-text-button:hover:not(:disabled) {
+  color: var(--journal-oxblood-deep);
+  text-decoration-color: currentColor;
+}
+
+.camp-panel .campaign-text-button:disabled {
+  color: #3f342a;
+  cursor: not-allowed;
+}
+
+/* Fields. */
+.camp-panel :is(.campaign-form__field, .auth-field) label {
+  margin-bottom: 6px;
+  color: var(--journal-ink);
+  font: 700 0.8rem / 1.3 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.camp-panel :is(.campaign-form__field, .auth-field) label span {
+  color: var(--journal-ink-soft);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.camp-panel :is(.campaign-form__field, .auth-field) :is(input, textarea) {
+  min-height: var(--journal-touch);
+  border: 2px solid var(--journal-line);
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+  color: var(--journal-ink);
+  background: var(--journal-field);
+  box-shadow: inset 0 2px 0 rgb(90 60 30 / 0.12);
+  font: 400 1rem / 1.4 var(--journal-font-ui);
+}
+
+.camp-panel .campaign-form__field textarea {
+  min-height: 7.5rem;
+  line-height: 1.55;
+}
+
+.camp-panel :is(.campaign-form__field, .auth-field) :is(input, textarea):focus-visible {
+  border-color: var(--journal-focus);
+}
+
+.camp-panel :is(.campaign-form__field, .auth-field) input[aria-invalid='true'] {
+  border-color: var(--journal-oxblood);
+}
+
+.camp-panel :is(.campaign-form__field, .auth-field) :is(input, textarea):disabled,
+.camp-panel :is(.campaign-form__field, .auth-field) input[readonly] {
+  border-style: dashed;
+  color: #3f342a;
+  background: var(--journal-page-shade);
+}
+
+.camp-panel :is(.campaign-form__hint, .auth-field__hint) {
+  color: var(--journal-ink-soft);
+}
+
+.camp-panel :is(.campaign-form__error, .auth-field__error) {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+.camp-panel .auth-field {
+  margin-bottom: 0;
+}
+
+/* Failures and confirmations. */
+.camp-panel .campaign-form__feedback {
+  margin: 0;
+  border: 2px solid var(--journal-oxblood);
+  border-radius: var(--journal-radius);
+  padding: 12px 14px;
+  color: var(--journal-oxblood-deep);
+  background: #f8e1da;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.camp-panel .campaign-inline-error p {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+.camp-panel .campaign-notice {
+  margin: 0;
+  color: var(--journal-forest);
+}
+
+.camp-panel .campaign-delete-confirm {
+  display: grid;
+  max-width: none;
+  gap: 12px;
+  margin: 0;
+  border: 2px solid var(--journal-oxblood);
+  border-radius: var(--journal-radius);
+  padding: 16px;
+  background: #f8e8e0;
+}
+
+.camp-panel .campaign-delete-confirm p {
+  margin: 0;
+  color: var(--journal-ink);
+  line-height: 1.55;
+}
+
+.camp-panel .campaign-delete-confirm strong {
+  color: var(--journal-oxblood-deep);
+}
+
+.camp-panel .campaign-member-list__row--confirming .campaign-delete-confirm {
+  margin: 4px 0 4px;
+  padding: 14px;
+}
+
+/* Ownership transfer. */
+.camp-panel .campaign-transfer {
+  max-width: none;
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.camp-panel .campaign-transfer__choices legend {
+  color: var(--journal-ink-soft);
+}
+
+.camp-panel .campaign-transfer__choices label {
+  min-height: var(--journal-touch);
+  color: var(--journal-ink);
+  font: 600 0.95rem / 1.3 var(--journal-font-ui);
+}
+
+.camp-panel .campaign-transfer__choices input[type='radio'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--journal-oxblood);
+}
+
+.camp-panel .campaign-settings__actions,
+.camp-panel .campaign-form__actions {
+  gap: 10px 12px;
 }

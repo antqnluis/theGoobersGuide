@@ -3028,7 +3028,7 @@ test('"View sheet" shows only for own and shared sheets and opens them read-only
 
   await dialog.getByRole('button', { name: 'Back to party' }).click()
   await expect(trigger).toBeFocused()
-  await expect(page.locator('.camp-ledger')).not.toHaveAttribute('data-variant', /.+/)
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('data-variant', 'journal')
 })
 
 test('the viewer can open their own sheet from the Party panel', async ({ page }) => {
@@ -3086,3 +3086,25 @@ for (const [label, width, height] of [
     expect(await dialogFits(page)).toBe(true)
   })
 }
+
+test('Overview, Party, and Campaign settings all wear the journal, with a titled page', async ({
+  page,
+}) => {
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  const ledger = page.locator('.camp-ledger')
+  for (const [entry, heading, place] of [
+    [/^Overview/, 'The Red Hand', 'Campfire'],
+    [/^Party/, 'People in this campaign', 'Bedroll circle'],
+    [/^Campaign settings/, 'Campaign settings', 'Steward’s wagon'],
+  ] as const) {
+    await places(page).getByRole('button', { name: entry }).click()
+    await expect(ledger).toHaveAttribute('data-variant', 'journal')
+    const dialog = page.getByRole('dialog', { name: heading })
+    await expect(dialog.locator('.camp-panel__eyebrow:visible')).toHaveText(place)
+    await expect(dialog.getByRole('heading', { level: 2, name: heading })).toBeVisible()
+    await page.getByRole('button', { name: 'Back to camp' }).click()
+    await expect(ledger).not.toHaveAttribute('open', '')
+  }
+})
