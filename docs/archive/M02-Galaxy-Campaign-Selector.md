@@ -2,9 +2,11 @@
 
 ## Status
 
+**Archived (2026-11-14).** Phases 1–4 shipped; Phase 5 was never built. The carousel this plan describes was replaced by the orrery in [M02 — Galaxy Redesign Plan](../paused/M02-Galaxy-Redesign-Plan.md). Kept as historical reference.
+
 **Phase 4 implemented and verified. Awaiting user verification before Phase 5.**
 
-The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign from its planet or the list displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
+The selector at `/app/campaigns` is rendered by [CampaignSelectorLayout.tsx](../../implementation/frontend/src/features/campaigns/CampaignSelectorLayout.tsx). It lists campaigns through a user-scoped TanStack Query backed by Supabase. Selecting a campaign from its planet or the list displays its details on the same page. **Enter campaign** opens the existing workspace route. The standalone create form still opens the workspace after saving.
 
 ## Phase gates
 

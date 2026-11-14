@@ -2,7 +2,7 @@
 
 ## Status
 
-**Architecture approved (2026-11-13).** The decisions are recorded under [Approved decisions](#approved-decisions). **M1 (membership lifecycle) is implemented** (Phases 0–7 of the plan below, including display names); M2–M8 are not started. The implementation-ready plan for M1 is [M03.1 — Membership Lifecycle](M03.1-Membership-Lifecycle.md). This document remains the overarching architecture reference and roadmap for M1–M8.
+**Architecture approved (2026-11-13).** The decisions are recorded under [Approved decisions](#approved-decisions). **M1 (membership lifecycle) is implemented** (Phases 0–7 of the plan below, including display names); **M2 (characters and party) is in progress** ([plan](M03.2-Characters-and-Party.md), Phases 0–5 done); M3–M8 are not started. The implementation-ready plan for M1 is [M03.1 — Membership Lifecycle](../completed/M03.1-Membership-Lifecycle.md). This document remains the overarching architecture reference and roadmap for M1–M8.
 
 ## Method and evidence
 
@@ -229,7 +229,7 @@ M8 Imports (character Markdown, DM handoffs): after M3 and M6
 
 | # | Milestone | Scope | Depends on | Tests that prove it |
 | --- | --- | --- | --- | --- |
-| **M1** | Membership lifecycle ([plan](M03.1-Membership-Lifecycle.md)) | `leave_campaign`, `remove_campaign_member`, `transfer_campaign_ownership`. Decide the owner-deletion FK. `get_campaign_party` with display names and display-name editing on the existing profile column (implemented in M1 on request). Generated types. | — | Integration: member leaves → loses campaign and roster reads. Owner removes → same. Owner cannot remove self or leave. Transfer swaps both owner representations atomically, and the old owner loses edit rights. Non-owners are denied. Unit and e2e: Party and Settings confirmations, error and pending states. |
+| **M1** | Membership lifecycle ([plan](../completed/M03.1-Membership-Lifecycle.md)) | `leave_campaign`, `remove_campaign_member`, `transfer_campaign_ownership`. Decide the owner-deletion FK. `get_campaign_party` with display names and display-name editing on the existing profile column (implemented in M1 on request). Generated types. | — | Integration: member leaves → loses campaign and roster reads. Owner removes → same. Owner cannot remove self or leave. Transfer swaps both owner representations atomically, and the old owner loses edit rights. Non-owners are denied. Unit and e2e: Party and Settings confirmations, error and pending states. |
 | **M2** | Characters and party | `characters`, `character_sheets`, membership-checked inserts, party flag, sheet visibility. "My character" (tent) destination: create, edit, view sheet. The Party panel lists each member's in-party characters. | M1 (departure semantics) | Integration: cross-user denial of private sheets, including **for the campaign owner**. A party-visible sheet is readable by members. A non-member cannot create a character in the campaign. Immutable keys. Leaving clears `in_party`. Unit: sheet validation. e2e: create, edit, and refresh persistence, plus empty, loading, and error states. |
 | **M3** | Inventory and currency | `character_items`, currency columns, `adjust_character_currency`. Inventory and money sections of the sheet. | M2 | Integration: visibility follows the sheet. Concurrent deltas both apply. Negative balances are rejected. Non-owners cannot write. e2e: add, edit, and remove items and adjust coins across a refresh. |
 | **M4** | Notes | `notes` (private/campaign). Journal crates destination with list, editor, and visibility toggle. | M1 | Integration: a private note is invisible to everyone else, including the owner. A campaign note is editable by members. Only the author changes visibility or deletes. A stale-version update fails. e2e: create, edit, toggle, and delete flows. |
@@ -253,7 +253,7 @@ Approved 2026-11-13:
 Additional requirements for every milestone:
 
 - Correct the underlying PostgreSQL default privileges (finding 1), and keep revoking and granting explicitly in each migration.
-- Define data retention and access for members who leave, are removed, or rejoin (specified in [M03.1 §6](M03.1-Membership-Lifecycle.md#6-data-retention-and-ownership-rules)).
+- Define data retention and access for members who leave, are removed, or rejoin (specified in [M03.1 §6](../completed/M03.1-Membership-Lifecycle.md#6-data-retention-and-ownership-rules)).
 - Make ownership transfers atomic so ownership can never be left inconsistent.
 - Preserve existing campaign data and any future player-owned data during migrations.
 - Keep privacy by default, with authorization enforced by Supabase RLS rather than frontend checks.

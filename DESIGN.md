@@ -201,7 +201,7 @@ Text on camp chrome measures at least 7:1; do not introduce a colour in `camp.cs
 - The waystone on the high road is a pointer-only shortcut back to the galaxy (hidden from assistive tech and the tab order); "Back to campaigns" in the header is the accessible route.
 - Scene buttons outside the visible frame leave the tab order; focusing a Place in the list pans the camera to it.
 
-See the [camp plan](docs/M02-Landfall-Camp.md) for the destination map, camera, and interaction details.
+See the [camp plan](docs/completed/M02-Landfall-Camp.md) for the destination map, camera, and interaction details.
 
 ## Do's and Don'ts
 

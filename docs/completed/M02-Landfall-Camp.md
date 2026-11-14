@@ -125,7 +125,7 @@ Rules:
 Each phase leaves the app working. At each phase end: focused unit tests, the relevant e2e specs, `lint`, `format:check`, `build`, viewport checks at 375/768/1440, console and network review, a performance note, and a short status entry in the docs file. **I stop for your review after every phase.**
 
 **Phase 0: Baseline and docs**
-- Save this proposal as `docs/M02-Campaign-Landfall-Camp-Plan.md` and mark `docs/M02-Campaign-World-Redesign-Plan.md` as superseded.
+- Save this proposal as `docs/M02-Campaign-Landfall-Camp-Plan.md` and mark `docs/archive/M02-Campaign-World-Redesign-Plan.md` as superseded.
 - Run `lint`, `format:check`, `build` (record chunk gzip sizes and image bytes), `test`, `test:e2e`, and `test:local-supabase` (requires `npm run supabase:start`).
 - Record coverage gaps.
 - *Decision for you:* commit the current village first as a checkpoint so the replacement diff is reviewable. I won't commit without your OK.

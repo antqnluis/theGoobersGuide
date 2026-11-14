@@ -1,12 +1,12 @@
 # Interactive Campaign World — Pixel-Art Village
 
-**Status** · Superseded by [M02-Landfall-Camp.md](M02-Landfall-Camp.md), 13 November 2026. Kept as historical reference for the uncommitted Lantern Village.
+**Status** · Superseded by [M02-Landfall-Camp.md](../completed/M02-Landfall-Camp.md), 13 November 2026. Kept as historical reference for the uncommitted Lantern Village.
 
 This revision of the Lantern Market plan covers the individual dashboard at `/app/campaigns/:campaignId`. It replaces the painterly village and builds on its Places menu and live feature panels. The galaxy at `/app/campaigns`, standalone creation, and the existing authenticated routes and Supabase contracts are outside the redesign scope.
 
 ## Art direction
 
-The [supplied 1,672 × 941 village PNG](art/lantern-village-reference.png) is the primary reference and source asset. Its foreground tavern and quest board frame a cobbled street that leads past hanging lanterns to bridges, waterfalls, and a hilltop castle. The timber framing, banners, flowers, visible interiors, and amber reflections against blue-violet dusk give the scene the detail and atmosphere of a classic fantasy RPG with modern pixel-art fidelity. Preserve that composition, palette, and pixel texture. Use the player’s campaign name in the interface to establish where they are.
+The [supplied 1,672 × 941 village PNG](../art/lantern-village-reference.png) is the primary reference and source asset. Its foreground tavern and quest board frame a cobbled street that leads past hanging lanterns to bridges, waterfalls, and a hilltop castle. The timber framing, banners, flowers, visible interiors, and amber reflections against blue-violet dusk give the scene the detail and atmosphere of a classic fantasy RPG with modern pixel-art fidelity. Preserve that composition, palette, and pixel texture. Use the player’s campaign name in the interface to establish where they are.
 
 Keep the title, **Back to campaigns**, account controls, and **Places** compact. Put high-contrast text labels beside the artwork’s existing signs and entrances. Use the existing Adventure Ledger typography and form controls when players open a feature. Keep the village visible alongside the feature panel when space allows.
 

@@ -1,5 +1,9 @@
 # Galaxy Campaign Selection Redesign: "The Wayfinder's Orrery"
 
+## Status
+
+**Paused (2026-11-14).** Implementation steps 1–4 shipped (shared logic, orrery model, scene, and ledger/annotation DOM layer). Steps 5–8 (create/edit/delete and the formation sequence in the galaxy, responsive sheets, motion polish, and docs) are not built.
+
 ## Context
 
 The campaign selector at `/app/campaigns` is built as a carousel. A fixed camera shows three planets on a shallow arc. A glass list sits at the left, a glass details card at the right, and Previous/Next buttons at the bottom. It works and is well tested, but the galaxy is mostly a backdrop behind three floating panels. Only three worlds are ever visible, so there's no sense of your campaigns sharing one place. The same choice can be made in three separate spots. The latest Impeccable critique scored the selector 23/40 and recorded two P1 issues:
@@ -63,7 +67,7 @@ The UI calls these through TanStack Query directly; there are no custom hooks ye
 - Stack: React 19.3, R3F 9.8, three 0.187, Tailwind 4, React Router 8. No new dependencies are needed.
 - Vite already warns that a chunk is over 500 kB. Three.js loads only from the lazily loaded galaxy chunk.
 - About 25 Chromium e2e tests in `e2e/campaigns.spec.ts` find elements by accessible name. `e2e/local-supabase.spec.ts` expects create to end on the workspace URL and edit and delete to happen in the workspace.
-- `docs/M02-Galaxy-Campaign-Selector.md` Phase 5 already planned: create in a modal over the galaxy, a planet "formation" sequence, an inert background, and focus restoration. This design delivers that plan.
+- `docs/archive/M02-Galaxy-Campaign-Selector.md` Phase 5 already planned: create in a modal over the galaxy, a planet "formation" sequence, an inert background, and focus restoration. This design delivers that plan.
 
 ---
 
@@ -194,7 +198,7 @@ Each size gets its own composition; the desktop layout isn't just scaled down.
   - `useCampaignManagement`: shared update and delete mutations, also used by `CampaignWorkspacePage`.
 - **Styling.** Replace `galaxy.css` with `orrery.css`. Tokens: deep indigo-black, parchment ink lines, warm starlight accent, muted ember for destructive actions. Source Serif 4 for names and small-caps inscriptions, system sans for controls.
 - **Leader line.** One absolutely positioned SVG, updated from the projected planet position in the same frame callback the labels already use.
-- **Docs.** Update the "Campaign selector" section of `DESIGN.md` and `docs/M02-Galaxy-Campaign-Selector.md`.
+- **Docs.** Update the "Campaign selector" section of `DESIGN.md` and `docs/archive/M02-Galaxy-Campaign-Selector.md`.
 - **Out of scope.** No Supabase schema, migration, RLS, Auth, or service-contract changes.
 
 ---
