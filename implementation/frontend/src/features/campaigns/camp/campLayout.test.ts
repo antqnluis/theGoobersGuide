@@ -66,19 +66,30 @@ describe('layout table', () => {
     }
   })
 
+  it('swaps the tent and the wagon: the tent stands where the wagon did, and the wagon where the tent did', () => {
+    expect([tent.x, tent.y]).toEqual([280, 244])
+    expect([wagon.x, wagon.y]).toEqual([170, 240])
+    expect(campLocations.find(({ id }) => id === 'settings')?.world).toEqual({
+      x: wagon.x,
+      y: wagon.y,
+    })
+  })
+
   it('has unique seats and no dormant prop that is a destination', () => {
     expect(new Set(partySeats.map(({ x, y }) => `${x},${y}`)).size).toBe(partySeats.length)
     expect(dormantProps.map(({ id }) => id)).not.toContain('settings')
   })
 
-  it('makes the tent a destination for everyone, standing where the dormant tent was', () => {
+  it('makes the tent a destination for everyone, with a target that covers its larger sprite', () => {
     const location = campLocations.find(({ id }) => id === 'characters')
     expect(location).toMatchObject({
       label: 'My characters',
       place: 'Tent',
       world: { x: tent.x, y: tent.y },
+      hit: { width: Math.round(50 * tent.scale!), height: Math.round(35 * tent.scale!) },
       ownerOnly: false,
     })
+    expect(tent.scale).toBeGreaterThan(1)
     expect(tent.id).toBe('empty-tent')
     expect(dormantProps.map(({ id }) => id)).not.toContain('empty-tent')
     expect(resolveLocation('characters', false)?.id).toBe('characters')

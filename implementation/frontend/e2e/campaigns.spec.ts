@@ -387,8 +387,8 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     for (let index = 0; index < total; index += 1) {
       const sign = signs.nth(index)
       if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
-        // The tent stands off-frame at rest, so it is not counted; Places opens it.
-        if ((await sign.getAttribute('data-location')) !== 'characters') inFrame += 1
+        // The wagon stands off-frame at rest on a wide view, so it is not counted; Places opens it.
+        if ((await sign.getAttribute('data-location')) !== 'settings') inFrame += 1
         await expect(sign).toBeInViewport({ ratio: 1 })
         await sign.click({ trial: true })
         const box = (await sign.boundingBox())!
@@ -633,14 +633,15 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
 
   expect(await outlined()).toBe(0)
 
-  const wagon = page.locator('[data-camp-sign][data-location="settings"]')
-  await wagon.hover()
+  // The tent is the in-frame object at the left of the camp; the wagon is out of frame at rest.
+  const tent = page.locator('[data-camp-sign][data-location="characters"]')
+  await tent.hover()
   await expect.poll(outlined).toBeGreaterThan(0)
-  const wagonOutline = await outlined()
+  const tentOutline = await outlined()
   await page.mouse.move(700, 300)
   await expect.poll(outlined).toBe(0)
 
-  // Bedrolls and seated figures make a bigger outline than the wagon alone.
+  // Bedrolls and seated figures make a bigger outline than the tent alone.
   await page.locator('[data-camp-sign][data-location="party"]').hover()
   await expect.poll(outlined).toBeGreaterThan(0)
   await page.mouse.move(700, 300)
@@ -657,7 +658,7 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
   await expect.poll(outlined).toBeGreaterThan(0)
   await page.keyboard.press('Escape')
   await expect(camp).toHaveAttribute('data-camp-state', 'idle')
-  expect(wagonOutline).toBeGreaterThan(0)
+  expect(tentOutline).toBeGreaterThan(0)
 })
 
 test('descends into camp only on arrival from the galaxy, never on load, refresh, or Back', async ({
@@ -716,7 +717,7 @@ test('frames a destination on the open side of its panel and comes back', async 
   for (const [id, worldX] of [
     ['party', 480],
     ['overview', 480],
-    ['settings', 240],
+    ['characters', 280],
   ] as const) {
     await page.locator(`[data-camp-sign][data-location="${id}"]`).click()
     await expect(camp).toHaveAttribute('data-camp-state', id)
@@ -2465,7 +2466,7 @@ test('the tent opens from Places, pans the camera to it, and starts empty', asyn
   await expect(camp).toHaveAttribute(
     'data-camera-x',
     String(
-      cameraToFrame({ worldX: 130, visible: 480, panelFraction: panel / 1440, panelSide: 'right' }),
+      cameraToFrame({ worldX: 280, visible: 480, panelFraction: panel / 1440, panelSide: 'right' }),
     ),
   )
   await expect(dialog.getByText('You have no character in this campaign yet.')).toBeVisible()

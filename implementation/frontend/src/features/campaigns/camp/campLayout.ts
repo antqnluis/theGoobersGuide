@@ -49,8 +49,9 @@ export const campLocations: readonly CampLocation[] = [
     id: 'characters',
     label: 'My characters',
     place: 'Tent',
-    world: { x: 130, y: 240 },
-    hit: { width: 50, height: 35 },
+    // The tent's spot, and its 50×35 sprite at `tent.scale` (1.3), rounded to whole art pixels.
+    world: { x: 280, y: 244 },
+    hit: { width: 65, height: 46 },
     plate: 'above',
     plateAlign: 'center',
     ownerOnly: false,
@@ -59,7 +60,7 @@ export const campLocations: readonly CampLocation[] = [
     id: 'settings',
     label: 'Campaign settings',
     place: 'Steward’s wagon',
-    world: { x: 240, y: 244 },
+    world: { x: 170, y: 240 },
     hit: { width: 104, height: 80 },
     plate: 'above',
     plateAlign: 'center',
@@ -89,7 +90,14 @@ export function parkedLocations(isOwner: boolean): CampLocation[] {
 export const restFocusX = 384
 
 /** Static scenery drawn at fixed spots, never labeled or focusable. */
-export type CampProp = { id: string; x: number; y: number; flip?: boolean }
+export type CampProp = {
+  id: string
+  x: number
+  y: number
+  flip?: boolean
+  /** Draws the sprite this many times its size, to whole art pixels (default 1). */
+  scale?: number
+}
 
 export const dormantProps: readonly CampProp[] = [
   { id: 'map-table', x: 690, y: 242 },
@@ -102,11 +110,11 @@ export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
 /** The waystone's click target in base art pixels, standing on its spot (the sprite is 44×60). */
 export const waystoneHit = { width: 44, height: 60 } as const
 
-/** The player's tent, the "My characters" destination. */
-export const tent: CampProp = { id: 'empty-tent', x: 130, y: 240 }
+/** The player's tent, the "My characters" destination, drawn a little larger than its 50×35 sprite. */
+export const tent: CampProp = { id: 'empty-tent', x: 280, y: 244, scale: 1.3 }
 
 /** The steward's wagon, a destination for owners and parked scenery for members. */
-export const wagon: CampProp = { id: 'wagon', x: 240, y: 244 }
+export const wagon: CampProp = { id: 'wagon', x: 170, y: 240 }
 
 /** The stone-ringed fire pit; the flame itself is drawn in code. */
 export const firePit: CampProp = { id: 'firepit', x: 480, y: 244 }

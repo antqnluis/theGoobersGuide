@@ -3,9 +3,9 @@ import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
 import { foregroundBand, foregroundSplit, planScene, type ImageSizes } from './campDrawPlan'
 import { frameSpriteId, partyFigures, type PartyFigure } from './campParty'
-import { panorama } from './campLayout'
+import { panorama, tent } from './campLayout'
 import type { CampKind } from './campPalette'
-import type { View } from './campProjection'
+import { projectToDevice, type View } from './campProjection'
 
 const kinds: CampKind[] = ['terrestrial', 'desert', 'volcanic', 'frozen', 'rocky', 'gas']
 
@@ -252,6 +252,18 @@ describe('planScene during the landfall descent', () => {
     expect(drop('ground')).toBe(40 * rest.scale)
     const trunkDrop = high_foreground().dy - rest_foreground().dy
     expect(trunkDrop).toBeGreaterThan(drop('ground'))
+  })
+
+  it('draws the tent larger than its sprite, in whole art pixels, standing on the same spot', () => {
+    const op = find(rest, 'empty-tent')
+    const width = Math.round(sizes['empty-tent'].width * tent.scale!)
+    const height = Math.round(sizes['empty-tent'].height * tent.scale!)
+    expect(op.dw).toBe(width * rest.scale)
+    expect(op.dh).toBe(height * rest.scale)
+    expect(op.dw).toBeGreaterThan(sizes['empty-tent'].width * rest.scale)
+    const foot = projectToDevice(tent, rest)
+    expect(op.dy + op.dh).toBe(foot.y)
+    expect(op.dx + Math.floor(width / 2) * rest.scale).toBe(foot.x)
   })
 
   it('moves props with the ground and keeps every coordinate whole', () => {
