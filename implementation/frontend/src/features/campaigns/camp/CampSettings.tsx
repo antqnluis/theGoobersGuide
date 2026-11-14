@@ -1,9 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { backgroundChoices, hueRange, type CampBackground } from './campBackground'
 
 /** The element in the app header that holds the camp's settings button. */
 export const campHeaderSlotId = 'camp-header-slot'
+
+const subscribeNever = () => () => {}
+const findHeaderSlot = () => document.getElementById(campHeaderSlotId)
 
 /**
  * A gear in the header that opens a small panel for choosing the camp
@@ -22,7 +25,10 @@ export function CampSettings({
   onHueChange: (hue: number) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [slot] = useState(() => document.getElementById(campHeaderSlotId))
+  // The header slot is rendered by the app shell in the same commit that mounts
+  // the camp, so it is not in the document yet during this component's first render.
+  // useSyncExternalStore re-reads it right after commit, before paint.
+  const slot = useSyncExternalStore(subscribeNever, findHeaderSlot, () => null)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const panelId = useId()
