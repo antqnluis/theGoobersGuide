@@ -177,9 +177,13 @@ export function memberLabel(member: RosterMember) {
 /**
  * Seats up to ten real roster members around the fire. The owner sits first and
  * the rest follow in profile order, so seating is stable between loads. The
- * remainder is reported as a count for the "+N" marker.
+ * remainder is reported as a count for the "+N" marker. A seat is named for the player's
+ * active character when `characterNames` has one for them, and for the player otherwise.
  */
-export function seatParty(roster: readonly RosterMember[]) {
+export function seatParty(
+  roster: readonly RosterMember[],
+  characterNames?: ReadonlyMap<string, string>,
+) {
   const ordered = roster.toSorted(
     (first, second) =>
       Number(second.role === 'owner') - Number(first.role === 'owner') ||
@@ -188,7 +192,7 @@ export function seatParty(roster: readonly RosterMember[]) {
   const seated: SeatedMember[] = ordered.slice(0, partySeats.length).map((member, index) => ({
     member,
     seat: partySeats[index],
-    label: memberLabel(member),
+    label: characterNames?.get(member.profile_id) ?? memberLabel(member),
   }))
   return { seated, overflow: Math.max(0, ordered.length - partySeats.length) }
 }

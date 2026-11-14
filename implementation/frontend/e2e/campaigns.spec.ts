@@ -3208,3 +3208,29 @@ test('clicking outside does nothing while a character change is pending', async 
   release()
   await expect(dialog.getByText('Brand joined the party.')).toBeVisible()
 })
+
+test("camp name plates show each player's active character, else the player", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const guest = '00000000-0000-4000-8000-000000000201'
+  const roster: RosterMember[] = [
+    { profile_id: accountId, role: 'owner', username: 'game_master' },
+    { profile_id: guest, role: 'member', username: 'player_two' },
+    { profile_id: nameless, role: 'member', username: 'player_three' },
+  ]
+  await mockMembership(page, campaigns, roster)
+  const mine = mockCharacter({ owner_id: accountId, name: 'Brand' })
+  // A retired character does not name its player's seat; an active one does, in or out of the party.
+  const retired = mockCharacter({
+    owner_id: guest,
+    name: 'Old Sorrel',
+    status: 'retired',
+    in_party: false,
+  })
+  const resting = mockCharacter({ owner_id: nameless, name: 'Wren', in_party: false })
+  await mockCharacters(page, { characters: [mine, retired, resting], sheets: [] })
+  await openCamp(page)
+
+  const names = page.locator('.camp-names .camp-name')
+  await expect(names).toHaveText(['Brand', 'player_two', 'Wren'])
+})

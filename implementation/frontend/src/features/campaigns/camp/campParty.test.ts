@@ -33,6 +33,24 @@ describe('partyFigures', () => {
     expect(partyFigures(roster).figures).toEqual(figures)
   })
 
+  it("names a seat for its player's active character, and for the player otherwise", () => {
+    const roster = [member(1, 'owner', 'game_master'), member(2), member(3, 'member', null)]
+    const names = new Map([
+      [roster[0].profile_id, 'Brand'],
+      [roster[2].profile_id, 'Wren'],
+    ])
+    expect(partyFigures(roster, names).figures.map(({ label }) => label)).toEqual([
+      'Brand',
+      'player_2',
+      'Wren',
+    ])
+    expect(partyFigures(roster, new Map()).figures.map(({ label }) => label)).toEqual([
+      'game_master',
+      'player_2',
+      'Player',
+    ])
+  })
+
   it('labels an owner without a username as the campaign owner', () => {
     expect(partyFigures([member(1, 'owner', null)]).figures[0].label).toBe('Campaign owner')
   })

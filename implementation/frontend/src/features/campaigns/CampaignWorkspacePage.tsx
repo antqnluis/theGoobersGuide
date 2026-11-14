@@ -80,6 +80,17 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     ...campaignCharactersOptions(campaignId, userId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
+  const charactersData = charactersQuery.data
+  // The camp names each seat for its player's active character, when they have one.
+  const characterNames = useMemo(
+    () =>
+      new Map(
+        (charactersData ?? [])
+          .filter((character) => character.status === 'active')
+          .map((character) => [character.owner_id, character.name]),
+      ),
+    [charactersData],
+  )
   const campaign = campaignQuery.data
   const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const [background, setBackground] = useCampBackground(campaignId)
@@ -256,6 +267,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       onHueChange={setHue}
       onLeave={() => navigate('/app/campaigns')}
       roster={roster}
+      characterNames={characterNames}
       world={world}
       title={
         <ViewTransition

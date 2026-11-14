@@ -84,6 +84,7 @@ export function CampaignCamp({
   onHueChange,
   onLeave,
   roster,
+  characterNames,
   landfallKey,
   isOwner,
   isDeleting,
@@ -112,6 +113,8 @@ export function CampaignCamp({
   onLeave: () => void
   /** The loaded roster; empty while loading, on error, or when none is available. */
   roster: readonly RosterMember[]
+  /** Each player's active character's name, by profile id; players without one use their own name. */
+  characterNames?: ReadonlyMap<string, string>
   /**
    * Set only for a fresh arrival from the galaxy: the history entry's key, so the
    * landfall descent plays once for that arrival and never again.
@@ -197,7 +200,10 @@ export function CampaignCamp({
     )
   }
   const ramps = useMemo(() => campRamps(world), [world])
-  const { figures, overflow } = useMemo(() => partyFigures(roster), [roster])
+  const { figures, overflow } = useMemo(
+    () => partyFigures(roster, characterNames),
+    [roster, characterNames],
+  )
   const highlight = hovered ?? focused ?? active?.id ?? null
   const onReady = useCallback(() => setReady(true), [])
   const onFail = useCallback(() => setArtFailed(true), [])

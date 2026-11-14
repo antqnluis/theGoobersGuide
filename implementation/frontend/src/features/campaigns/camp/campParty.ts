@@ -55,8 +55,11 @@ export function spriteIdFor(look: AdventurerAppearance) {
 }
 
 /** Up to ten real members around the fire, plus how many did not get a seat. */
-export function partyFigures(roster: readonly RosterMember[]) {
-  const { seated, overflow } = seatParty(roster)
+export function partyFigures(
+  roster: readonly RosterMember[],
+  characterNames?: ReadonlyMap<string, string>,
+) {
+  const { seated, overflow } = seatParty(roster, characterNames)
   const figures: PartyFigure[] = seated.map(({ member, seat, label }, index) => {
     const look = adventurerAppearance(member.profile_id)
     return {
