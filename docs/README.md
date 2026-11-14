@@ -16,6 +16,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1 and M2 are done; M3–M8 are not started. |
+| [M03.3 — Inventory and Currency](in-progress/M03.3-Inventory-and-Currency.md) | Plan for M3, approved. Not started. |
 
 ## Completed
 
