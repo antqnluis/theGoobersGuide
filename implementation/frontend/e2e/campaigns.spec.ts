@@ -3108,3 +3108,103 @@ test('Overview, Party, and Campaign settings all wear the journal, with a titled
     await expect(ledger).not.toHaveAttribute('open', '')
   }
 })
+
+// --- Closing by clicking outside the journal ----------------------------------------
+
+/** A point on the dimmed scene beside the open journal. */
+async function outsidePoint(page: Page) {
+  const box = (await page.locator('.camp-ledger').boundingBox())!
+  const viewport = page.viewportSize()!
+  const x = box.x > 120 ? box.x / 2 : (box.x + box.width + viewport.width) / 2
+  return { x, y: viewport.height / 2 }
+}
+
+test('clicking the scene beside any journal page closes it and returns focus', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  const ledger = page.locator('.camp-ledger')
+  for (const entry of [/^Overview/, /^Party/, /^My characters/, /^Campaign settings/]) {
+    const opener = places(page).getByRole('button', { name: entry })
+    await opener.click()
+    await expect(ledger).toHaveAttribute('open', '')
+    const point = await outsidePoint(page)
+    await page.mouse.click(point.x, point.y)
+    await expect(ledger).not.toHaveAttribute('open', '')
+    await expect(opener).toBeFocused()
+  }
+})
+
+test('clicks and drags that start or end inside the journal keep it open', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^Overview/ })
+    .click()
+  const ledger = page.locator('.camp-ledger')
+  const box = (await ledger.boundingBox())!
+  const outside = await outsidePoint(page)
+
+  // A click on the page itself.
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(ledger).toHaveAttribute('open', '')
+  // Selecting text and releasing beyond the edge.
+  await page.mouse.move(box.x + 40, box.y + 150)
+  await page.mouse.down()
+  await page.mouse.move(outside.x, outside.y, { steps: 5 })
+  await page.mouse.up()
+  await expect(ledger).toHaveAttribute('open', '')
+  // Pressing outside and releasing inside.
+  await page.mouse.move(outside.x, outside.y)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 40, box.y + 150, { steps: 5 })
+  await page.mouse.up()
+  await expect(ledger).toHaveAttribute('open', '')
+})
+
+test('clicking outside asks about unsaved sheet edits instead of discarding them', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { dialog } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Spells', { exact: true }).fill('Light')
+  await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
+
+  const point = await outsidePoint(page)
+  // The journal learns of the edit a frame after the sheet shows it.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
+  await page.mouse.click(point.x, point.y)
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Spells', { exact: true })).toHaveValue('Light')
+})
+
+test('clicking outside does nothing while a character change is pending', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, withCharacter({ in_party: false }), { hold: () => held })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^My characters/ })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+
+  const point = await outsidePoint(page)
+  await page.mouse.click(point.x, point.y)
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('open', '')
+  release()
+  await expect(dialog.getByText('Brand joined the party.')).toBeVisible()
+})

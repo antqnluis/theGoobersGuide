@@ -182,6 +182,20 @@ export function CampaignCamp({
     }
     close()
   }
+  // A click on the dimmed scene around the journal closes it, the same as Back to camp
+  // (so it asks first about unsaved edits and waits out a pending change). Both the press
+  // and the release must land outside the page, so dragging a text selection past its
+  // edge never closes it.
+  const pressedOutsideRef = useRef(false)
+  const isOutside = (event: { clientX: number; clientY: number }, dialog: HTMLElement) => {
+    const box = dialog.getBoundingClientRect()
+    return (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    )
+  }
   const ramps = useMemo(() => campRamps(world), [world])
   const { figures, overflow } = useMemo(() => partyFigures(roster), [roster])
   const highlight = hovered ?? focused ?? active?.id ?? null
@@ -552,6 +566,18 @@ export function CampaignCamp({
         onCancel={(event) => {
           event.preventDefault()
           requestClose()
+        }}
+        onClick={(event) => {
+          const outside =
+            event.target === event.currentTarget && isOutside(event, event.currentTarget)
+          if (outside && pressedOutsideRef.current) requestClose()
+          pressedOutsideRef.current = false
+        }}
+        onPointerDown={(event) => {
+          // Only the dialog itself is the target when the press is on its backdrop (or its
+          // own padding), never on the page content or a nested prompt.
+          pressedOutsideRef.current =
+            event.target === event.currentTarget && isOutside(event, event.currentTarget)
         }}
         ref={dialogRef}
       >
