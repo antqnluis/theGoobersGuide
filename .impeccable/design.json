@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-11T17:59:54Z",
+  "generatedAt": "2026-11-14T07:36:21Z",
   "title": "Design System: The Goober's Guide",
   "extensions": {
     "colorMeta": {
@@ -123,6 +123,381 @@
           "oklch(88% 0.045 240)",
           "oklch(95% 0.02 240)"
         ]
+      },
+      "journal-parchment": {
+        "role": "neutral",
+        "displayName": "Journal Parchment",
+        "canonical": "#f3e8cf",
+        "tonalRamp": [
+          "oklch(15% 0.019 87)",
+          "oklch(25% 0.021 87)",
+          "oklch(35% 0.023 87)",
+          "oklch(48% 0.026 87)",
+          "oklch(62% 0.029 87)",
+          "oklch(76% 0.031 87)",
+          "oklch(88% 0.034 87)",
+          "oklch(95% 0.035 87)"
+        ]
+      },
+      "parchment-shade": {
+        "role": "neutral",
+        "displayName": "Parchment Shade",
+        "canonical": "#e7d8b5",
+        "tonalRamp": [
+          "oklch(15% 0.027 88)",
+          "oklch(25% 0.030 88)",
+          "oklch(35% 0.033 88)",
+          "oklch(48% 0.037 88)",
+          "oklch(62% 0.041 88)",
+          "oklch(76% 0.045 88)",
+          "oklch(88% 0.049 88)",
+          "oklch(95% 0.047 88)"
+        ]
+      },
+      "parchment-field": {
+        "role": "neutral",
+        "displayName": "Parchment Field",
+        "canonical": "#fbf5e4",
+        "tonalRamp": [
+          "oklch(15% 0.012 91)",
+          "oklch(25% 0.013 91)",
+          "oklch(35% 0.015 91)",
+          "oklch(48% 0.016 91)",
+          "oklch(62% 0.018 91)",
+          "oklch(76% 0.020 91)",
+          "oklch(88% 0.022 91)",
+          "oklch(95% 0.023 91)"
+        ]
+      },
+      "parchment-edge": {
+        "role": "neutral",
+        "displayName": "Parchment Edge",
+        "canonical": "#c9b48a",
+        "tonalRamp": [
+          "oklch(15% 0.038 84)",
+          "oklch(25% 0.042 84)",
+          "oklch(35% 0.046 84)",
+          "oklch(48% 0.050 84)",
+          "oklch(62% 0.055 84)",
+          "oklch(76% 0.061 84)",
+          "oklch(88% 0.058 84)",
+          "oklch(95% 0.055 84)"
+        ]
+      },
+      "journal-ink": {
+        "role": "neutral",
+        "displayName": "Journal Ink",
+        "canonical": "#2a1c13",
+        "tonalRamp": [
+          "oklch(15% 0.026 54)",
+          "oklch(25% 0.027 54)",
+          "oklch(35% 0.026 54)",
+          "oklch(48% 0.024 54)",
+          "oklch(62% 0.021 54)",
+          "oklch(76% 0.019 54)",
+          "oklch(88% 0.017 54)",
+          "oklch(95% 0.016 54)"
+        ]
+      },
+      "journal-ink-soft": {
+        "role": "neutral",
+        "displayName": "Journal Ink Soft",
+        "canonical": "#5a4535",
+        "tonalRamp": [
+          "oklch(15% 0.033 59)",
+          "oklch(25% 0.035 59)",
+          "oklch(35% 0.037 59)",
+          "oklch(48% 0.037 59)",
+          "oklch(62% 0.034 59)",
+          "oklch(76% 0.030 59)",
+          "oklch(88% 0.028 59)",
+          "oklch(95% 0.026 59)"
+        ]
+      },
+      "journal-rule": {
+        "role": "neutral",
+        "displayName": "Journal Rule",
+        "canonical": "#b79f74",
+        "tonalRamp": [
+          "oklch(15% 0.043 82)",
+          "oklch(25% 0.047 82)",
+          "oklch(35% 0.051 82)",
+          "oklch(48% 0.056 82)",
+          "oklch(62% 0.061 82)",
+          "oklch(76% 0.063 82)",
+          "oklch(88% 0.058 82)",
+          "oklch(95% 0.056 82)"
+        ]
+      },
+      "journal-line": {
+        "role": "neutral",
+        "displayName": "Journal Line",
+        "canonical": "#6f5a45",
+        "tonalRamp": [
+          "oklch(15% 0.034 67)",
+          "oklch(25% 0.036 67)",
+          "oklch(35% 0.039 67)",
+          "oklch(48% 0.042 67)",
+          "oklch(62% 0.039 67)",
+          "oklch(76% 0.035 67)",
+          "oklch(88% 0.032 67)",
+          "oklch(95% 0.030 67)"
+        ]
+      },
+      "journal-cream": {
+        "role": "neutral",
+        "displayName": "Journal Cream",
+        "canonical": "#fff4e0",
+        "tonalRamp": [
+          "oklch(15% 0.015 83)",
+          "oklch(25% 0.016 83)",
+          "oklch(35% 0.018 83)",
+          "oklch(48% 0.020 83)",
+          "oklch(62% 0.023 83)",
+          "oklch(76% 0.025 83)",
+          "oklch(88% 0.027 83)",
+          "oklch(95% 0.028 83)"
+        ]
+      },
+      "leather": {
+        "role": "neutral",
+        "displayName": "Leather",
+        "canonical": "#3a2420",
+        "tonalRamp": [
+          "oklch(15% 0.032 31)",
+          "oklch(25% 0.034 31)",
+          "oklch(35% 0.033 31)",
+          "oklch(48% 0.031 31)",
+          "oklch(62% 0.028 31)",
+          "oklch(76% 0.025 31)",
+          "oklch(88% 0.022 31)",
+          "oklch(95% 0.021 31)"
+        ]
+      },
+      "leather-deep": {
+        "role": "neutral",
+        "displayName": "Leather Deep",
+        "canonical": "#221310",
+        "tonalRamp": [
+          "oklch(15% 0.025 32)",
+          "oklch(25% 0.025 32)",
+          "oklch(35% 0.024 32)",
+          "oklch(48% 0.022 32)",
+          "oklch(62% 0.019 32)",
+          "oklch(76% 0.017 32)",
+          "oklch(88% 0.015 32)",
+          "oklch(95% 0.014 32)"
+        ]
+      },
+      "leather-light": {
+        "role": "neutral",
+        "displayName": "Leather Light",
+        "canonical": "#5b3b31",
+        "tonalRamp": [
+          "oklch(15% 0.042 38)",
+          "oklch(25% 0.045 38)",
+          "oklch(35% 0.048 38)",
+          "oklch(48% 0.046 38)",
+          "oklch(62% 0.042 38)",
+          "oklch(76% 0.038 38)",
+          "oklch(88% 0.034 38)",
+          "oklch(95% 0.032 38)"
+        ]
+      },
+      "brass": {
+        "role": "secondary",
+        "displayName": "Brass",
+        "canonical": "#dab98a",
+        "tonalRamp": [
+          "oklch(15% 0.044 76)",
+          "oklch(25% 0.049 76)",
+          "oklch(35% 0.053 76)",
+          "oklch(48% 0.059 76)",
+          "oklch(62% 0.065 76)",
+          "oklch(76% 0.071 76)",
+          "oklch(88% 0.069 76)",
+          "oklch(95% 0.066 76)"
+        ]
+      },
+      "brass-deep": {
+        "role": "secondary",
+        "displayName": "Brass Deep",
+        "canonical": "#8f6b34",
+        "tonalRamp": [
+          "oklch(15% 0.065 76)",
+          "oklch(25% 0.070 76)",
+          "oklch(35% 0.075 76)",
+          "oklch(48% 0.082 76)",
+          "oklch(62% 0.082 76)",
+          "oklch(76% 0.075 76)",
+          "oklch(88% 0.069 76)",
+          "oklch(95% 0.065 76)"
+        ]
+      },
+      "oxblood-deep": {
+        "role": "primary",
+        "displayName": "Oxblood Deep",
+        "canonical": "#571a22",
+        "tonalRamp": [
+          "oklch(15% 0.081 16)",
+          "oklch(25% 0.086 16)",
+          "oklch(35% 0.088 16)",
+          "oklch(48% 0.081 16)",
+          "oklch(62% 0.074 16)",
+          "oklch(76% 0.066 16)",
+          "oklch(88% 0.060 16)",
+          "oklch(95% 0.056 16)"
+        ]
+      },
+      "lantern": {
+        "role": "tertiary",
+        "displayName": "Lantern",
+        "canonical": "#f2b04a",
+        "tonalRamp": [
+          "oklch(15% 0.085 75)",
+          "oklch(25% 0.093 75)",
+          "oklch(35% 0.101 75)",
+          "oklch(48% 0.112 75)",
+          "oklch(62% 0.124 75)",
+          "oklch(76% 0.136 75)",
+          "oklch(88% 0.132 75)",
+          "oklch(95% 0.127 75)"
+        ]
+      },
+      "lantern-wash": {
+        "role": "tertiary",
+        "displayName": "Lantern Wash",
+        "canonical": "#fbe6b8",
+        "tonalRamp": [
+          "oklch(15% 0.034 86)",
+          "oklch(25% 0.038 86)",
+          "oklch(35% 0.042 86)",
+          "oklch(48% 0.047 86)",
+          "oklch(62% 0.052 86)",
+          "oklch(76% 0.057 86)",
+          "oklch(88% 0.062 86)",
+          "oklch(95% 0.063 86)"
+        ]
+      },
+      "journal-focus": {
+        "role": "secondary",
+        "displayName": "Journal Focus",
+        "canonical": "#1b5f8c",
+        "tonalRamp": [
+          "oklch(15% 0.080 243)",
+          "oklch(25% 0.085 243)",
+          "oklch(35% 0.091 243)",
+          "oklch(48% 0.097 243)",
+          "oklch(62% 0.089 243)",
+          "oklch(76% 0.081 243)",
+          "oklch(88% 0.074 243)",
+          "oklch(95% 0.070 243)"
+        ]
+      },
+      "starlight-focus": {
+        "role": "secondary",
+        "displayName": "Starlight Focus",
+        "canonical": "#ffe7ac",
+        "tonalRamp": [
+          "oklch(15% 0.042 88)",
+          "oklch(25% 0.047 88)",
+          "oklch(35% 0.052 88)",
+          "oklch(48% 0.058 88)",
+          "oklch(62% 0.065 88)",
+          "oklch(76% 0.071 88)",
+          "oklch(88% 0.077 88)",
+          "oklch(95% 0.079 88)"
+        ]
+      },
+      "camp-night": {
+        "role": "neutral",
+        "displayName": "Camp Night",
+        "canonical": "#181628",
+        "tonalRamp": [
+          "oklch(15% 0.034 288)",
+          "oklch(25% 0.034 288)",
+          "oklch(35% 0.032 288)",
+          "oklch(48% 0.029 288)",
+          "oklch(62% 0.027 288)",
+          "oklch(76% 0.024 288)",
+          "oklch(88% 0.021 288)",
+          "oklch(95% 0.020 288)"
+        ]
+      },
+      "camp-cream": {
+        "role": "neutral",
+        "displayName": "Camp Cream",
+        "canonical": "#fff0d7",
+        "tonalRamp": [
+          "oklch(15% 0.019 81)",
+          "oklch(25% 0.021 81)",
+          "oklch(35% 0.023 81)",
+          "oklch(48% 0.026 81)",
+          "oklch(62% 0.029 81)",
+          "oklch(76% 0.032 81)",
+          "oklch(88% 0.035 81)",
+          "oklch(95% 0.036 81)"
+        ]
+      },
+      "galaxy-night": {
+        "role": "neutral",
+        "displayName": "Galaxy Night",
+        "canonical": "#080714",
+        "tonalRamp": [
+          "oklch(15% 0.029 286)",
+          "oklch(25% 0.027 286)",
+          "oklch(35% 0.025 286)",
+          "oklch(48% 0.023 286)",
+          "oklch(62% 0.020 286)",
+          "oklch(76% 0.018 286)",
+          "oklch(88% 0.016 286)",
+          "oklch(95% 0.015 286)"
+        ]
+      },
+      "galaxy-ink": {
+        "role": "neutral",
+        "displayName": "Galaxy Ink",
+        "canonical": "#f4efff",
+        "tonalRamp": [
+          "oklch(15% 0.011 300)",
+          "oklch(25% 0.013 300)",
+          "oklch(35% 0.014 300)",
+          "oklch(48% 0.016 300)",
+          "oklch(62% 0.017 300)",
+          "oklch(76% 0.019 300)",
+          "oklch(88% 0.021 300)",
+          "oklch(95% 0.022 300)"
+        ]
+      },
+      "galaxy-accent": {
+        "role": "tertiary",
+        "displayName": "Galaxy Starlight",
+        "canonical": "#f5d3ae",
+        "tonalRamp": [
+          "oklch(15% 0.035 69)",
+          "oklch(25% 0.038 69)",
+          "oklch(35% 0.042 69)",
+          "oklch(48% 0.047 69)",
+          "oklch(62% 0.052 69)",
+          "oklch(76% 0.057 69)",
+          "oklch(88% 0.062 69)",
+          "oklch(95% 0.060 69)"
+        ]
+      },
+      "galaxy-focus": {
+        "role": "secondary",
+        "displayName": "Galaxy Focus",
+        "canonical": "#d2baff",
+        "tonalRamp": [
+          "oklch(15% 0.058 300)",
+          "oklch(25% 0.064 300)",
+          "oklch(35% 0.070 300)",
+          "oklch(48% 0.077 300)",
+          "oklch(62% 0.086 300)",
+          "oklch(76% 0.094 300)",
+          "oklch(88% 0.095 300)",
+          "oklch(95% 0.091 300)"
+        ]
       }
     },
     "typographyMeta": {
@@ -145,6 +520,22 @@
       "label": {
         "displayName": "Control Label",
         "purpose": "Compact field labels."
+      },
+      "journal-title": {
+        "displayName": "Journal Title",
+        "purpose": "The h2 of each camp page."
+      },
+      "journal-heading": {
+        "displayName": "Journal Heading",
+        "purpose": "Character names and sub-views in the tent."
+      },
+      "journal-label": {
+        "displayName": "Journal Label",
+        "purpose": "Uppercase field labels on parchment."
+      },
+      "journal-section": {
+        "displayName": "Journal Section",
+        "purpose": "Section titles over a 2px rule, with an icon."
       }
     },
     "shadows": [
@@ -152,6 +543,31 @@
         "name": "auth-panel-lift",
         "value": "0 8px 18px rgb(34 41 34 / 10%)",
         "purpose": "A restrained lift beneath the shared auth panel."
+      },
+      {
+        "name": "journal-cover",
+        "value": "0 0 0 2px #8f6b34, 0 24px 70px rgb(11 9 18 / 0.65)",
+        "purpose": "Brass rim and deep fall under the leather journal."
+      },
+      {
+        "name": "printed-plate",
+        "value": "inset 0 0 0 3px #f3e8cf, inset 0 0 0 4px #b79f74",
+        "purpose": "Double rule inside a 1px line: panels, vitals, ability cards."
+      },
+      {
+        "name": "pressed-key",
+        "value": "0 3px 0 #571a22",
+        "purpose": "Journal button at rest; drops to 0 1px 0 with a 2px shift on press."
+      },
+      {
+        "name": "toast",
+        "value": "0 6px 18px rgb(11 9 18 / 0.5)",
+        "purpose": "Leather toast floating over parchment."
+      },
+      {
+        "name": "save-bar",
+        "value": "0 -8px 18px rgb(11 9 18 / 0.28)",
+        "purpose": "Leather save bar pinned to the sheet bottom."
       }
     ],
     "motion": [
@@ -159,6 +575,11 @@
         "name": "control-feedback",
         "value": "140ms ease-out",
         "purpose": "Color and border transitions for buttons and account navigation when motion is allowed."
+      },
+      {
+        "name": "pressed-key",
+        "value": "transform 80ms ease, box-shadow 80ms ease, background-color 120ms ease",
+        "purpose": "Journal button press; disabled under reduced motion."
       }
     ],
     "breakpoints": [
@@ -169,6 +590,22 @@
       {
         "name": "mobile",
         "value": "680px"
+      },
+      {
+        "name": "camp-docked",
+        "value": "900px (and height 481px)"
+      },
+      {
+        "name": "tent-spread",
+        "value": "container 720px"
+      },
+      {
+        "name": "tent-compact",
+        "value": "container 860px"
+      },
+      {
+        "name": "tent-phone",
+        "value": "container 560px"
       }
     ]
   },
@@ -212,16 +649,66 @@
       "description": "The shared light-paper surface for the two equal account routes.",
       "html": "<section class=\"ds-auth-panel\"><h2>Sign in</h2><p>Open your player account.</p></section>",
       "css": ".ds-auth-panel{position:relative;min-width:0;background:var(--color-paper-light);box-shadow:var(--shadow-panel)}.ds-auth-panel:before{position:absolute;top:-1px;right:0;left:0;height:3px;background:var(--color-oxblood);content:''}"
+    },
+    {
+      "name": "Journal Button",
+      "kind": "button",
+      "refersTo": "journal-button",
+      "description": "Pressed-key action inside the camp journal; 44px minimum.",
+      "html": "<button class=\"ds-j-btn\" type=\"button\">Save sheet</button>",
+      "css": ".ds-j-btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #571a22;border-radius:3px;padding:8px 18px;color:#fff4e0;background:#7a2932;box-shadow:0 3px 0 #571a22;font:700 .9rem/1.2 ui-sans-serif,system-ui,sans-serif;transition:transform 80ms ease,box-shadow 80ms ease,background-color 120ms ease}.ds-j-btn:hover{background:#571a22}.ds-j-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #571a22}.ds-j-btn:focus-visible{outline:3px solid #1b5f8c;outline-offset:2px}"
+    },
+    {
+      "name": "Journal Field",
+      "kind": "input",
+      "refersTo": "journal-input",
+      "description": "Parchment text field with an uppercase label and 44px height.",
+      "html": "<div class=\"ds-j-field\"><label for=\"ds-j-n\">Name <span>(required)</span></label><input id=\"ds-j-n\" class=\"ds-j-in\" value=\"Maren Vale\"></div>",
+      "css": ".ds-j-field label{display:block;margin-bottom:6px;color:#2a1c13;font:700 .8rem/1.3 ui-sans-serif,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase}.ds-j-field label span{color:#5a4535;font-weight:400;letter-spacing:0;text-transform:none}.ds-j-in{display:block;width:100%;min-height:44px;border:2px solid #6f5a45;border-radius:3px;padding:8px 10px;color:#2a1c13;background:#fbf5e4;box-shadow:inset 0 2px 0 rgb(90 60 30 / .12);font:400 1rem/1.4 ui-sans-serif,system-ui,sans-serif}.ds-j-in:focus-visible{outline:none;border-color:#1b5f8c}"
+    },
+    {
+      "name": "Printed Plate",
+      "kind": "card",
+      "refersTo": "journal-page",
+      "description": "Double-ruled parchment plate with a section title; the journal grouping primitive.",
+      "html": "<section class=\"ds-plate\"><h3>Vitals</h3><p>Hit points 24 / 31</p></section>",
+      "css": ".ds-plate{border:1px solid #6f5a45;border-radius:3px;padding:16px;color:#2a1c13;background:#f3e8cf;box-shadow:inset 0 0 0 3px #f3e8cf,inset 0 0 0 4px #b79f74}.ds-plate h3{margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #b79f74;font:700 .9rem/1.2 ui-sans-serif,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}.ds-plate p{margin:0;font:1rem/1.55 ui-sans-serif,system-ui,sans-serif;color:#5a4535}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "journal-page",
+      "description": "Icon-and-words status on a tinted fill with a matching edge.",
+      "html": "<span class=\"ds-chip\">In the party</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #315b44;border-radius:3px;padding:3px 8px;color:#1d4630;background:#d9ebd0;font:700 .78rem/1.2 ui-sans-serif,system-ui,sans-serif}"
+    },
+    {
+      "name": "Ability Plate",
+      "kind": "custom",
+      "refersTo": "journal-page",
+      "description": "Character sheet ability: uppercase name over a brass double-ringed serif modifier.",
+      "html": "<div class=\"ds-ability\"><h4>Strength</h4><div class=\"ds-mod\">+3</div></div>",
+      "css": ".ds-ability{display:grid;justify-items:center;gap:6px;border:1px solid #6f5a45;border-radius:3px;padding:10px;background:#f3e8cf;box-shadow:inset 0 0 0 3px #f3e8cf,inset 0 0 0 4px #b79f74}.ds-ability h4{margin:0;color:#5a4535;font:700 .72rem/1.2 ui-sans-serif,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase}.ds-mod{display:grid;width:64px;height:64px;place-items:center;border:3px double #8f6b34;border-radius:50%;color:#2a1c13;background:#f3e8cf;font:600 1.7rem/1 \"Source Serif 4\",Georgia,serif}"
+    },
+    {
+      "name": "Journal Toast",
+      "kind": "custom",
+      "refersTo": "journal-toast",
+      "description": "Leather note with a lantern mark, brass border, and dismiss button.",
+      "html": "<div class=\"ds-toast\"><span class=\"ds-mark\"></span><span>Sheet saved.</span><button type=\"button\" aria-label=\"Dismiss notification\">×</button></div>",
+      "css": ".ds-toast{display:flex;min-height:44px;align-items:center;gap:10px;border:2px solid #dab98a;border-radius:3px;padding:4px 4px 4px 12px;color:#fff0d7;background:#221310;box-shadow:0 6px 18px rgb(11 9 18 / .5);font:600 .92rem/1.35 ui-sans-serif,system-ui,sans-serif}.ds-mark{width:8px;height:8px;background:#f2b04a}.ds-toast button{min-width:36px;min-height:36px;border:0;color:#fff0d7;background:transparent;font-size:1.2rem}.ds-toast button:focus-visible{outline:3px solid #ffe7ac;outline-offset:2px}"
     }
   ],
   "narrative": {
     "northStar": "The Adventure Ledger",
-    "overview": "A calm, personal player record for quick use during and between sessions. The visual language takes the form of a contemporary player handbook spread: warm uncoated paper, charcoal serif display type, narrow folio rules, and restrained oxblood accents.\n\nThe mood is a personal campaign journal with softer earth tones and lightly lifted sections. Familiar web controls stay clear and central; the forms share equal weight and stack in reading order on small screens.",
+    "overview": "**Creative North Star: \"The Adventure Ledger\"**\n\nA calm, personal player record for quick use during and between sessions. The visual language takes the form of a contemporary player handbook spread: warm uncoated paper, charcoal serif display type, narrow folio rules, and restrained oxblood accents.\n\nThe mood is a personal campaign journal with softer earth tones and lightly lifted sections. Familiar web controls stay clear and central; the forms share equal weight and stack in reading order on small screens.\n\nThe ledger now has three rooms that share one ink and one accent. Sign-in and account pages are the **plain ledger**: light paper, charcoal ink, oxblood folios. The campaign galaxy and the camp are **night scenes**: midnight violet chrome with starlight and brass. Everything a player reads or edits inside the camp (Overview, Party, Campaign settings, My characters, the character sheet) is the **adventurer's journal**: a leather cover around parchment pages, with brass fittings and a lantern accent. Oxblood runs through all three; the journal is where the ledger became a physical book.",
     "keyCharacteristics": [
-      "Warm paper and charcoal ink establish a quiet reading surface.",
+      "Warm paper and charcoal ink establish a quiet reading surface; in the journal the same role is played by parchment and brown-black ink.",
       "Serif display type and sans-serif interface text balance print character with quick scanning.",
       "Oxblood folios mark primary actions and active routes; supporting colors stay tied to states.",
-      "Light paper panels receive a restrained lift, and form controls remain conventional."
+      "Light paper panels receive a restrained lift, and form controls remain conventional.",
+      "The journal's controls are tactile (pressed-key buttons, double-ruled plates, dashed stitching) but always at least 44px and always labelled in words.",
+      "Small pixel icons, drawn in one weight, mark places and states; they never replace a label."
     ],
     "rules": [
       {
@@ -230,8 +717,28 @@
         "section": "colors"
       },
       {
+        "name": "The Three Rooms Rule",
+        "body": "Plain paper, night scene, and journal each keep their own tokens. Do not carry a journal color onto the auth pages, or a `--camp-*` color onto parchment.",
+        "section": "colors"
+      },
+      {
+        "name": "The Words Beside Color Rule",
+        "body": "Status chips, save state, and errors always pair color with an icon and words.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif Is For Names Rule",
+        "body": "Titles, character names, and numerals take the serif. Labels, buttons, hints, and anything a player edits take the sans.",
+        "section": "typography"
+      },
+      {
         "name": "The Quiet Lift Rule",
-        "body": "Keep the shadow on the auth panel and let paper contrast and rules do the remaining work.",
+        "body": "Keep the shadow on the auth panel and let paper contrast and rules do the remaining work on plain pages.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Plate Not Card Rule",
+        "body": "Group parchment content with a double rule, a divider, or a ribbon, not nested rounded cards.",
         "section": "elevation"
       }
     ],
@@ -239,12 +746,20 @@
       "**Do** keep sign-in and account creation equally weighted in the current auth layout.",
       "**Do** retain standard labeled fields, visible keyboard focus, and clear text states.",
       "**Do** stack the account panels in reading order on small screens.",
-      "**Do** reserve the panel shadow for the auth panel and use paper tones and rules for surrounding structure."
+      "**Do** reserve the panel shadow for the auth panel and use paper tones and rules for surrounding structure.",
+      "**Do** keep camp colours in `--camp-*` tokens, journal colours in `--journal-*` tokens, and status text in always-mounted live regions.",
+      "**Do** build new camp pages from `CampPanel` and the `journal-*` primitives (button, field, input, section title, chip, status, alert) so they inherit the cover, parchment, and 44px targets.",
+      "**Do** pair every status color with an icon and words, and keep touch targets at 44px or more in the journal.",
+      "**Do** put a destructive action behind an inline confirmation in the dashed oxblood zone."
     ],
     "donts": [
       "**Don't** turn standard form controls into decorative props.",
       "**Don't** let fantasy ornament or surface decoration compete with the form labels and actions.",
-      "**Don't** use the focus and success colors as general-purpose accents."
+      "**Don't** use the focus and success colors as general-purpose accents.",
+      "**Don't** let camp name plates or scene art carry information the Places list and the journal do not also provide.",
+      "**Don't** put a journal skin (leather, brass, parchment) on the auth pages or the galaxy.",
+      "**Don't** nest plates inside plates, or use the pressed-key shadow outside buttons.",
+      "**Don't** use Lantern as a fill or for large areas; it is a small warm signal."
     ]
   }
 }
