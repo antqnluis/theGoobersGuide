@@ -462,6 +462,35 @@
     border-top: 1px dashed var(--journal-rule);
   }
 
+  /*
+   * Two stacks, not one grid of rows. The coins and inventory page is far taller than the
+   * attacks page beside it, so the notes page tucks up under the attacks instead of waiting
+   * for the whole row, and the left page has no empty gap.
+   */
+  .sheet-spread {
+    grid-template-rows: auto auto 1fr;
+  }
+
+  .sheet-page:nth-child(1) {
+    grid-area: 1 / 1;
+  }
+
+  .sheet-page:nth-child(2) {
+    grid-area: 1 / 2;
+  }
+
+  .sheet-page:nth-child(3) {
+    grid-area: 2 / 1;
+  }
+
+  .sheet-page:nth-child(4) {
+    grid-area: 2 / 2 / 4 / 3;
+  }
+
+  .sheet-page:nth-child(5) {
+    grid-area: 3 / 1;
+  }
+
   /* The binding, down the middle of the spread. */
   .sheet-spread::before {
     position: absolute;
@@ -500,6 +529,35 @@
 .sheet-section h3:focus-visible {
   outline: 3px solid var(--journal-focus);
   outline-offset: 4px;
+}
+
+/* A section heading with a fold button, and the body that folds away. */
+.sheet-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.sheet-section__head .journal-section-title {
+  margin: 0;
+}
+
+.sheet-collapse {
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.sheet-section__body {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sheet-section__body[hidden] {
+  display: none;
 }
 
 .sheet-empty {
@@ -1495,4 +1553,196 @@
 .coin-log__total {
   color: var(--journal-ink-soft);
   font-size: 0.8rem;
+}
+
+/* Create and import sit side by side. */
+.tent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The import dialog: a wide journal prompt that scrolls on small screens. */
+.import-dialog {
+  width: min(46rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.import-dialog > * + * {
+  margin-top: 14px;
+}
+
+.import-dialog__lede,
+.import-dialog__hint {
+  margin: 0;
+}
+
+.import-dialog__hint {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.import-dialog__text,
+.import-dialog__prompt-text {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.import-dialog__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 12px;
+}
+
+.import-dialog__prompt summary,
+.import-review__ignored summary,
+.import-history summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.import-dialog__prompt > * + * {
+  margin-top: 10px;
+}
+
+.import-dialog__prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.import-dialog__copied {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.import-dialog__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.import-dialog__actions {
+  margin-top: 18px;
+}
+
+.import-review {
+  display: grid;
+  gap: 12px;
+}
+
+.import-review__summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.import-review__section {
+  border: 1px solid var(--journal-line, currentColor);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+}
+
+.import-review__section[data-invalid] {
+  border-color: var(--journal-danger, #a3342a);
+}
+
+.import-review__section h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.import-review__badge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--journal-page);
+  background: var(--journal-danger, #a3342a);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.import-review__section p {
+  margin: 0;
+}
+
+.import-review__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 6px 14px;
+  margin: 0;
+}
+
+.import-review__facts--text {
+  grid-template-columns: 1fr;
+}
+
+.import-review__facts dt {
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+}
+
+.import-review__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.import-review__list,
+.import-review__issues,
+.import-review__ignored ul,
+.import-history__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.import-review__issues {
+  margin-top: 8px;
+  color: var(--journal-danger, #a3342a);
+}
+
+.import-review__ignored p {
+  margin: 6px 0;
+}
+
+.import-history__list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 8px;
+}
+
+.import-history__list li {
+  display: grid;
+  gap: 2px;
+}
+
+.import-history__list small,
+.import-history__empty {
+  color: var(--journal-ink-soft);
+}
+
+.import-history__empty {
+  margin: 8px 0 0;
+}
+
+.sheet-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.sheet-export small {
+  color: var(--journal-ink-soft);
 }

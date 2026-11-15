@@ -3,11 +3,17 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { importCharacter } from './characterImportService'
 import { getCharacterSheet } from './characterService'
-import { character, sheet, userId } from './characterTestData'
+import { campaignId, character, sheet, userId } from './characterTestData'
 import type { CharacterSummary } from './characterTypes'
 import type { CharacterConfirmation } from './CharacterStatusControls'
 import { CharacterTent, type TentView } from './CharacterTent'
+
+vi.mock('./characterImportService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./characterImportService')>()),
+  importCharacter: vi.fn(),
+}))
 
 vi.mock('./characterService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterService')>()),
@@ -60,6 +66,7 @@ function Harness({
   return (
     <CharacterTent
       actions={actions as never}
+      campaignId={campaignId}
       characters={characters}
       confirmation={confirmation}
       onConfirmationChange={setConfirmation}
@@ -132,8 +139,11 @@ describe('CharacterTent list', () => {
     expect(within(standing).getByText('Active')).toBeInTheDocument()
     expect(within(standing).getByText('In the party')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create a character' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Import a character' })).not.toBeInTheDocument()
     expect(
-      screen.getByText('Retire or mark Brand deceased before creating another character.'),
+      screen.getByText(
+        'Retire or mark Brand deceased before creating or importing another character.',
+      ),
     ).toBeInTheDocument()
   })
 
@@ -402,5 +412,68 @@ describe('CharacterTent detail', () => {
     })
     expect(screen.getByRole('button', { name: 'Back to my characters' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Edit character' })).toBeDisabled()
+  })
+})
+
+describe('CharacterTent import', () => {
+  const newId = '00000000-0000-4000-8000-0000000000aa'
+  const imported = character({
+    id: newId,
+    name: 'Arlen Vale',
+    status: 'retired',
+    in_party: false,
+    status_changed_at: '2024-04-01T10:00:00+00:00',
+  })
+  const document = JSON.stringify({
+    format: 'the-goobers-guide-character',
+    version: 3,
+    character: { name: 'Arlen Vale' },
+  })
+
+  it('offers import next to create when there is no character yet', () => {
+    setup()
+    expect(screen.getByRole('button', { name: 'Create a character' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import a character' })).toBeInTheDocument()
+  })
+
+  it('offers import next to create when the last character has gone', () => {
+    setup({ characters: [retired] })
+    expect(screen.getByRole('button', { name: 'Import a character' })).toBeInTheDocument()
+  })
+
+  it('does not offer import while a character is active, and says why', () => {
+    setup({ characters: [character()] })
+    expect(screen.queryByRole('button', { name: 'Import a character' })).not.toBeInTheDocument()
+    expect(screen.getByText(/before creating or importing another character/)).toBeInTheDocument()
+  })
+
+  it('does not offer import while the characters are loading or failed', () => {
+    setup({ status: 'pending' })
+    expect(screen.queryByRole('button', { name: 'Import a character' })).not.toBeInTheDocument()
+  })
+
+  it('opens and closes the import dialog without changing the view', async () => {
+    const { user, onNotice } = setup({ characters: [retired] })
+    await user.click(screen.getByRole('button', { name: 'Import a character' }))
+    expect(screen.getByRole('dialog', { name: 'Import a character' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import a character' })).toBeInTheDocument()
+    expect(onNotice).not.toHaveBeenCalled()
+  })
+
+  it('opens the new character’s sheet and announces the import', async () => {
+    vi.mocked(importCharacter).mockResolvedValue(newId)
+    const { user, onNotice } = setup({ characters: [retired, imported] })
+    await user.click(screen.getByRole('button', { name: 'Import a character' }))
+    await user.click(screen.getByLabelText('Character document (JSON)'))
+    await user.paste(document)
+    await user.click(screen.getByRole('button', { name: 'Create character' }))
+
+    expect(await screen.findByRole('heading', { name: 'Arlen Vale' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to my characters' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onNotice).toHaveBeenCalledWith('Character imported.')
+    expect(importCharacter).toHaveBeenCalledTimes(1)
   })
 })

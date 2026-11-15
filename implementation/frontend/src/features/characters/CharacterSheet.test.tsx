@@ -1,12 +1,24 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CharacterSheet, type SheetActions } from './CharacterSheet'
+import { listCharacterImports } from './characterImportService'
+import { downloadMarkdown } from './characterMarkdownDownload'
 import { getCharacterSheet } from './characterService'
-import { character, sheet, userId } from './characterTestData'
+import { character, item, sheet, userId } from './characterTestData'
 import { defaultSheetBody } from './characterValidation'
 import { listCharacterItems } from './inventoryService'
+
+vi.mock('./characterImportService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./characterImportService')>()),
+  listCharacterImports: vi.fn(),
+}))
+
+vi.mock('./characterMarkdownDownload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./characterMarkdownDownload')>()),
+  downloadMarkdown: vi.fn(),
+}))
 
 vi.mock('./characterService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterService')>()),
@@ -279,7 +291,12 @@ describe('CharacterSheet (read-only)', () => {
     renderSheet({ readOnly: true })
     expect(await screen.findByRole('heading', { name: 'Vitals' })).toBeInTheDocument()
     expect(document.querySelector('input, textarea, select')).toBeNull()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    // The only controls on a read-only sheet fold sections away and export Markdown.
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Collapse inventory',
+      'Collapse features and notes',
+      'Export Markdown',
+    ])
     expect(screen.getByText('12 / 30')).toBeInTheDocument()
     expect(screen.getByText('30 ft.')).toBeInTheDocument()
     expect(screen.getByText('Greataxe')).toBeInTheDocument()
@@ -395,5 +412,136 @@ describe('CharacterSheet save bar and unsaved edits', () => {
     const nav = await screen.findByRole('navigation', { name: 'Sheet sections' })
     await user.click(within(nav).getByRole('button', { name: 'Skills' }))
     expect(screen.getByRole('heading', { name: 'Skills' })).toHaveFocus()
+  })
+})
+
+describe('CharacterSheet export and history', () => {
+  it('exports the saved character as Markdown and says so', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterItems).mockResolvedValue([item({ name: 'Rope' })])
+    const onNotice = vi.fn()
+    const { user } = renderSheet({ readOnly: true, onNotice })
+    const button = await screen.findByRole('button', { name: 'Export Markdown' })
+    await waitFor(() => expect(button).toBeEnabled())
+    await user.click(button)
+
+    expect(downloadMarkdown).toHaveBeenCalledTimes(1)
+    const [filename, text] = vi.mocked(downloadMarkdown).mock.calls[0]
+    expect(filename).toBe('brand.md')
+    expect(text).toContain('# Brand')
+    expect(text).toContain('Greataxe')
+    expect(text).toContain('Rope')
+    expect(onNotice).toHaveBeenCalledWith('Markdown downloaded.')
+  })
+
+  it('is disabled while there are unsaved edits, and explains why', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    const { user } = renderSheet()
+    const button = await screen.findByRole('button', { name: 'Export Markdown' })
+    await waitFor(() => expect(button).toBeEnabled())
+    expect(screen.queryByText('Save or cancel your edits first.')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Notes and backstory'), ' more')
+    expect(button).toBeDisabled()
+    expect(screen.getByText('Save or cancel your edits first.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    expect(button).toBeEnabled()
+  })
+
+  it('reports a download that fails', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(downloadMarkdown).mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const { user } = renderSheet({ readOnly: true })
+    const button = await screen.findByRole('button', { name: 'Export Markdown' })
+    await waitFor(() => expect(button).toBeEnabled())
+    await user.click(button)
+    expect(await screen.findByRole('alert')).toHaveTextContent('could not be downloaded')
+  })
+
+  it('shows the import history only once it is opened', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterImports).mockResolvedValue([
+      {
+        id: '1',
+        kind: 'new',
+        source_label: 'arlen.md',
+        change_count: 4,
+        imported_at: '2026-11-15T10:00:00+00:00',
+      },
+    ])
+    const { user } = renderSheet({ readOnly: true })
+    await screen.findByRole('heading', { name: 'Vitals' })
+    expect(listCharacterImports).not.toHaveBeenCalled()
+    await user.click(screen.getByText('Import history'))
+    expect(await screen.findByText('Imported as new')).toBeInTheDocument()
+    expect(screen.getByText(/arlen\.md/)).toBeInTheDocument()
+  })
+})
+
+describe('CharacterSheet folding sections', () => {
+  it('folds the inventory and the notes away and back, keeping their headings', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterItems).mockResolvedValue([item({ name: 'Rope' })])
+    const { user } = renderSheet({ readOnly: true })
+    const inventory = await screen.findByRole('button', { name: 'Collapse inventory' })
+    const notes = screen.getByRole('button', { name: 'Collapse features and notes' })
+    expect(inventory).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText('Rope')).toBeVisible()
+    expect(screen.getByText('Rage')).toBeVisible()
+
+    await user.click(inventory)
+    expect(screen.getByRole('button', { name: 'Expand inventory' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.getByText('Rope')).not.toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Inventory' })).toBeVisible()
+    expect(screen.getByText('Rage')).toBeVisible()
+
+    await user.click(notes)
+    expect(screen.getByText('Rage')).not.toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Features and notes' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Expand inventory' }))
+    await user.click(screen.getByRole('button', { name: 'Expand features and notes' }))
+    expect(screen.getByText('Rope')).toBeVisible()
+    expect(screen.getByText('Rage')).toBeVisible()
+  })
+
+  it('ties each button to the body it folds', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    const { user } = renderSheet({ readOnly: true })
+    const button = await screen.findByRole('button', { name: 'Collapse features and notes' })
+    const body = document.getElementById(button.getAttribute('aria-controls')!)!
+    expect(body).toContainElement(screen.getByText('Rage'))
+    await user.click(button)
+    expect(body).toHaveAttribute('hidden')
+  })
+
+  it('keeps unsaved edits in a folded section, still unsaved and still blocking export', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    const { user } = renderSheet()
+    const notes = await screen.findByLabelText('Notes and backstory')
+    await user.type(notes, ' more')
+    await user.click(screen.getByRole('button', { name: 'Collapse features and notes' }))
+    expect(notes).not.toBeVisible()
+    expect(screen.getByText('Unsaved sheet changes')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Expand features and notes' }))
+    expect((screen.getByLabelText('Notes and backstory') as HTMLTextAreaElement).value).toContain(
+      ' more',
+    )
+  })
+
+  it('opens a folded section when its tab is chosen', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterItems).mockResolvedValue([item({ name: 'Rope' })])
+    const { user } = renderSheet()
+    await user.click(await screen.findByRole('button', { name: 'Collapse inventory' }))
+    expect(screen.queryByText('Rope')).not.toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Inventory' }))
+    expect(screen.getByRole('button', { name: 'Collapse inventory' })).toBeInTheDocument()
+    expect(screen.getByText('Rope')).toBeVisible()
   })
 })

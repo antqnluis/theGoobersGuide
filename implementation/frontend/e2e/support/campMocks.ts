@@ -451,6 +451,15 @@ export type MockCoinTransaction = {
   gp_after: number
 }
 
+export type MockImport = {
+  id: string
+  character_id: string
+  kind: 'new' | 'update'
+  source_label: string | null
+  change_count: number
+  imported_at: string
+}
+
 export type CharacterState = {
   characters: MockCharacter[]
   sheets: MockSheet[]
@@ -458,6 +467,8 @@ export type CharacterState = {
   coinLog?: MockCoinTransaction[]
   /** Inventory rows; created empty when a test does not bring any. */
   items?: MockItem[]
+  /** Import history; created empty and filled by the mocked import RPCs. */
+  imports?: MockImport[]
 }
 
 let stamp = 0
@@ -547,6 +558,8 @@ export async function mockCharacters(
   const items = state.items
   state.coinLog ??= []
   const coinLog = state.coinLog
+  state.imports ??= []
+  const imports = state.imports
   await page.route('**/rest/v1/**', async (route) => {
     const request = route.request()
     const method = request.method()
@@ -557,15 +570,20 @@ export async function mockCharacters(
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
     const table = target.replace(/^rpc\//, '')
     if (
-      !['characters', 'character_sheets', 'character_items', 'character_currency_log'].includes(
-        table,
-      ) &&
+      ![
+        'characters',
+        'character_sheets',
+        'character_items',
+        'character_currency_log',
+        'character_imports',
+      ].includes(table) &&
       ![
         'create_character',
         'set_character_status',
         'set_character_in_party',
         'adjust_character_currency',
         'adjust_character_item_quantity',
+        'import_character',
       ].includes(table)
     ) {
       return route.fallback()
@@ -764,6 +782,73 @@ export async function mockCharacters(
       if (quantity > 9999) return fail('item_quantity_invalid')
       if (input.p_delta !== 0) Object.assign(row, { quantity, updated_at: nextStamp() })
       return route.fulfill({ status: 200, headers, json: row.quantity })
+    }
+
+    if (table === 'character_imports' && method === 'GET') {
+      const characterId = eq('character_id') ?? ''
+      return respond(
+        readable(characterId)
+          ? imports
+              .filter((row) => row.character_id === characterId)
+              .toSorted((a, b) => b.imported_at.localeCompare(a.imported_at))
+          : [],
+      )
+    }
+
+    // import_character: one transaction in the database, so a refusal creates nothing.
+    if (table === 'import_character') {
+      const input = body as {
+        p_campaign_id: string
+        p_source_label?: string | null
+        p_character: {
+          details: Record<string, string | number | null>
+          vitals: Partial<MockSheet>
+          sheet: Record<string, unknown>
+          items: Array<Partial<MockItem> & { name: string }>
+          coins: { cp?: number; sp?: number; gp?: number }
+        }
+      }
+      if (state.characters.some((c) => isMine(c) && c.status === 'active')) {
+        return fail('character_active_exists')
+      }
+      const { details, vitals, sheet, items: newItems, coins } = input.p_character
+      const row = mockCharacter({
+        campaign_id: input.p_campaign_id,
+        name: String(details.name),
+        species: (details.species as string | null) ?? null,
+        class_name: (details.class_name as string | null) ?? null,
+        subclass: (details.subclass as string | null) ?? null,
+        background: (details.background as string | null) ?? null,
+        level: (details.level as number | undefined) ?? 1,
+        in_party: false,
+        created_at: new Date().toISOString(),
+        status_changed_at: new Date().toISOString(),
+      })
+      state.characters.push(row)
+      state.sheets.push(
+        mockSheet(row.id, {
+          max_hp: vitals.max_hp ?? null,
+          current_hp: vitals.current_hp ?? null,
+          temp_hp: vitals.temp_hp ?? 0,
+          armor_class: vitals.armor_class ?? null,
+          speed: vitals.speed ?? null,
+          cp: coins.cp ?? 0,
+          sp: coins.sp ?? 0,
+          gp: coins.gp ?? 0,
+          sheet,
+        }),
+      )
+      for (const entry of newItems) items.push(mockItem(row.id, entry))
+      imports.push({
+        id: `00000000-0000-4000-8000-${String(7000 + imports.length).padStart(12, '0')}`,
+        character_id: row.id,
+        kind: 'new',
+        source_label: input.p_source_label ?? null,
+        change_count:
+          1 + newItems.length + ((coins.cp ?? 0) + (coins.sp ?? 0) + (coins.gp ?? 0) > 0 ? 1 : 0),
+        imported_at: new Date().toISOString(),
+      })
+      return route.fulfill({ status: 200, headers, json: row.id })
     }
 
     if (table === 'create_character') {

@@ -2523,6 +2523,230 @@ test('creating a character joins the party by default and persists across a relo
   ).toBeVisible()
 })
 
+const importDocument = JSON.stringify({
+  format: 'the-goobers-guide-character',
+  version: 3,
+  character: {
+    name: 'Arlen Vale',
+    species: 'Human',
+    class_name: 'Ranger',
+    level: 3,
+    vitals: { max_hp: 24, current_hp: 20, temp_hp: 0, armor_class: 15, speed: 30 },
+    abilities: { str: 12, dex: 16, con: 14, int: 10, wis: 15, cha: 8 },
+    saving_throws: ['dex'],
+    skills: { stealth: 'expertise' },
+    attacks: [{ name: 'Longbow', bonus: '+5', damage: '1d8 + 3' }],
+    inventory: [{ name: 'Rope', quantity: 2, weight: 10 }],
+    currency: { sp: 4, gp: 12 },
+    features: 'Favored Enemy',
+    status: 'deceased',
+  },
+})
+
+test('pastes, reviews, and imports a character, then opens its sheet and history', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Import a character' }).click()
+  const importer = page.getByRole('dialog', { name: 'Import a character' })
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  // Text that is not a document is refused with a message.
+  await importer.getByLabel('Character document (JSON)').fill('Arlen, a ranger')
+  await expect(importer.getByRole('alert')).toContainText('isn’t valid JSON')
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  await importer.getByLabel('Character document (JSON)').fill(importDocument)
+  const review = importer.getByRole('region', { name: 'Review' })
+  await expect(review.getByText('Everything checks out')).toBeVisible()
+  await expect(review.getByRole('region', { name: 'Attacks' }).getByText('Longbow')).toBeVisible()
+  await expect(review.getByRole('region', { name: 'Coins' }).getByText('12')).toBeVisible()
+  await importer.getByText('Not imported (1)').click()
+  await expect(importer.getByText('character.status')).toBeVisible()
+
+  await importer.getByLabel(/Source/).fill('arlen.md')
+  await importer.getByRole('button', { name: 'Create character' }).click()
+
+  await expect(dialog.getByText('Character imported.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Arlen Vale' })).toBeVisible()
+  await expect(importer).toHaveCount(0)
+  expect(state.characters).toHaveLength(1)
+  expect(state.characters[0]).toMatchObject({
+    name: 'Arlen Vale',
+    status: 'active',
+    in_party: false,
+    sheet_visibility: 'private',
+    level: 3,
+  })
+  expect(state.sheets[0]).toMatchObject({ max_hp: 24, current_hp: 20, sp: 4, gp: 12 })
+  expect(state.items).toHaveLength(1)
+
+  await dialog.getByText('Import history').click()
+  await expect(dialog.getByText('Imported as new')).toBeVisible()
+  await expect(dialog.getByText(/arlen\.md/)).toBeVisible()
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: 'My characters' })
+      .getByRole('heading', { name: 'Arlen Vale' }),
+  ).toBeVisible()
+})
+
+test('an import with problems cannot be created, and a refused import keeps the document', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Import a character' }).click()
+  const importer = page.getByRole('dialog', { name: 'Import a character' })
+
+  const broken = JSON.parse(importDocument)
+  broken.character.level = 99
+  broken.character.currency = { ep: 3 }
+  await importer.getByLabel('Character document (JSON)').fill(JSON.stringify(broken))
+  await expect(importer.getByRole('alert').first()).toContainText('2 problems need fixing')
+  await expect(importer.getByText('character.level')).toBeVisible()
+  await expect(importer.getByText('character.currency.ep')).toBeVisible()
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  // Another device took the active slot: the refusal is explained and nothing is lost.
+  await importer.getByLabel('Character document (JSON)').fill(importDocument)
+  state.characters.push(mockCharacter({ name: 'Elsewhere' }))
+  await importer.getByRole('button', { name: 'Create character' }).click()
+  await expect(importer.getByRole('alert')).toContainText('You already have an active character')
+  await expect(importer.getByLabel('Character document (JSON)')).toHaveValue(importDocument)
+  expect(state.characters).toHaveLength(1)
+
+  // Closing a pasted document asks first.
+  await importer.getByRole('button', { name: 'Cancel' }).click()
+  const question = page.getByRole('alertdialog', { name: 'Discard this import?' })
+  await question.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(importer).toBeVisible()
+  await importer.getByRole('button', { name: 'Cancel' }).click()
+  await question.getByRole('button', { name: 'Discard import' }).click()
+  await expect(importer).toHaveCount(0)
+})
+
+for (const [label, width, height] of [
+  ['phone', 375, 700],
+  ['tablet', 768, 1024],
+] as const) {
+  test(`the import dialog and its review fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openTent(page)
+    await dialog.getByRole('button', { name: 'Import a character' }).click()
+    const importer = page.getByRole('dialog', { name: 'Import a character' })
+    await importer.getByLabel('Character document (JSON)').fill(importDocument)
+    await expect(importer.getByText('Everything checks out')).toBeVisible()
+    await importer.getByText('How do I make a document?').click()
+    const overflow = await importer.evaluate((el) => ({
+      dialog: el.scrollWidth - el.clientWidth,
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }))
+    expect(overflow).toEqual({ dialog: 0, page: 0 })
+    const box = await importer.boundingBox()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width)
+    // The buttons stay reachable: the dialog scrolls rather than growing past the screen.
+    await importer.getByRole('button', { name: 'Create character' }).scrollIntoViewIfNeeded()
+    await expect(importer.getByRole('button', { name: 'Create character' })).toBeInViewport()
+  })
+}
+
+test('import is withheld while a character is active, with the reason', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter())
+  await expect(dialog.getByRole('button', { name: 'Import a character' })).toHaveCount(0)
+  await expect(dialog.getByText(/before creating or importing another character/)).toBeVisible()
+})
+
+test('the sheet pages stack without an empty gap, and inventory and notes fold away', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const state = withCharacter()
+  const id = state.characters[0].id
+  state.sheets[0] = mockSheet(id, {
+    sheet: { version: 1, features: 'Rage\n'.repeat(40), notes: 'Brave.' },
+  })
+  state.items = Array.from({ length: 14 }, (_, n) => mockItem(id, { name: `Supply ${n}` }))
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeVisible()
+
+  const boxes = () =>
+    dialog.locator('.sheet-page').evaluateAll((pages) =>
+      pages.map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect()
+        return { x, y, width, height }
+      }),
+    )
+  const [, , attacks, inventory, notes] = await boxes()
+  // The notes page sits right under the attacks page in the left column.
+  expect(notes.x).toBeCloseTo(attacks.x, 0)
+  expect(notes.y - (attacks.y + attacks.height)).toBeLessThan(4)
+  // Inventory is the tall page beside them, and does not push the notes down.
+  expect(inventory.x).toBeGreaterThan(attacks.x + attacks.width / 2)
+  expect(inventory.height).toBeGreaterThan(attacks.height)
+
+  await dialog.getByRole('button', { name: 'Collapse inventory' }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeHidden()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Expand inventory' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  const [, , , folded] = await boxes()
+  expect(folded.height).toBeLessThan(inventory.height)
+
+  await dialog.getByRole('button', { name: 'Collapse features and notes' }).click()
+  await expect(dialog.getByText('Brave.')).toBeHidden()
+  await dialog.getByRole('button', { name: 'Expand features and notes' }).click()
+  await expect(dialog.getByText('Brave.')).toBeVisible()
+
+  // Choosing the tab for a folded section opens it.
+  await dialog.getByRole('button', { name: 'Inventory', exact: true }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Collapse inventory' })).toBeVisible()
+})
+
+test('exports a character as a Markdown file', async ({ page }) => {
+  const state = withCharacter()
+  state.sheets[0] = mockSheet(state.characters[0].id, {
+    max_hp: 30,
+    current_hp: 12,
+    gp: 7,
+    sheet: { version: 1, abilities: { str: 18 }, notes: 'Brave.' },
+  })
+  state.items = [mockItem(state.characters[0].id, { name: 'Rope', quantity: 2 })]
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  const exportButton = dialog.getByRole('button', { name: 'Export Markdown' })
+  await expect(exportButton).toBeEnabled()
+  const download = page.waitForEvent('download')
+  await exportButton.click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('brand.md')
+  const stream = await file.createReadStream()
+  let text = ''
+  for await (const chunk of stream) text += chunk
+  expect(text).toContain('# Brand')
+  expect(text).toContain('Hit points: 12 / 30')
+  expect(text).toContain('| Rope | 2 |')
+  expect(text).toContain('Gold 7')
+  await expect(dialog.getByText('Markdown downloaded.')).toBeVisible()
+
+  // Unsaved edits are not in the file, so the export waits for them.
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Notes and backstory').fill('Changed')
+  await expect(dialog.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
+  await expect(dialog.getByText('Save or cancel your edits first.')).toBeVisible()
+})
+
 test('unticking "Join the party" creates a character outside the party', async ({ page }) => {
   const { dialog, state } = await openTent(page)
   await dialog.getByRole('button', { name: 'Create a character' }).click()

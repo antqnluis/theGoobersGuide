@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CharacterBadges, CharacterMedallion } from './CharacterBadges'
 import { CharacterForm } from './CharacterForm'
+import { CharacterImportDialog } from './CharacterImportDialog'
 import { CharacterPortraitEditor } from './CharacterPortraitEditor'
 import { CharacterSheet } from './CharacterSheet'
 import { CharacterStatusControls, type CharacterConfirmation } from './CharacterStatusControls'
@@ -20,6 +21,7 @@ export type TentView =
   | { type: 'edit'; id: string }
 
 type CharacterTentProps = {
+  campaignId: string
   userId: string
   status: 'pending' | 'error' | 'success'
   /** Every character the member may see; the tent shows only their own. */
@@ -44,6 +46,7 @@ const statusNotice: Record<CharacterStatus, (name: string) => string> = {
 
 /** The "My characters" destination at the tent: create, edit, sheet, status, party, sharing, delete. */
 export function CharacterTent({
+  campaignId,
   userId,
   status,
   characters,
@@ -66,6 +69,7 @@ export function CharacterTent({
   const dirty = dirtyParts.form || dirtyParts.sheet
   const [pendingNav, setPendingNav] = useState<TentView | null>(null)
   const [dock, setDock] = useState<HTMLDivElement | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const mine = characters.filter((character) => character.owner_id === userId)
   const active = mine.find((character) => character.status === 'active')
@@ -382,14 +386,24 @@ export function CharacterTent({
               <p className="tent-empty__hint">
                 Pitch a bedroll: create an adventurer and they can sit with the party at the fire.
               </p>
-              <button
-                className="journal-button"
-                onClick={() => go({ type: 'create' })}
-                type="button"
-              >
-                <PixelIcon name="quill" />
-                Create a character
-              </button>
+              <div className="tent-actions">
+                <button
+                  className="journal-button"
+                  onClick={() => go({ type: 'create' })}
+                  type="button"
+                >
+                  <PixelIcon name="quill" />
+                  Create a character
+                </button>
+                <button
+                  className="journal-button journal-button--secondary"
+                  onClick={() => setImportOpen(true)}
+                  type="button"
+                >
+                  <PixelIcon name="book" />
+                  Import a character
+                </button>
+              </div>
             </section>
           )}
 
@@ -419,20 +433,30 @@ export function CharacterTent({
           {active ? (
             <p className="tent-note">
               <PixelIcon name="lock" />
-              Retire or mark {active.name} deceased before creating another character.
+              Retire or mark {active.name} deceased before creating or importing another character.
             </p>
           ) : (
             mine.length > 0 && (
               <section className="tent-blank journal-panel">
                 <p>Your last adventurer has left the fire. Ready for a new one?</p>
-                <button
-                  className="journal-button"
-                  onClick={() => go({ type: 'create' })}
-                  type="button"
-                >
-                  <PixelIcon name="quill" />
-                  Create a character
-                </button>
+                <div className="tent-actions">
+                  <button
+                    className="journal-button"
+                    onClick={() => go({ type: 'create' })}
+                    type="button"
+                  >
+                    <PixelIcon name="quill" />
+                    Create a character
+                  </button>
+                  <button
+                    className="journal-button journal-button--secondary"
+                    onClick={() => setImportOpen(true)}
+                    type="button"
+                  >
+                    <PixelIcon name="book" />
+                    Import a character
+                  </button>
+                </div>
               </section>
             )
           )}
@@ -466,6 +490,19 @@ export function CharacterTent({
             </section>
           )}
         </div>
+      )}
+
+      {importOpen && (
+        <CharacterImportDialog
+          campaignId={campaignId}
+          onClose={() => setImportOpen(false)}
+          onImported={(id) => {
+            setImportOpen(false)
+            onNotice('Character imported.')
+            go({ type: 'character', id }, { force: true })
+          }}
+          userId={userId}
+        />
       )}
 
       {pendingNav && (

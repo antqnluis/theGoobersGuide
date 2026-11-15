@@ -1,3 +1,4 @@
+import { listCharacterImports } from './characterImportService'
 import { listCharacterItems, listCoinTransactions } from './inventoryService'
 import {
   getCharacterPortraitUrl,
@@ -20,6 +21,12 @@ export const coinLogPrefix = ['campaigns', 'characters', 'coin-log'] as const
 
 export const coinLogKey = (characterId: string, userId: string) =>
   ['campaigns', 'characters', 'coin-log', characterId, userId] as const
+
+/** Every import-history query, for invalidation when membership changes. */
+export const characterImportsPrefix = ['campaigns', 'characters', 'imports'] as const
+
+export const characterImportsKey = (characterId: string, userId: string) =>
+  ['campaigns', 'characters', 'imports', characterId, userId] as const
 
 /** Inventory rows. Under the characters prefix so leaving or removal marks them stale too. */
 export const characterItemsKey = (characterId: string, userId: string) =>
@@ -65,6 +72,15 @@ export function coinLogOptions(characterId: string, userId: string, enabled = tr
   return {
     queryKey: coinLogKey(characterId, userId),
     queryFn: () => listCoinTransactions(characterId),
+    enabled,
+  }
+}
+
+/** A character's import history; `enabled` waits until the section is opened. */
+export function characterImportsOptions(characterId: string, userId: string, enabled = true) {
+  return {
+    queryKey: characterImportsKey(characterId, userId),
+    queryFn: () => listCharacterImports(characterId),
     enabled,
   }
 }

@@ -26,6 +26,8 @@ import {
 } from './characterTypes'
 import { limits, validateSheetBody, validateVitals } from './characterValidation'
 import { CharacterCoins, type CoinActions } from './CharacterCoins'
+import { CharacterExport } from './CharacterExport'
+import { CharacterImportHistory } from './CharacterImportHistory'
 import { CharacterInventory, type InventoryActions } from './CharacterInventory'
 import { carryingCapacity } from './inventoryRules'
 import { PixelIcon, type PixelIconName } from './PixelIcon'
@@ -191,6 +193,8 @@ function SheetContent({
     actions.pendingCharacterId === character.id &&
     !inventoryActions.includes(actions.pendingAction)
   const [itemFormDirty, setItemFormDirty] = useState(false)
+  // Inventory and notes can fold away; their content stays mounted so edits are never lost.
+  const [open, setOpen] = useState({ inventory: true, notes: true })
   const savingVitals = busy && actions?.pendingAction === 'vitals'
   const savingSheet = busy && actions?.pendingAction === 'sheet'
 
@@ -258,6 +262,7 @@ function SheetContent({
 
   /** Scrolls a section into view and moves keyboard focus to its heading. */
   function jump(key: string) {
+    if (key === 'inventory' || key === 'notes') setOpen((current) => ({ ...current, [key]: true }))
     const section = document.getElementById(`sheet-section-${key}-${character.id}`)
     if (!section) return
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -787,23 +792,32 @@ function SheetContent({
               className="sheet-section"
               id={`sheet-section-inventory-${character.id}`}
             >
-              <h3
-                className="journal-section-title"
+              <SectionHead
+                bodyId={`sheet-inventory-body-${character.id}`}
+                icon="pack"
                 id={`sheet-inventory-${character.id}`}
-                tabIndex={-1}
-              >
-                <PixelIcon name="pack" />
-                Inventory
-              </h3>
-              <CharacterInventory
-                actions={owned ? actions : undefined}
-                capacity={carryingCapacity(body)}
-                characterId={character.id}
-                characterName={character.name}
-                onFormDirtyChange={setItemFormDirty}
-                onNotice={onNotice}
-                userId={userId}
+                name="inventory"
+                onToggle={() =>
+                  setOpen((current) => ({ ...current, inventory: !current.inventory }))
+                }
+                open={open.inventory}
+                title="Inventory"
               />
+              <div
+                className="sheet-section__body"
+                hidden={!open.inventory}
+                id={`sheet-inventory-body-${character.id}`}
+              >
+                <CharacterInventory
+                  actions={owned ? actions : undefined}
+                  capacity={carryingCapacity(body)}
+                  characterId={character.id}
+                  characterName={character.name}
+                  onFormDirtyChange={setItemFormDirty}
+                  onNotice={onNotice}
+                  userId={userId}
+                />
+              </div>
             </section>
           </div>
 
@@ -813,42 +827,72 @@ function SheetContent({
               className="sheet-section"
               id={`sheet-section-notes-${character.id}`}
             >
+              <SectionHead
+                bodyId={`sheet-notes-body-${character.id}`}
+                icon="quill"
+                id={`sheet-notes-title-${character.id}`}
+                name="features and notes"
+                onToggle={() => setOpen((current) => ({ ...current, notes: !current.notes }))}
+                open={open.notes}
+                title="Features and notes"
+              />
+              <div
+                className="sheet-section__body"
+                hidden={!open.notes}
+                id={`sheet-notes-body-${character.id}`}
+              >
+                {(
+                  [
+                    ['features', 'Features and traits'],
+                    ['notes', 'Notes and backstory'],
+                  ] as const
+                ).map(([name, label]) =>
+                  readOnly ? (
+                    <div key={name}>
+                      <h4>{label}</h4>
+                      <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
+                    </div>
+                  ) : (
+                    <div className="journal-field" key={name}>
+                      <label htmlFor={`sheet-${name}-${character.id}`}>{label}</label>
+                      <textarea
+                        className="journal-input"
+                        disabled={busy}
+                        id={`sheet-${name}-${character.id}`}
+                        maxLength={limits.text}
+                        onChange={(event) =>
+                          update((current) => ({ ...current, [name]: event.target.value }))
+                        }
+                        rows={5}
+                        value={body[name]}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
+            </section>
+
+            <section
+              aria-labelledby={`sheet-export-title-${character.id}`}
+              className="sheet-section"
+              id={`sheet-section-export-${character.id}`}
+            >
               <h3
                 className="journal-section-title"
-                id={`sheet-notes-title-${character.id}`}
+                id={`sheet-export-title-${character.id}`}
                 tabIndex={-1}
               >
-                <PixelIcon name="quill" />
-                Features and notes
+                <PixelIcon name="book" />
+                Export and history
               </h3>
-              {(
-                [
-                  ['features', 'Features and traits'],
-                  ['notes', 'Notes and backstory'],
-                ] as const
-              ).map(([name, label]) =>
-                readOnly ? (
-                  <div key={name}>
-                    <h4>{label}</h4>
-                    <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
-                  </div>
-                ) : (
-                  <div className="journal-field" key={name}>
-                    <label htmlFor={`sheet-${name}-${character.id}`}>{label}</label>
-                    <textarea
-                      className="journal-input"
-                      disabled={busy}
-                      id={`sheet-${name}-${character.id}`}
-                      maxLength={limits.text}
-                      onChange={(event) =>
-                        update((current) => ({ ...current, [name]: event.target.value }))
-                      }
-                      rows={5}
-                      value={body[name]}
-                    />
-                  </div>
-                ),
-              )}
+              <CharacterExport
+                character={character}
+                onNotice={onNotice}
+                sheet={sheet}
+                unsaved={unsaved}
+                userId={userId}
+              />
+              <CharacterImportHistory characterId={character.id} userId={userId} />
             </section>
           </div>
         </div>
@@ -856,6 +900,44 @@ function SheetContent({
       </div>
       {hasBar && dock && createPortal(saveBar, dock)}
     </>
+  )
+}
+
+/** A section heading with a button that folds the section's body away. */
+function SectionHead({
+  bodyId,
+  icon,
+  id,
+  name,
+  onToggle,
+  open,
+  title,
+}: {
+  bodyId: string
+  icon: PixelIconName
+  id: string
+  name: string
+  onToggle: () => void
+  open: boolean
+  title: string
+}) {
+  return (
+    <div className="sheet-section__head">
+      <h3 className="journal-section-title" id={id} tabIndex={-1}>
+        <PixelIcon name={icon} />
+        {title}
+      </h3>
+      <button
+        aria-controls={bodyId}
+        aria-expanded={open}
+        className="journal-button journal-button--ghost sheet-collapse"
+        onClick={onToggle}
+        type="button"
+      >
+        {open ? 'Collapse ' : 'Expand '}
+        <span className="sheet-collapse__name">{name}</span>
+      </button>
+    </div>
   )
 }
 

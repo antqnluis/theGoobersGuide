@@ -366,6 +366,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       characters={
         <CharacterTent
           actions={characterActions}
+          campaignId={campaignId}
           characters={charactersQuery.data ?? []}
           confirmation={characterConfirmation}
           onConfirmationChange={(next) => {
