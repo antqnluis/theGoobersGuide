@@ -336,7 +336,7 @@ insert into public.character_sheets (character_id) select id from c;
 update public.character_sheets set max_hp = 30, current_hp = 30, temp_hp = 5, armor_class = 16, speed = 30,
   sheet = '{"version": 1, "abilities": {"str": 18, "dex": 8}, "saving_throws": ["str", "con"],
             "skills": {"athletics": "expertise", "stealth": "proficient"},
-            "attacks": [{"name": "Axe", "bonus": "+6", "damage": "1d12+4", "notes": ""}],
+            "attacks": [{"id": "3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10", "name": "Axe", "bonus": "+6", "damage": "1d12+4", "notes": ""}],
             "features": "Rage", "spells": "", "notes": "x", "alignment": "CN", "experience": 300}'::jsonb;
 select 'valid';
 rollback;`,
@@ -588,7 +588,15 @@ test('the API cannot create, reassign, or force state on characters and sheets',
           abilities: { str: 16, dex: 12, con: 14, int: 8, wis: 10, cha: 10 },
           saving_throws: ['str', 'con'],
           skills: { athletics: 'proficient' },
-          attacks: [{ name: 'Sword', bonus: '+5', damage: '1d8+3', notes: '' }],
+          attacks: [
+            {
+              id: crypto.randomUUID(),
+              name: 'Sword',
+              bonus: '+5',
+              damage: '1d8+3',
+              notes: '',
+            },
+          ],
           features: 'Second Wind',
           experience: null,
         },

@@ -146,6 +146,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const attackIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
+ * Keeps an attack's id when it is a lowercase UUID not already used in the sheet; otherwise
+ * assigns a fresh one, so a save never drops or duplicates an id (the database requires them).
+ */
+function attackId(value: unknown, used: Set<string>) {
+  const id =
+    typeof value === 'string' && attackIdPattern.test(value) && !used.has(value)
+      ? value
+      : crypto.randomUUID()
+  used.add(id)
+  return id
+}
+
 function text(value: unknown, max: number) {
   return typeof value === 'string' ? value.slice(0, max) : ''
 }
@@ -189,10 +204,12 @@ export function normalizeSheet(raw: unknown): CharacterSheetBody {
   }
 
   if (Array.isArray(raw.attacks)) {
+    const usedIds = new Set<string>()
     body.attacks = raw.attacks
       .filter(isRecord)
       .slice(0, limits.attacks)
       .map((attack) => ({
+        id: attackId(attack.id, usedIds),
         name: text(attack.name, limits.attackName),
         bonus: text(attack.bonus, limits.attackBonus),
         damage: text(attack.damage, limits.attackDamage),

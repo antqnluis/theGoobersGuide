@@ -16,7 +16,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M3 are done; M8 character imports are planned; M4–M7 are not started. |
-| [M03.8 — Character Imports](in-progress/M03.8-Character-Imports.md) | Approved, not started. Decisions D1–D12 and the review confirmations settled; Phase 0 is next. |
+| [M03.8 — Character Imports](in-progress/M03.8-Character-Imports.md) | Approved. Phases 0–1 done (baseline; schema, RPCs, types, attack ids); Phase 2 (formats, prompts, export) is next. |
+| [M03.8 — Implementation Log](in-progress/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
 
 ## Completed
 

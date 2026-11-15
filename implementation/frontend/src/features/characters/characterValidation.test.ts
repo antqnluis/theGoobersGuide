@@ -119,6 +119,8 @@ describe('validateVitals', () => {
   })
 })
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 describe('normalizeSheet', () => {
   it.each([[{}], [{ version: 1 }], [null], [undefined], ['text'], [[]], [42]])(
     'turns %j into the complete default body',
@@ -141,7 +143,9 @@ describe('normalizeSheet', () => {
     expect(body.abilities).toEqual({ str: 18, dex: 8, con: 10, int: 10, wis: 10, cha: 10 })
     expect(body.saving_throws).toEqual(['str', 'con'])
     expect(body.skills).toEqual({ arcana: 'proficient', stealth: 'expertise' })
-    expect(body.attacks).toEqual([{ name: 'Axe', bonus: '+6', damage: '', notes: '' }])
+    expect(body.attacks).toEqual([
+      { id: expect.stringMatching(uuidPattern), name: 'Axe', bonus: '+6', damage: '', notes: '' },
+    ])
     expect(body.features).toBe('Rage')
     expect(body.spells).toBe('')
     expect(body.alignment).toBe('CN')
@@ -161,9 +165,42 @@ describe('normalizeSheet', () => {
     expect(body).toEqual({
       ...defaultSheetBody(),
       saving_throws: ['dex'],
-      attacks: [{ name: '', bonus: '', damage: '', notes: '' }],
+      attacks: [
+        { id: expect.stringMatching(uuidPattern), name: '', bonus: '', damage: '', notes: '' },
+      ],
     })
     expect('mystery' in body).toBe(false)
+  })
+
+  it('keeps valid attack ids and replaces missing, malformed, and duplicated ones', () => {
+    const kept = '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10'
+    const body = normalizeSheet({
+      attacks: [
+        { id: kept, name: 'Axe' },
+        { id: kept, name: 'Duplicate' },
+        { id: 'not-a-uuid', name: 'Malformed' },
+        { id: kept.toUpperCase(), name: 'Uppercase' },
+        { id: 7, name: 'Number' },
+        { name: 'Missing' },
+      ],
+    })
+    expect(body.attacks.map((attack) => attack.name)).toEqual([
+      'Axe',
+      'Duplicate',
+      'Malformed',
+      'Uppercase',
+      'Number',
+      'Missing',
+    ])
+    expect(body.attacks[0].id).toBe(kept)
+    const ids = body.attacks.map((attack) => attack.id)
+    expect(ids.every((id) => uuidPattern.test(id))).toBe(true)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('keeps attack ids stable across repeated normalization', () => {
+    const once = normalizeSheet({ attacks: [{ name: 'Axe' }, { name: 'Bow' }] })
+    expect(normalizeSheet(once)).toEqual(once)
   })
 
   it('caps attacks and text length', () => {
@@ -176,6 +213,14 @@ describe('normalizeSheet', () => {
   })
 })
 
+const attackFixture = {
+  id: '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10',
+  name: '',
+  bonus: '',
+  damage: '',
+  notes: '',
+}
+
 describe('validateSheetBody', () => {
   const valid = (): CharacterSheetBody => defaultSheetBody()
 
@@ -186,7 +231,7 @@ describe('validateSheetBody', () => {
         ...valid(),
         saving_throws: ['str', 'con'],
         skills: { athletics: 'expertise' },
-        attacks: [{ name: 'Axe', bonus: '+6', damage: '1d12+4', notes: '' }],
+        attacks: [{ ...attackFixture, name: 'Axe', bonus: '+6', damage: '1d12+4' }],
         features: 'Rage',
         experience: 300,
       }),
@@ -205,17 +250,11 @@ describe('validateSheetBody', () => {
     [
       'too many attacks',
       (b: CharacterSheetBody) =>
-        void (b.attacks = Array.from({ length: 31 }, () => ({
-          name: '',
-          bonus: '',
-          damage: '',
-          notes: '',
-        }))),
+        void (b.attacks = Array.from({ length: 31 }, () => ({ ...attackFixture }))),
     ],
     [
       'long attack name',
-      (b: CharacterSheetBody) =>
-        void (b.attacks = [{ name: 'x'.repeat(81), bonus: '', damage: '', notes: '' }]),
+      (b: CharacterSheetBody) => void (b.attacks = [{ ...attackFixture, name: 'x'.repeat(81) }]),
     ],
     ['long features', (b: CharacterSheetBody) => void (b.features = 'x'.repeat(8001))],
     ['long alignment', (b: CharacterSheetBody) => void (b.alignment = 'x'.repeat(41))],
@@ -228,6 +267,7 @@ describe('validateSheetBody', () => {
         b.spells = 'é'.repeat(8000)
         b.notes = 'é'.repeat(8000)
         b.attacks = Array.from({ length: 30 }, () => ({
+          id: attackFixture.id,
           name: 'é'.repeat(80),
           bonus: 'é'.repeat(20),
           damage: 'é'.repeat(60),

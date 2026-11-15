@@ -68,7 +68,15 @@ const fullSheet = () =>
       abilities: { str: 18, dex: 14, con: 12, int: 8, wis: 13, cha: 10 },
       saving_throws: ['str'],
       skills: { athletics: 'proficient', stealth: 'expertise' },
-      attacks: [{ name: 'Greataxe', bonus: '+6', damage: '1d12+4', notes: 'Heavy' }],
+      attacks: [
+        {
+          id: '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10',
+          name: 'Greataxe',
+          bonus: '+6',
+          damage: '1d12+4',
+          notes: 'Heavy',
+        },
+      ],
       features: 'Rage',
       alignment: 'CN',
       experience: 300,
@@ -190,7 +198,15 @@ describe('CharacterSheet (owner)', () => {
     expect(body.abilities.str).toBe(16)
     expect(body.saving_throws).toEqual(['con'])
     expect(body.skills).toEqual({ stealth: 'expertise' })
-    expect(body.attacks).toEqual([{ name: 'Sword', bonus: '', damage: '', notes: '' }])
+    expect(body.attacks).toEqual([
+      {
+        id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+        name: 'Sword',
+        bonus: '',
+        damage: '',
+        notes: '',
+      },
+    ])
     expect(body.features).toBe('Second Wind')
     expect(onNotice).toHaveBeenCalledWith('Character sheet saved.')
   })

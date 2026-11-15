@@ -612,8 +612,8 @@ function SheetContent({
                   <p className="sheet-empty">No attacks recorded.</p>
                 ) : (
                   <ul className="sheet-attacks">
-                    {body.attacks.map((attack, index) => (
-                      <li key={index}>
+                    {body.attacks.map((attack) => (
+                      <li key={attack.id}>
                         <strong>{attack.name || 'Unnamed attack'}</strong>
                         <span>{[attack.bonus, attack.damage].filter(Boolean).join(' · ')}</span>
                         {attack.notes && <small>{attack.notes}</small>}
@@ -626,7 +626,7 @@ function SheetContent({
                   {body.attacks.length === 0 && <p className="sheet-empty">No attacks recorded.</p>}
                   <ul className="sheet-attacks">
                     {body.attacks.map((attack, index) => (
-                      <li key={index}>
+                      <li key={attack.id}>
                         <AttackFields
                           attack={attack}
                           busy={busy}
@@ -657,7 +657,7 @@ function SheetContent({
                         ...current,
                         attacks: [
                           ...current.attacks,
-                          { name: '', bonus: '', damage: '', notes: '' },
+                          { id: crypto.randomUUID(), name: '', bonus: '', damage: '', notes: '' },
                         ],
                       }))
                     }

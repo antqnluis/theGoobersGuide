@@ -39,7 +39,14 @@ export const skillKeys = [
 export type SkillKey = (typeof skillKeys)[number]
 export type SkillProficiency = 'proficient' | 'expertise'
 
-export type CharacterAttack = { name: string; bonus: string; damage: string; notes: string }
+/** `id` is a lowercase UUID, unique within the sheet; the database requires it (M03.8 D12). */
+export type CharacterAttack = {
+  id: string
+  name: string
+  bonus: string
+  damage: string
+  notes: string
+}
 
 /** Sheet body, version 1 (plan §5.1). Derived values are never stored. */
 export type CharacterSheetBody = {

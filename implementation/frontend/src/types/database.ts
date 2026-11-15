@@ -229,6 +229,52 @@ export type Database = {
           },
         ]
       }
+      character_imports: {
+        Row: {
+          change_count: number
+          character_id: string
+          id: string
+          imported_at: string
+          imported_by: string
+          kind: string
+          source_label: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          change_count: number
+          character_id: string
+          id?: string
+          imported_at?: string
+          imported_by: string
+          kind: string
+          source_label?: string | null
+        }
+        Update: {
+          change_count?: number
+          character_id?: string
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          kind?: string
+          source_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_imports_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'character_imports_imported_by_fkey'
+            columns: ['imported_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       character_items: {
         Row: {
           attuned: boolean
@@ -447,6 +493,10 @@ export type Database = {
         Args: { p_delta: number; p_item_id: string }
         Returns: number
       }
+      apply_character_update: {
+        Args: { p_changes: Json; p_character_id: string; p_expected: Json; p_source_label?: string }
+        Returns: string
+      }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
       create_character: {
         Args: {
@@ -477,6 +527,10 @@ export type Database = {
           role: string
           username: string
         }[]
+      }
+      import_character: {
+        Args: { p_campaign_id: string; p_character: Json; p_source_label?: string }
+        Returns: string
       }
       leave_campaign: { Args: { p_campaign_id: string }; Returns: undefined }
       list_campaign_outgoing_invitations: {
