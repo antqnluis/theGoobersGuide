@@ -9,6 +9,7 @@ import {
   inventoryError,
   isItemStale,
   listCharacterItems,
+  listCoinTransactions,
   setItemFlag,
   updateCharacterItem,
 } from './inventoryService'
@@ -29,6 +30,10 @@ function builder(result: { data: unknown; error: unknown }) {
       calls.push([method, args])
       return chain
     }
+  }
+  chain.limit = (...args: unknown[]) => {
+    calls.push(['limit', args])
+    return chain
   }
   chain.maybeSingle = () => Promise.resolve(result)
   chain.single = () => Promise.resolve(result)
@@ -232,5 +237,24 @@ describe('error copy', () => {
     expect(isItemStale({ message: 'item_unavailable' })).toBe(true)
     expect(isItemStale({ message: 'item_quantity_insufficient' })).toBe(false)
     expect(isItemStale(null)).toBe(false)
+  })
+})
+
+describe('listCoinTransactions', () => {
+  it('reads the newest changes first, limited to twenty by default', async () => {
+    const calls = builder({ data: [{ id: 'a' }], error: null })
+    await expect(listCoinTransactions(characterId)).resolves.toEqual([{ id: 'a' }])
+    expect(supabase.from).toHaveBeenCalledWith('character_currency_log')
+    expect(calls).toContainEqual(['eq', ['character_id', characterId]])
+    expect(calls).toContainEqual(['order', ['seq', { ascending: false }]])
+    expect(calls).toContainEqual(['limit', [20]])
+  })
+
+  it('accepts another limit, returns an empty list for no rows, and throws errors', async () => {
+    const calls = builder({ data: null, error: null })
+    await expect(listCoinTransactions(characterId, 5)).resolves.toEqual([])
+    expect(calls).toContainEqual(['limit', [5]])
+    builder({ data: null, error: { message: 'boom' } })
+    await expect(listCoinTransactions(characterId)).rejects.toEqual({ message: 'boom' })
   })
 })

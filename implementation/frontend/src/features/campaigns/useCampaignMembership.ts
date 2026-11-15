@@ -7,7 +7,11 @@ import {
   removeCampaignMember,
   transferCampaignOwnership,
 } from './campaignMembership'
-import { campaignCharactersKey, characterItemsPrefix } from '../characters/characterQueries'
+import {
+  campaignCharactersKey,
+  characterItemsPrefix,
+  coinLogPrefix,
+} from '../characters/characterQueries'
 import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
@@ -72,6 +76,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       listKey,
       charactersKey,
       characterItemsPrefix,
+      coinLogPrefix,
     ]) {
       void queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     }
@@ -88,6 +93,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
         queryClient.invalidateQueries({ queryKey: listKey }),
         queryClient.invalidateQueries({ queryKey: charactersKey }),
         queryClient.invalidateQueries({ queryKey: characterItemsPrefix }),
+        queryClient.invalidateQueries({ queryKey: coinLogPrefix }),
       ])
       return true
     } catch (failure) {

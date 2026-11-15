@@ -75,6 +75,9 @@ export type CharacterSheet = CharacterVitals &
     sheet: CharacterSheetBody
   }
 
+/** One coin change from the log: the net change and the balances after it. */
+export type CoinTransaction = Database['public']['Tables']['character_currency_log']['Row']
+
 /** One inventory row (weight arrives as a number or null). */
 export type CharacterItem = Tables['character_items']['Row']
 

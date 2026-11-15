@@ -1,6 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
-import { campaignCharactersKey, characterItemsKey, characterSheetKey } from './characterQueries'
+import {
+  campaignCharactersKey,
+  characterItemsKey,
+  characterSheetKey,
+  coinLogKey,
+} from './characterQueries'
 import {
   characterError,
   createCharacter,
@@ -204,6 +209,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
       await deleteCharacter(characterId, portraitPath)
       queryClient.removeQueries({ queryKey: characterSheetKey(characterId, userId) })
       queryClient.removeQueries({ queryKey: characterItemsKey(characterId, userId) })
+      queryClient.removeQueries({ queryKey: coinLogKey(characterId, userId) })
       await refreshCharacters()
     })
 
@@ -230,6 +236,8 @@ export function useCharacterActions(campaignId: string, userId: string) {
         characterSheetKey(characterId, userId),
         (sheet) => (sheet ? { ...sheet, ...purse, updated_at } : sheet),
       )
+      // The change just became the newest transaction.
+      void queryClient.invalidateQueries({ queryKey: coinLogKey(characterId, userId) })
     })
 
   const addItem = (characterId: string, values: CharacterItemValues) =>

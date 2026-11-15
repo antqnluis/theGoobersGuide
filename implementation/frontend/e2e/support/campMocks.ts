@@ -438,9 +438,24 @@ export type MockItem = {
   updated_at: string
 }
 
+export type MockCoinTransaction = {
+  id: string
+  seq: number
+  character_id: string
+  created_at: string
+  cp_delta: number
+  sp_delta: number
+  gp_delta: number
+  cp_after: number
+  sp_after: number
+  gp_after: number
+}
+
 export type CharacterState = {
   characters: MockCharacter[]
   sheets: MockSheet[]
+  /** Coin log rows; created empty and filled by the mocked coin RPC. */
+  coinLog?: MockCoinTransaction[]
   /** Inventory rows; created empty when a test does not bring any. */
   items?: MockItem[]
 }
@@ -530,6 +545,8 @@ export async function mockCharacters(
   const calls: string[] = []
   state.items ??= []
   const items = state.items
+  state.coinLog ??= []
+  const coinLog = state.coinLog
   await page.route('**/rest/v1/**', async (route) => {
     const request = route.request()
     const method = request.method()
@@ -540,7 +557,9 @@ export async function mockCharacters(
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
     const table = target.replace(/^rpc\//, '')
     if (
-      !['characters', 'character_sheets', 'character_items'].includes(table) &&
+      !['characters', 'character_sheets', 'character_items', 'character_currency_log'].includes(
+        table,
+      ) &&
       ![
         'create_character',
         'set_character_status',
@@ -613,6 +632,9 @@ export async function mockCharacters(
       for (let at = items.length - 1; at >= 0; at--) {
         if (items[at].character_id === removed.id) items.splice(at, 1)
       }
+      for (let at = coinLog.length - 1; at >= 0; at--) {
+        if (coinLog[at].character_id === removed.id) coinLog.splice(at, 1)
+      }
       return respond([{ id: removed.id }])
     }
 
@@ -683,6 +705,19 @@ export async function mockCharacters(
       }
     }
 
+    if (table === 'character_currency_log' && method === 'GET') {
+      const characterId = eq('character_id') ?? ''
+      const limit = Number(url.searchParams.get('limit') ?? 1000)
+      return respond(
+        readable(characterId)
+          ? coinLog
+              .filter((row) => row.character_id === characterId)
+              .toSorted((a, b) => b.seq - a.seq)
+              .slice(0, limit)
+          : [],
+      )
+    }
+
     if (table === 'adjust_character_currency') {
       const input = body as { p_character_id: string; p_cp?: number; p_sp?: number; p_gp?: number }
       const owner = characterOf(input.p_character_id)
@@ -698,6 +733,19 @@ export async function mockCharacters(
         return fail('currency_limit_exceeded')
       }
       if (next.cp !== sheet.cp || next.sp !== sheet.sp || next.gp !== sheet.gp) {
+        const seq = coinLog.reduce((top, row) => Math.max(top, row.seq), 0) + 1
+        coinLog.push({
+          id: `00000000-0000-4000-8000-${String(9000 + seq).padStart(12, '0')}`,
+          seq,
+          character_id: input.p_character_id,
+          created_at: new Date(Date.UTC(2026, 10, 14, 11, 0, seq)).toISOString(),
+          cp_delta: next.cp - sheet.cp,
+          sp_delta: next.sp - sheet.sp,
+          gp_delta: next.gp - sheet.gp,
+          cp_after: next.cp,
+          sp_after: next.sp,
+          gp_after: next.gp,
+        })
         Object.assign(sheet, next, { updated_at: nextStamp() })
       }
       return route.fulfill({

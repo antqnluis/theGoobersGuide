@@ -35,6 +35,7 @@ const characterId = '00000000-0000-4000-8000-000000000021'
 const charactersKey = ['campaigns', 'characters', campaignId, userId]
 const sheetKey = ['campaigns', 'characters', 'sheet', characterId, userId]
 const itemsKey = ['campaigns', 'characters', 'items', characterId, userId]
+const coinLogKey = ['campaigns', 'characters', 'coin-log', characterId, userId]
 const detailKey = ['campaigns', 'detail', campaignId, userId]
 const rosterKey = ['campaigns', 'roster', campaignId, userId]
 
@@ -53,6 +54,7 @@ function setup(items: CharacterItem[] | null = [rope, torch]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(sheetKey, sheet())
   if (items) queryClient.setQueryData(itemsKey, items)
+  queryClient.setQueryData(coinLogKey, [])
   for (const key of [charactersKey, detailKey, rosterKey]) queryClient.setQueryData(key, 'cached')
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -92,6 +94,8 @@ describe('coins', () => {
     expect(cached).toMatchObject({ max_hp: 30, current_hp: 12, sheet: sheet().sheet })
     expect(stale(queryClient, sheetKey)).toBeFalsy()
     expect(stale(queryClient, charactersKey)).toBeFalsy()
+    // The change is now the newest transaction, so the log refreshes.
+    expect(stale(queryClient, coinLogKey)).toBe(true)
   })
 
   it('leaves an empty sheet cache empty', async () => {
@@ -120,6 +124,7 @@ describe('coins', () => {
     expect(result.current.error).toBe("You don't have enough coins for that. Nothing was spent.")
     expect(queryClient.getQueryData(sheetKey)).toEqual(sheet())
     expect(stale(queryClient, itemsKey)).toBeFalsy()
+    expect(stale(queryClient, coinLogKey)).toBeFalsy()
   })
 
   it('uses the coin fallback for unknown failures', async () => {
@@ -362,6 +367,7 @@ describe('deleting a character', () => {
       expect(await result.current.remove(characterId)).toBe(true)
     })
     expect(queryClient.getQueryData(itemsKey)).toBeUndefined()
+    expect(queryClient.getQueryData(coinLogKey)).toBeUndefined()
     expect(queryClient.getQueryData(sheetKey)).toBeUndefined()
     expect(stale(queryClient, charactersKey)).toBe(true)
   })

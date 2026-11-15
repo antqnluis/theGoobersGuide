@@ -7,6 +7,7 @@ import {
   newPlayers,
   RANDOM_ID,
   rpcError,
+  PASSWORD,
   rpcOk,
   type Player,
 } from './support/localPlayers.ts'
@@ -1353,6 +1354,400 @@ test('concurrent coin, quantity, and membership changes keep the invariants', as
       expect(quantityRace.error.message).toBe('item_unavailable')
     }
     expect(inventoryViolations(campaignId)).toBe('0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+// --- Coin log: recent transactions ---------------------------------------------------
+
+type LogRow = {
+  cp_delta: number
+  sp_delta: number
+  gp_delta: number
+  cp_after: number
+  sp_after: number
+  gp_after: number
+}
+
+const logFields = 'seq, cp_delta, sp_delta, gp_delta, cp_after, sp_after, gp_after, created_at'
+
+function logRows(characterId: string) {
+  return localDatabaseQuery(
+    `select coalesce(string_agg(cp_delta || ',' || sp_delta || ',' || gp_delta || ':' || cp_after || ',' || sp_after || ',' || gp_after, ' | ' order by seq), '')
+     from public.character_currency_log where character_id = '${characterId}';`,
+    {},
+  )
+}
+
+async function visibleLog(player: Player, characterId: string) {
+  const { data, error } = await player.client
+    .from('character_currency_log')
+    .select(logFields)
+    .eq('character_id', characterId)
+    .order('seq', { ascending: false })
+  expect(error).toBeNull()
+  return data as (LogRow & { seq: number })[]
+}
+
+test('the coin log table is read-only for authenticated and has no other holders', () => {
+  for (const [privilege, expected] of [
+    ['select', 'authenticated'],
+    ['insert', ''],
+    ['update', ''],
+    ['delete', ''],
+    ['truncate', ''],
+  ]) {
+    expect(
+      holders((r) => `has_table_privilege(${r}, 'public.character_currency_log', '${privilege}')`),
+      privilege,
+    ).toBe(expected)
+  }
+  expect(
+    localDatabaseQuery(
+      `select relrowsecurity from pg_class where oid = 'public.character_currency_log'::regclass;`,
+      {},
+    ),
+  ).toBe('t')
+  expect(
+    localDatabaseQuery(
+      `select string_agg(cmd, ',') from pg_policies
+       where schemaname = 'public' and tablename = 'character_currency_log';`,
+      {},
+    ),
+  ).toBe('SELECT')
+})
+
+test('every applied coin change is logged with its net change and the balances after it', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 coin log')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId)
+
+    await currencyOk(guest, characterId, { p_gp: 3 })
+    await currencyOk(guest, characterId, { p_gp: -1, p_sp: 5 })
+    await currencyOk(guest, characterId, { p_cp: 7, p_sp: -2 })
+    expect(logRows(characterId)).toBe('0,0,3:0,0,3 | 0,5,-1:0,5,2 | 7,-2,0:7,3,2')
+
+    // The owner reads it newest first, with a stamp; the numbers are the server's.
+    const rows = await visibleLog(guest, characterId)
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toMatchObject({
+      cp_delta: 7,
+      sp_delta: -2,
+      gp_delta: 0,
+      cp_after: 7,
+      sp_after: 3,
+      gp_after: 2,
+    })
+    expect(rows[2]).toMatchObject({ gp_delta: 3, gp_after: 3 })
+    expect(rows[0].seq).toBeGreaterThan(rows[1].seq)
+
+    // Before is after minus the change, so every row reconciles with the one before it.
+    const ascending = [...rows].reverse()
+    let before = { cp: 0, sp: 0, gp: 0 }
+    for (const row of ascending) {
+      expect({
+        cp: row.cp_after - row.cp_delta,
+        sp: row.sp_after - row.sp_delta,
+        gp: row.gp_after - row.gp_delta,
+      }).toEqual(before)
+      before = { cp: row.cp_after, sp: row.sp_after, gp: row.gp_after }
+    }
+    expect(purse(characterId)).toBe('7,3,2')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('refused changes and no-ops leave no log rows', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest, other } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 coin log refused')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = await createdCharacter(guest, campaignId)
+    await currencyOk(guest, characterId, { p_gp: 5 })
+    expect(logRows(characterId)).toBe('0,0,5:0,0,5')
+
+    await currencyOk(guest, characterId, {})
+    await currencyOk(guest, characterId, { p_gp: null, p_cp: 0 })
+    await rpcError(adjustCurrency(guest, characterId, { p_gp: -6 }))
+    await rpcError(adjustCurrency(guest, characterId, { p_gp: 10_000_000 }))
+    await rpcError(adjustCurrency(guest, characterId, { p_sp: 9_999_999, p_gp: 9_999_999 }))
+    await rpcError(adjustCurrency(other, characterId, { p_gp: 1 }))
+    await rpcError(adjustCurrency(owner, characterId, { p_gp: 1 }))
+    expect(logRows(characterId)).toBe('0,0,5:0,0,5')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('the coin log follows the sheet: private, shared, departed, rejoined, and never writable', async () => {
+  test.setTimeout(120_000)
+  const players = await newCast()
+  const { owner, guest, other, outsider } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 coin log access')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = await createdCharacter(guest, campaignId)
+    await currencyOk(guest, characterId, { p_gp: 4 })
+
+    const counts = async () => [
+      (await visibleLog(owner, characterId)).length,
+      (await visibleLog(guest, characterId)).length,
+      (await visibleLog(other, characterId)).length,
+      (await visibleLog(outsider, characterId)).length,
+    ]
+    // Private: only the character owner, never the campaign owner.
+    expect(await counts()).toEqual([0, 1, 0, 0])
+
+    await guest.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+    expect(await counts()).toEqual([1, 1, 1, 0])
+    await guest.client
+      .from('characters')
+      .update({ sheet_visibility: 'private' })
+      .eq('id', characterId)
+    expect(await counts()).toEqual([0, 1, 0, 0])
+
+    // Nobody can write it through the API, including the owner of the character.
+    const seq = (await visibleLog(guest, characterId))[0].seq
+    for (const who of [guest, other, owner, outsider]) {
+      const insert = await who.client.from('character_currency_log').insert({
+        character_id: characterId,
+        cp_delta: 0,
+        sp_delta: 0,
+        gp_delta: 1,
+        cp_after: 0,
+        sp_after: 0,
+        gp_after: 1,
+      })
+      expect(insert.error?.code, `${who.username} insert`).toBe('42501')
+      const update = await who.client
+        .from('character_currency_log')
+        .update({ gp_delta: 99 })
+        .eq('seq', seq)
+      expect(update.error?.code, `${who.username} update`).toBe('42501')
+      const removal = await who.client.from('character_currency_log').delete().eq('seq', seq)
+      expect(removal.error?.code, `${who.username} delete`).toBe('42501')
+    }
+    expect(logRows(characterId)).toBe('0,0,4:0,0,4')
+
+    // Departure keeps the log and hides it; rejoining brings it back.
+    await guest.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+    await rpcOk(guest.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    expect(logRows(characterId)).toBe('0,0,4:0,0,4')
+    expect(await counts()).toEqual([0, 0, 0, 0])
+    await invite(owner, campaignId, guest)
+    expect(await counts()).toEqual([1, 1, 1, 0])
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('the coin log keeps the newest 100 changes and cascades with the character and campaign', async () => {
+  test.setTimeout(120_000)
+  const players = await newCast()
+  const { owner, guest, other } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 coin log cap')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await invite(owner, campaignId, other)
+    const characterId = await createdCharacter(guest, campaignId)
+    const otherCharacter = await createdCharacter(other, campaignId)
+    await currencyOk(other, otherCharacter, { p_gp: 1 })
+
+    for (let n = 1; n <= 105; n++) await currencyOk(guest, characterId, { p_cp: 1 })
+    const rows = await visibleLog(guest, characterId)
+    expect(rows).toHaveLength(100)
+    // The oldest five are gone: the oldest kept row is the 6th change (6 cp after it).
+    expect(rows[99].cp_after).toBe(6)
+    expect(rows[0].cp_after).toBe(105)
+    // Other characters' logs are untouched by the trim.
+    expect(logRows(otherCharacter)).toBe('0,0,1:0,0,1')
+
+    const count = (id: string) =>
+      localDatabaseQuery(
+        `select count(*) from public.character_currency_log where character_id = '${id}';`,
+        {},
+      )
+    await guest.client.from('characters').delete().eq('id', characterId)
+    expect(count(characterId)).toBe('0')
+    expect(count(otherCharacter)).toBe('1')
+    await owner.client.from('campaigns').delete().eq('id', campaignId)
+    expect(count(otherCharacter)).toBe('0')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('parallel coin changes each leave one log row and the rows reconcile', async () => {
+  test.setTimeout(90_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  try {
+    const campaignId = await createCampaign(owner, 'M3 coin log parallel')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId)
+    await Promise.all(
+      Array.from({ length: 10 }, () => adjustCurrency(guest, characterId, { p_gp: 1 })),
+    )
+    const rows = await visibleLog(guest, characterId)
+    expect(rows).toHaveLength(10)
+    // Applied one at a time: the balances after are exactly 1..10 in order.
+    expect([...rows].reverse().map((row) => row.gp_after)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(purse(characterId)).toBe('0,0,10')
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('a player adds coins and an item in the tent, and a second player sees both read-only', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const { players } = await newPlayers(['owner', 'guest'])
+  const { owner, guest } = players
+  const ids: string[] = []
+  // Light on resources: one context at a time, reduced motion, no screenshots or video.
+  const signIn = async (player: Player) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    return { context, page }
+  }
+  try {
+    const campaignId = await createCampaign(owner, 'M3 real-stack inventory')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    const characterId = await createdCharacter(guest, campaignId, 'Brand')
+    await rpcOk(
+      guest.client.rpc('set_character_in_party', {
+        p_character_id: characterId,
+        p_in_party: true,
+      }),
+    )
+
+    // The character's player adds coins and an item; both survive a reload.
+    const first = await signIn(guest)
+    try {
+      const { page } = first
+      const openTent = async () => {
+        await page.goto(`/app/campaigns/${campaignId}`)
+        await page
+          .locator('.camp-directory')
+          .getByRole('button', { name: /^My characters/ })
+          .click()
+        const tent = page.getByRole('dialog', { name: 'My characters' })
+        await tent.getByRole('button', { name: 'Open Brand' }).click()
+        return tent
+      }
+      const tent = await openTent()
+
+      const coins = tent.getByRole('form', { name: 'Add or spend coins' })
+      await coins.getByLabel(/Gold/).fill('10')
+      await coins.getByLabel(/Silver/).fill('5')
+      await coins.getByRole('button', { name: 'Add coins' }).click()
+      await expect(tent.getByText('Added 10 gp and 5 sp.')).toBeVisible()
+      await coins.getByLabel(/Gold/).fill('3')
+      await coins.getByRole('button', { name: 'Spend coins' }).click()
+      await expect(tent.getByText('Spent 3 gp.')).toBeVisible()
+      await expect(tent.locator('[data-coin="gp"]')).toContainText('7 gp')
+
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await tent.getByLabel('Name', { exact: true }).fill('Healing potion')
+      await tent.getByLabel('Quantity').fill('4')
+      await tent.getByLabel(/Weight/).fill('0.5')
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await expect(tent.getByText('Added Healing potion.')).toBeVisible()
+      await tent.getByRole('button', { name: 'Use one Healing potion' }).click()
+      await expect(tent.locator('.inventory-item', { hasText: 'Healing potion' })).toContainText(
+        'Quantity 3',
+      )
+
+      // What the screen shows is what the database holds.
+      await expect.poll(() => purse(characterId)).toBe('0,5,7')
+      const storedItem = localDatabaseQuery(
+        `select name || '|' || quantity || '|' || weight
+         from public.character_items where character_id = '${characterId}';`,
+        {},
+      )
+      expect(storedItem).toBe('Healing potion|3|0.50')
+
+      const reloaded = await openTent()
+      await expect(reloaded.locator('[data-coin="gp"]')).toContainText('7 gp')
+      await expect(reloaded.locator('[data-coin="sp"]')).toContainText('5 sp')
+      await expect(
+        reloaded.locator('.inventory-item', { hasText: 'Healing potion' }),
+      ).toContainText('Quantity 3')
+    } finally {
+      await first.context.close()
+    }
+
+    // A second player sees nothing while the sheet is private, then both once it is shared.
+    const second = await signIn(owner)
+    try {
+      const { page } = second
+      const openParty = async () => {
+        await page.goto(`/app/campaigns/${campaignId}`)
+        await page
+          .locator('.camp-directory')
+          .getByRole('button', { name: /^Party/ })
+          .click()
+        return page.getByRole('dialog', { name: 'People in this campaign' })
+      }
+      const privateParty = await openParty()
+      await expect(privateParty.getByText('Brand')).toBeVisible()
+      await expect(privateParty.getByRole('button', { name: "View Brand's sheet" })).toHaveCount(0)
+      await expect(privateParty.getByText('Healing potion')).toHaveCount(0)
+
+      const shared = await guest.client
+        .from('characters')
+        .update({ sheet_visibility: 'campaign' })
+        .eq('id', characterId)
+        .select('id')
+      expect(shared.error).toBeNull()
+      expect(shared.data).toHaveLength(1)
+
+      const party = await openParty()
+      await party.getByRole('button', { name: "View Brand's sheet" }).click()
+      await expect(party.locator('.character-sheet')).toHaveAttribute('data-read-only', 'true')
+      await expect(party.locator('[data-coin="gp"]')).toContainText('7 gp')
+      await expect(party.locator('[data-coin="sp"]')).toContainText('5 sp')
+      await expect(party.getByText('Healing potion')).toBeVisible()
+      await expect(party.getByText('Quantity 3')).toBeVisible()
+      await expect(party.getByRole('form', { name: 'Add or spend coins' })).toHaveCount(0)
+      await expect(party.getByRole('button', { name: 'Add item' })).toHaveCount(0)
+      await expect(party.getByRole('button', { name: /^(Use|Add) one / })).toHaveCount(0)
+    } finally {
+      await second.context.close()
+    }
   } finally {
     await cleanup(players, ids)
   }

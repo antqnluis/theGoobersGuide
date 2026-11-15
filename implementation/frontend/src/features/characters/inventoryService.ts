@@ -2,7 +2,12 @@ import { supabase } from '../../lib/supabase'
 import type { Database } from '../../types/database'
 import { readErrorMessage } from '../campaigns/rpcErrors'
 import { characterError } from './characterService'
-import type { CharacterItem, CharacterItemValues, CharacterPurse } from './characterTypes'
+import type {
+  CharacterItem,
+  CharacterItemValues,
+  CharacterPurse,
+  CoinTransaction,
+} from './characterTypes'
 
 type Functions = Database['public']['Functions']
 
@@ -132,6 +137,25 @@ export async function adjustCharacterCurrency(
   const row = data?.[0]
   if (!row) throw denied('character_unavailable')
   return row
+}
+
+const coinLogFields =
+  'id,seq,character_id,created_at,cp_delta,sp_delta,gp_delta,cp_after,sp_after,gp_after'
+
+/** The character's most recent coin changes, newest first. Readable like the sheet. */
+export async function listCoinTransactions(
+  characterId: string,
+  limit = 20,
+): Promise<CoinTransaction[]> {
+  const { data, error } = await supabase
+    .from('character_currency_log')
+    .select(coinLogFields)
+    .eq('character_id', characterId)
+    .order('seq', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return (data ?? []) as CoinTransaction[]
 }
 
 const inventoryErrors: Record<string, string> = {

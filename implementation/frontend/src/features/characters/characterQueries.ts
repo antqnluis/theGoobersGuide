@@ -1,4 +1,4 @@
-import { listCharacterItems } from './inventoryService'
+import { listCharacterItems, listCoinTransactions } from './inventoryService'
 import {
   getCharacterPortraitUrl,
   getCharacterSheet,
@@ -14,6 +14,12 @@ export const characterSheetKey = (characterId: string, userId: string) =>
 
 /** Every inventory query, for invalidation when membership changes (items are per character). */
 export const characterItemsPrefix = ['campaigns', 'characters', 'items'] as const
+
+/** Every coin-log query, for invalidation when membership changes. */
+export const coinLogPrefix = ['campaigns', 'characters', 'coin-log'] as const
+
+export const coinLogKey = (characterId: string, userId: string) =>
+  ['campaigns', 'characters', 'coin-log', characterId, userId] as const
 
 /** Inventory rows. Under the characters prefix so leaving or removal marks them stale too. */
 export const characterItemsKey = (characterId: string, userId: string) =>
@@ -50,6 +56,15 @@ export function characterItemsOptions(characterId: string, userId: string, enabl
   return {
     queryKey: characterItemsKey(characterId, userId),
     queryFn: () => listCharacterItems(characterId),
+    enabled,
+  }
+}
+
+/** The recent coin changes; `enabled` waits until the log is opened. */
+export function coinLogOptions(characterId: string, userId: string, enabled = true) {
+  return {
+    queryKey: coinLogKey(characterId, userId),
+    queryFn: () => listCoinTransactions(characterId),
     enabled,
   }
 }

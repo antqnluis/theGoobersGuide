@@ -342,7 +342,8 @@ describe('CharacterTent detail', () => {
     await user.click(screen.getByRole('button', { name: yes }))
     expect(actions.changeStatus).toHaveBeenCalledWith(character().id, status)
     expect(onNotice).toHaveBeenLastCalledWith(notice)
-    expect(screen.queryByRole('group')).not.toBeInTheDocument()
+    // The confirmation is gone (the coin log's <details> also has the group role).
+    expect(screen.queryByRole('group', { name: /^Confirm/ })).not.toBeInTheDocument()
   })
 
   it('keeps the confirmation open when the status change fails', async () => {

@@ -79,6 +79,7 @@ Characters exist only inside a campaign and belong to one player. Neither can ch
 
 - `public.characters` is the summary every current member can read: `name` (1–80 characters), optional `species`, `class_name`, `subclass` and `background` (1–60 characters each), `level` (1–20), `status` (`active`, `retired`, `deceased`), `in_party`, `sheet_visibility` (`private` or `campaign`), `portrait_path`, and `status_changed_at`, `created_at` and `updated_at`. Text is trimmed and free of control characters; empty optional fields are stored as null.
 - `public.character_sheets` is the 1:1 body, created with the character and removed only by cascade: `max_hp`, `current_hp`, `temp_hp`, `armor_class`, `speed` (columns, because they change mid-session) and `sheet jsonb`, a version-1 body (abilities, saving throws, skills, attacks, features, spells, notes, alignment, experience). Derived values (modifiers, proficiency bonus, passive Perception) are computed in the client and never stored.
+- The purse is three more columns on `character_sheets`, `cp`, `sp` and `gp` (see [Inventory and coins](#inventory-and-coins)).
 - `characters.campaign_id` references `campaigns` and `characters.owner_id` references `profiles`, both `ON DELETE CASCADE`. Neither references `campaign_members`, per the retention rules above.
 
 ### Integrity
@@ -130,6 +131,56 @@ A null argument raises `22023` (`character_required`). Errors are `P0001` unless
 ### Portraits
 
 A private Storage bucket, `character-portraits` (2 MiB; PNG, JPEG or WebP), holds one picture per upload at `<character id>/<random>.<png|jpg|webp>`. `characters.portrait_path` is constrained to that shape for its own character. A new picture gets a new name, never an overwrite. Anyone who may read the character's summary may read its portrait (it is summary-level, whatever the sheet's visibility); only the owner, while a member, adds one, and only the owner removes one. The helper `private.portrait_character_id(name)` maps an object name to its character.
+
+## Inventory and coins
+
+Coins and items belong to a character and follow the same access rules as its sheet. They are kept, but invisible, while the owner is not a member, and come back on rejoining.
+
+### Tables
+
+- `character_sheets.cp`, `sp` and `gp` are the purse: whole coins, `integer NOT NULL DEFAULT 0`, each 0–9,999,999 (`character_sheets_currency_check`). There are no electrum or platinum coins (10 cp = 1 sp, 10 sp = 1 gp; the app derives the total, it is never stored). Authenticated users can read the columns but have no write grant on them, so balances change only through `adjust_character_currency`.
+- `public.character_items` holds the inventory: `id`, `character_id` (references `characters`, `ON DELETE CASCADE`), `name` (1–80 characters, trimmed, no control characters), `quantity` (0–9,999, default 1), `weight` (`numeric(7, 2)`, per item, 0–99,999.99, null when unknown), `description` (1–2,000 characters, null when empty, newlines and tabs allowed), `equipped`, `attuned`, `created_at` and `updated_at`. Index on `character_id`.
+- `public.character_currency_log` records each applied coin change: `id`, `seq` (identity, for ordering), `character_id` (cascade), `created_at`, the net change `cp_delta`, `sp_delta`, `gp_delta` and the balances after it, `cp_after`, `sp_after`, `gp_after`. At least one delta is non-zero. Only the newest 100 rows per character are kept.
+
+### Integrity
+
+| Rule | Enforced by |
+| --- | --- |
+| An item never moves to another character, and its `id` never changes | `private.guard_character_item_write` trigger (`item_reassignment_forbidden`), plus no column grant on `character_id` for updates |
+| At most 200 items per character, under concurrency | The same trigger, on insert, after locking the character row (`item_limit_reached`) |
+| Names, quantity, weight and description bounds | `character_items_*_check` constraints. A weight of 100,000 or more overflows the column (`22003`) before the check runs. |
+| Balances stay within 0–9,999,999 | `character_sheets_currency_check` |
+| `updated_at` follows item updates | `set_updated_at` trigger |
+| Log rows reconcile with the purse | Written by `adjust_character_currency` inside the same locked transaction as the balance change |
+
+### Access
+
+RLS is enabled on `character_items` and `character_currency_log`; `anon`, `service_role` and `public` have no access to either.
+
+| Data | Authenticated access |
+| --- | --- |
+| Items and the coin log: read | The character's owner while a member; other current members only when `sheet_visibility = 'campaign'`. **The campaign owner has no override.** |
+| Items: add, edit, delete | The owner only, while a member. Insert is limited to `character_id`, `name`, `quantity`, `weight`, `description`, `equipped` and `attuned`; update to the same minus `character_id`. `id` and the timestamps are never supplied. The app edits with an `updated_at` filter, so a stale edit matches no row. |
+| Coin log: write | Nobody through the API (select only). |
+| Balances | Read with the sheet. Written only by `adjust_character_currency`. |
+
+### RPCs
+
+`SECURITY DEFINER`, executable only by `authenticated`. They use the character prelude: reject null arguments, find the character (or the item's character) owned by the caller, lock the campaign row `FOR SHARE`, re-check membership in a fresh statement, then lock the target row `FOR UPDATE`. Anyone who is not the owner, a current member, or the owner of an existing row gets the same "unavailable" error, so existence is not revealed.
+
+| RPC | Effect and errors |
+| --- | --- |
+| `adjust_character_currency(p_character_id, p_cp, p_sp, p_gp)` | Adds the deltas (negative spends; a null delta counts as 0) to the locked purse and returns `cp, sp, gp, updated_at`. Several coins change together or not at all. All-zero deltas are a no-op: no write, no log row. Concurrent calls both apply, in order. Writes one `character_currency_log` row per applied change and trims to 100. `currency_required` and `currency_amount_invalid` (each delta within ±9,999,999) are `22023`; `character_unavailable`, `currency_insufficient` (any balance would go below 0) and `currency_limit_exceeded` are `P0001`. |
+| `adjust_character_item_quantity(p_item_id, p_delta)` | Adds a delta (−9,999 to 9,999) to an item's quantity and returns the new value. An item at 0 stays; deleting is separate. A zero delta writes nothing. `item_required` and `item_quantity_invalid` (bad delta) are `22023`; `item_unavailable`, `item_quantity_insufficient` and `item_quantity_invalid` (result above 9,999) are `P0001`. |
+
+### Sheet token
+
+Coins live on the sheet row, so every coin change moves `character_sheets.updated_at`, which is also the body's optimistic-concurrency token. The RPC returns the new `updated_at` and the client writes it into the sheet cache, so a body save in the same tab does not conflict. A coin change on another device makes a pending body save fail with the usual `sheet_conflict` copy, as a vitals change already does.
+
+### Lifecycle
+
+- **Leaving or removal** keeps items, balances and the log. The leaver can no longer read or change them, and other members stop seeing them even on a shared sheet. **Rejoining** restores access to the same rows.
+- **Deleting a character** deletes its items and log. **Deleting a campaign** deletes everything in it, including a departed player's. **Deleting a member's account** deletes only their own.
 
 ## Camp appearance
 

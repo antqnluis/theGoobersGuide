@@ -3388,7 +3388,7 @@ test('the Coins and Inventory tabs jump to their sections and start empty', asyn
   await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeFocused()
 
   await expect(dialog.getByText('No items yet.')).toBeVisible()
-  await expect(dialog.getByText('≈ 0 gp in all')).toBeVisible()
+  await expect(dialog.getByText('Worth 0 gp in all')).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Add item' })).toBeVisible()
 })
 
@@ -3418,7 +3418,7 @@ test('coins are added and spent', async ({ page }) => {
   await expect(dialog.getByText('Added 10 gp and 5 sp.')).toBeVisible()
   await expect(dialog.locator('[data-coin="gp"]')).toContainText('10 gp')
   await expect(dialog.locator('[data-coin="sp"]')).toContainText('5 sp')
-  await expect(dialog.getByText('≈ 10.5 gp in all')).toBeVisible()
+  await expect(dialog.getByText('Worth 10 gp and 5 sp in all')).toBeVisible()
   await expect(coins.getByLabel(/Gold/)).toHaveValue('')
   expect(state.sheets[0]).toMatchObject({ gp: 10, sp: 5, cp: 0 })
 
@@ -3429,12 +3429,13 @@ test('coins are added and spent', async ({ page }) => {
   expect(state.sheets[0]).toMatchObject({ gp: 7, sp: 3, cp: 0 })
 })
 
-test('spending more than the purse holds shows the copy and keeps the balances', async ({
+test('spending more than the purse is worth shows the copy and keeps the balances', async ({
   page,
 }) => {
+  // 5 gp and 1 sp are worth 510 cp.
   const { dialog, state } = await openSheet(page, { sheet: { gp: 5, sp: 1 } })
   const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
-  await coins.getByLabel(/Gold/).fill('2')
+  await coins.getByLabel(/Gold/).fill('5')
   await coins.getByLabel(/Silver/).fill('4')
   await coins.getByRole('button', { name: 'Spend coins' }).click()
   await expect(dialog.getByRole('alert')).toHaveText(
@@ -3448,8 +3449,118 @@ test('spending more than the purse holds shows the copy and keeps the balances',
   await coins.getByLabel(/Silver/).fill('1')
   await coins.getByRole('button', { name: 'Spend coins' }).click()
   await expect(dialog.getByRole('alert')).toHaveCount(0)
-  await expect(dialog.getByText('Spent 2 gp and 1 sp.')).toBeVisible()
-  expect(state.sheets[0]).toMatchObject({ gp: 3, sp: 0 })
+  await expect(dialog.getByText('Spent 5 gp and 1 sp.')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 0, sp: 0, cp: 0 })
+})
+
+test('spending a coin you do not have makes change from a larger one', async ({ page }) => {
+  const { dialog, state } = await openSheet(page, { sheet: { gp: 3 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+
+  // No silver, but gold: pay 1 gp and take 5 sp back.
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 5 sp (made change from 1 gp).')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  expect(state.sheets[0]).toMatchObject({ gp: 2, sp: 5, cp: 0 })
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('2 gp')
+  await expect(dialog.locator('[data-coin="sp"]')).toContainText('5 sp')
+  // The value never changes: 3 gp = 2 gp + 5 sp + 5 sp spent.
+  await expect(dialog.getByText('Worth 2 gp and 5 sp in all')).toBeVisible()
+
+  // Copper from the silver it has left, then from a gold piece.
+  await coins.getByLabel(/Copper/).fill('7')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 7 cp (made change from 1 sp).')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 2, sp: 4, cp: 3 })
+})
+
+test('recent transactions open on demand and show the arithmetic of each change', async ({
+  page,
+}) => {
+  const { dialog, state, mock } = await openSheet(page, { sheet: { gp: 3 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  const log = dialog.locator('.coin-log')
+
+  // Collapsed at first, and nothing is requested for it.
+  await expect(log.getByText('Recent transactions')).toBeVisible()
+  await expect(log).not.toHaveAttribute('open', '')
+  await expect(log.getByText('No transactions yet.')).toHaveCount(0)
+
+  await log.getByText('Recent transactions').click()
+  await expect(log.getByText('No transactions yet.')).toBeVisible()
+
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 5 sp (made change from 1 gp).')).toBeVisible()
+  const list = log.getByRole('list', { name: 'Recent transactions' })
+  await expect(list.getByText('Spent 5 sp (made change)')).toBeVisible()
+  await expect(list).toContainText('3 → 2 gp (−1)')
+  await expect(list).toContainText('0 → 5 sp (+5)')
+  await expect(list).toContainText('Purse after: 2 gp and 5 sp')
+
+  await coins.getByLabel(/Gold/).fill('4')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  const entries = list.locator(':scope > li')
+  await expect(entries).toHaveCount(2)
+  await expect(entries.first()).toContainText('Added 4 gp')
+  await expect(entries.first()).toContainText('2 → 6 gp (+4)')
+  await expect(entries.nth(1)).toContainText('Spent 5 sp (made change)')
+  expect(state.coinLog).toHaveLength(2)
+
+  // A refused spend is not a transaction.
+  await coins.getByLabel(/Gold/).fill('99')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(entries).toHaveCount(2)
+  expect(mock.calls.filter((call) => call.includes('adjust_character_currency'))).toHaveLength(3)
+
+  // Collapsing hides it again.
+  await log.getByText('Recent transactions').click()
+  await expect(list).toBeHidden()
+})
+
+test('recent transactions of a shared sheet are readable and read-only', async ({ page }) => {
+  const state = partyCharacters()
+  const sorrel = state.characters[1]
+  state.coinLog = [
+    {
+      id: '00000000-0000-4000-8000-000000009001',
+      seq: 1,
+      character_id: sorrel.id,
+      created_at: new Date(Date.UTC(2026, 10, 14, 9, 0, 0)).toISOString(),
+      cp_delta: 0,
+      sp_delta: 0,
+      gp_delta: 25,
+      cp_after: 0,
+      sp_after: 0,
+      gp_after: 25,
+    },
+  ]
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await dialog.locator('.coin-log').getByText('Recent transactions').click()
+  await expect(dialog.locator('.coin-log')).toContainText('Added 25 gp')
+  await expect(dialog.getByRole('form', { name: 'Add or spend coins' })).toHaveCount(0)
+})
+
+test('the three coin fields line up, and each coin wears the colour of its metal', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { dialog } = await openSheet(page, { sheet: { gp: 12, sp: 7, cp: 3 } })
+  const tops = await dialog
+    .locator('.coin-form .journal-input')
+    .evaluateAll((inputs) => inputs.map((input) => Math.round(input.getBoundingClientRect().top)))
+  expect(tops).toHaveLength(3)
+  expect(new Set(tops).size).toBe(1)
+
+  const tint = (coin: string) =>
+    dialog
+      .locator(`.coin-purse__coin[data-coin="${coin}"]`)
+      .evaluate((tile) => getComputedStyle(tile).backgroundColor)
+  const [gold, silver, copper] = [await tint('gp'), await tint('sp'), await tint('cp')]
+  expect(new Set([gold, silver, copper]).size).toBe(3)
 })
 
 test('coin fields explain what is wrong before anything is sent', async ({ page }) => {

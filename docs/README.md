@@ -15,8 +15,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Status |
 | --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1 and M2 are done; M3–M8 are not started. |
-| [M03.3 — Inventory and Currency](in-progress/M03.3-Inventory-and-Currency.md) | Plan for M3, approved. Not started. |
+| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M3 are done; M4–M8 are not started. |
 
 ## Completed
 
@@ -28,6 +27,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.1 — Membership Lifecycle](completed/M03.1-Membership-Lifecycle.md) | Phases 0–7 done. |
 | [M03.2 — Characters and Party](completed/M03.2-Characters-and-Party.md) | Phases 0–6 done. The full browser suite was last run after Phase 5; Phase 6 re-ran only lint, format, build, unit, and local-stack tests. |
 | [M03.2 — Implementation Log](completed/M03.2-Implementation-Log.md) | Per-phase record of the M03.2 work. |
+| [M03.3 — Inventory and Currency](completed/M03.3-Inventory-and-Currency.md) | Phases 0–5 done. The full browser suite and local-stack suite pass; the camp-scene tests are timing-flaky under load and pass alone. |
+| [M03.3 — Implementation Log](completed/M03.3-Implementation-Log.md) | Per-phase record of the M03.3 work, including the later change requests. |
 
 ## Paused
 

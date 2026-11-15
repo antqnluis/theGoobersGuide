@@ -778,6 +778,7 @@ function SheetContent({
                 characterId={character.id}
                 onNotice={onNotice}
                 purse={{ cp: sheet.cp, sp: sheet.sp, gp: sheet.gp }}
+                userId={userId}
               />
             </section>
 

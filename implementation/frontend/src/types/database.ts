@@ -181,6 +181,54 @@ export type Database = {
           },
         ]
       }
+      character_currency_log: {
+        Row: {
+          character_id: string
+          cp_after: number
+          cp_delta: number
+          created_at: string
+          gp_after: number
+          gp_delta: number
+          id: string
+          seq: number
+          sp_after: number
+          sp_delta: number
+        }
+        ComputedFields: never
+        Insert: {
+          character_id: string
+          cp_after: number
+          cp_delta: number
+          created_at?: string
+          gp_after: number
+          gp_delta: number
+          id?: string
+          seq?: never
+          sp_after: number
+          sp_delta: number
+        }
+        Update: {
+          character_id?: string
+          cp_after?: number
+          cp_delta?: number
+          created_at?: string
+          gp_after?: number
+          gp_delta?: number
+          id?: string
+          seq?: never
+          sp_after?: number
+          sp_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_currency_log_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       character_items: {
         Row: {
           attuned: boolean

@@ -31,6 +31,13 @@ const itemsKey = [
   '00000000-0000-4000-8000-000000000021',
   userId,
 ]
+const coinLogKey = [
+  'campaigns',
+  'characters',
+  'coin-log',
+  '00000000-0000-4000-8000-000000000021',
+  userId,
+]
 const otherDetailKey = ['campaigns', 'detail', 'another-campaign', userId]
 
 function setup() {
@@ -42,6 +49,7 @@ function setup() {
     outgoingKey,
     charactersKey,
     itemsKey,
+    coinLogKey,
     otherDetailKey,
   ]) {
     queryClient.setQueryData(key, 'cached')
@@ -75,7 +83,15 @@ describe('useCampaignMembership', () => {
 
     expect(left).toBe(true)
     expect(leaveCampaign).toHaveBeenCalledWith(campaignId)
-    for (const key of [listKey, detailKey, rosterKey, outgoingKey, charactersKey, itemsKey]) {
+    for (const key of [
+      listKey,
+      detailKey,
+      rosterKey,
+      outgoingKey,
+      charactersKey,
+      itemsKey,
+      coinLogKey,
+    ]) {
       expect(stale(queryClient, key)).toBe(true)
     }
     expect(stale(queryClient, otherDetailKey)).toBe(false)
@@ -139,6 +155,7 @@ describe('useCampaignMembership', () => {
     expect(stale(queryClient, listKey)).toBe(true)
     expect(stale(queryClient, charactersKey)).toBe(true)
     expect(stale(queryClient, itemsKey)).toBe(true)
+    expect(stale(queryClient, coinLogKey)).toBe(true)
     expect(stale(queryClient, detailKey)).toBe(false)
     expect(result.current.pendingProfileId).toBeNull()
     expect(result.current.pendingAction).toBeNull()
