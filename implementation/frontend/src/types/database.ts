@@ -3,6 +3,245 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      adventure_objectives: {
+        Row: {
+          adventure_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          done: boolean
+          id: string
+          title: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          adventure_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          adventure_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_objectives_adventure_id_fkey'
+            columns: ['adventure_id']
+            isOneToOne: false
+            referencedRelation: 'adventures'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_objectives_completed_by_fkey'
+            columns: ['completed_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_objectives_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      adventure_participants: {
+        Row: {
+          adventure_id: string
+          campaign_id: string
+          character_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          status: string
+        }
+        ComputedFields: never
+        Insert: {
+          adventure_id: string
+          campaign_id: string
+          character_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          status?: string
+        }
+        Update: {
+          adventure_id?: string
+          campaign_id?: string
+          character_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_participants_adventure_fkey'
+            columns: ['adventure_id', 'campaign_id']
+            isOneToOne: false
+            referencedRelation: 'adventures'
+            referencedColumns: ['id', 'campaign_id']
+          },
+          {
+            foreignKeyName: 'adventure_participants_character_campaign_fkey'
+            columns: ['character_id', 'campaign_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id', 'campaign_id']
+          },
+          {
+            foreignKeyName: 'adventure_participants_character_owner_fkey'
+            columns: ['character_id', 'profile_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id', 'owner_id']
+          },
+        ]
+      }
+      adventure_updates: {
+        Row: {
+          adventure_id: string
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+        }
+        ComputedFields: never
+        Insert: {
+          adventure_id: string
+          author_id?: string
+          body: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          adventure_id?: string
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_updates_adventure_id_fkey'
+            columns: ['adventure_id']
+            isOneToOne: false
+            referencedRelation: 'adventures'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_updates_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      adventures: {
+        Row: {
+          archived_at: string | null
+          campaign_id: string
+          created_at: string
+          created_by: string
+          description: string
+          id: string
+          next_step: string
+          reference: string
+          status: string
+          status_changed_at: string | null
+          status_changed_by: string | null
+          title: string
+          type: string
+          updated_at: string
+          updated_by: string | null
+          visibility: string
+        }
+        ComputedFields: never
+        Insert: {
+          archived_at?: string | null
+          campaign_id: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          id?: string
+          next_step?: string
+          reference?: string
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          title: string
+          type: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility: string
+        }
+        Update: {
+          archived_at?: string | null
+          campaign_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          id?: string
+          next_step?: string
+          reference?: string
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventures_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventures_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventures_status_changed_by_fkey'
+            columns: ['status_changed_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventures_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       campaign_appearances: {
         Row: {
           campaign_id: string
@@ -567,6 +806,17 @@ export type Database = {
         Returns: string
       }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
+      create_adventure: {
+        Args: {
+          p_campaign_id: string
+          p_character_id?: string
+          p_description?: string
+          p_next_step?: string
+          p_title: string
+          p_type: string
+        }
+        Returns: string
+      }
       create_character: {
         Args: {
           p_background?: string

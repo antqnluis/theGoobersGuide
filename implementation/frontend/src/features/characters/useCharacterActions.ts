@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
+import { adventuresPrefix } from '../adventures/adventureQueries'
 import {
   campaignCharactersKey,
   characterItemsKey,
@@ -210,6 +211,8 @@ export function useCharacterActions(campaignId: string, userId: string) {
       queryClient.removeQueries({ queryKey: characterSheetKey(characterId, userId) })
       queryClient.removeQueries({ queryKey: characterItemsKey(characterId, userId) })
       queryClient.removeQueries({ queryKey: coinLogKey(characterId, userId) })
+      // The character's solo adventures were deleted with it (D5).
+      void queryClient.invalidateQueries({ queryKey: adventuresPrefix })
       await refreshCharacters()
     })
 

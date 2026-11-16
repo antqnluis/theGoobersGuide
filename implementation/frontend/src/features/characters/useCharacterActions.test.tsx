@@ -167,6 +167,17 @@ describe('useCharacterActions', () => {
     expect(stale(queryClient, charactersKey)).toBe(true)
   })
 
+  it('refreshes adventures after a delete, since its solo adventures go with it', async () => {
+    vi.mocked(deleteCharacter).mockResolvedValue(undefined)
+    const { queryClient, result } = setup()
+    const adventuresKey = ['campaigns', 'adventures', campaignId, userId]
+    queryClient.setQueryData(adventuresKey, [])
+    await act(async () => {
+      expect(await result.current.remove(characterId)).toBe(true)
+    })
+    expect(stale(queryClient, adventuresKey)).toBe(true)
+  })
+
   it('shows known error copy and keeps caches untouched on an ordinary failure', async () => {
     vi.mocked(createCharacter).mockRejectedValue({ message: 'character_active_exists' })
     const { queryClient, result } = setup()

@@ -12,6 +12,7 @@ import {
   characterItemsPrefix,
   coinLogPrefix,
 } from '../characters/characterQueries'
+import { adventuresPrefix } from '../adventures/adventureQueries'
 import { notesPrefix } from '../notes/noteQueries'
 import { readErrorMessage } from './rpcErrors'
 
@@ -79,6 +80,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       characterItemsPrefix,
       coinLogPrefix,
       notesPrefix,
+      adventuresPrefix,
     ]) {
       void queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     }
@@ -97,6 +99,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
         queryClient.invalidateQueries({ queryKey: characterItemsPrefix }),
         queryClient.invalidateQueries({ queryKey: coinLogPrefix }),
         queryClient.invalidateQueries({ queryKey: notesPrefix }),
+        queryClient.invalidateQueries({ queryKey: adventuresPrefix }),
       ])
       return true
     } catch (failure) {
