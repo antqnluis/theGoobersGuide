@@ -20,7 +20,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Access rules
 
-Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, and character sheets. Anonymous clients have no table access.
+Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, character sheets, and notes. Anonymous clients have no table access.
 
 | Data | Authenticated access |
 | --- | --- |
@@ -212,6 +212,46 @@ Both are `SECURITY INVOKER` and executable only by `authenticated`: every write 
 | `apply_character_update(p_character_id, p_expected, p_changes, p_source_label)` | Applies the selected details, vitals, full body replacement, item adds, updates and removes, and coin targets, in one transaction, and returns the sheet's new `updated_at`. `p_expected` carries the character's, the sheet's and each targeted item's `updated_at`; any difference fails the whole update. Locks the campaign and sheet in the usual order (through `adjust_character_currency(…, 0, 0, 0)`, which changes and logs nothing), then the character row. `p_changes` may carry an informational `change_count`. |
 
 Errors: `import_invalid` (wrong payload shape, a forbidden key, an empty `p_changes`), `import_values_invalid` (a value the table rules refuse) and `import_source_invalid` (a bad label) are `22023`. `import_conflict` (the character, sheet or an item changed after the review was loaded) and `character_unavailable` (unknown, inaccessible, someone else's, or departed) are `P0001`. Errors from the inner functions (`character_active_exists`, `character_campaign_unavailable`, `item_limit_reached`, `currency_limit_exceeded`, `currency_insufficient`) pass through unchanged.
+
+## Notes
+
+`public.notes` holds the journal: each note is **private** (its author only) or **shared with the campaign** (every current member reads and edits it). Access is computed from current membership, so the departure hook is unchanged.
+
+### Table
+
+`id`, `campaign_id` (references `campaigns`, `ON DELETE CASCADE`), `author_id` (references `profiles`, `ON DELETE CASCADE`, default `auth.uid()`), `visibility` (`private` default, or `campaign`), `title` (1–120 characters, trimmed, no control characters), `body` (0–20,000 characters, default empty; newlines and tabs allowed, other control characters not), `character_id` (optional link), `updated_by` (the last editor; `ON DELETE SET NULL`), `created_at` and `updated_at`. Indexes on `(campaign_id, updated_at desc)`, `(author_id, campaign_id)` and `character_id`.
+
+`(character_id, campaign_id)` references `characters (id, campaign_id)` with `ON DELETE SET NULL (character_id)`: deleting a character clears only the link and keeps the note and `updated_by`.
+
+### Integrity
+
+| Rule | Enforced by |
+| --- | --- |
+| `id`, `campaign_id`, `author_id` and `created_at` never change | `private.guard_note_write` trigger (`note_reassignment_forbidden`), plus no column grant |
+| Only the author changes `visibility` | The same trigger (`note_visibility_author_only`) |
+| At most 500 notes per author per campaign, under concurrency | The same trigger on insert, after an advisory lock (`note_limit_reached`) |
+| A link points at a character a current member of the same campaign owns | The same trigger on a new or changed link (`note_character_unavailable`), with the foreign key as the backstop |
+| `updated_by` is the caller | The same trigger. Foreign-key actions (a deleted character or account) run nested and pass through untouched. |
+| Title and body bounds | `notes_title_check`, `notes_body_check`, `notes_visibility_check` |
+| `updated_at` follows updates | `set_updated_at` trigger |
+
+### Access
+
+`anon`, `service_role` and `public` have no access. `authenticated` has select and delete, insert on `campaign_id, visibility, title, body, character_id`, and update on `visibility, title, body, character_id`.
+
+| Action | Who |
+| --- | --- |
+| Read | Current members read shared notes; an author reads their own while a member. **The campaign owner has no override on private notes.** |
+| Create | A current member, as themselves. |
+| Edit title, body and link | Any current member for a shared note; the author for their own private note. |
+| Change visibility, delete | The author only, while a member. |
+
+The app saves with an `updated_at` filter (optimistic concurrency): a stale save matches no row, and the client re-reads to tell a conflict (still readable) from a note that is gone.
+
+### Lifecycle
+
+- **Leaving or removal** keeps every note. The leaver reads and writes nothing; members still read and edit the leaver's shared notes but cannot delete them or make them private. **Rejoining** restores the author's access to both.
+- **Deleting a campaign** deletes every note in it, including a departed author's. **Deleting a member's account** deletes their notes and clears `updated_by` on notes they edited.
 
 ## Camp appearance
 

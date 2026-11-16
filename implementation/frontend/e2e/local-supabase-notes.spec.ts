@@ -5,6 +5,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcOk,
   type Player,
@@ -223,7 +224,7 @@ rollback;`,
       expect(
         sqlError(`${fixture}
 ${insertNote()};
-update public.notes set ${change};
+update public.notes set ${change} where campaign_id = ${C1};
 rollback;`),
         change,
       ).toContain('note_reassignment_forbidden')
@@ -238,7 +239,7 @@ rollback;`),
     expect(
       sqlError(`${fixture}
 ${insertNote()};
-update public.notes set visibility = 'campaign';
+update public.notes set visibility = 'campaign' where campaign_id = ${C1};
 rollback;`),
     ).toContain('note_visibility_author_only')
 
@@ -247,14 +248,14 @@ rollback;`),
       sqlError(`${fixture}
 ${insertNote({ visibility: "'campaign'" })};
 ${asUser(B2)}
-update public.notes set visibility = 'private';
+update public.notes set visibility = 'private' where campaign_id = ${C1};
 rollback;`),
     ).toContain('note_visibility_author_only')
     expect(
       sqlError(`${fixture}
 ${insertNote({ visibility: "'campaign'" })};
 ${asUser(A1)}
-update public.notes set visibility = 'private';
+update public.notes set visibility = 'private' where campaign_id = ${C1};
 rollback;`),
     ).toBe('')
 
@@ -264,7 +265,7 @@ rollback;`),
         `${fixture}
 ${insertNote({ visibility: "'campaign'" })};
 ${asUser(B2)}
-update public.notes set body = 'edited' returning (updated_by = ${B2}) || '|' || (author_id = ${A1});
+update public.notes set body = 'edited' where campaign_id = ${C1} returning (updated_by = ${B2}) || '|' || (author_id = ${A1});
 rollback;`,
         {},
       )
@@ -320,7 +321,7 @@ rollback;`),
     expect(
       sqlError(`${fixture}
 ${insertNote()};
-update public.notes set character_id = ${E2};
+update public.notes set character_id = ${E2} where campaign_id = ${C1};
 rollback;`),
     ).toContain('note_character_unavailable')
   })
@@ -330,7 +331,7 @@ rollback;`),
       `${fixture}
 ${insertNote({ character_id: E1, visibility: "'campaign'" })};
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
-update public.notes set body = 'by the owner';
+update public.notes set body = 'by the owner' where campaign_id = ${C1};
 set constraints all immediate;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000b2","role":"authenticated"}', true);
 delete from public.characters where id = ${E1};
@@ -348,7 +349,7 @@ rollback;`,
 ${insertNote({ title: "'Mine'" }, C1, B2)};
 ${insertNote({ title: "'Theirs'", visibility: "'campaign'" }, C1, A1)};
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000b2","role":"authenticated"}', true);
-update public.notes set body = 'edited by b2' where title = 'Theirs';
+update public.notes set body = 'edited by b2' where campaign_id = ${C1} and title = 'Theirs';
 select set_config('request.jwt.claims', '', true);
 delete from public.characters where owner_id = ${B2};
 delete from public.campaign_members where profile_id = ${B2};
@@ -1132,4 +1133,129 @@ test.describe('concurrency', () => {
       await cleanup(players, ids)
     }
   })
+})
+
+test('players write private and shared notes at the crates, and a second player edits the shared one', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const { players } = await newPlayers(['owner', 'guest'])
+  const { owner, guest } = players
+  const ids: string[] = []
+  // Light on resources: one context at a time, reduced motion, no screenshots or video.
+  const signIn = async (player: Player) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    return { context, page }
+  }
+  try {
+    const campaignId = await createCampaign(owner, 'M4 real-stack notes')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+
+    const openNotes = async (page: Awaited<ReturnType<typeof signIn>>['page']) => {
+      await page.goto(`/app/campaigns/${campaignId}`)
+      await page
+        .getByRole('list', { name: 'Camp places' })
+        .getByRole('button', { name: /^Notes/ })
+        .click()
+      const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+      await expect(dialog).toBeVisible()
+      return dialog
+    }
+
+    // The owner writes a private note and a shared one; both survive a reload.
+    const first = await signIn(owner)
+    try {
+      const { page } = first
+      let dialog = await openNotes(page)
+      await expect(dialog.getByText('No notes yet. Write the first one.')).toBeVisible()
+      await dialog.getByRole('button', { name: 'New note' }).click()
+      await dialog.getByLabel('Title', { exact: true }).fill('Private plot')
+      await dialog.getByLabel(/^Note/).fill('Only I know this.')
+      await dialog.getByRole('button', { name: 'Create note' }).click()
+      await expect(dialog.getByRole('heading', { name: 'Private plot' })).toBeVisible()
+      await dialog.getByRole('button', { name: 'Back to notes' }).click()
+
+      await dialog.getByRole('button', { name: 'New note' }).click()
+      await dialog.getByLabel('Title', { exact: true }).fill('Shared plan')
+      await dialog.getByLabel(/^Note/).fill('Meet at the gate.')
+      await dialog.getByRole('radio', { name: 'Shared with the campaign' }).check()
+      await dialog.getByRole('button', { name: 'Create note' }).click()
+      await expect(dialog.getByRole('heading', { name: 'Shared plan' })).toBeVisible()
+
+      // What the screen shows is what the database holds.
+      await expect
+        .poll(() =>
+          localDatabaseQuery(
+            `select string_agg(title || '|' || visibility || '|' || body, ';' order by title)
+             from public.notes where campaign_id = '${campaignId}';`,
+            {},
+          ),
+        )
+        .toBe('Private plot|private|Only I know this.;Shared plan|campaign|Meet at the gate.')
+
+      dialog = await openNotes(page)
+      await expect(
+        dialog.getByRole('region', { name: 'Only you' }).getByRole('button', {
+          name: /Private plot/,
+        }),
+      ).toBeVisible()
+      await expect(
+        dialog.getByRole('region', { name: 'Shared with the campaign' }).getByRole('button', {
+          name: /Shared plan/,
+        }),
+      ).toBeVisible()
+    } finally {
+      await first.context.close()
+    }
+
+    // A second player sees only the shared note and edits it.
+    const second = await signIn(guest)
+    try {
+      const { page } = second
+      const dialog = await openNotes(page)
+      await expect(dialog.getByRole('button', { name: /Shared plan/ })).toBeVisible()
+      await expect(dialog.getByRole('button', { name: /Private plot/ })).toHaveCount(0)
+      await dialog.getByRole('button', { name: /Shared plan/ }).click()
+      await expect(dialog.getByRole('button', { name: 'Delete note' })).toHaveCount(0)
+      await dialog.getByRole('button', { name: 'Edit note' }).click()
+      await dialog.getByLabel(/^Note/).fill('Meet at the gate at dawn.')
+      await dialog.getByRole('button', { name: 'Save note' }).click()
+      await expect(dialog.getByText('Note saved.')).toBeVisible()
+      await expect
+        .poll(() =>
+          localDatabaseQuery(
+            `select body || '|' || (updated_by = '${guest.id}')
+             from public.notes where campaign_id = '${campaignId}' and title = 'Shared plan';`,
+            {},
+          ),
+        )
+        .toBe('Meet at the gate at dawn.|true')
+    } finally {
+      await second.context.close()
+    }
+
+    // The author sees the edit and who made it after reopening.
+    const third = await signIn(owner)
+    try {
+      const { page } = third
+      const dialog = await openNotes(page)
+      await expect(
+        dialog.locator('.note-row', { has: page.getByRole('button', { name: /Shared plan/ }) }),
+      ).toContainText(`Edited by ${guest.username}`)
+      await dialog.getByRole('button', { name: /Shared plan/ }).click()
+      await expect(dialog.locator('.note-body')).toHaveText('Meet at the gate at dawn.')
+      await expect(dialog.getByText(`Edited by ${guest.username}`)).toBeVisible()
+    } finally {
+      await third.context.close()
+    }
+  } finally {
+    await cleanup(players, ids)
+  }
 })
