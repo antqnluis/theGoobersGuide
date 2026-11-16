@@ -4,21 +4,45 @@ import {
   adventureCharacterNames,
   adventureEditedLabel,
   adventureStatusLabel,
+  acceptedParticipants,
   canArchive,
+  canEdit,
   defaultCharacterId,
   filterAdventures,
+  filterInvitations,
   groupAdventures,
+  invitableCharacters,
+  inviterLabel,
   isArchived,
   mergeAdventure,
+  missingApprovals,
+  myParticipation,
+  needsMyApproval,
+  needsMyConsent,
   objectiveDoneLabel,
   objectiveProgress,
   ownCharacters,
+  participantLabel,
   selectableTypes,
+  shareRequestLabel,
+  shareState,
   sortAdventures,
   summarizeAdventure,
   updateAuthorLabel,
+  waitingReasons,
 } from './adventureRules'
-import { adventure, miraId, objective, roster, summary, userId } from './adventureTestData'
+import {
+  adventure,
+  characterId,
+  invitation,
+  miraCharacterId,
+  miraId,
+  objective,
+  participant,
+  roster,
+  summary,
+  userId,
+} from './adventureTestData'
 
 const now = new Date('2026-11-16T12:00:00Z')
 
@@ -31,7 +55,16 @@ describe('summarizeAdventure', () => {
     const row = summarizeAdventure(detail)
     expect(row).not.toHaveProperty('description')
     expect(row.objectives).toEqual([{ done: true }, { done: false }])
-    expect(row.participants).toEqual([{ character_id: detail.participants[0].character_id }])
+    expect(row.participants).toEqual([
+      {
+        id: detail.participants[0].id,
+        character_id: characterId,
+        profile_id: userId,
+        status: 'accepted',
+        share_consent: false,
+        approvals: [],
+      },
+    ])
   })
 
   it('keeps the children a list row already had when given a bare row', () => {
@@ -88,14 +121,28 @@ describe('groupAdventures', () => {
     expect(groups.archived.map((row) => row.id)).toEqual(['archived'])
   })
 
-  it('shows archived adventures only to their creator', () => {
-    const theirs = summary({ id: 'x', created_by: miraId, archived_at: '2026-11-16T10:00:00Z' })
-    expect(groupAdventures([theirs], userId).archived).toEqual([])
-    expect(groupAdventures([theirs], miraId).archived).toHaveLength(1)
+  it('archives a main adventure for its creator, and a personal or side one for its participants (D10)', () => {
+    const archivedAt = '2026-11-16T10:00:00Z'
+    const mainOfMira = summary({
+      id: 'm',
+      type: 'main',
+      created_by: miraId,
+      archived_at: archivedAt,
+    })
+    expect(groupAdventures([mainOfMira], userId).archived).toEqual([])
+    expect(groupAdventures([{ ...mainOfMira, created_by: userId }], userId).archived).toHaveLength(
+      1,
+    )
+    // Mira created it, but the viewer is an accepted participant, so it is theirs to read.
+    const sideOfMira = summary({ id: 's', created_by: miraId, archived_at: archivedAt })
+    expect(groupAdventures([sideOfMira], userId).archived).toHaveLength(1)
+    expect(groupAdventures([sideOfMira], miraId).archived).toEqual([])
   })
 
-  it('returns four empty groups for no adventures', () => {
+  it('returns six empty groups for no adventures', () => {
     expect(groupAdventures([], userId)).toEqual({
+      waiting: [],
+      shared: [],
       mainStory: [],
       yours: [],
       completed: [],
@@ -113,9 +160,7 @@ describe('small helpers', () => {
     })
   })
 
-  it('lets only the creator archive, and only personal and side adventures change type', () => {
-    expect(canArchive({ created_by: userId }, userId)).toBe(true)
-    expect(canArchive({ created_by: miraId }, userId)).toBe(false)
+  it('lets only personal and side adventures change type', () => {
     expect(isArchived({ archived_at: null })).toBe(false)
     expect(isArchived({ archived_at: '2026-11-16T10:00:00Z' })).toBe(true)
     expect(selectableTypes('main')).toEqual(['main'])
@@ -155,7 +200,13 @@ describe('characters', () => {
     expect(adventureCharacterName('unknown', characters)).toBe('A character')
     expect(
       adventureCharacterNames(
-        { participants: [{ character_id: 'c1' }, { character_id: 'zz' }] },
+        {
+          participants: [
+            participant({ character_id: 'c1' }),
+            participant({ character_id: 'zz' }),
+            participant({ character_id: 'c2', status: 'proposed' }),
+          ],
+        },
         characters,
       ),
     ).toEqual(['Brindle', 'A character'])
@@ -227,5 +278,216 @@ describe('attribution', () => {
     expect(updateAuthorLabel(userId, userId, roster)).toBe('You')
     expect(updateAuthorLabel(miraId, userId, roster)).toBe('Mira')
     expect(updateAuthorLabel('gone', userId, roster)).toBe('A former member')
+  })
+})
+
+const mira = (overrides = {}) =>
+  participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+
+describe('collaboration rules', () => {
+  const alone = { type: 'side' as const, created_by: userId, participants: [participant()] }
+  const duo = (overrides = {}) => ({
+    type: 'side' as const,
+    visibility: 'participants' as const,
+    archived_at: null,
+    created_by: userId,
+    participants: [participant(), mira()],
+    ...overrides,
+  })
+
+  it('finds the viewer’s accepted participation and every accepted row', () => {
+    const adventure = duo({ participants: [participant({ status: 'left' }), mira()] })
+    expect(myParticipation(adventure, userId)).toBeNull()
+    expect(myParticipation(adventure, miraId)?.profile_id).toBe(miraId)
+    expect(acceptedParticipants(duo())).toHaveLength(2)
+    expect(acceptedParticipants(adventure)).toHaveLength(1)
+  })
+
+  it('lets the creator archive while taking part, and anyone accepted once they have left (D10)', () => {
+    expect(canArchive(alone, userId)).toBe(true)
+    expect(canArchive(duo(), userId)).toBe(true)
+    expect(canArchive(duo(), miraId)).toBe(false)
+    const creatorLeft = duo({ participants: [participant({ status: 'left' }), mira()] })
+    expect(canArchive(creatorLeft, miraId)).toBe(true)
+    expect(canArchive(creatorLeft, userId)).toBe(false)
+    // A party viewer is not a participant.
+    expect(canArchive(duo(), 'someone-else')).toBe(false)
+    // Main adventures stay with their creator, whoever reads them.
+    const main = { type: 'main' as const, created_by: miraId, participants: [] }
+    expect(canArchive(main, miraId)).toBe(true)
+    expect(canArchive(main, userId)).toBe(false)
+  })
+
+  it('edits main adventures and the ones the viewer is in, never an archived one or the party’s', () => {
+    expect(canEdit(duo(), userId)).toBe(true)
+    expect(canEdit(duo({ visibility: 'party' }), 'party-viewer')).toBe(false)
+    expect(canEdit(duo({ archived_at: '2026-11-16T10:00:00Z' }), userId)).toBe(false)
+    expect(canEdit({ type: 'main', archived_at: null, participants: [] }, 'anyone')).toBe(true)
+    expect(
+      canEdit({ type: 'main', archived_at: '2026-11-16T10:00:00Z', participants: [] }, 'x'),
+    ).toBe(false)
+  })
+
+  it('reads the share state from visibility and consent', () => {
+    expect(shareState(duo())).toBe('private')
+    expect(shareState(duo({ participants: [participant({ share_consent: true }), mira()] }))).toBe(
+      'requested',
+    )
+    expect(shareState(duo({ visibility: 'party' }))).toBe('shared')
+    expect(shareState({ type: 'main', visibility: 'campaign', participants: [] })).toBe('private')
+    // Consent on a row that is not accepted does not count.
+    expect(
+      shareState(
+        duo({ participants: [participant(), mira({ status: 'left', share_consent: true })] }),
+      ),
+    ).toBe('private')
+  })
+
+  it('knows which proposals and share requests wait for the viewer', () => {
+    const proposal = participant({
+      id: 'p',
+      status: 'proposed',
+      approvals: [{ approver_id: miraId }],
+    })
+    expect(needsMyApproval(proposal, userId)).toBe(true)
+    expect(needsMyApproval(proposal, miraId)).toBe(false)
+    expect(needsMyApproval(participant(), userId)).toBe(false)
+
+    const requested = duo({ participants: [participant(), mira({ share_consent: true })] })
+    expect(needsMyConsent(requested, userId)).toBe(true)
+    expect(needsMyConsent(requested, miraId)).toBe(false)
+    expect(needsMyConsent(duo(), userId)).toBe(false)
+    expect(needsMyConsent(duo({ archived_at: '2026-11-16T10:00:00Z' }), userId)).toBe(false)
+
+    const both = duo({ participants: [participant(), mira({ share_consent: true }), proposal] })
+    expect(waitingReasons(both, userId).map((reason) => reason.kind)).toEqual([
+      'approval',
+      'consent',
+    ])
+    expect(waitingReasons(both, 'party-viewer')).toEqual([])
+    expect(waitingReasons(duo({ archived_at: '2026-11-16T10:00:00Z' }), userId)).toEqual([])
+  })
+
+  it('puts an adventure in exactly one group, with "Waiting for you" first', () => {
+    const proposal = participant({ id: 'p', status: 'proposed', approvals: [] })
+    const rows = [
+      summary({ id: 'waits', participants: [participant(), proposal] }),
+      summary({ id: 'waits-done', status: 'completed', participants: [participant(), proposal] }),
+      summary({ id: 'mine' }),
+      summary({
+        id: 'theirs',
+        visibility: 'party',
+        created_by: miraId,
+        participants: [mira({ share_consent: true })],
+      }),
+      summary({
+        id: 'theirs-done',
+        visibility: 'party',
+        status: 'completed',
+        created_by: miraId,
+        participants: [mira({ share_consent: true })],
+      }),
+    ]
+    const groups = groupAdventures(rows, userId)
+    expect(groups.waiting.map((row) => row.id).sort()).toEqual(['waits', 'waits-done'])
+    expect(groups.yours.map((row) => row.id)).toEqual(['mine'])
+    expect(groups.shared.map((row) => row.id)).toEqual(['theirs'])
+    expect(groups.completed.map((row) => row.id)).toEqual(['theirs-done'])
+    const placed = Object.values(groups).flat()
+    expect(new Set(placed.map((row) => row.id)).size).toBe(placed.length)
+  })
+
+  it('lists characters that may be invited: active, another member’s, whose owner is not in yet', () => {
+    const characters = [
+      { id: 'mine', owner_id: userId, status: 'active' as const },
+      { id: 'mira', owner_id: miraId, status: 'active' as const },
+      { id: 'bram', owner_id: 'bram', status: 'active' as const },
+      { id: 'retired', owner_id: 'cass', status: 'retired' as const },
+      { id: 'gone', owner_id: 'gone', status: 'active' as const },
+      { id: 'dead', owner_id: 'dov', status: 'deceased' as const },
+    ]
+    const members = [{ profile_id: userId }, { profile_id: miraId }, { profile_id: 'bram' }]
+    expect(
+      invitableCharacters(
+        characters,
+        alone,
+        [...members, { profile_id: 'cass' }, { profile_id: 'dov' }],
+        userId,
+      ).map((character) => character.id),
+    ).toEqual(['mira', 'bram'])
+    // Mira is already in, and Bram has a pending invitation: neither can be proposed again.
+    const crowded = {
+      participants: [participant(), mira(), participant({ profile_id: 'bram', status: 'invited' })],
+    }
+    expect(invitableCharacters(characters, crowded, members, userId)).toEqual([])
+    // A declined or left player can be proposed again.
+    const declined = {
+      participants: [
+        participant(),
+        mira({ status: 'declined' }),
+        participant({ profile_id: 'bram', status: 'left' }),
+      ],
+    }
+    expect(invitableCharacters(characters, declined, members, userId).map((c) => c.id)).toEqual([
+      'mira',
+      'bram',
+    ])
+  })
+
+  it('labels pending participants', () => {
+    const pair = duo({ participants: [participant(), mira()] })
+    const proposal = participant({ status: 'proposed', approvals: [{ approver_id: userId }] })
+    expect(missingApprovals(proposal, pair).map((row) => row.profile_id)).toEqual([miraId])
+    expect(participantLabel(proposal, pair, userId, roster)).toBe('Waiting for 1 approval')
+    expect(
+      participantLabel(participant({ status: 'proposed', approvals: [] }), pair, userId, roster),
+    ).toBe('Waiting for 2 approvals')
+    expect(participantLabel(mira({ status: 'invited' }), pair, userId, roster)).toBe(
+      "Waiting for Mira's answer",
+    )
+    expect(participantLabel(mira({ status: 'declined' }), pair, userId, roster)).toBe('Declined')
+    expect(participantLabel(mira({ status: 'left' }), pair, userId, roster)).toBe('Left')
+    expect(participantLabel(mira(), pair, userId, roster)).toBeNull()
+    expect(inviterLabel(miraId, userId, roster)).toBe('Invited by Mira')
+    expect(inviterLabel(userId, userId, roster)).toBe('Invited by you')
+    expect(inviterLabel(null, userId, roster)).toBe('Invited by a former member')
+  })
+
+  it('filters invitations by title', () => {
+    const rows = [invitation({ title: 'The long road' }), invitation({ title: 'Burn the map' })]
+    expect(filterInvitations(rows, ' ROAD ')).toHaveLength(1)
+    expect(filterInvitations(rows, '')).toHaveLength(2)
+    expect(filterInvitations(rows, 'zzz')).toEqual([])
+  })
+})
+
+describe('shareRequestLabel', () => {
+  const mira = (overrides = {}) =>
+    participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+
+  it('names who has agreed, besides the viewer', () => {
+    expect(
+      shareRequestLabel(
+        { participants: [participant(), mira({ share_consent: true })] },
+        userId,
+        roster,
+      ),
+    ).toBe('Mira wants to share this with the party')
+    expect(
+      shareRequestLabel(
+        {
+          participants: [
+            participant(),
+            mira({ share_consent: true }),
+            participant({ profile_id: 'bram', character_id: 'cb', share_consent: true }),
+          ],
+        },
+        userId,
+        [...roster, { profile_id: 'bram', username: 'bram', display_name: 'Bram' }],
+      ),
+    ).toBe('Mira and Bram want to share this with the party')
+    expect(shareRequestLabel({ participants: [participant()] }, userId, roster)).toBe(
+      'Someone wants to share this with the party',
+    )
   })
 })

@@ -1,8 +1,10 @@
 import {
+  countAdventureRequests,
   countCharacterAdventures,
   getAdventure,
   isAdventureUnavailable,
   listAdventures,
+  listInvitations,
 } from './adventureService'
 
 /** Every adventure query, for the membership cache. Under ['campaigns'] so transfers refresh it too. */
@@ -37,10 +39,40 @@ export function adventureOptions(adventureId: string, userId: string, enabled = 
   }
 }
 
+export const invitationsKey = (campaignId: string, userId: string) =>
+  ['campaigns', 'adventures', 'invitations', campaignId, userId] as const
+
+/** The caller's open invitations; the board's "Waiting for you" group reads them. */
+export function invitationsOptions(campaignId: string, userId: string, enabled = true) {
+  return {
+    queryKey: invitationsKey(campaignId, userId),
+    queryFn: () => listInvitations(campaignId),
+    enabled,
+    refetchOnWindowFocus: true,
+  }
+}
+
+export const requestCountKey = (campaignId: string, userId: string) =>
+  ['campaigns', 'adventures', 'requests', campaignId, userId] as const
+
+/**
+ * How many requests wait for the caller (D13): read when the camp opens and on focus. A failed
+ * read shows no count, so it never retries loudly or blocks the camp.
+ */
+export function requestCountOptions(campaignId: string, userId: string, enabled = true) {
+  return {
+    queryKey: requestCountKey(campaignId, userId),
+    queryFn: () => countAdventureRequests(campaignId),
+    enabled,
+    retry: false,
+    refetchOnWindowFocus: true,
+  }
+}
+
 export const characterAdventureCountKey = (characterId: string, userId: string) =>
   ['campaigns', 'adventures', 'character-count', characterId, userId] as const
 
-/** How many adventures deleting a character would delete; read when the confirmation opens. */
+/** What deleting a character does to adventures (D11); read when the confirmation opens. */
 export function characterAdventureCountOptions(
   characterId: string,
   userId: string,

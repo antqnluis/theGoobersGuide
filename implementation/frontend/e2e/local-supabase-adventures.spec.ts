@@ -157,7 +157,7 @@ test.describe('catalog and privileges', () => {
       'private.guard_adventure_participant_write()',
       'private.guard_adventure_objective_write()',
       'private.guard_adventure_update_insert()',
-      'private.delete_orphaned_adventure()',
+      'private.after_adventure_participant_delete()',
     ]) {
       expect(executable(guard), guard).toBe('')
     }
@@ -169,6 +169,12 @@ test.describe('catalog and privileges', () => {
         {},
       )
     expect(policies('adventures')).toBe('SELECT,UPDATE')
+    expect(
+      localDatabaseQuery(
+        `select policyname from pg_policies where schemaname = 'public' and tablename = 'adventures' and cmd = 'UPDATE';`,
+        {},
+      ),
+    ).toBe('Writers edit their adventures')
     expect(policies('adventure_participants')).toBe('SELECT')
     expect(policies('adventure_objectives')).toBe('DELETE,INSERT,SELECT,UPDATE')
     expect(policies('adventure_updates')).toBe('DELETE,INSERT,SELECT')
@@ -179,23 +185,26 @@ test.describe('catalog and privileges', () => {
          where tgrelid = 'public.${table}'::regclass and not tgisinternal;`,
         {},
       )
-    expect(triggers('adventures')).toBe('adventures_guard_write,adventures_set_updated_at')
+    // M6 adds the reconcile-on-archive trigger and the deferred consent constraint triggers.
+    expect(triggers('adventures')).toBe(
+      'adventures_check_share_consent,adventures_guard_write,adventures_reconcile_on_archive,adventures_set_updated_at',
+    )
     expect(triggers('adventure_participants')).toBe(
-      'adventure_participants_delete_orphan,adventure_participants_guard_write',
+      'adventure_participants_after_delete,adventure_participants_check_share_consent,adventure_participants_guard_write',
     )
     expect(triggers('adventure_objectives')).toBe(
       'adventure_objectives_guard_write,adventure_objectives_set_updated_at',
     )
     expect(triggers('adventure_updates')).toBe('adventure_updates_guard_insert')
 
-    // D6: the departure hook is unchanged and never touches adventures.
+    // M6 D9: the departure hook now handles adventure participations.
     expect(
       localDatabaseQuery(
-        `select prosrc ~ 'adventure_participants|public.adventures' from pg_proc
+        `select prosrc ~ 'adventure_participants' from pg_proc
          where oid = 'private.handle_campaign_member_departure(uuid, uuid)'::regprocedure;`,
         {},
       ),
-    ).toBe('f')
+    ).toBe('t')
   })
 })
 
@@ -226,7 +235,9 @@ test.describe('database integrity (as postgres, rolled back)', () => {
       [insertAdventure({ reference: "E'tab\\there'" }), 'adventures_reference_check'],
       [insertAdventure({ type: "'quest'" }), 'adventures_type_check'],
       [insertAdventure({ status: "'done'" }), 'adventures_status_check'],
-      [insertAdventure({ visibility: "'party'" }), 'adventures_visibility_check'],
+      [insertAdventure({ visibility: "'everyone'" }), 'adventures_visibility_check'],
+      // M6: 'party' is a valid value, but never for main.
+      [insertAdventure({ visibility: "'party'" }), 'adventures_visibility_matches_type'],
       [insertAdventure({ visibility: "'participants'" }), 'adventures_visibility_matches_type'],
       [
         insertAdventure({ type: "'side'", visibility: "'campaign'" }),
@@ -276,12 +287,25 @@ test.describe('database integrity (as postgres, rolled back)', () => {
       `created_by = ${B2}`,
       `id = gen_random_uuid()`,
       `created_at = created_at - interval '1 day'`,
-      `visibility = 'participants'`,
     ]) {
       expect(
         sqlError(`${fixture}\nupdate public.adventures set ${change} where id = ${M1};\nrollback;`),
         change,
       ).toContain('adventure_reassignment_forbidden')
+    }
+    // M6: visibility may change only to the derived value.
+    for (const [id, visibility] of [
+      [M1, 'participants'],
+      [M1, 'party'],
+      [P1, 'party'],
+      [P1, 'campaign'],
+    ]) {
+      expect(
+        sqlError(
+          `${fixture}\nupdate public.adventures set visibility = '${visibility}' where id = ${id};\nrollback;`,
+        ),
+        `${id} ${visibility}`,
+      ).toMatch(/adventure_visibility_forbidden|adventures_visibility_matches_type/)
     }
     expect(
       sqlError(
@@ -382,14 +406,16 @@ rollback;`),
     // Another player's character, or one from another campaign: the composite FKs refuse it.
     expect(
       sqlError(`${fixture}
-insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id)
-  values (${P1}, ${C1}, ${E3}, ${B2});
+insert into public.adventures (id, campaign_id, created_by, type, visibility, title)
+  values ('00000000-0000-4000-8000-0000000005f4', ${C1}, ${A1}, 'side', 'participants', 'Other');
+insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id, status)
+  values ('00000000-0000-4000-8000-0000000005f4', ${C1}, ${E3}, ${B2}, 'proposed');
 rollback;`),
     ).toContain('adventure_participants_character_owner_fkey')
     expect(
       sqlError(`${fixture}
-insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id)
-  values (${P1}, ${C1}, ${E2}, ${A1});
+insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id, status)
+  values (${P1}, ${C1}, ${E2}, ${A1}, 'proposed');
 rollback;`),
     ).toContain('adventure_participants_character_campaign_fkey')
     expect(
@@ -476,17 +502,22 @@ insert into public.adventure_updates (adventure_id, author_id, body)
       `${fixture}
 insert into public.adventure_objectives (adventure_id, title) values (${P1}, 'Solo task'), (${M1}, 'Main task');
 insert into public.adventure_updates (adventure_id, author_id, body) values (${P1}, ${B2}, 'Solo note');
--- A side adventure with two accepted participants survives losing one.
+-- A side adventure with two accepted participants survives losing one. The second participant
+-- joins through the proposed -> invited -> accepted transitions (M6 guard).
 insert into public.adventures (id, campaign_id, created_by, type, visibility, title)
   values ('00000000-0000-4000-8000-0000000005f3', ${C1}, ${A1}, 'side', 'participants', 'Duo');
 insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id)
-  values ('00000000-0000-4000-8000-0000000005f3', ${C1}, ${E3}, ${A1}),
-         ('00000000-0000-4000-8000-0000000005f3', ${C1}, ${E1}, ${B2});
+  values ('00000000-0000-4000-8000-0000000005f3', ${C1}, ${E3}, ${A1});
+insert into public.adventure_participants (adventure_id, campaign_id, character_id, profile_id, status)
+  values ('00000000-0000-4000-8000-0000000005f3', ${C1}, ${E1}, ${B2}, 'proposed');
+update public.adventure_participants set status = 'invited' where character_id = ${E1} and adventure_id = '00000000-0000-4000-8000-0000000005f3';
+update public.adventure_participants set status = 'accepted' where character_id = ${E1} and adventure_id = '00000000-0000-4000-8000-0000000005f3';
 delete from public.characters where id = ${E1};
+-- Counts are scoped to this campaign so unrelated rows in the local database cannot shift them.
 select 'result', string_agg(title, ',' order by title),
-  (select count(*) from public.adventure_objectives),
-  (select count(*) from public.adventure_updates),
-  (select count(*) from public.adventure_participants)
+  (select count(*) from public.adventure_objectives where adventure_id in (select id from public.adventures where campaign_id = ${C1})),
+  (select count(*) from public.adventure_updates where adventure_id in (select id from public.adventures where campaign_id = ${C1})),
+  (select count(*) from public.adventure_participants where campaign_id = ${C1})
   from public.adventures where campaign_id = ${C1};
 rollback;`,
       {},
@@ -506,8 +537,8 @@ delete from public.campaign_members where profile_id = ${B2};
 delete from auth.users where id = ${B2};
 select 'result', string_agg(a.title, ',' order by a.title),
   bool_and(a.updated_by is null and a.status_changed_by is null),
-  (select bool_and(created_by is null and completed_by is null) from public.adventure_objectives),
-  (select count(*) from public.adventure_updates)
+  (select bool_and(created_by is null and completed_by is null) from public.adventure_objectives where adventure_id in (select id from public.adventures where campaign_id = ${C1})),
+  (select count(*) from public.adventure_updates where adventure_id in (select id from public.adventures where campaign_id = ${C1}))
   from public.adventures as a where a.campaign_id = ${C1};
 rollback;`,
       {},

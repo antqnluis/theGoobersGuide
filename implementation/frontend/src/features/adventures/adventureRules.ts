@@ -4,10 +4,13 @@ import { noteAuthorLabel, relativeTime } from '../notes/noteRules'
 import type {
   Adventure,
   AdventureDetail,
+  AdventureInvitation,
   AdventureObjective,
+  AdventureParticipantSummary,
   AdventureStatus,
   AdventureSummary,
   AdventureType,
+  ShareState,
 } from './adventureTypes'
 
 type RosterEntry = Pick<CampaignRosterMember, 'profile_id' | 'username' | 'display_name'>
@@ -48,7 +51,12 @@ export function summarizeAdventure(
     created_at: adventure.created_at,
     updated_at: adventure.updated_at,
     participants: (children?.participants ?? source.participants ?? []).map((participant) => ({
+      id: participant.id,
       character_id: participant.character_id,
+      profile_id: participant.profile_id,
+      status: participant.status,
+      share_consent: participant.share_consent,
+      approvals: participant.approvals.map(({ approver_id }) => ({ approver_id })),
     })),
     objectives: (children?.objectives ?? source.objectives ?? []).map((objective) => ({
       done: objective.done,
@@ -88,29 +96,125 @@ const activeOrder: Record<AdventureStatus, number> = {
 
 type Groupable = Pick<
   AdventureSummary,
-  'id' | 'updated_at' | 'type' | 'status' | 'archived_at' | 'created_by'
+  | 'id'
+  | 'updated_at'
+  | 'type'
+  | 'status'
+  | 'archived_at'
+  | 'created_by'
+  | 'visibility'
+  | 'participants'
 >
 
+type Participation = Pick<AdventureSummary, 'participants'>
+
+/** The viewer's accepted participation, or null: a party viewer, or a main adventure's reader. */
+export function myParticipation<
+  P extends Pick<AdventureParticipantSummary, 'profile_id' | 'status'>,
+>(adventure: { participants: readonly P[] }, userId: string): P | null {
+  return (
+    adventure.participants.find(
+      (participant) => participant.profile_id === userId && participant.status === 'accepted',
+    ) ?? null
+  )
+}
+
+/** Accepted participants, the only rows everyone who can read the adventure sees. */
+export function acceptedParticipants<
+  P extends Pick<AdventureParticipantSummary, 'status'>,
+>(adventure: { participants: readonly P[] }) {
+  return adventure.participants.filter((participant) => participant.status === 'accepted')
+}
+
+/** Private, waiting for the rest to agree, or shared with the party (D6). Main is never shared. */
+export function shareState(
+  adventure: Pick<Adventure, 'type' | 'visibility'> & Participation,
+): ShareState {
+  if (adventure.type === 'main') return 'private'
+  if (adventure.visibility === 'party') return 'shared'
+  return acceptedParticipants(adventure).some((participant) => participant.share_consent)
+    ? 'requested'
+    : 'private'
+}
+
+/** A proposal the viewer, as an accepted participant, has not approved yet (D3). */
+export function needsMyApproval(
+  participant: Pick<AdventureParticipantSummary, 'status' | 'approvals'>,
+  userId: string,
+) {
+  return (
+    participant.status === 'proposed' &&
+    !participant.approvals.some((approval) => approval.approver_id === userId)
+  )
+}
+
+/** A share request the viewer, as an accepted participant, has not agreed to (D6). */
+export function needsMyConsent(
+  adventure: Pick<Adventure, 'type' | 'visibility' | 'archived_at'> & Participation,
+  userId: string,
+) {
+  const mine = myParticipation(adventure, userId)
+  return (
+    adventure.archived_at === null &&
+    mine !== null &&
+    !mine.share_consent &&
+    shareState(adventure) === 'requested'
+  )
+}
+
+export type WaitingReason =
+  { kind: 'approval'; participant: AdventureParticipantSummary } | { kind: 'consent' }
+
+/** Why an adventure is in "Waiting for you": proposals to approve and a share request (D13). */
+export function waitingReasons(
+  adventure: Pick<Adventure, 'type' | 'visibility' | 'archived_at'> & Participation,
+  userId: string,
+): WaitingReason[] {
+  if (adventure.archived_at !== null || myParticipation(adventure, userId) === null) return []
+  const reasons: WaitingReason[] = adventure.participants
+    .filter((participant) => needsMyApproval(participant, userId))
+    .map((participant) => ({ kind: 'approval', participant }))
+  if (needsMyConsent(adventure, userId)) reasons.push({ kind: 'consent' })
+  return reasons
+}
+
 /**
- * The four list groups (D12), each most recently edited first. A completed adventure of any
- * type moves to "Completed", so "Main story" shows the storyline still in play. An archived
- * adventure is only ever the creator's own (RLS), and sits in "Archived" whatever its status.
+ * The board's groups (§5.3, changing M5 D12), each most recently edited first, and each
+ * adventure in exactly one. "Waiting for you" takes precedence over the rest. A completed
+ * adventure of any type moves to "Completed". An archived adventure sits in "Archived": the
+ * viewer's own main adventure, or a personal or side adventure they are in (D10). Adventures
+ * shared with the party that the viewer is not in are read-only, in "Shared with the party".
  */
 export function groupAdventures<T extends Groupable>(adventures: readonly T[], userId: string) {
   const sorted = sortAdventures(adventures)
   const live = sorted.filter((adventure) => adventure.archived_at === null)
-  const active = live.filter((adventure) => adventure.status !== 'completed')
+  const waiting = live.filter((adventure) => waitingReasons(adventure, userId).length > 0)
+  const rest = live.filter((adventure) => !waiting.includes(adventure))
+  const active = rest.filter((adventure) => adventure.status !== 'completed')
+  const mine = (adventure: T) => myParticipation(adventure, userId) !== null
   return {
+    waiting,
     mainStory: active.filter((adventure) => adventure.type === 'main'),
     yours: active
-      .filter((adventure) => adventure.type !== 'main')
+      .filter((adventure) => adventure.type !== 'main' && mine(adventure))
       // A stable sort keeps the newest-first order inside each status.
       .sort((a, b) => activeOrder[a.status] - activeOrder[b.status]),
-    completed: live.filter((adventure) => adventure.status === 'completed'),
+    shared: active.filter((adventure) => adventure.type !== 'main' && !mine(adventure)),
+    completed: rest.filter((adventure) => adventure.status === 'completed'),
     archived: sorted.filter(
-      (adventure) => adventure.archived_at !== null && adventure.created_by === userId,
+      (adventure) =>
+        adventure.archived_at !== null &&
+        (adventure.type === 'main' ? adventure.created_by === userId : mine(adventure)),
     ),
   }
+}
+
+/** Invitations whose title matches the board's filter; a blank query keeps everything. */
+export function filterInvitations(invitations: readonly AdventureInvitation[], query: string) {
+  const needle = query.trim().toLowerCase()
+  return needle
+    ? invitations.filter((invitation) => invitation.title.toLowerCase().includes(needle))
+    : [...invitations]
 }
 
 /** Objectives done out of total, for a row or the detail header. */
@@ -122,9 +226,106 @@ export function isArchived(adventure: Pick<Adventure, 'archived_at'>) {
   return adventure.archived_at !== null
 }
 
-/** Only the creator archives or restores (D4); the database enforces it too. */
-export function canArchive(adventure: Pick<Adventure, 'created_by'>, userId: string) {
-  return adventure.created_by === userId
+/**
+ * Who archives and restores (D10). Main: its creator. Personal and side: the creator while an
+ * accepted participant, and any accepted participant once the creator is not one. The database
+ * enforces it too.
+ */
+export function canArchive(
+  adventure: Pick<Adventure, 'created_by' | 'type'> & Participation,
+  userId: string,
+) {
+  if (adventure.type === 'main') return adventure.created_by === userId
+  if (myParticipation(adventure, userId) === null) return false
+  if (adventure.created_by === userId) return true
+  return !acceptedParticipants(adventure).some(
+    (participant) => participant.profile_id === adventure.created_by,
+  )
+}
+
+/**
+ * Whether the viewer may change the adventure: a main adventure, or one they are accepted in,
+ * and not archived. The party audience reads only (D7).
+ */
+export function canEdit(
+  adventure: Pick<Adventure, 'type' | 'archived_at'> & Participation,
+  userId: string,
+) {
+  if (adventure.archived_at !== null) return false
+  return adventure.type === 'main' || myParticipation(adventure, userId) !== null
+}
+
+type RosterProfile = Pick<CampaignRosterMember, 'profile_id'>
+
+/**
+ * Characters that may be proposed (D1, D2): active, owned by another current member, whose
+ * owner has no live participation (proposed, invited, or accepted) in the adventure.
+ */
+export function invitableCharacters<C extends Pick<CharacterSummary, 'id' | 'owner_id' | 'status'>>(
+  characters: readonly C[],
+  adventure: Participation,
+  roster: readonly RosterProfile[],
+  userId: string,
+) {
+  const members = new Set(roster.map((member) => member.profile_id))
+  const live = new Set(
+    adventure.participants
+      .filter((participant) => ['proposed', 'invited', 'accepted'].includes(participant.status))
+      .map((participant) => participant.profile_id),
+  )
+  return characters.filter(
+    (character) =>
+      character.status === 'active' &&
+      character.owner_id !== userId &&
+      members.has(character.owner_id) &&
+      !live.has(character.owner_id),
+  )
+}
+
+/** The accepted participants who have not approved a proposal yet. */
+export function missingApprovals(
+  participant: Pick<AdventureParticipantSummary, 'approvals'>,
+  adventure: Participation,
+) {
+  return acceptedParticipants(adventure).filter(
+    (accepted) =>
+      !participant.approvals.some((approval) => approval.approver_id === accepted.profile_id),
+  )
+}
+
+/**
+ * The state of a non-accepted participant: "Waiting for 2 approvals", "Waiting for Mira's
+ * answer", "Declined", or "Left". An accepted participant has none.
+ */
+export function participantLabel(
+  participant: Pick<AdventureParticipantSummary, 'status' | 'approvals' | 'profile_id'>,
+  adventure: Participation,
+  userId: string,
+  roster: readonly RosterEntry[],
+) {
+  switch (participant.status) {
+    case 'proposed': {
+      const count = missingApprovals(participant, adventure).length
+      return `Waiting for ${count} ${count === 1 ? 'approval' : 'approvals'}`
+    }
+    case 'invited':
+      return `Waiting for ${who(participant.profile_id, userId, roster)}'s answer`
+    case 'declined':
+      return 'Declined'
+    case 'left':
+      return 'Left'
+    default:
+      return null
+  }
+}
+
+/** "Invited by Mira"; a deleted inviter (null) reads as a former member. */
+export function inviterLabel(
+  invitedBy: string | null,
+  userId: string,
+  roster: readonly RosterEntry[],
+) {
+  return `Invited by ${invitedBy === null ? 'a former member' : who(invitedBy, userId, roster)}`
 }
 
 /** Personal and side adventures switch freely; main never changes type (D2). */
@@ -159,12 +360,12 @@ export function adventureCharacterName(
   return characters.find((character) => character.id === characterId)?.name ?? 'A character'
 }
 
-/** Names the characters of an adventure's participants, in participant order. */
+/** Names the characters of an adventure's accepted participants, in participant order. */
 export function adventureCharacterNames(
   adventure: Pick<AdventureSummary, 'participants'>,
   characters: readonly Pick<CharacterSummary, 'id' | 'name'>[],
 ) {
-  return adventure.participants.map((participant) =>
+  return acceptedParticipants(adventure).map((participant) =>
     adventureCharacterName(participant.character_id, characters),
   )
 }
@@ -234,4 +435,18 @@ export function updateAuthorLabel(
 /** Writes a changed adventure row onto a cached detail, keeping the children it was read with. */
 export function mergeAdventure(detail: AdventureDetail, row: Adventure): AdventureDetail {
   return { ...detail, ...row }
+}
+
+/** "Mira wants to share this with the party": who has agreed to a share request, besides the viewer. */
+export function shareRequestLabel(
+  adventure: Participation,
+  userId: string,
+  roster: readonly RosterEntry[],
+) {
+  const names = acceptedParticipants(adventure)
+    .filter((participant) => participant.share_consent && participant.profile_id !== userId)
+    .map((participant) => noteAuthorLabel(participant.profile_id, userId, roster))
+  if (names.length === 0) return 'Someone wants to share this with the party'
+  const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(names)
+  return `${list} ${names.length === 1 ? 'wants' : 'want'} to share this with the party`
 }

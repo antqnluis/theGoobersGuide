@@ -13,6 +13,7 @@ import {
   partyRoster,
   redHand,
   type AdventureState,
+  type MockCharacter,
 } from './support/campMocks.ts'
 
 // M03.5 adventures (Phase 4): the board at the map table, against mocked API routes. The
@@ -24,7 +25,13 @@ const brand = mockCharacter({ name: 'Brand' })
 async function openAdventures(
   page: Page,
   state: AdventureState = { adventures: [] },
-  options: { member?: boolean; width?: number; height?: number } = {},
+  options: {
+    member?: boolean
+    width?: number
+    height?: number
+    /** Other players' characters the signed-in player may see. */
+    others?: MockCharacter[]
+  } = {},
 ) {
   await page.setViewportSize({ width: options.width ?? 1440, height: options.height ?? 900 })
   await mockCampaignApi(
@@ -33,7 +40,10 @@ async function openAdventures(
     options.member ? { memberMode: true } : {},
   )
   await mockRoster(page, () => partyRoster(3))
-  await mockCharacters(page, { characters: [brand], sheets: [mockSheet(brand.id)] })
+  await mockCharacters(page, {
+    characters: [brand, ...(options.others ?? [])],
+    sheets: [brand, ...(options.others ?? [])].map((character) => mockSheet(character.id)),
+  })
   state.characterIds ??= [brand.id]
   const mock = await mockAdventures(page, state)
   const camp = await openCamp(page)
@@ -331,4 +341,183 @@ test('an adventure archived elsewhere reads as no longer available, and the list
   ).toBeVisible()
   await dialog.getByRole('button', { name: 'Back to adventures' }).click()
   await expect(dialog.getByRole('button', { name: 'Find the heir' })).toHaveCount(0)
+})
+
+// --- M03.6 collaboration (Phase 3): invitations, participants, and leaving ---------------------
+
+const mira = partyRoster(3)[2].profile_id
+const tess = mockCharacter({ name: 'Tess', owner_id: mira, in_party: true })
+
+const hostRow = (adventureId: string) => ({
+  id: `${adventureId}-host`,
+  character_id: tess.id,
+  profile_id: mira,
+  status: 'accepted' as const,
+  approvals: [] as string[],
+  share_consent: false,
+})
+const myRow = (adventureId: string) => ({
+  id: `${adventureId}-me`,
+  character_id: brand.id,
+  profile_id: accountId,
+  status: 'accepted' as const,
+  approvals: [] as string[],
+  share_consent: false,
+})
+
+const invitationTo = (title: string) => ({
+  participant_id: 'invite-1',
+  adventure_id: '00000000-0000-4000-8000-000000009001',
+  title,
+  type: 'side' as const,
+  character_id: brand.id,
+  invited_by: mira,
+  invited_at: new Date(Date.now() - 3_600_000).toISOString(),
+  shared_with_party: false,
+})
+
+test('an invitation waits at the top of the board and in the Places entry, and accepting opens the adventure', async ({
+  page,
+}) => {
+  const state: AdventureState = {
+    adventures: [],
+    invitations: [invitationTo('The long road')],
+    characterOwners: { [tess.id]: mira },
+  }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toContainText(
+    'The long road',
+  )
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toContainText('For Brand')
+  // The invitee is told the title and who invited them, and nothing else.
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).not.toContainText(
+    'Description',
+  )
+
+  await dialog.getByRole('button', { name: 'Accept the invitation to The long road' }).click()
+  await expect(dialog.getByText('You joined the adventure.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { level: 3, name: 'The long road' })).toBeVisible()
+  await expect(
+    dialog.getByRole('region', { name: 'Participants' }).getByRole('listitem'),
+  ).toHaveCount(2)
+  expect(state.invitations).toEqual([])
+})
+
+test('declining asks first, and the card and the count go', async ({ page }) => {
+  const state: AdventureState = { adventures: [], invitations: [invitationTo('The long road')] }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+  const decline = dialog.getByRole('button', { name: 'Decline the invitation to The long road' })
+  await decline.click()
+  await expect(dialog.getByRole('button', { name: 'Yes, decline' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Keep invitation' }).click()
+  await expect(decline).toBeFocused()
+
+  await decline.click()
+  await dialog.getByRole('button', { name: 'Yes, decline' }).click()
+  await expect(dialog.getByText('Invitation declined.')).toBeVisible()
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toHaveCount(0)
+  expect(state.invitations).toEqual([])
+})
+
+test('the Places entry says how many requests wait', async ({ page }) => {
+  const state: AdventureState = { adventures: [], invitations: [invitationTo('The long road')] }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(3))
+  await mockCharacters(page, { characters: [brand], sheets: [mockSheet(brand.id)] })
+  await mockAdventures(page, state)
+  await openCamp(page)
+  await expect(
+    page
+      .getByRole('list', { name: 'Camp places' })
+      .getByRole('button', { name: 'Adventures, 1 waiting' }),
+  ).toContainText('Adventures (1)')
+})
+
+test('proposing a character asks the others first', async ({ page }) => {
+  const adventure = mockAdventure({
+    title: 'The heist',
+    type: 'side',
+    created_by: accountId,
+    participantRows: [],
+  })
+  adventure.participantRows = [myRow(adventure.id), hostRow(adventure.id)]
+  const cass = mockCharacter({ name: 'Cass', owner_id: partyRoster(3)[1].profile_id })
+  const state: AdventureState = {
+    adventures: [adventure],
+    characterOwners: { [cass.id]: cass.owner_id },
+  }
+  const { dialog } = await openAdventures(page, state, { others: [tess, cass] })
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+  const people = dialog.getByRole('region', { name: 'Participants' })
+  await expect(people).toContainText('Brand')
+  await expect(people).toContainText('Tess')
+
+  await people.getByLabel('Invite a character').selectOption(cass.id)
+  await people.getByRole('button', { name: 'Invite' }).click()
+  await expect(dialog.getByRole('button', { name: 'Ask for approval' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Ask for approval' }).click()
+  await expect(dialog.getByText('Invitation proposed.')).toBeVisible()
+  await expect(people.getByRole('listitem').filter({ hasText: 'Cass' })).toContainText(
+    'Waiting for 1 approval',
+  )
+
+  // Tess had not approved: the proposal waits for her, not for the viewer.
+  expect(adventure.participantRows!.find((p) => p.character_id === cass.id)?.status).toBe(
+    'proposed',
+  )
+})
+
+test('a proposal waiting for the viewer is approved or rejected from the adventure', async ({
+  page,
+}) => {
+  const adventure = mockAdventure({ title: 'The heist', type: 'side', participantRows: [] })
+  const cass = mockCharacter({ name: 'Cass', owner_id: partyRoster(3)[1].profile_id })
+  adventure.participantRows = [
+    myRow(adventure.id),
+    hostRow(adventure.id),
+    {
+      id: 'proposal-cass',
+      character_id: cass.id,
+      profile_id: cass.owner_id,
+      status: 'proposed',
+      approvals: [mira],
+      share_consent: false,
+    },
+  ]
+  const state: AdventureState = { adventures: [adventure] }
+  const { dialog } = await openAdventures(page, state, { others: [tess, cass] })
+  // It is waiting for the viewer, so the board says so.
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toContainText(
+    'Approve Cass joining',
+  )
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+  await dialog.getByRole('button', { name: 'Approve Cass joining' }).click()
+  await expect(
+    dialog
+      .getByRole('region', { name: 'Participants' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Cass' }),
+  ).toContainText('Waiting for')
+  expect(adventure.participantRows!.find((p) => p.id === 'proposal-cass')?.status).toBe('invited')
+
+  // Withdrawing asks first.
+  await dialog.getByRole('button', { name: 'Withdraw the invitation to Cass' }).click()
+  await expect(dialog.getByRole('button', { name: 'Yes, withdraw' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Yes, withdraw' }).click()
+  await expect(dialog.getByRole('region', { name: 'Participants' })).not.toContainText('Cass')
+})
+
+test('leaving asks first, then returns to a board without the adventure', async ({ page }) => {
+  const adventure = mockAdventure({ title: 'The heist', type: 'side', participantRows: [] })
+  adventure.participantRows = [myRow(adventure.id), hostRow(adventure.id)]
+  const state: AdventureState = { adventures: [adventure] }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+  await dialog.getByRole('button', { name: 'Leave adventure' }).click()
+  await expect(dialog.getByRole('button', { name: 'Yes, leave' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Yes, leave' }).click()
+  await expect(dialog.getByText('You left the adventure.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'The heist' })).toHaveCount(0)
+  expect(adventure.participantRows!.find((p) => p.profile_id === accountId)?.status).toBe('left')
 })

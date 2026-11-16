@@ -1,26 +1,35 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
-import { adventureKey, adventuresKey } from './adventureQueries'
+import { adventureKey, adventuresKey, adventuresPrefix } from './adventureQueries'
 import { mergeAdventure, summarizeAdventure } from './adventureRules'
 import {
   addAdventureUpdate,
   addObjective,
   adventureError,
+  approveParticipant,
+  cancelParticipant,
   createAdventure,
   deleteAdventureUpdate,
   deleteObjective,
+  inviteError,
   isAdventureConflict,
   isAdventureUnavailable,
+  isCollaborationStale,
+  leaveAdventure,
+  proposeParticipant,
   renameObjective,
+  respondToInvitation,
   saveAdventureDetails,
   setAdventureArchived,
   setAdventureStatus,
   setObjectiveDone,
+  setShareConsent,
 } from './adventureService'
 import type {
   Adventure,
   AdventureCreateValues,
   AdventureDetail,
+  AdventureInvitation,
   AdventureObjective,
   AdventureStatus,
   AdventureSummary,
@@ -39,6 +48,12 @@ export type AdventureAction =
   | 'objective-delete'
   | 'update-add'
   | 'update-delete'
+  | 'propose'
+  | 'approve'
+  | 'cancel'
+  | 'respond'
+  | 'leave'
+  | 'consent'
 
 /**
  * How a write ended, so the surface decides what follows (opening the adventure, moving focus,
@@ -47,6 +62,8 @@ export type AdventureAction =
 export type AdventureResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: 'conflict'; latest: AdventureDetail }
+  /** An invitation or proposal changed under the writer; everything was refreshed. */
+  | { ok: false; reason: 'stale' }
   | { ok: false; reason: 'unavailable' | 'failed' }
 
 const saveFailure = "We couldn't save this adventure. Check your connection and try again."
@@ -62,10 +79,24 @@ const fallbackCopy: Record<AdventureAction, string> = {
   'objective-delete': "We couldn't delete the objective. Check your connection and try again.",
   'update-add': "We couldn't post the update. Check your connection and try again.",
   'update-delete': "We couldn't delete the update. Check your connection and try again.",
+  propose: "We couldn't send the invitation. Check your connection and try again.",
+  approve: "We couldn't save your approval. Check your connection and try again.",
+  cancel: "We couldn't change the invitation. Check your connection and try again.",
+  respond: "We couldn't save your answer. Check your connection and try again.",
+  leave: "We couldn't leave the adventure. Check your connection and try again.",
+  consent: "We couldn't change sharing. Check your connection and try again.",
 }
 
 /** The actions that write the adventure itself; the rest write its objectives or updates. */
-const adventureLevel: readonly AdventureAction[] = ['create', 'save', 'status', 'archive']
+const adventureLevel: readonly AdventureAction[] = [
+  'create',
+  'save',
+  'status',
+  'archive',
+  'propose',
+  'leave',
+  'consent',
+]
 
 /**
  * Adventure mutations for one campaign. Called once by the workspace so mutation state survives
@@ -81,6 +112,9 @@ export function useAdventureActions(campaignId: string, userId: string) {
   const clearError = useCallback(() => setError(null), [])
 
   const refreshList = () => void queryClient.invalidateQueries({ queryKey: listKey })
+
+  /** Every adventure query: the detail, the list, the invitations, and the request count (§6.3). */
+  const refreshAll = () => void queryClient.invalidateQueries({ queryKey: adventuresPrefix })
 
   const patchList = (edit: (adventures: AdventureSummary[]) => AdventureSummary[]) =>
     queryClient.setQueryData<AdventureSummary[]>(listKey, (rows) => (rows ? edit(rows) : rows))
@@ -153,7 +187,12 @@ export function useAdventureActions(campaignId: string, userId: string) {
     try {
       return { ok: true, value: await task() }
     } catch (failure) {
-      setError(adventureError(failure, fallbackCopy[action]))
+      setError((action === 'propose' ? inviteError : adventureError)(failure, fallbackCopy[action]))
+      if (isCollaborationStale(failure)) {
+        // A participant acted first: reread the adventure, the board, the invitations, and the count.
+        refreshAll()
+        return { ok: false, reason: 'stale' }
+      }
       if (isAdventureConflict(failure)) {
         // The writer's text stays in the editor; the cache learns the latest version.
         settleDetail(failure.latest)
@@ -260,6 +299,49 @@ export function useAdventureActions(campaignId: string, userId: string) {
       patchUpdates(adventureId, (updates) => updates.filter((row) => row.id !== updateId))
     })
 
+  /** A collaboration write changed rows the whole board reads: refresh all of it. */
+  const collaborate = async <T>(task: () => Promise<T>) => {
+    const value = await task()
+    refreshAll()
+    return value
+  }
+
+  /** Proposes another player's character; the invitation is sent once everyone approves (D3). */
+  const propose = (adventureId: string, characterId: string) =>
+    run('propose', adventureId, adventureId, () =>
+      collaborate(() => proposeParticipant(adventureId, characterId)),
+    )
+
+  const approve = (adventureId: string, participantId: string) =>
+    run('approve', participantId, adventureId, () =>
+      collaborate(() => approveParticipant(participantId)),
+    )
+
+  /** Rejects a proposal or withdraws an invitation (D4). */
+  const cancel = (adventureId: string, participantId: string) =>
+    run('cancel', participantId, adventureId, () =>
+      collaborate(() => cancelParticipant(participantId)),
+    )
+
+  /** Answers an invitation; the adventure id is the invitation's, which the invitee can name. */
+  const respond = (
+    invitation: Pick<AdventureInvitation, 'participant_id' | 'adventure_id'>,
+    accept: boolean,
+    keepShared = false,
+  ) =>
+    run('respond', invitation.participant_id, invitation.adventure_id, () =>
+      collaborate(() => respondToInvitation(invitation.participant_id, accept, keepShared)),
+    )
+
+  const leave = (adventureId: string) =>
+    run('leave', adventureId, adventureId, () => collaborate(() => leaveAdventure(adventureId)))
+
+  /** `true` gives the caller's consent; `false` clears every consent (D6). */
+  const setConsent = (adventureId: string, consent: boolean) =>
+    run('consent', adventureId, adventureId, () =>
+      collaborate(() => setShareConsent(adventureId, consent)),
+    )
+
   return {
     error,
     clearError,
@@ -277,5 +359,11 @@ export function useAdventureActions(campaignId: string, userId: string) {
     removeObjective,
     postUpdate,
     removeUpdate,
+    propose,
+    approve,
+    cancel,
+    respond,
+    leave,
+    setConsent,
   }
 }

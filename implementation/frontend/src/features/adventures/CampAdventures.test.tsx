@@ -6,13 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { character } from '../characters/characterTestData'
 import { CampAdventures, type AdventureScreen } from './CampAdventures'
 import { summarizeAdventure } from './adventureRules'
-import { getAdventure, listAdventures } from './adventureService'
+import { getAdventure, listAdventures, listInvitations } from './adventureService'
 import {
   adventure,
   campaignId,
   characterId,
+  invitation,
+  miraCharacterId,
   miraId,
   objective,
+  participant,
   roster,
   userId,
 } from './adventureTestData'
@@ -22,11 +25,13 @@ vi.mock('./adventureService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./adventureService')>()),
   listAdventures: vi.fn(),
   getAdventure: vi.fn(),
+  listInvitations: vi.fn(),
 }))
 
 afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(listInvitations).mockResolvedValue([])
 })
 
 const ok = { ok: true as const, value: undefined }
@@ -48,6 +53,11 @@ function makeActions(overrides: Record<string, unknown> = {}) {
     removeObjective: vi.fn().mockResolvedValue(ok),
     postUpdate: vi.fn().mockResolvedValue(ok),
     removeUpdate: vi.fn().mockResolvedValue(ok),
+    propose: vi.fn().mockResolvedValue({ ok: true, value: 'p1' }),
+    approve: vi.fn().mockResolvedValue(ok),
+    cancel: vi.fn().mockResolvedValue(ok),
+    respond: vi.fn().mockResolvedValue(ok),
+    leave: vi.fn().mockResolvedValue(ok),
     ...overrides,
   }
 }
@@ -389,5 +399,230 @@ describe('editing', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit details' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(await screen.findByRole('heading', { level: 3, name: 'Find the heir' })).toBeVisible()
+  })
+})
+
+describe('Waiting for you', () => {
+  const owed = invitation({
+    participant_id: 'p-invite',
+    adventure_id: 'invited',
+    title: 'The long road',
+    character_id: characterId,
+    invited_by: miraId,
+  })
+  const mira = (overrides = {}) =>
+    participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+  const proposal = participant({
+    id: 'p-proposal',
+    character_id: 'c-bram',
+    profile_id: 'bram',
+    status: 'proposed',
+    approvals: [{ approver_id: miraId }],
+  })
+  const approving = adventure({
+    id: 'approving',
+    title: 'The heist',
+    type: 'side',
+    participants: [participant(), mira(), proposal],
+  })
+  const requested = adventure({
+    id: 'requested',
+    title: 'The vault',
+    type: 'side',
+    participants: [participant(), mira({ share_consent: true })],
+  })
+
+  it('lists invitations first, then adventures waiting for an approval or a consent, each with its reason', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue(
+      [heir, approving, requested].map((item) => summarizeAdventure(item)),
+    )
+    setup()
+    const waiting = await screen.findByRole('region', { name: 'Waiting for you' })
+    const invite = within(waiting).getByText('The long road').closest('li')!
+    expect(invite).toHaveTextContent('Side')
+    expect(invite).toHaveTextContent('For Brindle')
+    expect(invite).toHaveTextContent('Invited by Mira')
+    expect(
+      within(waiting).getByRole('button', { name: 'The heist' }).closest('li'),
+    ).toHaveTextContent('Approve A character joining')
+    expect(
+      within(waiting).getByRole('button', { name: 'The vault' }).closest('li'),
+    ).toHaveTextContent('Mira wants to share this with the party')
+    // Each adventure is in one group: the waiting ones are not in Your adventures.
+    const yours = screen.getByRole('region', { name: 'Your adventures' })
+    expect(
+      within(yours)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Find the heir'])
+    // The group comes first.
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(headings.slice(0, 2)).toEqual(['Waiting for you', 'Main story'])
+  })
+
+  it('shows invitations even with no adventures, and nothing waiting when there is nothing', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([])
+    setup()
+    expect(await screen.findByText('The long road')).toBeVisible()
+    expect(screen.queryByText('No adventures yet. Start one.')).not.toBeInTheDocument()
+    cleanup()
+
+    vi.mocked(listInvitations).mockResolvedValue([])
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(heir)])
+    setup()
+    await screen.findByRole('region', { name: 'Your adventures' })
+    expect(screen.queryByRole('region', { name: 'Waiting for you' })).not.toBeInTheDocument()
+  })
+
+  it('filters invitations by title with the rest of the board', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(heir)])
+    const { user } = setup()
+    await screen.findByText('The long road')
+    await user.type(screen.getByLabelText('Filter by title'), 'heir')
+    expect(screen.queryByText('The long road')).not.toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Filter by title'))
+    await user.type(screen.getByLabelText('Filter by title'), 'road')
+    expect(screen.getByText('The long road')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Find the heir' })).not.toBeInTheDocument()
+  })
+
+  it('offers a retry when the invitations cannot be loaded, without hiding the adventures', async () => {
+    vi.mocked(listInvitations).mockRejectedValueOnce(new Error('network down'))
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(heir)])
+    const { user } = setup()
+    const waiting = await screen.findByRole('region', { name: 'Waiting for you' })
+    expect(within(waiting).getByRole('alert')).toHaveTextContent(
+      'Your invitations could not be loaded.',
+    )
+    expect(screen.getByRole('button', { name: 'Find the heir' })).toBeVisible()
+    await user.click(within(waiting).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('The long road')).toBeVisible()
+    expect(screen.queryByText('Your invitations could not be loaded.')).not.toBeInTheDocument()
+  })
+
+  it('accepts an invitation and opens the adventure', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([])
+    vi.mocked(getAdventure).mockResolvedValue(adventure({ id: 'invited', title: 'The long road' }))
+    const { actions, onNotice, user } = setup()
+    await user.click(
+      await screen.findByRole('button', { name: 'Accept the invitation to The long road' }),
+    )
+    expect(actions.respond).toHaveBeenCalledWith(owed, true, false)
+    expect(onNotice).toHaveBeenCalledWith('You joined the adventure.')
+    expect(await screen.findByRole('heading', { level: 3, name: 'The long road' })).toBeVisible()
+  })
+
+  it('declines only after a confirmation, then says so', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([])
+    const { actions, onNotice, user } = setup()
+    await user.click(
+      await screen.findByRole('button', { name: 'Decline the invitation to The long road' }),
+    )
+    expect(actions.respond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+    expect(actions.respond).toHaveBeenCalledWith(owed, false, false)
+    expect(onNotice).toHaveBeenCalledWith('Invitation declined.')
+  })
+
+  it('keeps the invitation shared only when the box is ticked', async () => {
+    const shared = invitation({ ...owed, shared_with_party: true })
+    vi.mocked(listInvitations).mockResolvedValue([shared])
+    vi.mocked(listAdventures).mockResolvedValue([])
+    vi.mocked(getAdventure).mockResolvedValue(adventure({ id: 'invited' }))
+    const { actions, user } = setup()
+    const keep = await screen.findByLabelText('Keep it shared with the party')
+    expect(keep).not.toBeChecked()
+    expect(screen.getByText(/becomes private for everyone in it/)).toBeVisible()
+    await user.click(keep)
+    await user.click(screen.getByRole('button', { name: 'Accept the invitation to The long road' }))
+    expect(actions.respond).toHaveBeenCalledWith(shared, true, true)
+  })
+
+  it('stays on the board when an answer fails, with the failure shown', async () => {
+    vi.mocked(listInvitations).mockResolvedValue([owed])
+    vi.mocked(listAdventures).mockResolvedValue([])
+    const actions = makeActions({
+      error: 'This invitation is no longer open.',
+      respond: vi.fn().mockResolvedValue({ ok: false, reason: 'stale' }),
+    })
+    const { onNotice, user } = setup({ actions })
+    await user.click(
+      await screen.findByRole('button', { name: 'Accept the invitation to The long road' }),
+    )
+    expect(onNotice).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('This invitation is no longer open.')
+  })
+})
+
+describe('participants in an open adventure', () => {
+  const mira = (overrides = {}) =>
+    participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+  const duo = adventure({
+    id: 'duo',
+    title: 'Two of us',
+    type: 'side',
+    participants: [participant(), mira()],
+  })
+
+  it('leaves the adventure through its confirmation and returns to the board', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(duo)])
+    vi.mocked(getAdventure).mockResolvedValue(duo)
+    const { actions, onNotice, user } = setup({ initial: { type: 'adventure', id: 'duo' } })
+    await user.click(await screen.findByRole('button', { name: 'Leave adventure' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, leave' }))
+    expect(actions.leave).toHaveBeenCalledWith('duo')
+    expect(onNotice).toHaveBeenCalledWith('You left the adventure.')
+    expect(await screen.findByRole('button', { name: 'New adventure' })).toBeVisible()
+  })
+
+  it('proposes a character and reports it', async () => {
+    const other = character({ id: 'c-bram', name: 'Bram', owner_id: 'bram', status: 'active' })
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(heir)])
+    vi.mocked(getAdventure).mockResolvedValue(heir)
+    const actions = makeActions()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const onNotice = vi.fn()
+    function Wide() {
+      const [screenState, setScreen] = useState<AdventureScreen>({ type: 'adventure', id: 'heir' })
+      return (
+        <CampAdventures
+          actions={actions as never}
+          campaignId={campaignId}
+          characters={[
+            character({ id: characterId, name: 'Brindle', owner_id: userId, status: 'active' }),
+            other,
+          ]}
+          enabled
+          onNotice={onNotice}
+          onScreenChange={setScreen}
+          roster={[
+            ...roster,
+            { profile_id: 'bram', role: 'member', username: 'bram', display_name: 'Bram' },
+          ]}
+          screen={screenState}
+          userId={userId}
+        />
+      )
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <Wide />
+      </QueryClientProvider>,
+    )
+    const user = userEvent.setup()
+    await user.selectOptions(await screen.findByLabelText('Invite a character'), 'c-bram')
+    await user.click(screen.getByRole('button', { name: 'Invite' }))
+    await user.click(screen.getByRole('button', { name: 'Send invitation' }))
+    expect(actions.propose).toHaveBeenCalledWith('heir', 'c-bram')
+    expect(onNotice).toHaveBeenCalledWith('Invitation proposed.')
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Send invitation' })).not.toBeInTheDocument(),
+    )
   })
 })

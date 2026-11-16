@@ -7,21 +7,26 @@ import { PixelIcon } from '../characters/PixelIcon'
 import { UnsavedChangesDialog } from '../characters/UnsavedChangesDialog'
 import { AdventureCreateForm } from './AdventureCreateForm'
 import { AdventureEditor } from './AdventureEditor'
+import { AdventureInvitationCard } from './AdventureInvitationCard'
 import { AdventureView } from './AdventureView'
-import { adventureOptions, adventuresOptions } from './adventureQueries'
+import { adventureOptions, adventuresOptions, invitationsOptions } from './adventureQueries'
 import {
+  adventureCharacterName,
   adventureCharacterNames,
   adventureStatusLabels,
   adventureTypeLabels,
   defaultCharacterId,
   filterAdventures,
+  filterInvitations,
   groupAdventures,
   objectiveProgress,
   ownCharacters,
+  shareRequestLabel,
+  waitingReasons,
 } from './adventureRules'
 import { isAdventureUnavailable } from './adventureService'
-import type { AdventureDetail, AdventureSummary } from './adventureTypes'
-import type { useAdventureActions } from './useAdventureActions'
+import type { AdventureDetail, AdventureInvitation, AdventureSummary } from './adventureTypes'
+import type { AdventureAction, AdventureResult, useAdventureActions } from './useAdventureActions'
 import './adventures.css'
 
 /** Which screen of the board is showing. Owned by the workspace so closing the camp resets it. */
@@ -60,6 +65,7 @@ export function CampAdventures({
   const listQuery = useQuery(adventuresOptions(campaignId, userId, enabled))
   const openId = screen.type === 'adventure' ? screen.id : ''
   const detailQuery = useQuery(adventureOptions(openId, userId, enabled && openId !== ''))
+  const invitationsQuery = useQuery(invitationsOptions(campaignId, userId, enabled))
   const [filter, setFilter] = useState('')
   const [dirty, setDirty] = useState(false)
   const [pendingNav, setPendingNav] = useState<AdventureScreen | null>(null)
@@ -170,11 +176,31 @@ export function CampAdventures({
             characters={characters}
             error={errorAlert || null}
             filter={filter}
+            invitations={invitationsQuery.data}
+            invitationsStatus={
+              invitationsQuery.isError
+                ? 'error'
+                : invitationsQuery.isSuccess
+                  ? 'success'
+                  : 'pending'
+            }
             newRef={newRef}
             onFilterChange={setFilter}
             onNew={() => go({ type: 'new' })}
             onOpen={(id) => go({ type: 'adventure', id })}
+            onRespond={async (invitation, accept, keepShared) => {
+              const result = await actions.respond(invitation, accept, keepShared)
+              if (result.ok) {
+                onNotice(accept ? 'You joined the adventure.' : 'Invitation declined.')
+                if (accept) go({ type: 'adventure', id: invitation.adventure_id }, { force: true })
+              }
+              return result
+            }}
             onRetry={() => void listQuery.refetch()}
+            onRetryInvitations={() => void invitationsQuery.refetch()}
+            pendingAction={actions.pendingAction}
+            pendingId={actions.pendingId}
+            roster={roster}
             status={listQuery.isError ? 'error' : listQuery.isSuccess ? 'success' : 'pending'}
             userId={userId}
           />
@@ -249,6 +275,7 @@ export function CampAdventures({
             error={actions.error}
             headingRef={detailRef}
             onAddObjective={(title) => actions.addObjective(adventure.id, title)}
+            onApprove={(participantId) => actions.approve(adventure.id, participantId)}
             onArchive={async () => {
               const result = await actions.archive(adventure.id)
               if (result.ok) {
@@ -259,11 +286,25 @@ export function CampAdventures({
               return result.ok
             }}
             onBack={() => backToList(adventure.id)}
+            onCancel={(participantId) => actions.cancel(adventure.id, participantId)}
             onEdit={() => {
               setEditing(adventure)
               go({ type: 'edit', id: adventure.id }, { force: true })
             }}
+            onLeave={async () => {
+              const result = await actions.leave(adventure.id)
+              if (result.ok) {
+                onNotice('You left the adventure.')
+                go({ type: 'list' }, { force: true })
+              }
+              return result.ok
+            }}
             onPostUpdate={(body) => actions.postUpdate(adventure.id, body)}
+            onPropose={async (characterId) => {
+              const result = await actions.propose(adventure.id, characterId)
+              if (result.ok) onNotice('Invitation proposed.')
+              return result
+            }}
             onRemoveObjective={(objectiveId) => actions.removeObjective(adventure.id, objectiveId)}
             onRemoveUpdate={(updateId) => actions.removeUpdate(adventure.id, updateId)}
             onRenameObjective={(objectiveId, title) =>
@@ -351,11 +392,18 @@ function AdventureList({
   characters,
   error,
   filter,
+  invitations,
+  invitationsStatus,
   newRef,
   onFilterChange,
   onNew,
   onOpen,
+  onRespond,
   onRetry,
+  onRetryInvitations,
+  pendingAction,
+  pendingId,
+  roster,
   status,
   userId,
 }: {
@@ -363,21 +411,42 @@ function AdventureList({
   characters: readonly Pick<CharacterSummary, 'id' | 'name'>[]
   error: ReactNode
   filter: string
+  invitations: AdventureInvitation[] | undefined
+  invitationsStatus: 'pending' | 'error' | 'success'
   newRef: React.Ref<HTMLButtonElement>
   onFilterChange: (value: string) => void
   onNew: () => void
   onOpen: (id: string) => void
+  onRespond: (
+    invitation: AdventureInvitation,
+    accept: boolean,
+    keepShared: boolean,
+  ) => Promise<AdventureResult<unknown>>
   onRetry: () => void
+  onRetryInvitations: () => void
+  pendingAction: AdventureAction | null
+  pendingId: string | null
+  roster: readonly CampaignRosterMember[]
   status: 'pending' | 'error' | 'success'
   userId: string
 }) {
   const all = adventures ?? []
   const shown = filterAdventures(all, filter)
   const groups = groupAdventures(shown, userId)
+  const invited = filterInvitations(invitations ?? [], filter)
+  const waitingCount = invited.length + groups.waiting.length
+  const anything = all.length > 0 || (invitations ?? []).length > 0
 
   const row = (item: AdventureSummary) => {
     const progress = objectiveProgress(item.objectives)
     const names = adventureCharacterNames(item, characters)
+    const reasons = groups.waiting.includes(item)
+      ? waitingReasons(item, userId).map((reason) =>
+          reason.kind === 'approval'
+            ? `Approve ${adventureCharacterName(reason.participant.character_id, characters)} joining`
+            : shareRequestLabel(item, userId, roster),
+        )
+      : []
     return (
       <li className="adventure-row" key={item.id}>
         <button
@@ -398,6 +467,12 @@ function AdventureList({
             </span>
           )}
         </p>
+        {reasons.map((reason) => (
+          <p className="adventure-row__waiting" key={reason}>
+            <PixelIcon name="flame" />
+            {reason}
+          </p>
+        ))}
         {item.next_step && <p className="adventure-row__next">Next: {item.next_step}</p>}
       </li>
     )
@@ -458,14 +533,55 @@ function AdventureList({
               </div>
             )}
           </div>
-          {all.length === 0 ? (
+          {!anything && invitationsStatus === 'pending' ? (
+            <p className="journal-status" role="status">
+              Loading your invitations…
+            </p>
+          ) : !anything && invitationsStatus !== 'error' ? (
             <p className="journal-status adventure-empty">No adventures yet. Start one.</p>
-          ) : shown.length === 0 ? (
+          ) : shown.length === 0 && invited.length === 0 && invitationsStatus !== 'error' ? (
             <p className="journal-status adventure-empty" role="status">
               No adventures match &ldquo;{filter.trim()}&rdquo;.
             </p>
           ) : (
             <>
+              {(waitingCount > 0 || invitationsStatus === 'error') && (
+                <section aria-labelledby="adventures-waiting-heading" className="adventure-group">
+                  <h3 className="journal-section-title" id="adventures-waiting-heading">
+                    <PixelIcon name="flame" />
+                    Waiting for you
+                  </h3>
+                  {invitationsStatus === 'error' && (
+                    <div className="journal-status journal-status--error" role="alert">
+                      <p>Your invitations could not be loaded.</p>
+                      <button
+                        className="journal-button journal-button--secondary"
+                        onClick={onRetryInvitations}
+                        type="button"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                  {waitingCount > 0 && (
+                    <ul className="adventure-list">
+                      {invited.map((invitation) => (
+                        <AdventureInvitationCard
+                          characters={characters}
+                          invitation={invitation}
+                          key={invitation.participant_id}
+                          onRespond={onRespond}
+                          pendingAction={pendingAction}
+                          pendingId={pendingId}
+                          roster={roster}
+                          userId={userId}
+                        />
+                      ))}
+                      {groups.waiting.map(row)}
+                    </ul>
+                  )}
+                </section>
+              )}
               {group(
                 'adventures-main-heading',
                 'Main story',

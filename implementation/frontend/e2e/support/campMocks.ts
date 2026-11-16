@@ -1284,6 +1284,11 @@ export type MockAdventure = {
   updated_at: string
   /** The characters taking part; empty for a main adventure. */
   participantIds: string[]
+  /**
+   * M6: full participant rows (with other players, pending states, and consent). When set they
+   * replace `participantIds`: the viewer reads the adventure while they hold an accepted row.
+   */
+  participantRows?: MockParticipant[]
   objectives: {
     id: string
     adventure_id: string
@@ -1304,7 +1309,34 @@ export type MockAdventure = {
   }[]
 }
 
+export type MockParticipant = {
+  id: string
+  character_id: string
+  profile_id: string
+  status: 'proposed' | 'invited' | 'accepted' | 'declined' | 'left'
+  /** Profile ids that approved a proposal. */
+  approvals: string[]
+  share_consent: boolean
+  invited_by?: string | null
+}
+
+/** An invitation to the signed-in player, as `list_my_adventure_invitations` returns it. */
+export type MockInvitation = {
+  participant_id: string
+  adventure_id: string
+  title: string
+  type: 'side' | 'personal'
+  character_id: string
+  invited_by: string | null
+  invited_at: string
+  shared_with_party: boolean
+}
+
 export type AdventureState = {
+  /** M6: which player owns a character the mocks may propose (profile id by character id). */
+  characterOwners?: Record<string, string>
+  /** M6: open invitations to the signed-in player; accepting one adds the adventure. */
+  invitations?: MockInvitation[]
   adventures: MockAdventure[]
   /** The signed-in player's own characters; a personal or side adventure must name one. */
   characterIds?: string[]
@@ -1358,9 +1390,13 @@ export async function mockAdventures(
   } = {},
 ) {
   const calls: string[] = []
+  const mineRow = (row: MockAdventure) =>
+    row.participantRows?.some((p) => p.profile_id === accountId && p.status === 'accepted') ?? false
   const readable = (row: MockAdventure) =>
-    (row.archived_at === null || row.created_by === accountId) &&
-    (row.type === 'main' || (row.participantIds.length > 0 && row.created_by === accountId))
+    (row.archived_at === null || row.created_by === accountId || mineRow(row)) &&
+    (row.type === 'main' ||
+      mineRow(row) ||
+      (!row.participantRows && row.participantIds.length > 0 && row.created_by === accountId))
   const editable = (row: MockAdventure) => readable(row) && row.archived_at === null
 
   const handle = (table: string) => async (route: import('@playwright/test').Route) => {
@@ -1418,20 +1454,55 @@ export async function mockAdventures(
           .filter((row) => (campaignId ? row.campaign_id === campaignId : true))
           .toSorted((a, b) => b.updated_at.localeCompare(a.updated_at))
           .map((row) => {
-            const { participantIds, objectives, updates, description, ...columns } = row
-            const participants = participantIds.map((characterId) => ({
-              id: `${row.id}-${characterId}`,
+            const {
+              participantIds,
+              participantRows: _rows,
+              objectives,
+              updates,
+              description,
+              ...columns
+            } = row
+            void _rows
+            const participantRows = row.participantRows
+            const participants = (
+              participantRows ??
+              participantIds.map((characterId) => ({
+                id: `${row.id}-${characterId}`,
+                character_id: characterId,
+                profile_id: row.created_by,
+                status: 'accepted' as const,
+                approvals: [] as string[],
+                share_consent: false,
+                invited_by: null,
+              }))
+            ).map((p) => ({
+              id: p.id,
               adventure_id: row.id,
               campaign_id: row.campaign_id,
-              character_id: characterId,
-              profile_id: row.created_by,
-              status: 'accepted',
+              character_id: p.character_id,
+              profile_id: p.profile_id,
+              status: p.status,
+              invited_by: p.invited_by ?? null,
+              share_consent: p.share_consent,
+              share_consent_at: p.share_consent ? row.updated_at : null,
+              responded_at: null,
               created_at: row.created_at,
+              updated_at: row.created_at,
+              approvals: p.approvals.map((approver_id) => ({ approver_id })),
             }))
             if (!detail) {
               return {
                 ...columns,
-                participants: participants.map(({ character_id }) => ({ character_id })),
+                participants: participants.map(
+                  ({ id, character_id, profile_id, status, share_consent, approvals }) => ({
+                    id,
+                    character_id,
+                    profile_id,
+                    status,
+                    share_consent,
+                    approvals,
+                  }),
+                ),
                 objectives: objectives.map(({ done }) => ({ done })),
               }
             }
@@ -1476,12 +1547,30 @@ export async function mockAdventures(
     }
 
     if (table === 'adventure_participants') {
-      // The delete confirmation counts a character's adventures with a HEAD request.
+      // The delete confirmation reads the character's accepted rows, then everyone's accepted
+      // rows in those adventures.
+      const accepted = (row: MockAdventure) =>
+        row.participantRows
+          ? row.participantRows.filter((p) => p.status === 'accepted')
+          : row.participantIds.map((character_id) => ({ character_id }))
       const characterId = eq('character_id')
-      const count = state.adventures.filter(
-        (row) => readable(row) && characterId && row.participantIds.includes(characterId),
-      ).length
-      return route.fulfill({ status: 200, headers: { ...headers, 'content-range': `*/${count}` } })
+      if (characterId) {
+        return respond(
+          state.adventures
+            .filter(
+              (row) => readable(row) && accepted(row).some((p) => p.character_id === characterId),
+            )
+            .map((row) => ({ adventure_id: row.id })),
+        )
+      }
+      const wanted = (url.searchParams.get('adventure_id') ?? '')
+        .replace(/^in\.\(|\)$/g, '')
+        .split(',')
+      return respond(
+        state.adventures
+          .filter((row) => readable(row) && wanted.includes(row.id))
+          .flatMap((row) => accepted(row).map(() => ({ adventure_id: row.id }))),
+      )
     }
 
     if (table === 'adventure_objectives') {
@@ -1612,6 +1701,152 @@ export async function mockAdventures(
     })
     state.adventures.push(row)
     return route.fulfill({ status: 200, headers, json: row.id })
+  })
+
+  // M6 collaboration RPCs, following the database's rules in miniature.
+  const owned = (adventureId: string) => state.adventures.find((row) => row.id === adventureId)
+  const rowOf = (participantId: string) => {
+    for (const adventure of state.adventures) {
+      const participant = adventure.participantRows?.find((p) => p.id === participantId)
+      if (participant) return { adventure, participant }
+    }
+    return null
+  }
+  /** Sends every proposal that all accepted participants have approved. */
+  const promote = (adventure: MockAdventure) => {
+    const accepted = adventure.participantRows?.filter((p) => p.status === 'accepted') ?? []
+    for (const p of adventure.participantRows ?? []) {
+      if (p.status === 'proposed' && accepted.every((a) => p.approvals.includes(a.profile_id))) {
+        p.status = 'invited'
+      }
+    }
+  }
+  const collaboration = (
+    name: string,
+    handler: (input: Record<string, unknown>) => { error?: string; data?: unknown },
+  ) =>
+    page.route(`**/rest/v1/rpc/${name}`, async (route) => {
+      const request = route.request()
+      const headers = corsHeaders()
+      if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+      calls.push(`POST ${name}`)
+      await options.hold?.()
+      const failure = options.fail?.('POST', name)
+      if (failure) {
+        return route.fulfill({
+          status: failure.status,
+          headers,
+          json: { code: 'P0001', message: failure.message },
+        })
+      }
+      const result = handler(request.postDataJSON() ?? {})
+      if (result.error) {
+        return route.fulfill({
+          status: 400,
+          headers,
+          json: { code: 'P0001', message: result.error },
+        })
+      }
+      return route.fulfill({ status: 200, headers, json: result.data ?? null })
+    })
+
+  await collaboration('list_my_adventure_invitations', () => ({ data: state.invitations ?? [] }))
+  await collaboration('count_my_adventure_requests', () => {
+    const waitingApprovals = state.adventures
+      .filter((row) => readable(row) && row.archived_at === null)
+      .flatMap((row) => row.participantRows ?? [])
+      .filter((p) => p.status === 'proposed' && !p.approvals.includes(accountId)).length
+    return { data: (state.invitations ?? []).length + waitingApprovals }
+  })
+  await collaboration('respond_to_adventure_invitation', (input) => {
+    const invitation = (state.invitations ?? []).find(
+      (i) => i.participant_id === input.p_participant_id,
+    )
+    if (!invitation) return { error: 'adventure_invitation_unavailable' }
+    state.invitations = (state.invitations ?? []).filter((i) => i !== invitation)
+    if (input.p_accept) {
+      state.adventures.push(
+        mockAdventure({
+          id: invitation.adventure_id,
+          title: invitation.title,
+          type: invitation.type,
+          created_by: invitation.invited_by ?? ownerId,
+          participantRows: [
+            {
+              id: `${invitation.adventure_id}-host`,
+              character_id: 'host-character',
+              profile_id: invitation.invited_by ?? ownerId,
+              status: 'accepted',
+              approvals: [],
+              share_consent: false,
+            },
+            {
+              id: invitation.participant_id,
+              character_id: invitation.character_id,
+              profile_id: accountId,
+              status: 'accepted',
+              approvals: [],
+              share_consent: false,
+            },
+          ],
+        }),
+      )
+    }
+    return {}
+  })
+  await collaboration('propose_adventure_participant', (input) => {
+    const adventure = owned(String(input.p_adventure_id))
+    if (!adventure || !mineRow(adventure)) return { error: 'adventure_unavailable' }
+    if (adventure.archived_at !== null) return { error: 'adventure_archived' }
+    const id = `${adventure.id}-proposal-${(adventure.participantRows?.length ?? 0) + 1}`
+    adventure.participantRows!.push({
+      id,
+      character_id: String(input.p_character_id),
+      profile_id:
+        state.characterOwners?.[String(input.p_character_id)] ?? String(input.p_character_id),
+      status: 'proposed',
+      approvals: [accountId],
+      share_consent: false,
+      invited_by: accountId,
+    })
+    promote(adventure)
+    return { data: id }
+  })
+  await collaboration('approve_adventure_participant', (input) => {
+    const found = rowOf(String(input.p_participant_id))
+    if (
+      !found ||
+      found.participant.status !== 'proposed' ||
+      found.participant.approvals.includes(accountId)
+    ) {
+      return { error: 'adventure_proposal_unavailable' }
+    }
+    found.participant.approvals.push(accountId)
+    promote(found.adventure)
+    return {}
+  })
+  await collaboration('cancel_adventure_participant', (input) => {
+    const found = rowOf(String(input.p_participant_id))
+    if (!found || !['proposed', 'invited'].includes(found.participant.status)) {
+      return { error: 'adventure_proposal_unavailable' }
+    }
+    found.adventure.participantRows = found.adventure.participantRows!.filter(
+      (p) => p !== found.participant,
+    )
+    return {}
+  })
+  await collaboration('leave_adventure', (input) => {
+    const adventure = owned(String(input.p_adventure_id))
+    const mine = adventure?.participantRows?.find(
+      (p) => p.profile_id === accountId && p.status === 'accepted',
+    )
+    if (!adventure || !mine) return { error: 'adventure_unavailable' }
+    if (adventure.participantRows!.filter((p) => p.status === 'accepted').length < 2) {
+      return { error: 'adventure_last_participant' }
+    }
+    mine.status = 'left'
+    promote(adventure)
+    return {}
   })
 
   return { calls }

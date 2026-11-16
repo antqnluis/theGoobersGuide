@@ -4,11 +4,13 @@ import type {
   Adventure,
   AdventureCreateValues,
   AdventureDetail,
+  AdventureInvitation,
   AdventureObjective,
   AdventureStatus,
   AdventureSummary,
   AdventureUpdate,
   AdventureValues,
+  CharacterAdventureCounts,
 } from './adventureTypes'
 
 const summaryFields =
@@ -17,9 +19,10 @@ const adventureFields = `${summaryFields},description`
 const objectiveFields =
   'id,adventure_id,title,done,created_by,completed_by,completed_at,created_at,updated_at'
 const updateFields = 'id,adventure_id,author_id,body,created_at'
-const participantFields = 'id,adventure_id,campaign_id,character_id,profile_id,status,created_at'
+const approvals = 'approvals:adventure_invite_approvals(approver_id)'
+const participantFields = `id,adventure_id,campaign_id,character_id,profile_id,status,invited_by,share_consent,share_consent_at,responded_at,created_at,updated_at,${approvals}`
 
-const listSelect = `${summaryFields},participants:adventure_participants(character_id),objectives:adventure_objectives(done)`
+const listSelect = `${summaryFields},participants:adventure_participants(id,character_id,profile_id,status,share_consent,${approvals}),objectives:adventure_objectives(done)`
 const detailSelect = `${adventureFields},participants:adventure_participants(${participantFields}),objectives:adventure_objectives(${objectiveFields}),updates:adventure_updates(${updateFields})`
 
 /** A save that matched no row because the adventure changed since it was read; carries the latest. */
@@ -64,15 +67,108 @@ export async function getAdventure(adventureId: string): Promise<AdventureDetail
   return data as unknown as AdventureDetail
 }
 
-/** How many adventures a character is in, as the caller may see them: those deleted with it (D5). */
-export async function countCharacterAdventures(characterId: string): Promise<number> {
-  const { count, error } = await supabase
+/**
+ * What deleting a character does to adventures (D11): `sole` are adventures only it is in, which
+ * are deleted; `shared` have other accepted participants and are only left. Both reads go through
+ * the accepted rows the character's owner may read.
+ */
+export async function countCharacterAdventures(
+  characterId: string,
+): Promise<CharacterAdventureCounts> {
+  const own = await supabase
     .from('adventure_participants')
-    .select('adventure_id', { count: 'exact', head: true })
+    .select('adventure_id')
     .eq('character_id', characterId)
+    .eq('status', 'accepted')
+  if (own.error) throw own.error
 
+  const adventureIds = (own.data ?? []).map((row) => row.adventure_id)
+  if (adventureIds.length === 0) return { sole: 0, shared: 0 }
+
+  const all = await supabase
+    .from('adventure_participants')
+    .select('adventure_id')
+    .in('adventure_id', adventureIds)
+    .eq('status', 'accepted')
+  if (all.error) throw all.error
+
+  const accepted = new Map<string, number>()
+  for (const row of all.data ?? []) {
+    accepted.set(row.adventure_id, (accepted.get(row.adventure_id) ?? 0) + 1)
+  }
+  const shared = adventureIds.filter((id) => (accepted.get(id) ?? 1) > 1).length
+  return { sole: adventureIds.length - shared, shared }
+}
+
+/** The caller's open invitations in the campaign: titles and inviters only (D5). */
+export async function listInvitations(campaignId: string): Promise<AdventureInvitation[]> {
+  const { data, error } = await supabase.rpc('list_my_adventure_invitations', {
+    p_campaign_id: campaignId,
+  })
   if (error) throw error
-  return count ?? 0
+  return (data ?? []) as AdventureInvitation[]
+}
+
+/** Invitations, proposals awaiting the caller's approval, and share requests awaiting consent (D13). */
+export async function countAdventureRequests(campaignId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('count_my_adventure_requests', {
+    p_campaign_id: campaignId,
+  })
+  if (error) throw error
+  return data ?? 0
+}
+
+/** Proposes another player's character; it is sent once every accepted participant approves (D3). */
+export async function proposeParticipant(adventureId: string, characterId: string) {
+  const { data, error } = await supabase.rpc('propose_adventure_participant', {
+    p_adventure_id: adventureId,
+    p_character_id: characterId,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function approveParticipant(participantId: string) {
+  const { error } = await supabase.rpc('approve_adventure_participant', {
+    p_participant_id: participantId,
+  })
+  if (error) throw error
+}
+
+/** Rejects a proposal or withdraws an invitation (D4): the row is deleted. */
+export async function cancelParticipant(participantId: string) {
+  const { error } = await supabase.rpc('cancel_adventure_participant', {
+    p_participant_id: participantId,
+  })
+  if (error) throw error
+}
+
+/** Accepts or declines an invitation; `keepShared` only matters when the adventure is shared (D6). */
+export async function respondToInvitation(
+  participantId: string,
+  accept: boolean,
+  keepShared = false,
+) {
+  const { error } = await supabase.rpc('respond_to_adventure_invitation', {
+    p_participant_id: participantId,
+    p_accept: accept,
+    p_keep_shared: keepShared,
+  })
+  if (error) throw error
+}
+
+export async function leaveAdventure(adventureId: string) {
+  const { error } = await supabase.rpc('leave_adventure', { p_adventure_id: adventureId })
+  if (error) throw error
+}
+
+/** `true` gives the caller's consent; `false` clears every consent (Not now, Stop sharing). */
+export async function setShareConsent(adventureId: string, consent: boolean) {
+  const { error } = await supabase.rpc('set_adventure_share_consent', {
+    p_adventure_id: adventureId,
+    p_consent: consent,
+  })
+  if (error) throw error
 }
 
 /** Creates the adventure (and, for personal and side, its participant) in one transaction, then opens it. */
@@ -224,6 +320,22 @@ const adventureErrors: Record<string, string> = {
   adventure_character_unavailable: 'Choose one of your characters in this campaign.',
   adventure_character_required: 'Choose one of your characters in this campaign.',
   adventure_campaign_unavailable: 'You can no longer add adventures to this campaign.',
+  adventure_player_already_participating: 'That player already has a character in this adventure.',
+  adventure_participant_limit_reached:
+    'An adventure can have up to 10 characters, invitations included.',
+  adventure_proposal_unavailable: 'This invitation changed. The adventure has been refreshed.',
+  adventure_invitation_unavailable: 'This invitation is no longer open.',
+  adventure_last_participant: "You're the only one left in this adventure. Archive it instead.",
+}
+
+/** `adventure_character_unavailable` means a different thing when inviting someone else's character. */
+const inviteCharacterCopy =
+  "That character can't be invited. It may have retired or left the campaign."
+
+export function inviteError(error: unknown, fallback: string) {
+  return readErrorMessage(error) === 'adventure_character_unavailable'
+    ? inviteCharacterCopy
+    : adventureError(error, fallback)
 }
 
 /** Safe copy for an adventure failure; anything unknown gets the caller's fallback. */
@@ -234,6 +346,14 @@ export function adventureError(error: unknown, fallback: string) {
 
 export function isAdventureConflict(error: unknown): error is AdventureConflictError {
   return error instanceof AdventureConflictError
+}
+
+/** An invitation or proposal changed under the writer: the surface refreshes and shows the copy. */
+export function isCollaborationStale(error: unknown) {
+  const message = readErrorMessage(error)
+  return (
+    message === 'adventure_proposal_unavailable' || message === 'adventure_invitation_unavailable'
+  )
 }
 
 /** The adventure is archived, deleted, or the member left: its text can no longer be saved. */

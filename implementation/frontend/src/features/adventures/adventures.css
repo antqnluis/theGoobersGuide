@@ -310,3 +310,93 @@
   letter-spacing: normal;
   text-transform: none;
 }
+
+/* Collaboration (M6): invitations, "Waiting for you", and the participants section. */
+.adventure-row__waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.adventure-invitation {
+  gap: 8px;
+}
+
+.adventure-invitation__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-invitation__keep {
+  display: grid;
+  gap: 4px;
+}
+
+.adventure-invitation__keep p {
+  margin: 0;
+}
+
+.adventure-participants,
+.participant-invite {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.participant-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.participant-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 12px;
+  background: rgb(255 255 255 / 0.35);
+  min-width: 0;
+}
+
+.participant-row[data-status='declined'],
+.participant-row[data-status='left'] {
+  background: rgb(255 255 255 / 0.15);
+}
+
+.participant-row__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.participant-row__who span,
+.participant-row__state {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.participant-row__state {
+  margin: 0;
+}
+
+.participant-row__actions:empty {
+  display: none;
+}
+
+.participant-invite select {
+  min-width: 0;
+  max-width: 100%;
+}

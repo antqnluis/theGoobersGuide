@@ -3,6 +3,40 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      adventure_invite_approvals: {
+        Row: {
+          approved_at: string
+          approver_id: string
+          participant_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          approved_at?: string
+          approver_id: string
+          participant_id: string
+        }
+        Update: {
+          approved_at?: string
+          approver_id?: string
+          participant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_invite_approvals_approver_id_fkey'
+            columns: ['approver_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_invite_approvals_participant_id_fkey'
+            columns: ['participant_id']
+            isOneToOne: false
+            referencedRelation: 'adventure_participants'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       adventure_objectives: {
         Row: {
           adventure_id: string
@@ -69,8 +103,13 @@ export type Database = {
           character_id: string
           created_at: string
           id: string
+          invited_by: string | null
           profile_id: string
+          responded_at: string | null
+          share_consent: boolean
+          share_consent_at: string | null
           status: string
+          updated_at: string
         }
         ComputedFields: never
         Insert: {
@@ -79,8 +118,13 @@ export type Database = {
           character_id: string
           created_at?: string
           id?: string
+          invited_by?: string | null
           profile_id: string
+          responded_at?: string | null
+          share_consent?: boolean
+          share_consent_at?: string | null
           status?: string
+          updated_at?: string
         }
         Update: {
           adventure_id?: string
@@ -88,8 +132,13 @@ export type Database = {
           character_id?: string
           created_at?: string
           id?: string
+          invited_by?: string | null
           profile_id?: string
+          responded_at?: string | null
+          share_consent?: boolean
+          share_consent_at?: string | null
           status?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -112,6 +161,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'characters'
             referencedColumns: ['id', 'owner_id']
+          },
+          {
+            foreignKeyName: 'adventure_participants_invited_by_fkey'
+            columns: ['invited_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -805,7 +861,10 @@ export type Database = {
         Args: { p_changes: Json; p_character_id: string; p_expected: Json; p_source_label?: string }
         Returns: string
       }
+      approve_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
+      cancel_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
+      count_my_adventure_requests: { Args: { p_campaign_id: string }; Returns: number }
       create_adventure: {
         Args: {
           p_campaign_id: string
@@ -851,12 +910,26 @@ export type Database = {
         Args: { p_campaign_id: string; p_character: Json; p_source_label?: string }
         Returns: string
       }
+      leave_adventure: { Args: { p_adventure_id: string }; Returns: undefined }
       leave_campaign: { Args: { p_campaign_id: string }; Returns: undefined }
       list_campaign_outgoing_invitations: {
         Args: { p_campaign_id: string }
         Returns: {
           id: string
           recipient_username: string
+        }[]
+      }
+      list_my_adventure_invitations: {
+        Args: { p_campaign_id: string }
+        Returns: {
+          adventure_id: string
+          character_id: string
+          invited_at: string
+          invited_by: string
+          participant_id: string
+          shared_with_party: boolean
+          title: string
+          type: string
         }[]
       }
       list_my_campaign_invitations: {
@@ -867,11 +940,19 @@ export type Database = {
           inviter_username: string
         }[]
       }
+      propose_adventure_participant: {
+        Args: { p_adventure_id: string; p_character_id: string }
+        Returns: string
+      }
       remove_campaign_member: {
         Args: { p_campaign_id: string; p_profile_id: string }
         Returns: undefined
       }
       resolve_username_email: { Args: { account_username: string }; Returns: string }
+      respond_to_adventure_invitation: {
+        Args: { p_accept: boolean; p_keep_shared?: boolean; p_participant_id: string }
+        Returns: undefined
+      }
       respond_to_campaign_invitation: {
         Args: { p_accept: boolean; p_invitation_id: string }
         Returns: undefined
@@ -879,6 +960,10 @@ export type Database = {
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
         Returns: string
+      }
+      set_adventure_share_consent: {
+        Args: { p_adventure_id: string; p_consent: boolean }
+        Returns: undefined
       }
       set_campaign_appearance: {
         Args: {

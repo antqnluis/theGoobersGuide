@@ -30,7 +30,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(getCharacterSheet).mockResolvedValue(sheet())
-  vi.mocked(countCharacterAdventures).mockResolvedValue(0)
+  vi.mocked(countCharacterAdventures).mockResolvedValue({ sole: 0, shared: 0 })
 })
 
 function makeActions(overrides: Record<string, unknown> = {}) {
@@ -403,7 +403,7 @@ describe('CharacterTent detail', () => {
   })
 
   it('tells the player how many adventures deleting the character takes with it', async () => {
-    vi.mocked(countCharacterAdventures).mockResolvedValue(2)
+    vi.mocked(countCharacterAdventures).mockResolvedValue({ sole: 2, shared: 0 })
     const { user } = setup({ characters: [character()] })
     await user.click(screen.getByRole('button', { name: 'Open Brand' }))
     expect(countCharacterAdventures).not.toHaveBeenCalled()

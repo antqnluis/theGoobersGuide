@@ -108,6 +108,7 @@ export function CampaignCamp({
   characterFolio = false,
   partyFolio = false,
   unsavedChanges = {},
+  waiting = {},
   onDestinationChange,
   toasts = [],
   onDismissToast = () => {},
@@ -152,6 +153,8 @@ export function CampaignCamp({
   partyFolio?: boolean
   /** Destinations whose open page holds edits that closing would lose. */
   unsavedChanges?: Partial<Record<CampLocationId, boolean>>
+  /** How many requests wait for the player at a destination (the Adventures entry shows it). */
+  waiting?: Partial<Record<CampLocationId, number>>
   /** Called with the open destination (or null when closed) each time it changes. */
   onDestinationChange?: (id: CampLocationId | null) => void
   /** Brief confirmations, shown inside the journal. */
@@ -460,25 +463,30 @@ export function CampaignCamp({
     }
   }
 
-  const placeItems = available.map((location) => (
-    <li key={location.id}>
-      <button
-        aria-haspopup="dialog"
-        className="camp-places__destination"
-        data-location={location.id}
-        onClick={(event) => open(location, event.currentTarget)}
-        type="button"
-        {...attention(location.id)}
-        onFocus={(event) => {
-          attention(location.id).onFocus(event)
-          reveal(location)
-        }}
-      >
-        {location.label}
-        <span>{location.place}</span>
-      </button>
-    </li>
-  ))
+  const placeItems = available.map((location) => {
+    const waitingHere = waiting[location.id] ?? 0
+    return (
+      <li key={location.id}>
+        <button
+          aria-haspopup="dialog"
+          aria-label={waitingHere > 0 ? `${location.label}, ${waitingHere} waiting` : undefined}
+          className="camp-places__destination"
+          data-location={location.id}
+          onClick={(event) => open(location, event.currentTarget)}
+          type="button"
+          {...attention(location.id)}
+          onFocus={(event) => {
+            attention(location.id).onFocus(event)
+            reveal(location)
+          }}
+        >
+          {location.label}
+          {waitingHere > 0 && ` (${waitingHere})`}
+          <span>{location.place}</span>
+        </button>
+      </li>
+    )
+  })
 
   function sign(location: CampLocation) {
     // Placed by `place` from the camera; see there.

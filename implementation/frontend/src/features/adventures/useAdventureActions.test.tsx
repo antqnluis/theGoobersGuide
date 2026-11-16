@@ -7,14 +7,20 @@ import {
   addAdventureUpdate,
   addObjective,
   AdventureConflictError,
+  approveParticipant,
+  cancelParticipant,
   createAdventure,
   deleteAdventureUpdate,
   deleteObjective,
+  leaveAdventure,
+  proposeParticipant,
   renameObjective,
+  respondToInvitation,
   saveAdventureDetails,
   setAdventureArchived,
   setAdventureStatus,
   setObjectiveDone,
+  setShareConsent,
 } from './adventureService'
 import { adventure, campaignId, objective, update, userId } from './adventureTestData'
 import type { AdventureDetail, AdventureSummary, AdventureValues } from './adventureTypes'
@@ -32,12 +38,20 @@ vi.mock('./adventureService', async (importOriginal) => ({
   deleteObjective: vi.fn(),
   addAdventureUpdate: vi.fn(),
   deleteAdventureUpdate: vi.fn(),
+  proposeParticipant: vi.fn(),
+  approveParticipant: vi.fn(),
+  cancelParticipant: vi.fn(),
+  respondToInvitation: vi.fn(),
+  leaveAdventure: vi.fn(),
+  setShareConsent: vi.fn(),
 }))
 
 const listKey = ['campaigns', 'adventures', campaignId, userId]
 const detailKey = (id: string) => ['campaigns', 'adventures', 'detail', id, userId]
 const campaignDetailKey = ['campaigns', 'detail', campaignId, userId]
 const rosterKey = ['campaigns', 'roster', campaignId, userId]
+const invitationsKey = ['campaigns', 'adventures', 'invitations', campaignId, userId]
+const requestsKey = ['campaigns', 'adventures', 'requests', campaignId, userId]
 
 const first = adventure({ id: 'a1', title: 'First', objectives: [objective({ id: 'o1' })] })
 const second = adventure({ id: 'a2', title: 'Second' })
@@ -63,7 +77,9 @@ function setup(
   if (list) queryClient.setQueryData(listKey, list)
   queryClient.setQueryData(detailKey('a1'), first)
   queryClient.setQueryData(detailKey('a2'), second)
-  for (const key of [campaignDetailKey, rosterKey]) queryClient.setQueryData(key, 'cached')
+  for (const key of [campaignDetailKey, rosterKey, invitationsKey, requestsKey]) {
+    queryClient.setQueryData(key, 'cached')
+  }
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
@@ -393,5 +409,154 @@ describe('error state', () => {
     )
     act(() => result.current.clearError())
     expect(result.current.error).toBeNull()
+  })
+})
+
+describe('collaboration', () => {
+  const participantId = 'p1'
+  const invitation = { participant_id: participantId, adventure_id: 'a1' }
+  const everything = [listKey, detailKey('a1'), invitationsKey, requestsKey]
+
+  it('proposes a character and refreshes the detail, list, invitations, and count', async () => {
+    vi.mocked(proposeParticipant).mockResolvedValue(participantId)
+    const { queryClient, result } = setup()
+    await act(async () => {
+      expect(await result.current.propose('a1', 'c9')).toEqual({ ok: true, value: participantId })
+    })
+    expect(proposeParticipant).toHaveBeenCalledWith('a1', 'c9')
+    for (const key of everything) expect(stale(queryClient, key), key.join('/')).toBe(true)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('runs approve, cancel, leave, and consent with their arguments', async () => {
+    const { queryClient, result } = setup()
+    await act(async () => {
+      expect(await result.current.approve('a1', participantId)).toEqual({
+        ok: true,
+        value: undefined,
+      })
+      await result.current.cancel('a1', participantId)
+      await result.current.leave('a1')
+      await result.current.setConsent('a1', true)
+      await result.current.setConsent('a1', false)
+    })
+    expect(approveParticipant).toHaveBeenCalledWith(participantId)
+    expect(cancelParticipant).toHaveBeenCalledWith(participantId)
+    expect(leaveAdventure).toHaveBeenCalledWith('a1')
+    expect(setShareConsent).toHaveBeenNthCalledWith(1, 'a1', true)
+    expect(setShareConsent).toHaveBeenNthCalledWith(2, 'a1', false)
+    for (const key of everything) expect(stale(queryClient, key), key.join('/')).toBe(true)
+  })
+
+  it('answers an invitation, with the keep-shared choice, and refreshes everything', async () => {
+    const { queryClient, result } = setup()
+    await act(async () => {
+      await result.current.respond(invitation, true, true)
+    })
+    expect(respondToInvitation).toHaveBeenLastCalledWith(participantId, true, true)
+    for (const key of everything) expect(stale(queryClient, key), key.join('/')).toBe(true)
+    await act(async () => {
+      await result.current.respond(invitation, false)
+    })
+    expect(respondToInvitation).toHaveBeenLastCalledWith(participantId, false, false)
+  })
+
+  it('reports which write is pending, by participant or adventure', async () => {
+    let finish: () => void = () => undefined
+    vi.mocked(approveParticipant).mockReturnValue(
+      new Promise((resolve) => (finish = resolve as () => void)),
+    )
+    const { result } = setup()
+    let done: Promise<unknown> = Promise.resolve()
+    act(() => {
+      done = result.current.approve('a1', participantId)
+    })
+    expect(result.current.pendingAction).toBe('approve')
+    expect(result.current.pendingId).toBe(participantId)
+    await act(async () => {
+      finish()
+      await done
+    })
+    expect(result.current.pendingAction).toBeNull()
+  })
+
+  it('refreshes everything and says so when an invitation changed under the writer', async () => {
+    vi.mocked(approveParticipant).mockRejectedValue({ message: 'adventure_proposal_unavailable' })
+    const { queryClient, result } = setup()
+    await act(async () => {
+      expect(await result.current.approve('a1', participantId)).toEqual({
+        ok: false,
+        reason: 'stale',
+      })
+    })
+    expect(result.current.error).toBe('This invitation changed. The adventure has been refreshed.')
+    for (const key of everything) expect(stale(queryClient, key), key.join('/')).toBe(true)
+    // The adventure itself is still there.
+    expect(detail(queryClient, 'a1')).toBeDefined()
+
+    vi.mocked(respondToInvitation).mockRejectedValue({
+      message: 'adventure_invitation_unavailable',
+    })
+    await act(async () => {
+      expect(await result.current.respond(invitation, true)).toEqual({ ok: false, reason: 'stale' })
+    })
+    expect(result.current.error).toBe('This invitation is no longer open.')
+  })
+
+  it('drops the adventure when the caller can no longer reach it', async () => {
+    vi.mocked(leaveAdventure).mockRejectedValue({ message: 'adventure_unavailable' })
+    const { queryClient, result } = setup()
+    await act(async () => {
+      expect(await result.current.leave('a1')).toEqual({ ok: false, reason: 'unavailable' })
+    })
+    expect(detail(queryClient, 'a1')).toBeUndefined()
+    expect(list(queryClient).map((entry) => entry.id)).toEqual(['a2'])
+    for (const key of [campaignDetailKey, rosterKey]) expect(stale(queryClient, key)).toBe(true)
+  })
+
+  it('shows the invitation copy for an uninvitable character and the last-participant copy', async () => {
+    vi.mocked(proposeParticipant).mockRejectedValue({ message: 'adventure_character_unavailable' })
+    const { result } = setup()
+    await act(async () => {
+      expect(await result.current.propose('a1', 'c9')).toEqual({ ok: false, reason: 'failed' })
+    })
+    expect(result.current.error).toBe(
+      "That character can't be invited. It may have retired or left the campaign.",
+    )
+
+    vi.mocked(leaveAdventure).mockRejectedValue({ message: 'adventure_last_participant' })
+    await act(async () => {
+      expect(await result.current.leave('a1')).toEqual({ ok: false, reason: 'failed' })
+    })
+    expect(result.current.error).toBe(
+      "You're the only one left in this adventure. Archive it instead.",
+    )
+  })
+
+  it('uses safe copy for unknown failures and leaves the caches alone', async () => {
+    const cases: [() => Promise<unknown>, string][] = []
+    vi.mocked(proposeParticipant).mockRejectedValue(new Error('network down'))
+    vi.mocked(approveParticipant).mockRejectedValue(new Error('network down'))
+    vi.mocked(cancelParticipant).mockRejectedValue(new Error('network down'))
+    vi.mocked(respondToInvitation).mockRejectedValue(new Error('network down'))
+    vi.mocked(leaveAdventure).mockRejectedValue(new Error('network down'))
+    vi.mocked(setShareConsent).mockRejectedValue(new Error('network down'))
+    const { queryClient, result } = setup()
+    cases.push(
+      [() => result.current.propose('a1', 'c9'), "We couldn't send the invitation."],
+      [() => result.current.approve('a1', participantId), "We couldn't save your approval."],
+      [() => result.current.cancel('a1', participantId), "We couldn't change the invitation."],
+      [() => result.current.respond(invitation, true), "We couldn't save your answer."],
+      [() => result.current.leave('a1'), "We couldn't leave the adventure."],
+      [() => result.current.setConsent('a1', true), "We couldn't change sharing."],
+    )
+    for (const [call, copy] of cases) {
+      await act(async () => {
+        expect(await call()).toEqual({ ok: false, reason: 'failed' })
+      })
+      expect(result.current.error).toBe(`${copy} Check your connection and try again.`)
+    }
+    expect(stale(queryClient, listKey)).toBe(false)
+    expect(stale(queryClient, invitationsKey)).toBe(false)
   })
 })

@@ -7,7 +7,12 @@ import { CharacterTent, type TentView } from '../characters/CharacterTent'
 import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
 import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
-import { adventuresKey } from '../adventures/adventureQueries'
+import {
+  adventuresKey,
+  invitationsKey,
+  requestCountKey,
+  requestCountOptions,
+} from '../adventures/adventureQueries'
 import { useAdventureActions } from '../adventures/useAdventureActions'
 import { CampNotes, type NoteScreen } from '../notes/CampNotes'
 import { notesKey } from '../notes/noteQueries'
@@ -102,6 +107,15 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     ...campaignCharactersOptions(campaignId, userId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
+  // Without Realtime (M7), the Places entry shows how many adventure requests wait for the
+  // player: read when the camp opens and on focus. A failed read shows no count.
+  const requestCount = useQuery(
+    requestCountOptions(
+      campaignId,
+      userId,
+      Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+    ),
+  )
   const charactersData = charactersQuery.data
   // The camp names each seat for its player's active character, when they have one.
   const characterNames = useMemo(
@@ -269,11 +283,18 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         notes: noteDirty,
         adventures: adventureDirty,
       }}
+      waiting={{ adventures: requestCount.data ?? 0 }}
       onDestinationChange={(id) => {
         if (id === 'adventures') {
-          if (adventuresOpened)
-            void queryClient.invalidateQueries({ queryKey: adventuresKey(campaignId, userId) })
-          else setAdventuresOpened(true)
+          if (adventuresOpened) {
+            for (const queryKey of [
+              adventuresKey(campaignId, userId),
+              invitationsKey(campaignId, userId),
+              requestCountKey(campaignId, userId),
+            ]) {
+              void queryClient.invalidateQueries({ queryKey })
+            }
+          } else setAdventuresOpened(true)
           return
         }
         if (id !== 'notes') return

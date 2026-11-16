@@ -18,16 +18,19 @@ function campElement({
   isDeleting = false,
   cancelDelete = vi.fn(),
   unsavedChanges = {},
+  waiting,
 }: {
   isOwner?: boolean
   isDeleting?: boolean
   cancelDelete?: () => void
   unsavedChanges?: UnsavedChanges
+  waiting?: Partial<Record<CampLocationId, number>>
 } = {}) {
   return (
     <CampaignCamp
       cancelDelete={cancelDelete}
       unsavedChanges={unsavedChanges}
+      waiting={waiting}
       isDeleting={isDeleting}
       isOwner={isOwner}
       notice={null}
@@ -335,5 +338,31 @@ describe('CampaignCamp frame loop cleanup', () => {
     }
     expect(added).toBeGreaterThan(0)
     expect(removed).toBe(added)
+  })
+})
+
+describe('CampaignCamp waiting count', () => {
+  it('shows how many adventure requests wait, in the entry’s name', async () => {
+    renderCamp({ waiting: { adventures: 2 } })
+    const entry = screen.getByRole('button', { name: 'Adventures, 2 waiting' })
+    expect(entry).toHaveTextContent('Adventures (2)')
+    expect(entry).toHaveTextContent('Map table')
+    await userEvent.setup().click(entry)
+    expect(screen.getByRole('dialog', { name: 'Adventures' })).toBeVisible()
+  })
+
+  it('shows nothing extra for no requests, or for an unknown count', () => {
+    for (const waiting of [{ adventures: 0 }, {}, undefined]) {
+      cleanup()
+      renderCamp({ waiting })
+      const entry = screen.getByRole('button', { name: /Adventures\s*Map table/ })
+      expect(entry).not.toHaveTextContent('(')
+      expect(entry).not.toHaveAttribute('aria-label')
+    }
+  })
+
+  it('puts a count only on the entries it is given', () => {
+    renderCamp({ waiting: { adventures: 3 } })
+    expect(screen.getByRole('button', { name: /^Notes/ })).not.toHaveTextContent('(')
   })
 })

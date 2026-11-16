@@ -3,6 +3,7 @@ import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { AdventureObjectives } from './AdventureObjectives'
+import { AdventureParticipants } from './AdventureParticipants'
 import { AdventureUpdates } from './AdventureUpdates'
 import {
   adventureCharacterNames,
@@ -10,7 +11,9 @@ import {
   adventureStatusLabel,
   adventureStatusLabels,
   adventureTypeLabels,
+  acceptedParticipants,
   canArchive,
+  canEdit,
   isArchived,
   objectiveProgress,
 } from './adventureRules'
@@ -30,10 +33,14 @@ export function AdventureView({
   error,
   headingRef,
   onAddObjective,
+  onApprove,
   onArchive,
   onBack,
+  onCancel,
   onEdit,
+  onLeave,
   onPostUpdate,
+  onPropose,
   onRemoveObjective,
   onRemoveUpdate,
   onRenameObjective,
@@ -46,11 +53,17 @@ export function AdventureView({
   userId,
 }: {
   adventure: AdventureDetail
-  characters: readonly Pick<CharacterSummary, 'id' | 'name'>[]
+  characters: readonly Pick<CharacterSummary, 'id' | 'name' | 'owner_id' | 'status'>[]
   /** The last failure's copy, shown above the controls. */
   error: string | null
   headingRef: React.Ref<HTMLHeadingElement>
   onAddObjective: (title: string) => Promise<AdventureResult<unknown>>
+  onApprove: (participantId: string) => Promise<AdventureResult<unknown>>
+  /** Rejects a proposal or withdraws an invitation. */
+  onCancel: (participantId: string) => Promise<AdventureResult<unknown>>
+  /** Resolves to whether the viewer left. */
+  onLeave: () => Promise<boolean>
+  onPropose: (characterId: string) => Promise<AdventureResult<unknown>>
   /** Resolves to whether the adventure was archived. */
   onArchive: () => Promise<boolean>
   onBack: () => void
@@ -81,7 +94,7 @@ export function AdventureView({
   }, [confirming])
 
   const archived = isArchived(adventure)
-  const editable = !archived
+  const editable = canEdit(adventure, userId)
   const mayArchive = canArchive(adventure, userId)
   const busy = pendingAction !== null
   const statusBusy = pendingAction === 'status'
@@ -89,6 +102,14 @@ export function AdventureView({
   const main = adventure.type === 'main'
   const progress = objectiveProgress(adventure.objectives)
   const who = adventureCharacterNames(adventure, characters)
+  const audience = main
+    ? { shared: true, label: 'Every member' }
+    : adventure.visibility === 'party'
+      ? { shared: true, label: 'The party' }
+      : {
+          shared: false,
+          label: acceptedParticipants(adventure).length > 1 ? 'Only the people in it' : 'Only you',
+        }
   const statusNote = adventureStatusLabel(adventure, userId, roster)
 
   return (
@@ -110,9 +131,11 @@ export function AdventureView({
             <PixelIcon name="flag" />
             <span>{adventureTypeLabels[adventure.type]}</span>
           </li>
-          <li className={`journal-chip ${main ? 'journal-chip--shared' : 'journal-chip--private'}`}>
-            <PixelIcon name={main ? 'eye' : 'lock'} />
-            <span>{main ? 'Every member' : 'Only you'}</span>
+          <li
+            className={`journal-chip ${audience.shared ? 'journal-chip--shared' : 'journal-chip--private'}`}
+          >
+            <PixelIcon name={audience.shared ? 'eye' : 'lock'} />
+            <span>{audience.label}</span>
           </li>
           {who.map((name, index) => (
             <li className="journal-chip" key={index}>
@@ -189,6 +212,21 @@ export function AdventureView({
         <p className="adventure-description adventure-description--empty">
           This adventure has no description yet.
         </p>
+      )}
+
+      {!main && (
+        <AdventureParticipants
+          adventure={adventure}
+          characters={characters}
+          onApprove={onApprove}
+          onCancel={onCancel}
+          onLeave={onLeave}
+          onPropose={onPropose}
+          pendingAction={pendingAction}
+          pendingId={pendingId}
+          roster={roster}
+          userId={userId}
+        />
       )}
 
       <AdventureObjectives

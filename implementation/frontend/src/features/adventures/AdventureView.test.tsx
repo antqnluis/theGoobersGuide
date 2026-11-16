@@ -5,8 +5,10 @@ import { AdventureView } from './AdventureView'
 import {
   adventure,
   characterId,
+  miraCharacterId,
   miraId,
   objective,
+  participant,
   roster,
   update,
   userId,
@@ -40,8 +42,12 @@ function setup(
   const handlers = {
     onAddObjective: vi.fn().mockResolvedValue(ok),
     onArchive: vi.fn().mockResolvedValue(true),
+    onApprove: vi.fn().mockResolvedValue(ok),
     onBack: vi.fn(),
+    onCancel: vi.fn().mockResolvedValue(ok),
     onEdit: vi.fn(),
+    onLeave: vi.fn().mockResolvedValue(true),
+    onPropose: vi.fn().mockResolvedValue(ok),
     onPostUpdate: vi.fn().mockResolvedValue(ok),
     onRemoveObjective: vi.fn().mockResolvedValue(ok),
     onRemoveUpdate: vi.fn().mockResolvedValue(ok),
@@ -53,7 +59,7 @@ function setup(
   render(
     <AdventureView
       adventure={subject}
-      characters={[{ id: characterId, name: 'Brindle' }]}
+      characters={[{ id: characterId, name: 'Brindle', owner_id: userId, status: 'active' }]}
       error={null}
       headingRef={{ current: null }}
       pendingAction={null}
@@ -200,5 +206,72 @@ describe('AdventureView', () => {
     expect(screen.getByLabelText('Status')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Edit details' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Back to adventures' })).toBeDisabled()
+  })
+})
+
+describe('AdventureView with others', () => {
+  const mira = participant({ profile_id: miraId, character_id: miraCharacterId })
+
+  it('shows the participants section for personal and side adventures, not for main', () => {
+    setup(adventure({ type: 'side', participants: [participant(), mira] }))
+    expect(screen.getByRole('region', { name: 'Participants' })).toBeVisible()
+    cleanup()
+    setup(adventure({ type: 'main', visibility: 'campaign', participants: [] }))
+    expect(screen.queryByRole('region', { name: 'Participants' })).not.toBeInTheDocument()
+  })
+
+  it('names the audience: only you, only the people in it, or the party', () => {
+    setup(adventure({ type: 'side', participants: [participant()] }))
+    expect(
+      within(screen.getByRole('list', { name: 'About this adventure' })).getByText('Only you'),
+    ).toBeVisible()
+    cleanup()
+    setup(adventure({ type: 'side', participants: [participant(), mira] }))
+    expect(screen.getByText('Only the people in it')).toBeVisible()
+    cleanup()
+    setup(adventure({ type: 'side', visibility: 'party', participants: [participant(), mira] }))
+    expect(screen.getByText('The party')).toBeVisible()
+  })
+
+  it('lists only accepted characters in the chips', () => {
+    setup(
+      adventure({
+        type: 'side',
+        participants: [
+          participant(),
+          participant({ character_id: 'zz', profile_id: 'zz', status: 'invited' }),
+        ],
+      }),
+    )
+    const chips = within(screen.getByRole('list', { name: 'About this adventure' }))
+    expect(chips.getByText('Brindle')).toBeVisible()
+    expect(chips.queryByText('A character')).not.toBeInTheDocument()
+  })
+
+  it('passes participant actions through', async () => {
+    const proposal = participant({
+      id: 'p1',
+      profile_id: 'zz',
+      character_id: 'zz',
+      status: 'proposed',
+    })
+    const { onApprove, onLeave, user } = setup(
+      adventure({ type: 'side', participants: [participant(), mira, proposal] }),
+    )
+    await user.click(screen.getByRole('button', { name: /^Approve/ }))
+    expect(onApprove).toHaveBeenCalledWith('p1')
+    await user.click(screen.getByRole('button', { name: 'Leave adventure' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, leave' }))
+    expect(onLeave).toHaveBeenCalled()
+  })
+
+  it('lets a participant other than the creator archive only once the creator has left', () => {
+    const asMira = (participants: ReturnType<typeof participant>[]) =>
+      setup(adventure({ type: 'side', created_by: userId, participants }), { userId: miraId })
+    asMira([participant(), mira])
+    expect(screen.queryByRole('button', { name: 'Archive adventure' })).not.toBeInTheDocument()
+    cleanup()
+    asMira([participant({ status: 'left' }), mira])
+    expect(screen.getByRole('button', { name: 'Archive adventure' })).toBeVisible()
   })
 })
