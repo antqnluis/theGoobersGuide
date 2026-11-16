@@ -16,6 +16,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M4 are done; M8 character imports are implemented; M5–M7 are not started. |
+| [M03.5 — Adventures Core](in-progress/M03.5-Adventures-Core.md) | Approved plan for M5 (D1–D13). In progress. |
 
 ## Completed
 
