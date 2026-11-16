@@ -38,6 +38,14 @@ const coinLogKey = [
   '00000000-0000-4000-8000-000000000021',
   userId,
 ]
+const noteListKey = ['campaigns', 'notes', campaignId, userId]
+const noteDetailKey = [
+  'campaigns',
+  'notes',
+  'detail',
+  '00000000-0000-4000-8000-000000000041',
+  userId,
+]
 const otherDetailKey = ['campaigns', 'detail', 'another-campaign', userId]
 
 function setup() {
@@ -50,6 +58,8 @@ function setup() {
     charactersKey,
     itemsKey,
     coinLogKey,
+    noteListKey,
+    noteDetailKey,
     otherDetailKey,
   ]) {
     queryClient.setQueryData(key, 'cached')
@@ -91,6 +101,8 @@ describe('useCampaignMembership', () => {
       charactersKey,
       itemsKey,
       coinLogKey,
+      noteListKey,
+      noteDetailKey,
     ]) {
       expect(stale(queryClient, key)).toBe(true)
     }
@@ -156,6 +168,8 @@ describe('useCampaignMembership', () => {
     expect(stale(queryClient, charactersKey)).toBe(true)
     expect(stale(queryClient, itemsKey)).toBe(true)
     expect(stale(queryClient, coinLogKey)).toBe(true)
+    expect(stale(queryClient, noteListKey)).toBe(true)
+    expect(stale(queryClient, noteDetailKey)).toBe(true)
     expect(stale(queryClient, detailKey)).toBe(false)
     expect(result.current.pendingProfileId).toBeNull()
     expect(result.current.pendingAction).toBeNull()

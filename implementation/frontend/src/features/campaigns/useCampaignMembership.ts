@@ -12,6 +12,7 @@ import {
   characterItemsPrefix,
   coinLogPrefix,
 } from '../characters/characterQueries'
+import { notesPrefix } from '../notes/noteQueries'
 import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
@@ -77,6 +78,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       charactersKey,
       characterItemsPrefix,
       coinLogPrefix,
+      notesPrefix,
     ]) {
       void queryClient.invalidateQueries({ queryKey, refetchType: 'none' })
     }
@@ -94,6 +96,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
         queryClient.invalidateQueries({ queryKey: charactersKey }),
         queryClient.invalidateQueries({ queryKey: characterItemsPrefix }),
         queryClient.invalidateQueries({ queryKey: coinLogPrefix }),
+        queryClient.invalidateQueries({ queryKey: notesPrefix }),
       ])
       return true
     } catch (failure) {

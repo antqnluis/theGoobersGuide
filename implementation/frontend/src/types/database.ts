@@ -447,6 +447,75 @@ export type Database = {
           },
         ]
       }
+      notes: {
+        Row: {
+          author_id: string
+          body: string
+          campaign_id: string
+          character_id: string | null
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          visibility: string
+        }
+        ComputedFields: never
+        Insert: {
+          author_id?: string
+          body?: string
+          campaign_id: string
+          character_id?: string | null
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          campaign_id?: string
+          character_id?: string | null
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'notes_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'notes_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'notes_character_fkey'
+            columns: ['character_id', 'campaign_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id', 'campaign_id']
+          },
+          {
+            foreignKeyName: 'notes_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
