@@ -16,6 +16,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M3 are done; M8 character imports are implemented; M4–M7 are not started. |
+| [M03.4 — Notes](in-progress/M03.4-Notes.md) | Plan for M4, approved 2026-11-16 (D1–D10 as recommended). Not started. |
 
 ## Completed
 
