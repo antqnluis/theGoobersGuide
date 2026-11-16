@@ -1264,3 +1264,355 @@ export async function mockNotes(
   })
   return { calls }
 }
+
+export type MockAdventure = {
+  id: string
+  campaign_id: string
+  created_by: string
+  type: 'main' | 'side' | 'personal'
+  visibility: 'participants' | 'campaign'
+  status: 'pending' | 'in_progress' | 'on_hold' | 'completed'
+  title: string
+  description: string
+  next_step: string
+  reference: string
+  updated_by: string | null
+  status_changed_at: string | null
+  status_changed_by: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  /** The characters taking part; empty for a main adventure. */
+  participantIds: string[]
+  objectives: {
+    id: string
+    adventure_id: string
+    title: string
+    done: boolean
+    created_by: string | null
+    completed_by: string | null
+    completed_at: string | null
+    created_at: string
+    updated_at: string
+  }[]
+  updates: {
+    id: string
+    adventure_id: string
+    author_id: string
+    body: string
+    created_at: string
+  }[]
+}
+
+export type AdventureState = {
+  adventures: MockAdventure[]
+  /** The signed-in player's own characters; a personal or side adventure must name one. */
+  characterIds?: string[]
+}
+
+let adventureCounter = 0
+
+export function mockAdventure(overrides: Partial<MockAdventure> = {}): MockAdventure {
+  adventureCounter += 1
+  const creator = overrides.created_by ?? accountId
+  const type = overrides.type ?? 'personal'
+  return {
+    id: `00000000-0000-4000-8000-${String(8000 + adventureCounter).padStart(12, '0')}`,
+    campaign_id: redHand.id,
+    created_by: creator,
+    type,
+    visibility: type === 'main' ? 'campaign' : 'participants',
+    status: 'pending',
+    title: 'Find the heir',
+    description: '',
+    next_step: '',
+    reference: '',
+    updated_by: creator,
+    status_changed_at: null,
+    status_changed_by: null,
+    archived_at: null,
+    created_at: now,
+    updated_at: nextStamp(),
+    participantIds: [],
+    objectives: [],
+    updates: [],
+    ...overrides,
+  }
+}
+
+/**
+ * Stateful adventures, layered over `mockCampaignApi` (later routes win). It follows the
+ * database's rules: a personal or side adventure is visible to its creator alone (the campaign
+ * owner included), every member reads and edits a main one, only the creator archives or
+ * restores, an archived adventure is hidden from everyone else and read-only, saves are
+ * filtered by `updated_at`, and the caps are 50 objectives and 500 updates.
+ */
+export async function mockAdventures(
+  page: Page,
+  state: AdventureState,
+  options: {
+    /** Return a failure to refuse the next call to any adventures table. */
+    fail?: (method: string, table: string) => CharacterFailure
+    /** Holds each write until the promise settles. */
+    hold?: () => Promise<void> | undefined
+  } = {},
+) {
+  const calls: string[] = []
+  const readable = (row: MockAdventure) =>
+    (row.archived_at === null || row.created_by === accountId) &&
+    (row.type === 'main' || (row.participantIds.length > 0 && row.created_by === accountId))
+  const editable = (row: MockAdventure) => readable(row) && row.archived_at === null
+
+  const handle = (table: string) => async (route: import('@playwright/test').Route) => {
+    const request = route.request()
+    const method = request.method()
+    const url = new URL(request.url())
+    const headers = corsHeaders()
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const isWrite = method !== 'GET' && method !== 'HEAD'
+    if (isWrite) calls.push(`${method} ${table}`)
+    if (isWrite) await options.hold?.()
+    const failure = options.fail?.(method, table)
+    if (failure) {
+      return route.fulfill({
+        status: failure.status,
+        headers,
+        json: { code: failure.status >= 500 ? 'XX000' : 'P0001', message: failure.message },
+      })
+    }
+
+    const eq = (name: string) => {
+      const value = url.searchParams.get(name)
+      return value?.startsWith('eq.') ? value.slice(3) : null
+    }
+    const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object')
+    const respond = (rows: unknown[], status = 200) => {
+      if (!wantsObject) return route.fulfill({ status, headers, json: rows })
+      if (rows.length !== 1) {
+        return route.fulfill({
+          status: 406,
+          headers,
+          json: {
+            code: 'PGRST116',
+            details: `The result contains ${rows.length} rows`,
+            message: 'JSON object requested, multiple (or no) rows returned',
+          },
+        })
+      }
+      return route.fulfill({ status, headers, json: rows[0] })
+    }
+    const refuse = (status: number, code: string, message: string) =>
+      route.fulfill({ status, headers, json: { code, message } })
+    const body = isWrite && method !== 'DELETE' ? request.postDataJSON() : {}
+    const parent = (id: string | null) =>
+      state.adventures.find((row) => row.id === id && readable(row))
+
+    if (table === 'adventures') {
+      if (method === 'GET') {
+        const detail = (url.searchParams.get('select') ?? '').includes('adventure_updates(')
+        const id = eq('id')
+        const campaignId = eq('campaign_id')
+        const rows = state.adventures
+          .filter(readable)
+          .filter((row) => (id ? row.id === id : true))
+          .filter((row) => (campaignId ? row.campaign_id === campaignId : true))
+          .toSorted((a, b) => b.updated_at.localeCompare(a.updated_at))
+          .map((row) => {
+            const { participantIds, objectives, updates, description, ...columns } = row
+            const participants = participantIds.map((characterId) => ({
+              id: `${row.id}-${characterId}`,
+              adventure_id: row.id,
+              campaign_id: row.campaign_id,
+              character_id: characterId,
+              profile_id: row.created_by,
+              status: 'accepted',
+              created_at: row.created_at,
+            }))
+            if (!detail) {
+              return {
+                ...columns,
+                participants: participants.map(({ character_id }) => ({ character_id })),
+                objectives: objectives.map(({ done }) => ({ done })),
+              }
+            }
+            return {
+              ...columns,
+              description,
+              participants,
+              objectives: objectives.toSorted((a, b) => a.created_at.localeCompare(b.created_at)),
+              updates: updates.toSorted((a, b) => b.created_at.localeCompare(a.created_at)),
+            }
+          })
+        return respond(rows)
+      }
+      if (method === 'PATCH') {
+        const row = parent(eq('id'))
+        const stamp = eq('updated_at')
+        if (!row || (stamp && stamp !== row.updated_at)) return respond([])
+        const patch = body as Partial<MockAdventure>
+        if (row.archived_at !== null) {
+          // Only the creator may restore, and nothing else changes.
+          const restoring = Object.keys(patch).length === 1 && patch.archived_at === null
+          if (!restoring) return refuse(400, 'P0001', 'adventure_archived')
+          if (row.created_by !== accountId) {
+            return refuse(403, '42501', 'adventure_archive_creator_only')
+          }
+        } else if (patch.archived_at && row.created_by !== accountId) {
+          return refuse(403, '42501', 'adventure_archive_creator_only')
+        }
+        if (patch.type && (patch.type === 'main') !== (row.type === 'main')) {
+          return refuse(400, 'P0001', 'adventure_type_change_forbidden')
+        }
+        if (patch.status && patch.status !== row.status) {
+          Object.assign(row, {
+            status_changed_at: new Date().toISOString(),
+            status_changed_by: accountId,
+          })
+        }
+        Object.assign(row, patch, { updated_by: accountId, updated_at: nextStamp() })
+        return respond([row])
+      }
+      return route.fallback()
+    }
+
+    if (table === 'adventure_participants') {
+      // The delete confirmation counts a character's adventures with a HEAD request.
+      const characterId = eq('character_id')
+      const count = state.adventures.filter(
+        (row) => readable(row) && characterId && row.participantIds.includes(characterId),
+      ).length
+      return route.fulfill({ status: 200, headers: { ...headers, 'content-range': `*/${count}` } })
+    }
+
+    if (table === 'adventure_objectives') {
+      if (method === 'POST') {
+        const input = body as { adventure_id: string; title: string }
+        const owner = parent(input.adventure_id)
+        if (!owner || !editable(owner)) return refuse(403, '42501', 'row-level security')
+        if (owner.objectives.length >= 50) {
+          return refuse(400, 'P0001', 'adventure_objective_limit_reached')
+        }
+        const row = {
+          id: `${owner.id}-o${owner.objectives.length + 1}-${nextStamp()}`,
+          adventure_id: owner.id,
+          title: input.title,
+          done: false,
+          created_by: accountId,
+          completed_by: null,
+          completed_at: null,
+          created_at: nextStamp(),
+          updated_at: nextStamp(),
+        }
+        owner.objectives.push(row)
+        return respond([row], 201)
+      }
+      const owner = state.adventures.find((row) => row.objectives.some((o) => o.id === eq('id')))
+      const objective = owner?.objectives.find((o) => o.id === eq('id'))
+      if (!owner || !objective || !editable(owner)) return respond([])
+      if (method === 'PATCH') {
+        const patch = body as { title?: string; done?: boolean }
+        if (patch.done !== undefined && patch.done !== objective.done) {
+          Object.assign(
+            objective,
+            patch.done
+              ? { completed_by: accountId, completed_at: new Date().toISOString() }
+              : { completed_by: null, completed_at: null },
+          )
+        }
+        Object.assign(objective, patch, { updated_at: nextStamp() })
+        return respond([objective])
+      }
+      if (method === 'DELETE') {
+        owner.objectives.splice(owner.objectives.indexOf(objective), 1)
+        return respond([{ id: objective.id }])
+      }
+      return route.fallback()
+    }
+
+    // adventure_updates
+    if (method === 'POST') {
+      const input = body as { adventure_id: string; body: string }
+      const owner = parent(input.adventure_id)
+      if (!owner || !editable(owner)) return refuse(403, '42501', 'row-level security')
+      if (owner.updates.length >= 500) return refuse(400, 'P0001', 'adventure_update_limit_reached')
+      const row = {
+        id: `${owner.id}-u${owner.updates.length + 1}-${nextStamp()}`,
+        adventure_id: owner.id,
+        author_id: accountId,
+        body: input.body,
+        created_at: new Date().toISOString(),
+      }
+      owner.updates.push(row)
+      return respond([row], 201)
+    }
+    if (method === 'DELETE') {
+      const owner = state.adventures.find((row) => row.updates.some((u) => u.id === eq('id')))
+      const update = owner?.updates.find((u) => u.id === eq('id'))
+      if (!owner || !update || !editable(owner) || update.author_id !== accountId)
+        return respond([])
+      owner.updates.splice(owner.updates.indexOf(update), 1)
+      return respond([{ id: update.id }])
+    }
+    return route.fallback()
+  }
+
+  for (const table of [
+    'adventures',
+    'adventure_participants',
+    'adventure_objectives',
+    'adventure_updates',
+  ]) {
+    await page.route(`**/rest/v1/${table}**`, handle(table))
+  }
+
+  await page.route('**/rest/v1/rpc/create_adventure', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    calls.push('POST create_adventure')
+    await options.hold?.()
+    const failure = options.fail?.('POST', 'create_adventure')
+    if (failure) {
+      return route.fulfill({
+        status: failure.status,
+        headers,
+        json: { code: 'P0001', message: failure.message },
+      })
+    }
+    const input = request.postDataJSON() as {
+      p_campaign_id: string
+      p_type: MockAdventure['type']
+      p_title: string
+      p_character_id?: string
+      p_next_step?: string
+    }
+    if (state.adventures.filter((row) => row.created_by === accountId).length >= 200) {
+      return route.fulfill({
+        status: 400,
+        headers,
+        json: { code: 'P0001', message: 'adventure_limit_reached' },
+      })
+    }
+    if (
+      input.p_type !== 'main' &&
+      (!input.p_character_id ||
+        (state.characterIds && !state.characterIds.includes(input.p_character_id)))
+    ) {
+      return route.fulfill({
+        status: 400,
+        headers,
+        json: { code: 'P0001', message: 'adventure_character_unavailable' },
+      })
+    }
+    const row = mockAdventure({
+      type: input.p_type,
+      title: input.p_title,
+      next_step: input.p_next_step ?? '',
+      participantIds: input.p_type === 'main' ? [] : [input.p_character_id!],
+    })
+    state.adventures.push(row)
+    return route.fulfill({ status: 200, headers, json: row.id })
+  })
+
+  return { calls }
+}

@@ -22,6 +22,11 @@ type CharacterStatusControlsProps = {
   onChangeVisibility: (visibility: SheetVisibility) => void
   onDelete: () => void
   /**
+   * How many adventures deleting the character would delete too (D5); undefined while it is
+   * unknown, which leaves the sentence out.
+   */
+  adventureCount?: number
+  /**
    * `everyday` is sharing and the party; `lifecycle` is retiring, dying, returning, and
    * deleting, with their confirmations. `all` shows both, with a confirmation replacing them.
    */
@@ -65,6 +70,7 @@ export function CharacterStatusControls({
   onChangeParty,
   onChangeVisibility,
   onDelete,
+  adventureCount,
   part = 'all',
 }: CharacterStatusControlsProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -147,7 +153,15 @@ export function CharacterStatusControls({
         <div aria-label="Confirm character deletion" className="journal-confirm" role="group">
           <p>
             Delete <strong>{name}</strong> permanently? Their sheet, inventory, and coins will be
-            removed and this can't be undone. To keep them as history, retire them instead.
+            removed and this can't be undone.{' '}
+            {adventureCount ? (
+              <>
+                {adventureCount === 1
+                  ? 'Its 1 adventure will be deleted too.'
+                  : `Its ${adventureCount} adventures will be deleted too.`}{' '}
+              </>
+            ) : null}
+            To keep them as history, retire them instead.
           </p>
           <div className="journal-actions">
             <button

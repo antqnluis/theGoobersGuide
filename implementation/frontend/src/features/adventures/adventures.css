@@ -1,0 +1,312 @@
+/* The adventures board at the map table. Built on the journal-* primitives. */
+.camp-adventures {
+  display: grid;
+  gap: 18px;
+  margin-top: 4px;
+}
+
+.adventure-toolbar {
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.adventure-toolbar__filter {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.adventure-group {
+  display: grid;
+  gap: 10px;
+}
+
+.adventure-group__empty,
+.adventure-empty,
+.adventure-block__empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+.adventure-list,
+.objective-list,
+.update-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adventure-row,
+.objective-row,
+.update-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: rgb(255 255 255 / 0.35);
+  min-width: 0;
+}
+
+.adventure-row__open {
+  min-height: var(--journal-touch);
+  border: 0;
+  padding: 0;
+  color: var(--journal-oxblood-deep);
+  background: none;
+  font: 700 1.05rem / 1.35 var(--journal-font-display, inherit);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.adventure-row__open:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.adventure-row__meta,
+.update-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.adventure-row__next {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-archived {
+  border-top: 1px solid var(--journal-rule);
+  padding-top: 10px;
+}
+
+.adventure-archived summary {
+  min-height: var(--journal-touch);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.adventure-archived summary:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.adventure-archived .adventure-list {
+  margin-top: 8px;
+}
+
+.adventure-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.adventure-page__head {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.adventure-page h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-page__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.4;
+}
+
+.adventure-status {
+  max-width: 18rem;
+}
+
+.adventure-status__note {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.adventure-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.adventure-facts > div {
+  display: grid;
+  gap: 2px;
+}
+
+.adventure-facts dt {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.adventure-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-facts__empty {
+  color: var(--journal-ink-soft);
+  font-style: italic;
+}
+
+.adventure-description {
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 12px 14px;
+  background: rgb(255 255 255 / 0.35);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.adventure-description--empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-style: italic;
+}
+
+.adventure-block {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adventure-block__count {
+  color: var(--journal-ink-soft);
+  font-weight: 400;
+}
+
+.objective-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.objective-row[data-done] .objective-row__check label {
+  color: var(--journal-ink-soft);
+  text-decoration: line-through;
+}
+
+.objective-row__check label {
+  overflow-wrap: anywhere;
+}
+
+.objective-row__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.objective-row__tools,
+.objective-row__edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.objective-row__edit {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.objective-row__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.objective-add,
+.update-add {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.objective-add .journal-field,
+.update-add .journal-field {
+  width: 100%;
+}
+
+.update-row__body {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.update-row .journal-button {
+  justify-self: start;
+}
+
+.adventure-form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.adventure-form__types {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.adventure-form__help {
+  display: block;
+  margin-left: 2rem;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.adventure-form__description {
+  min-height: 9rem;
+}
+
+.adventure-form__conflict {
+  display: grid;
+  gap: 10px;
+}
+
+.adventure-form__conflict > p {
+  margin: 0;
+}
+
+.adventure-form__conflict .journal-confirm {
+  background: rgb(255 255 255 / 0.5);
+}
+
+.adventure-count {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.adventure-count[data-over] {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+/* An adventure's own title is a title, not a section label: keep the writer's capitals. */
+.camp-panel .adventure-page__head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 600 clamp(1.4rem, 3vw, 1.8rem) / 1.15 var(--journal-font-display);
+  letter-spacing: normal;
+  text-transform: none;
+}

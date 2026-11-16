@@ -159,7 +159,7 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toContainText(
-    "Delete The Red Hand: Reframed permanently? Its details, member list, notes, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
+    "Delete The Red Hand: Reframed permanently? Its details, member list, notes, adventures, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
   )
   await page.getByRole('button', { name: 'Keep campaign' }).click()
   const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
@@ -364,7 +364,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
   ]) {
     await page.setViewportSize({ width, height })
     const desktop = width >= 900 && height >= 481
-    // The fifth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
+    // The sixth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect(camp).toHaveAttribute('data-camp-ready', 'true')
 
@@ -389,14 +389,18 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     // Scene buttons that are in frame are usable; the rest leave the tab order.
     const signs = page.locator('[data-camp-sign]')
     const total = await signs.count()
-    expect(total).toBe(5)
+    expect(total).toBe(6)
     let inFrame = 0
     for (let index = 0; index < total; index += 1) {
       const sign = signs.nth(index)
       if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
-        // The wagon and the crates stand off-frame at rest on a wide view, so they are not
-        // counted; Places opens them.
-        if (!['settings', 'notes'].includes((await sign.getAttribute('data-location')) ?? '')) {
+        // The wagon, the map table, and the crates stand off-frame at rest on a wide view, so
+        // they are not counted; Places opens them.
+        if (
+          !['settings', 'adventures', 'notes'].includes(
+            (await sign.getAttribute('data-location')) ?? '',
+          )
+        ) {
           inFrame += 1
         }
         await expect(sign).toBeInViewport({ ratio: 1 })
@@ -407,7 +411,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
         await expect(sign).toBeHidden()
       }
     }
-    if (desktop) expect(inFrame).toBe(total - 2)
+    if (desktop) expect(inFrame).toBe(total - 3)
 
     // Places is the complete, always-available navigation.
     await expect(places).toBeVisible()
@@ -617,8 +621,9 @@ test('keeps the wagon scenery but gives members no settings control', async ({ p
   await page.setViewportSize({ width: 1440, height: 900 })
   const camp = await openCamp(page)
 
-  await expect(page.locator('[data-camp-sign]')).toHaveCount(4)
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(5)
   await expect(page.locator('[data-camp-sign][data-location="characters"]')).toHaveCount(1)
+  await expect(page.locator('[data-camp-sign][data-location="adventures"]')).toHaveCount(1)
   await expect(page.locator('[data-camp-sign][data-location="notes"]')).toHaveCount(1)
   await expect(page.locator('[data-camp-sign][data-location="settings"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Campaign settings/ })).toHaveCount(0)
@@ -1072,7 +1077,7 @@ test('stays usable at 200% browser zoom', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
 
   const places = page.getByRole('list', { name: 'Camp places' })
-  await expect(places.getByRole('button')).toHaveCount(5)
+  await expect(places.getByRole('button')).toHaveCount(6)
   for (const button of await places.getByRole('button').all()) {
     await expect(button).toBeInViewport({ ratio: 1 })
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)

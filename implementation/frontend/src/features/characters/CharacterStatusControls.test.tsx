@@ -13,8 +13,10 @@ function Harness({
   subject,
   pendingAction = null,
   handlers,
+  adventureCount,
 }: {
   subject: CharacterSummary
+  adventureCount?: number
   pendingAction?: CharacterAction | null
   handlers: Record<
     'onChangeStatus' | 'onChangeParty' | 'onChangeVisibility' | 'onDelete',
@@ -29,19 +31,31 @@ function Harness({
       onConfirmationChange={setConfirmation}
       pendingAction={pendingAction}
       pendingCharacterId={pendingAction ? subject.id : null}
+      adventureCount={adventureCount}
       {...handlers}
     />
   )
 }
 
-function setup(subject = character(), pendingAction: CharacterAction | null = null) {
+function setup(
+  subject = character(),
+  pendingAction: CharacterAction | null = null,
+  adventureCount?: number,
+) {
   const handlers = {
     onChangeStatus: vi.fn(),
     onChangeParty: vi.fn(),
     onChangeVisibility: vi.fn(),
     onDelete: vi.fn(),
   }
-  render(<Harness handlers={handlers} pendingAction={pendingAction} subject={subject} />)
+  render(
+    <Harness
+      adventureCount={adventureCount}
+      handlers={handlers}
+      pendingAction={pendingAction}
+      subject={subject}
+    />,
+  )
   return { handlers, user: userEvent.setup() }
 }
 
@@ -141,6 +155,28 @@ describe('CharacterStatusControls', () => {
     await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
     await out.user.click(screen.getByRole('button', { name: 'Yes, delete character' }))
     expect(out.handlers.onDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('says how many adventures a delete takes with it, and nothing when there are none', async () => {
+    for (const [count, sentence] of [
+      [1, 'Its 1 adventure will be deleted too.'],
+      [3, 'Its 3 adventures will be deleted too.'],
+    ] as const) {
+      const out = setup(character(), null, count)
+      await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
+      expect(screen.getByRole('group', { name: 'Confirm character deletion' })).toHaveTextContent(
+        `removed and this can't be undone. ${sentence} To keep them as history, retire them instead.`,
+      )
+      cleanup()
+    }
+    for (const count of [0, undefined]) {
+      const out = setup(character(), null, count)
+      await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
+      expect(
+        screen.getByRole('group', { name: 'Confirm character deletion' }),
+      ).not.toHaveTextContent('adventure')
+      cleanup()
+    }
   })
 
   it('shows pending labels and disables everything while an action runs', async () => {

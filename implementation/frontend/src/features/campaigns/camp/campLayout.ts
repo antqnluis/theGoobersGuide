@@ -1,7 +1,8 @@
 /** Size of the authored panorama in base art pixels. */
 export const panorama = { width: 960, height: 270 } as const
 
-export type CampLocationId = 'overview' | 'party' | 'characters' | 'notes' | 'settings'
+export type CampLocationId =
+  'overview' | 'party' | 'characters' | 'adventures' | 'notes' | 'settings'
 
 export type CampLocation = {
   id: CampLocationId
@@ -31,6 +32,9 @@ export type CampProp = {
   /** Draws the sprite this many times its size, to whole art pixels (default 1). */
   scale?: number
 }
+
+/** The map table, the "Adventures" destination (47×35 sprite). */
+export const mapTable: CampProp = { id: 'map-table', x: 690, y: 242 }
 
 /** The journal crates, the "Notes" destination (32×38 sprite). */
 export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
@@ -67,6 +71,19 @@ export const campLocations: readonly CampLocation[] = [
     hit: { width: 65, height: 46 },
     plate: 'above',
     plateAlign: 'center',
+    ownerOnly: false,
+  },
+  {
+    id: 'adventures',
+    label: 'Adventures',
+    place: 'Map table',
+    // The table's spot, and its 47×35 sprite, rounded up to a comfortable target.
+    world: { x: mapTable.x, y: mapTable.y },
+    hit: { width: 52, height: 42 },
+    // Ending at the table's right edge: centred, the plate runs into the crates' plate on a
+    // phone, 80 art pixels on.
+    plate: 'above',
+    plateAlign: 'end',
     ownerOnly: false,
   },
   {
@@ -114,7 +131,7 @@ export function parkedLocations(isOwner: boolean): CampLocation[] {
 export const restFocusX = 384
 
 /** Scenery that is not a destination, drawn at fixed spots and never labeled or focusable. */
-export const dormantProps: readonly CampProp[] = [{ id: 'map-table', x: 690, y: 242 }]
+export const dormantProps: readonly CampProp[] = []
 
 /** Where the high-road waystone stands, a pointer shortcut back to the galaxy. */
 export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }

@@ -6,6 +6,9 @@ import { campaignCharactersOptions } from '../characters/characterQueries'
 import { CharacterTent, type TentView } from '../characters/CharacterTent'
 import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
 import { useCharacterActions } from '../characters/useCharacterActions'
+import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
+import { adventuresKey } from '../adventures/adventureQueries'
+import { useAdventureActions } from '../adventures/useAdventureActions'
 import { CampNotes, type NoteScreen } from '../notes/CampNotes'
 import { notesKey } from '../notes/noteQueries'
 import { useNoteActions } from '../notes/useNoteActions'
@@ -62,6 +65,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const membership = useCampaignMembership(campaignId, userId)
   const characterActions = useCharacterActions(campaignId, userId)
   const noteActions = useNoteActions(campaignId, userId)
+  const adventureActions = useAdventureActions(campaignId, userId)
   const queryClient = useQueryClient()
   const appearanceActions = useCampaignAppearance(campaignId, userId)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
@@ -70,6 +74,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const [noteDirty, setNoteDirty] = useState(false)
   // The notes load when the Notes destination is first opened, and refresh each time after.
   const [notesOpened, setNotesOpened] = useState(false)
+  const [adventureScreen, setAdventureScreen] = useState<AdventureScreen>({ type: 'list' })
+  const [adventureDirty, setAdventureDirty] = useState(false)
+  // The adventures load when the Adventures destination is first opened, and refresh each time after.
+  const [adventuresOpened, setAdventuresOpened] = useState(false)
   // A shared sheet opened read-only from the Party panel.
   const [partySheetId, setPartySheetId] = useState<string | null>(null)
   const toasts = useCampToasts()
@@ -256,8 +264,18 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     <CampaignCamp
       characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
       partyFolio={partySheetId !== null}
-      unsavedChanges={{ characters: characterDirty, notes: noteDirty }}
+      unsavedChanges={{
+        characters: characterDirty,
+        notes: noteDirty,
+        adventures: adventureDirty,
+      }}
       onDestinationChange={(id) => {
+        if (id === 'adventures') {
+          if (adventuresOpened)
+            void queryClient.invalidateQueries({ queryKey: adventuresKey(campaignId, userId) })
+          else setAdventuresOpened(true)
+          return
+        }
         if (id !== 'notes') return
         if (notesOpened)
           void queryClient.invalidateQueries({ queryKey: notesKey(campaignId, userId) })
@@ -279,13 +297,17 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         noteActions.clearError()
         setNoteScreen({ type: 'list' })
         setNoteDirty(false)
+        adventureActions.clearError()
+        setAdventureScreen({ type: 'list' })
+        setAdventureDirty(false)
         setPartySheetId(null)
       }}
       isDeleting={
         management.isDeleting ||
         membership.pendingAction !== null ||
         characterActions.pendingAction !== null ||
-        noteActions.pendingAction !== null
+        noteActions.pendingAction !== null ||
+        adventureActions.pendingAction !== null
       }
       isOwner={isOwner}
       notice={notice}
@@ -403,6 +425,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           view={tentView}
         />
       }
+      adventures={
+        <CampAdventures
+          actions={adventureActions}
+          campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
+          enabled={adventuresOpened}
+          onDirtyChange={setAdventureDirty}
+          onNotice={toasts.push}
+          onScreenChange={setAdventureScreen}
+          roster={roster}
+          screen={adventureScreen}
+          userId={userId}
+        />
+      }
       notes={
         <CampNotes
           actions={noteActions}
@@ -491,8 +527,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
             >
               <p>
                 Delete <strong>{campaign.name}</strong> permanently? Its details, member list,
-                notes, and every player's characters, character sheets, and inventories will be
-                removed. This can't be undone.
+                notes, adventures, and every player's characters, character sheets, and inventories
+                will be removed. This can't be undone.
               </p>
               <div className="campaign-settings__actions">
                 <button

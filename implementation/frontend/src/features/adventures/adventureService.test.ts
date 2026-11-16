@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import {
   addAdventureUpdate,
   addObjective,
+  countCharacterAdventures,
   adventureError,
   AdventureConflictError,
   createAdventure,
@@ -112,6 +113,23 @@ describe('getAdventure', () => {
     await expect(getAdventure(adventureId)).rejects.toThrow('adventure_unavailable')
     queue({ data: null, error: { message: 'boom' } })
     await expect(getAdventure(adventureId)).rejects.toEqual({ message: 'boom' })
+  })
+})
+
+describe('countCharacterAdventures', () => {
+  it('counts the character’s participations without reading rows', async () => {
+    const [calls] = queue({ data: null, error: null, count: 3 } as never)
+    await expect(countCharacterAdventures('c1')).resolves.toBe(3)
+    expect(supabase.from).toHaveBeenCalledWith('adventure_participants')
+    expect(calls).toContainEqual(['select', ['adventure_id', { count: 'exact', head: true }]])
+    expect(calls).toContainEqual(['eq', ['character_id', 'c1']])
+  })
+
+  it('reads a missing count as zero and throws on an error', async () => {
+    queue({ data: null, error: null })
+    await expect(countCharacterAdventures('c1')).resolves.toBe(0)
+    queue({ data: null, error: { message: 'boom' } })
+    await expect(countCharacterAdventures('c1')).rejects.toEqual({ message: 'boom' })
   })
 })
 

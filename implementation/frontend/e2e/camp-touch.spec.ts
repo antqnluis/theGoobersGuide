@@ -28,7 +28,7 @@ test('draws the camp and opens each place by tap', async ({ page }) => {
 
   // Places is the complete route on a phone, with touch-sized targets.
   const places = page.getByRole('list', { name: 'Camp places' })
-  for (const name of [/^Overview/, /^Party/, /^Notes/, /^Campaign settings/]) {
+  for (const name of [/^Overview/, /^Party/, /^Adventures/, /^Notes/, /^Campaign settings/]) {
     const button = places.getByRole('button', { name })
     await expect(button).toBeVisible()
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)

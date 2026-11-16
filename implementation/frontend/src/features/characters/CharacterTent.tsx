@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
+import { characterAdventureCountOptions } from '../adventures/adventureQueries'
 import { CharacterBadges, CharacterMedallion } from './CharacterBadges'
 import { CharacterForm } from './CharacterForm'
 import { CharacterImportDialog } from './CharacterImportDialog'
@@ -83,6 +85,17 @@ export function CharacterTent({
   const current: TentView = selectedId && !selected ? { type: 'list' } : view
   const pendingAction = actions.pendingAction
   const busy = pendingAction !== null
+  // Deleting a character deletes the adventures only it was in; the count is read once the
+  // delete confirmation is open, so the sentence is ready when it shows.
+  const adventureCount = useQuery(
+    characterAdventureCountOptions(
+      selected?.id ?? '',
+      userId,
+      Boolean(selected) &&
+        confirmation?.type === 'delete' &&
+        confirmation.characterId === selected?.id,
+    ),
+  )
 
   const reportRef = useRef(onDirtyChange)
   useEffect(() => {
@@ -193,6 +206,7 @@ export function CharacterTent({
   )
 
   const controls = selected && {
+    adventureCount: adventureCount.data,
     character: selected,
     confirmation,
     onChangeParty: (inParty: boolean) => changeParty(selected, inParty),

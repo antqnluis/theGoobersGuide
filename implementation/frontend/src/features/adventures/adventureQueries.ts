@@ -1,4 +1,9 @@
-import { getAdventure, isAdventureUnavailable, listAdventures } from './adventureService'
+import {
+  countCharacterAdventures,
+  getAdventure,
+  isAdventureUnavailable,
+  listAdventures,
+} from './adventureService'
 
 /** Every adventure query, for the membership cache. Under ['campaigns'] so transfers refresh it too. */
 export const adventuresPrefix = ['campaigns', 'adventures'] as const
@@ -29,5 +34,24 @@ export function adventureOptions(adventureId: string, userId: string, enabled = 
     // Like the app's other queries it retries once, but an adventure that is gone will not come back.
     retry: (failures: number, error: unknown) => !isAdventureUnavailable(error) && failures < 1,
     refetchOnWindowFocus: true,
+  }
+}
+
+export const characterAdventureCountKey = (characterId: string, userId: string) =>
+  ['campaigns', 'adventures', 'character-count', characterId, userId] as const
+
+/** How many adventures deleting a character would delete; read when the confirmation opens. */
+export function characterAdventureCountOptions(
+  characterId: string,
+  userId: string,
+  enabled = true,
+) {
+  return {
+    queryKey: characterAdventureCountKey(characterId, userId),
+    queryFn: () => countCharacterAdventures(characterId),
+    enabled,
+    // A stale count could understate what a delete removes, so read it afresh each time.
+    staleTime: 0,
+    gcTime: 0,
   }
 }

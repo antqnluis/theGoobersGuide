@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { countCharacterAdventures } from '../adventures/adventureService'
 import { importCharacter } from './characterImportService'
 import { getCharacterSheet } from './characterService'
 import { campaignId, character, sheet, userId } from './characterTestData'
@@ -15,6 +16,11 @@ vi.mock('./characterImportService', async (importOriginal) => ({
   importCharacter: vi.fn(),
 }))
 
+vi.mock('../adventures/adventureService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../adventures/adventureService')>()),
+  countCharacterAdventures: vi.fn(),
+}))
+
 vi.mock('./characterService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterService')>()),
   getCharacterSheet: vi.fn(),
@@ -24,6 +30,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(getCharacterSheet).mockResolvedValue(sheet())
+  vi.mocked(countCharacterAdventures).mockResolvedValue(0)
 })
 
 function makeActions(overrides: Record<string, unknown> = {}) {
@@ -393,6 +400,28 @@ describe('CharacterTent detail', () => {
     expect(actions.remove).toHaveBeenCalledWith(character().id, null)
     expect(onNotice).toHaveBeenLastCalledWith('Character deleted.')
     expect(screen.getByText('Open Brand', { exact: false, selector: 'button' })).toBeInTheDocument()
+  })
+
+  it('tells the player how many adventures deleting the character takes with it', async () => {
+    vi.mocked(countCharacterAdventures).mockResolvedValue(2)
+    const { user } = setup({ characters: [character()] })
+    await user.click(screen.getByRole('button', { name: 'Open Brand' }))
+    expect(countCharacterAdventures).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Delete character' }))
+    expect(
+      await screen.findByText(/Its 2 adventures will be deleted too\./, { exact: false }),
+    ).toBeVisible()
+    expect(countCharacterAdventures).toHaveBeenCalledWith(character().id)
+  })
+
+  it('still confirms the delete when the adventure count cannot be read', async () => {
+    vi.mocked(countCharacterAdventures).mockRejectedValue(new Error('network down'))
+    const { user } = setup({ characters: [character()] })
+    await user.click(screen.getByRole('button', { name: 'Open Brand' }))
+    await user.click(screen.getByRole('button', { name: 'Delete character' }))
+    const group = screen.getByRole('group', { name: 'Confirm character deletion' })
+    expect(group).not.toHaveTextContent('adventure')
+    expect(screen.getByRole('button', { name: 'Yes, delete character' })).toBeEnabled()
   })
 
   it('falls back to the list when the open character is gone', () => {

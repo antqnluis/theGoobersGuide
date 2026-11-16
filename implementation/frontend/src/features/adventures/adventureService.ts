@@ -64,6 +64,17 @@ export async function getAdventure(adventureId: string): Promise<AdventureDetail
   return data as unknown as AdventureDetail
 }
 
+/** How many adventures a character is in, as the caller may see them: those deleted with it (D5). */
+export async function countCharacterAdventures(characterId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('adventure_participants')
+    .select('adventure_id', { count: 'exact', head: true })
+    .eq('character_id', characterId)
+
+  if (error) throw error
+  return count ?? 0
+}
+
 /** Creates the adventure (and, for personal and side, its participant) in one transaction, then opens it. */
 export async function createAdventure(
   campaignId: string,

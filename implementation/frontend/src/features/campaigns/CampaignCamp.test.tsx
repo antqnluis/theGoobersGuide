@@ -42,6 +42,7 @@ function campElement({
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
       characters={<h2 id="camp-characters-heading">My characters</h2>}
+      adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
       notes={<h2 id="camp-notes-heading">Campaign notes</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
@@ -122,6 +123,37 @@ describe('CampaignCamp unsaved notes', () => {
     await user.click(screen.getByRole('button', { name: 'Back to camp' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CampaignCamp unsaved adventures', () => {
+  async function openMapTable(unsavedChanges: UnsavedChanges) {
+    const user = userEvent.setup()
+    const out = renderCamp({ unsavedChanges })
+    await user.click(screen.getByRole('button', { name: /Adventures\s*Map table/ }))
+    return { ...out, user }
+  }
+
+  it('asks in the map table’s own words before closing with unsaved edits', async () => {
+    const { cancelDelete, user } = await openMapTable({ adventures: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    expect(screen.getByText(/Leaving the map table now will discard them/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('does not ask when only another destination has edits, or when nothing is unsaved', async () => {
+    const other = await openMapTable({ notes: true })
+    await other.user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(other.cancelDelete).toHaveBeenCalledTimes(1)
+    cleanup()
+
+    const clean = await openMapTable({})
+    await clean.user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })
 
@@ -210,6 +242,24 @@ describe('CampaignCamp destinations', () => {
     expect(entry).toHaveFocus()
   })
 
+  it('opens the map table as Adventures for everyone', async () => {
+    const user = userEvent.setup()
+    renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /Adventures\s*Map table/,
+    })
+
+    await user.click(entry)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute(
+      'data-camp-state',
+      'adventures',
+    )
+    expect(screen.getByRole('dialog', { name: 'Adventures' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(entry).toHaveFocus()
+  })
+
   it('names Places entries by label and object, and hides settings from members', () => {
     renderCamp({ isOwner: false })
     expect(screen.getAllByRole('list', { name: 'Camp places', hidden: true })).toHaveLength(1)
@@ -273,6 +323,7 @@ describe('CampaignCamp frame loop cleanup', () => {
           overview={<h2 id="camp-overview-heading">Overview</h2>}
           party={<h2 id="camp-party-heading">Party</h2>}
           characters={<h2 id="camp-characters-heading">Characters</h2>}
+          adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
           notes={<h2 id="camp-notes-heading">Notes</h2>}
           settings={<h2 id="camp-settings-heading">Settings</h2>}
           title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}

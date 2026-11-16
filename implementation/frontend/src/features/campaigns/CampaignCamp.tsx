@@ -75,6 +75,13 @@ class SceneBoundary extends Component<
   }
 }
 
+/** What an unsaved-changes prompt calls the open page. */
+function leaveName(id: CampLocationId | undefined) {
+  if (id === 'notes') return 'the journal'
+  if (id === 'adventures') return 'the map table'
+  return 'the tent'
+}
+
 export function CampaignCamp({
   title,
   notice,
@@ -94,6 +101,7 @@ export function CampaignCamp({
   overview,
   party,
   characters,
+  adventures,
   notes,
   settings,
   partyDrawer,
@@ -133,6 +141,7 @@ export function CampaignCamp({
   overview: ReactNode
   party: ReactNode
   characters: ReactNode
+  adventures: ReactNode
   notes: ReactNode
   settings: ReactNode
   /** A collapsible tab on the Party page's side (appearance), shown only there. */
@@ -626,6 +635,7 @@ export function CampaignCamp({
             <section hidden={active?.id !== 'overview'}>{overview}</section>
             <section hidden={active?.id !== 'party'}>{party}</section>
             <section hidden={active?.id !== 'characters'}>{characters}</section>
+            <section hidden={active?.id !== 'adventures'}>{adventures}</section>
             <section hidden={active?.id !== 'notes'}>{notes}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
@@ -636,7 +646,7 @@ export function CampaignCamp({
           <div data-unsaved-prompt>
             <UnsavedChangesDialog
               discardLabel="Discard and leave"
-              message={`You have edits that haven't been saved. Leaving ${active?.id === 'notes' ? 'the journal' : 'the tent'} now will discard them.`}
+              message={`You have edits that haven't been saved. Leaving ${leaveName(active?.id)} now will discard them.`}
               onDiscard={() => {
                 setLeaveAsked(false)
                 close()

@@ -5,6 +5,7 @@ import {
   bedrolls,
   dormantProps,
   journalCrates,
+  mapTable,
   firePit,
   memberLabel,
   panorama,
@@ -34,6 +35,7 @@ describe('owner gating', () => {
       'overview',
       'party',
       'characters',
+      'adventures',
       'notes',
       'settings',
     ])
@@ -41,6 +43,7 @@ describe('owner gating', () => {
       'overview',
       'party',
       'characters',
+      'adventures',
       'notes',
     ])
     expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
@@ -59,7 +62,7 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...[wagon, tent, journalCrates, firePit, waystone, ...bedrolls, ...dormantProps],
+      ...[wagon, tent, mapTable, journalCrates, firePit, waystone, ...bedrolls, ...dormantProps],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)
@@ -115,9 +118,29 @@ describe('journal crates', () => {
     expect(resolveLocation('notes', false)?.id).toBe('notes')
   })
 
-  it('are no longer dormant scenery, and the map table still is', () => {
+  it('are no longer dormant scenery', () => {
     expect(dormantProps.map(({ id }) => id)).not.toContain('journal-crates')
-    expect(dormantProps.map(({ id }) => id)).toContain('map-table')
+  })
+})
+
+describe('map table', () => {
+  it('is the Adventures destination for everyone, with a target that covers the 47×35 sprite', () => {
+    expect(campLocations.find(({ id }) => id === 'adventures')).toEqual({
+      id: 'adventures',
+      label: 'Adventures',
+      place: 'Map table',
+      world: { x: mapTable.x, y: mapTable.y },
+      hit: { width: 52, height: 42 },
+      plate: 'above',
+      plateAlign: 'end',
+      ownerOnly: false,
+    })
+    expect(mapTable.id).toBe('map-table')
+    expect(resolveLocation('adventures', false)?.id).toBe('adventures')
+  })
+
+  it('is no longer dormant scenery, so nothing is dormant any more', () => {
+    expect(dormantProps).toEqual([])
   })
 })
 
