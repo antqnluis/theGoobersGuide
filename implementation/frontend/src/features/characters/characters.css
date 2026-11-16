@@ -2077,3 +2077,29 @@
 .spell-preview[open] summary {
   margin-bottom: 6px;
 }
+
+/*
+ * Long text and long lists can be dragged taller or shorter by the corner handle. The box is
+ * as tall as its content until dragged; shrinking it makes the content scroll inside.
+ */
+.sheet-resizable {
+  min-height: 5rem;
+  border: 1px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+  overflow: auto;
+  resize: vertical;
+}
+
+.sheet-resizable:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.sheet-resizable > .sheet-text {
+  margin: 0;
+}
+
+.inventory-list.sheet-resizable {
+  padding: 8px 10px 12px;
+}

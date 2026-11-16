@@ -910,7 +910,13 @@ function SheetContent({
                   readOnly ? (
                     <div key={name}>
                       <h4>{label}</h4>
-                      <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
+                      <div
+                        className="sheet-resizable"
+                        style={body[name].length > 1200 ? { height: '18rem' } : undefined}
+                        tabIndex={0}
+                      >
+                        <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
+                      </div>
                     </div>
                   ) : (
                     <div className="journal-field" key={name}>

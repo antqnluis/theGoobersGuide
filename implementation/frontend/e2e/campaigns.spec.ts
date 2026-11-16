@@ -2887,7 +2887,8 @@ test('the sheet pages stack without an empty gap, and inventory and notes fold a
     'false',
   )
   const [, , , folded] = await boxes()
-  expect(folded.height).toBeLessThan(inventory.height)
+  // A long list is capped (and scrolls), so the page can already be as short as the stack beside it.
+  expect(folded.height).toBeLessThanOrEqual(inventory.height)
 
   await dialog.getByRole('button', { name: 'Collapse features and notes' }).click()
   await expect(dialog.getByText('Brave.')).toBeHidden()
@@ -3802,6 +3803,7 @@ test('the Coins and Inventory tabs jump to their sections and start empty', asyn
     'Coins',
     'Inventory',
     'Notes',
+    'Import and export',
   ])
   await tabs.getByRole('button', { name: 'Coins' }).click()
   await expect(dialog.getByRole('heading', { name: 'Coins' })).toBeFocused()
@@ -4228,7 +4230,9 @@ test('a shared sheet shows coins and items read-only in the Party panel', async 
   await expect(dialog.getByRole('button', { name: 'Add item' })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: /^(Use|Add) one / })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: /^(Equip|Remove|Edit) / })).toHaveCount(0)
-  await expect(dialog.getByRole('navigation', { name: 'Sheet sections' })).toHaveCount(0)
+  // Viewers get the two view tabs, not the owner's section jumps.
+  const tabs = dialog.getByRole('navigation', { name: 'Sheet sections' }).getByRole('button')
+  await expect(tabs).toHaveText(['Sheet', 'Export and history'])
   expect(await dialogFits(page)).toBe(true)
 })
 

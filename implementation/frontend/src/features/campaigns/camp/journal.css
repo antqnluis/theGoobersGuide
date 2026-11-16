@@ -736,7 +736,7 @@ textarea.journal-input {
   }
 
   .camp-ledger[data-variant='folio'] {
-    width: clamp(760px, 72vw, 1320px);
+    width: clamp(760px, 88vw, 1680px);
   }
 }
 

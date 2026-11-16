@@ -145,7 +145,12 @@ export function CharacterInventory({
       {items.length === 0 ? (
         <p className="sheet-empty">No items yet.</p>
       ) : (
-        <ul className="inventory-list">
+        <ul
+          className="inventory-list sheet-resizable"
+          // A long list starts at a set height (and scrolls) so its drag handle is within reach.
+          style={items.length > 8 ? { height: '36rem' } : undefined}
+          tabIndex={0}
+        >
           {items.map((item) => (
             <InventoryRow
               actions={actions}
