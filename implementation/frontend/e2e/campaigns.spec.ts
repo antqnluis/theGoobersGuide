@@ -159,7 +159,7 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
   await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
   await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toContainText(
-    "Delete The Red Hand: Reframed permanently? Its details, member list, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
+    "Delete The Red Hand: Reframed permanently? Its details, member list, notes, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
   )
   await page.getByRole('button', { name: 'Keep campaign' }).click()
   const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
@@ -333,6 +333,8 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
 test('draws the camp scene crisp and keeps destinations usable across viewports', async ({
   page,
 }, testInfo) => {
+  // A viewport sweep over a WebGL scene: slow when the whole suite runs in parallel.
+  test.slow()
   const longName = 'The Unwritten Chronicles of the Far Shore and the Lanterns Beyond the Sea'
   const roster = Array.from({ length: 32 }, (_, index) => ({
     profile_id: `player-${index}`,
@@ -362,7 +364,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
   ]) {
     await page.setViewportSize({ width, height })
     const desktop = width >= 900 && height >= 481
-    // The fourth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
+    // The fifth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect(camp).toHaveAttribute('data-camp-ready', 'true')
 
@@ -387,13 +389,16 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     // Scene buttons that are in frame are usable; the rest leave the tab order.
     const signs = page.locator('[data-camp-sign]')
     const total = await signs.count()
-    expect(total).toBe(4)
+    expect(total).toBe(5)
     let inFrame = 0
     for (let index = 0; index < total; index += 1) {
       const sign = signs.nth(index)
       if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
-        // The wagon stands off-frame at rest on a wide view, so it is not counted; Places opens it.
-        if ((await sign.getAttribute('data-location')) !== 'settings') inFrame += 1
+        // The wagon and the crates stand off-frame at rest on a wide view, so they are not
+        // counted; Places opens them.
+        if (!['settings', 'notes'].includes((await sign.getAttribute('data-location')) ?? '')) {
+          inFrame += 1
+        }
         await expect(sign).toBeInViewport({ ratio: 1 })
         await sign.click({ trial: true })
         const box = (await sign.boundingBox())!
@@ -402,7 +407,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
         await expect(sign).toBeHidden()
       }
     }
-    if (desktop) expect(inFrame).toBe(total - 1)
+    if (desktop) expect(inFrame).toBe(total - 2)
 
     // Places is the complete, always-available navigation.
     await expect(places).toBeVisible()
@@ -612,8 +617,9 @@ test('keeps the wagon scenery but gives members no settings control', async ({ p
   await page.setViewportSize({ width: 1440, height: 900 })
   const camp = await openCamp(page)
 
-  await expect(page.locator('[data-camp-sign]')).toHaveCount(3)
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(4)
   await expect(page.locator('[data-camp-sign][data-location="characters"]')).toHaveCount(1)
+  await expect(page.locator('[data-camp-sign][data-location="notes"]')).toHaveCount(1)
   await expect(page.locator('[data-camp-sign][data-location="settings"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Campaign settings/ })).toHaveCount(0)
   await expect(camp.locator('.camp-name')).toHaveText(['game_master', 'player_one'])
@@ -711,6 +717,7 @@ test('descends into camp only on arrival from the galaxy, never on load, refresh
 })
 
 test('frames a destination on the open side of its panel and comes back', async ({ page }) => {
+  test.slow()
   await watchCamp(page)
   await mockCampaignApi(page, [redHand])
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -967,6 +974,68 @@ test('keeps the page scroll on a phone, where only a sideways wheel pans', async
   await expect.poll(() => camp.getAttribute('data-camera-x')).not.toBe(rest)
 })
 
+test('the journal crates open Notes from the Places list and the scene at every width', async ({
+  page,
+}, testInfo) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(3))
+  const camp = await openCamp(page)
+  const places = page.getByRole('list', { name: 'Camp places' })
+  const crates = page.locator('[data-camp-sign][data-location="notes"]')
+  const back = page.getByRole('button', { name: 'Back to camp' })
+
+  for (const [width, height] of [
+    [375, 812],
+    [768, 960],
+    [1280, 720],
+    [1440, 900],
+    [3440, 1440],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+
+    // Focusing the Places entry brings the crates into view, then Enter opens the journal.
+    const entry = places.getByRole('button', { name: /^Notes\s*Journal crates/ })
+    await entry.scrollIntoViewIfNeeded()
+    expect((await entry.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await entry.focus()
+    await expect(camp).toHaveAttribute('data-animating', 'false')
+    await expect(crates).toBeVisible()
+    await expect(crates).toBeInViewport({ ratio: 1 })
+    const target = (await crates.boundingBox())!
+    expect(Math.min(target.width, target.height)).toBeGreaterThanOrEqual(44)
+    await page.keyboard.press('Enter')
+    await expect(camp).toHaveAttribute('data-camp-state', 'notes')
+    await expect(back).toBeFocused()
+    const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+    await expect(dialog).toBeInViewport({ ratio: 1 })
+
+    // On a desktop view the camera frames the crates in the part the journal leaves open.
+    if (width >= 900 && height >= 481) {
+      const panel = (await dialog.boundingBox())!
+      await expect(camp).toHaveAttribute('data-animating', 'false')
+      const framed = (await crates.boundingBox())!
+      expect(framed.x + framed.width <= panel.x || framed.x >= panel.x + panel.width).toBe(true)
+    }
+    await page.screenshot({ path: testInfo.outputPath(`notes-${width}x${height}.png`) })
+
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(entry).toBeFocused()
+
+    // The scene button opens the same page.
+    await crates.click()
+    await expect(camp).toHaveAttribute('data-camp-state', 'notes')
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(crates).toBeFocused()
+  }
+})
+
 test('pans to a place that is out of frame when it takes focus', async ({ page }) => {
   await watchCamp(page)
   await mockCampaignApi(page, [redHand])
@@ -1003,7 +1072,7 @@ test('stays usable at 200% browser zoom', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
 
   const places = page.getByRole('list', { name: 'Camp places' })
-  await expect(places.getByRole('button')).toHaveCount(4)
+  await expect(places.getByRole('button')).toHaveCount(5)
   for (const button of await places.getByRole('button').all()) {
     await expect(button).toBeInViewport({ ratio: 1 })
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
@@ -1717,6 +1786,7 @@ test('turns the sky as the camera swings between worlds and restores it on the w
 test('keeps travelling labels inside the scene and lands each world clear of the controls', async ({
   page,
 }, testInfo) => {
+  test.slow()
   const campaigns = [
     redHand,
     { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },

@@ -95,9 +95,12 @@ describe('hit targets at the resting camera', () => {
     [1440, 900, 2],
     [844, 390, 3],
   ])('shows every destination inside the %i x %i scene (dpr %i)', (width, height, dpr) => {
-    // The wagon stands left of the tent, off-frame at a wide rest view: the Places list opens
-    // it and the camera pans there (see the reveal test below).
-    for (const { id, world, hit } of campLocations.filter(({ id }) => id !== 'settings')) {
+    // The wagon stands left of the tent and the crates right of the fire, both off-frame at a
+    // narrow rest view: the Places list opens them and the camera pans there (see the reveal
+    // test below).
+    for (const { id, world, hit } of campLocations.filter(
+      ({ id }) => id !== 'settings' && id !== 'notes',
+    )) {
       const rect = hitRect(world, hit, restView(width, height, dpr), dpr)
       expect(isInFrame(rect, { width, height }), id).toBe(true)
     }
@@ -111,9 +114,9 @@ describe('hit targets at the resting camera', () => {
     [844, 390, 3],
     [375, 812, 3],
   ])(
-    'brings the tent and the wagon into the %i x %i scene when their place is revealed (dpr %i)',
+    'brings the tent, the crates, and the wagon into the %i x %i scene when their place is revealed (dpr %i)',
     (width, height, dpr) => {
-      for (const id of ['characters', 'settings']) {
+      for (const id of ['characters', 'notes', 'settings']) {
         const place = campLocations.find((location) => location.id === id)!
         const base = restView(width, height, dpr)
         const visible = visibleWidth(base.deviceWidth, base.scale)

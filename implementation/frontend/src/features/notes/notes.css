@@ -1,0 +1,164 @@
+/* The campaign notebook at the journal crates. Built on the journal-* primitives. */
+.camp-notes {
+  display: grid;
+  gap: 18px;
+  margin-top: 4px;
+}
+
+.note-toolbar {
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.note-toolbar__filter {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.note-group {
+  display: grid;
+  gap: 10px;
+}
+
+.note-group__empty,
+.note-empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+.note-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: rgb(255 255 255 / 0.35);
+}
+
+.note-row__open {
+  min-height: var(--journal-touch);
+  border: 0;
+  padding: 0;
+  color: var(--journal-oxblood-deep);
+  background: none;
+  font: 700 1.05rem / 1.35 var(--journal-font-display, inherit);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.note-row__open:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.note-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.note-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.note-page__head {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.note-page h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note-page__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.4;
+}
+
+.note-body {
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 12px 14px;
+  background: rgb(255 255 255 / 0.35);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.note-body--empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-style: italic;
+}
+
+.note-form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.note-form__body {
+  min-height: 12rem;
+}
+
+.note-form__count {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.note-form__count[data-over] {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+.note-form__visibility {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.note-form__conflict {
+  display: grid;
+  gap: 10px;
+}
+
+.note-form__conflict > p {
+  margin: 0;
+}
+
+.note-form__conflict .journal-confirm {
+  background: rgb(255 255 255 / 0.5);
+}
+
+/* A note's own title is a title, not a section label: keep the writer's capitals. */
+.camp-panel .note-page__head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 600 clamp(1.4rem, 3vw, 1.8rem) / 1.15 var(--journal-font-display);
+  letter-spacing: normal;
+  text-transform: none;
+}

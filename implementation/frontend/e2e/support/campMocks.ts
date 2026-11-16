@@ -1099,3 +1099,168 @@ export async function mockAppearances(
   })
   return { calls }
 }
+
+export type MockNote = {
+  id: string
+  campaign_id: string
+  author_id: string
+  visibility: 'private' | 'campaign'
+  title: string
+  body: string
+  character_id: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type NoteState = {
+  notes: MockNote[]
+  /** Characters a note may link to; a link to any other id is refused. Unset allows any. */
+  characterIds?: string[]
+}
+
+let noteCounter = 0
+
+export function mockNote(overrides: Partial<MockNote> = {}): MockNote {
+  noteCounter += 1
+  const author = overrides.author_id ?? accountId
+  return {
+    id: `00000000-0000-4000-8000-${String(7000 + noteCounter).padStart(12, '0')}`,
+    campaign_id: redHand.id,
+    author_id: author,
+    visibility: 'private',
+    title: 'Clues',
+    body: '',
+    character_id: null,
+    updated_by: author,
+    created_at: now,
+    updated_at: nextStamp(),
+    ...overrides,
+  }
+}
+
+/**
+ * Stateful notes, layered over `mockCampaignApi` (later routes win). It follows the database's
+ * rules: a private note is visible to its author alone (the campaign owner included), any
+ * member edits a shared note, only the author changes visibility or deletes, saves are
+ * filtered by `updated_at`, a link must name a campaign character, and 500 notes is the cap.
+ */
+export async function mockNotes(
+  page: Page,
+  state: NoteState,
+  options: {
+    /** Return a failure to refuse the next call to the notes table. */
+    fail?: (method: string) => CharacterFailure
+    /** Holds each write until the promise settles. */
+    hold?: () => Promise<void> | undefined
+  } = {},
+) {
+  const calls: string[] = []
+  await page.route('**/rest/v1/notes**', async (route) => {
+    const request = route.request()
+    const method = request.method()
+    const url = new URL(request.url())
+    const headers = corsHeaders()
+    if (method === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const isWrite = method !== 'GET'
+    if (isWrite) calls.push(method)
+    if (isWrite) await options.hold?.()
+    const failure = options.fail?.(method)
+    if (failure) {
+      return route.fulfill({
+        status: failure.status,
+        headers,
+        json: { code: failure.status >= 500 ? 'XX000' : 'P0001', message: failure.message },
+      })
+    }
+
+    const eq = (name: string) => {
+      const value = url.searchParams.get(name)
+      return value?.startsWith('eq.') ? value.slice(3) : null
+    }
+    const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object')
+    const respond = (rows: unknown[], status = 200) => {
+      if (!wantsObject) return route.fulfill({ status, headers, json: rows })
+      if (rows.length !== 1) {
+        return route.fulfill({
+          status: 406,
+          headers,
+          json: {
+            code: 'PGRST116',
+            details: `The result contains ${rows.length} rows`,
+            message: 'JSON object requested, multiple (or no) rows returned',
+          },
+        })
+      }
+      return route.fulfill({ status, headers, json: rows[0] })
+    }
+    const refuse = (status: number, code: string, message: string) =>
+      route.fulfill({ status, headers, json: { code, message } })
+
+    const readable = (row: MockNote) => row.visibility === 'campaign' || row.author_id === accountId
+    const body = method === 'GET' || method === 'DELETE' ? {} : request.postDataJSON()
+
+    if (method === 'GET') {
+      const id = eq('id')
+      const campaignId = eq('campaign_id')
+      const withBody = (url.searchParams.get('select') ?? '').split(',').includes('body')
+      const rows = state.notes
+        .filter((row) => readable(row))
+        .filter((row) => (id ? row.id === id : true))
+        .filter((row) => (campaignId ? row.campaign_id === campaignId : true))
+        .toSorted((a, b) => b.updated_at.localeCompare(a.updated_at))
+        .map((row) => {
+          if (withBody) return row
+          const { body: _body, ...summary } = row
+          void _body
+          return summary
+        })
+      return respond(rows)
+    }
+
+    if (method === 'POST') {
+      const input = body as Partial<MockNote> & { campaign_id: string }
+      if (state.notes.filter((row) => row.author_id === accountId).length >= 500) {
+        return refuse(400, 'P0001', 'note_limit_reached')
+      }
+      if (
+        input.character_id &&
+        state.characterIds &&
+        !state.characterIds.includes(input.character_id)
+      ) {
+        return refuse(400, 'P0001', 'note_character_unavailable')
+      }
+      const row = mockNote({ ...input, author_id: accountId })
+      state.notes.push(row)
+      return respond([row], 201)
+    }
+
+    const row = state.notes.find((candidate) => candidate.id === eq('id'))
+    const stampFilter = eq('updated_at')
+    const allowed = row && readable(row) && (!stampFilter || stampFilter === row.updated_at)
+    if (method === 'PATCH') {
+      if (!row || !allowed) return respond([])
+      const patch = body as Partial<MockNote>
+      if (patch.visibility && patch.visibility !== row.visibility && row.author_id !== accountId) {
+        return refuse(403, '42501', 'note_visibility_author_only')
+      }
+      if (
+        patch.character_id &&
+        patch.character_id !== row.character_id &&
+        state.characterIds &&
+        !state.characterIds.includes(patch.character_id)
+      ) {
+        return refuse(400, 'P0001', 'note_character_unavailable')
+      }
+      Object.assign(row, patch, { updated_by: accountId, updated_at: nextStamp() })
+      return respond([row])
+    }
+    if (method === 'DELETE') {
+      if (!row || row.author_id !== accountId) return respond([])
+      state.notes.splice(state.notes.indexOf(row), 1)
+      return respond([{ id: row.id }])
+    }
+    return route.fallback()
+  })
+  return { calls }
+}

@@ -1,4 +1,4 @@
-import { getNote, listNotes } from './noteService'
+import { getNote, isNoteUnavailable, listNotes } from './noteService'
 
 /** Every notes query, for the membership cache. Under ['campaigns'] so transfers refresh it too. */
 export const notesPrefix = ['campaigns', 'notes'] as const
@@ -26,6 +26,8 @@ export function noteOptions(noteId: string, userId: string, enabled = true) {
     queryKey: noteKey(noteId, userId),
     queryFn: () => getNote(noteId),
     enabled,
+    // Like the app's other queries it retries once, but a note that is gone will not come back.
+    retry: (failures: number, error: unknown) => !isNoteUnavailable(error) && failures < 1,
     refetchOnWindowFocus: true,
   }
 }

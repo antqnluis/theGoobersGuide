@@ -4,6 +4,7 @@ import {
   campLocations,
   bedrolls,
   dormantProps,
+  journalCrates,
   firePit,
   memberLabel,
   panorama,
@@ -33,12 +34,14 @@ describe('owner gating', () => {
       'overview',
       'party',
       'characters',
+      'notes',
       'settings',
     ])
     expect(availableLocations(false).map(({ id }) => id)).toEqual([
       'overview',
       'party',
       'characters',
+      'notes',
     ])
     expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
     expect(parkedLocations(true)).toEqual([])
@@ -56,7 +59,7 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...[wagon, tent, firePit, waystone, ...bedrolls, ...dormantProps],
+      ...[wagon, tent, journalCrates, firePit, waystone, ...bedrolls, ...dormantProps],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)
@@ -93,6 +96,28 @@ describe('layout table', () => {
     expect(tent.id).toBe('empty-tent')
     expect(dormantProps.map(({ id }) => id)).not.toContain('empty-tent')
     expect(resolveLocation('characters', false)?.id).toBe('characters')
+  })
+})
+
+describe('journal crates', () => {
+  it('are the Notes destination for everyone, with a target that covers the 32×38 sprite', () => {
+    expect(campLocations.find(({ id }) => id === 'notes')).toEqual({
+      id: 'notes',
+      label: 'Notes',
+      place: 'Journal crates',
+      world: { x: journalCrates.x, y: journalCrates.y },
+      hit: { width: 40, height: 46 },
+      plate: 'above',
+      plateAlign: 'center',
+      ownerOnly: false,
+    })
+    expect(journalCrates.id).toBe('journal-crates')
+    expect(resolveLocation('notes', false)?.id).toBe('notes')
+  })
+
+  it('are no longer dormant scenery, and the map table still is', () => {
+    expect(dormantProps.map(({ id }) => id)).not.toContain('journal-crates')
+    expect(dormantProps.map(({ id }) => id)).toContain('map-table')
   })
 })
 

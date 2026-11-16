@@ -94,11 +94,13 @@ export function CampaignCamp({
   overview,
   party,
   characters,
+  notes,
   settings,
   partyDrawer,
   characterFolio = false,
   partyFolio = false,
-  hasUnsavedChanges = false,
+  unsavedChanges = {},
+  onDestinationChange,
   toasts = [],
   onDismissToast = () => {},
 }: {
@@ -131,6 +133,7 @@ export function CampaignCamp({
   overview: ReactNode
   party: ReactNode
   characters: ReactNode
+  notes: ReactNode
   settings: ReactNode
   /** A collapsible tab on the Party page's side (appearance), shown only there. */
   partyDrawer?: ReactNode
@@ -138,8 +141,10 @@ export function CampaignCamp({
   characterFolio?: boolean
   /** The Party panel shows a character's sheet, so it opens wide too. */
   partyFolio?: boolean
-  /** The open destination holds edits that closing would lose. */
-  hasUnsavedChanges?: boolean
+  /** Destinations whose open page holds edits that closing would lose. */
+  unsavedChanges?: Partial<Record<CampLocationId, boolean>>
+  /** Called with the open destination (or null when closed) each time it changes. */
+  onDestinationChange?: (id: CampLocationId | null) => void
   /** Brief confirmations, shown inside the journal. */
   toasts?: readonly CampToast[]
   onDismissToast?: (id: number) => void
@@ -163,6 +168,14 @@ export function CampaignCamp({
     scope: campRef,
   })
   const [leaveAsked, setLeaveAsked] = useState(false)
+  const destinationRef = useRef(onDestinationChange)
+  useEffect(() => {
+    destinationRef.current = onDestinationChange
+  })
+  const activeId = active?.id ?? null
+  useEffect(() => {
+    destinationRef.current?.(activeId)
+  }, [activeId])
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
   // Every destination wears the leather journal (the folio, wider, for a sheet). The
@@ -180,7 +193,7 @@ export function CampaignCamp({
   const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | undefined>(undefined)
   if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
   const variant = active ? wantedVariant : (lastVariant ?? 'journal')
-  const guarded = active?.id === 'characters' && hasUnsavedChanges
+  const guarded = active ? Boolean(unsavedChanges[active.id]) : false
 
   /** Closing with unsaved edits asks first. */
   function requestClose() {
@@ -613,6 +626,7 @@ export function CampaignCamp({
             <section hidden={active?.id !== 'overview'}>{overview}</section>
             <section hidden={active?.id !== 'party'}>{party}</section>
             <section hidden={active?.id !== 'characters'}>{characters}</section>
+            <section hidden={active?.id !== 'notes'}>{notes}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>
@@ -622,7 +636,7 @@ export function CampaignCamp({
           <div data-unsaved-prompt>
             <UnsavedChangesDialog
               discardLabel="Discard and leave"
-              message="You have edits that haven't been saved. Leaving the tent now will discard them."
+              message={`You have edits that haven't been saved. Leaving ${active?.id === 'notes' ? 'the journal' : 'the tent'} now will discard them.`}
               onDiscard={() => {
                 setLeaveAsked(false)
                 close()

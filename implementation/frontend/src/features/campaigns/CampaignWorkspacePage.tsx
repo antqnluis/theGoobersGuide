@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
@@ -6,6 +6,9 @@ import { campaignCharactersOptions } from '../characters/characterQueries'
 import { CharacterTent, type TentView } from '../characters/CharacterTent'
 import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
 import { useCharacterActions } from '../characters/useCharacterActions'
+import { CampNotes, type NoteScreen } from '../notes/CampNotes'
+import { notesKey } from '../notes/noteQueries'
+import { useNoteActions } from '../notes/useNoteActions'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
@@ -58,9 +61,15 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const management = useCampaignManagement(campaignId, userId)
   const membership = useCampaignMembership(campaignId, userId)
   const characterActions = useCharacterActions(campaignId, userId)
+  const noteActions = useNoteActions(campaignId, userId)
+  const queryClient = useQueryClient()
   const appearanceActions = useCampaignAppearance(campaignId, userId)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
   const [characterDirty, setCharacterDirty] = useState(false)
+  const [noteScreen, setNoteScreen] = useState<NoteScreen>({ type: 'list' })
+  const [noteDirty, setNoteDirty] = useState(false)
+  // The notes load when the Notes destination is first opened, and refresh each time after.
+  const [notesOpened, setNotesOpened] = useState(false)
   // A shared sheet opened read-only from the Party panel.
   const [partySheetId, setPartySheetId] = useState<string | null>(null)
   const toasts = useCampToasts()
@@ -247,7 +256,13 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     <CampaignCamp
       characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
       partyFolio={partySheetId !== null}
-      hasUnsavedChanges={characterDirty}
+      unsavedChanges={{ characters: characterDirty, notes: noteDirty }}
+      onDestinationChange={(id) => {
+        if (id !== 'notes') return
+        if (notesOpened)
+          void queryClient.invalidateQueries({ queryKey: notesKey(campaignId, userId) })
+        else setNotesOpened(true)
+      }}
       onDismissToast={toasts.dismiss}
       toasts={toasts.toasts}
       cancelDelete={() => {
@@ -261,12 +276,16 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         setCharacterConfirmation(null)
         setTentView({ type: 'list' })
         setCharacterDirty(false)
+        noteActions.clearError()
+        setNoteScreen({ type: 'list' })
+        setNoteDirty(false)
         setPartySheetId(null)
       }}
       isDeleting={
         management.isDeleting ||
         membership.pendingAction !== null ||
-        characterActions.pendingAction !== null
+        characterActions.pendingAction !== null ||
+        noteActions.pendingAction !== null
       }
       isOwner={isOwner}
       notice={notice}
@@ -384,6 +403,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           view={tentView}
         />
       }
+      notes={
+        <CampNotes
+          actions={noteActions}
+          campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
+          enabled={notesOpened}
+          onDirtyChange={setNoteDirty}
+          onNotice={toasts.push}
+          onScreenChange={setNoteScreen}
+          roster={roster}
+          screen={noteScreen}
+          userId={userId}
+        />
+      }
       settings={
         <CampPanel
           headingId="camp-settings-heading"
@@ -457,9 +490,9 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               role="group"
             >
               <p>
-                Delete <strong>{campaign.name}</strong> permanently? Its details, member list, and
-                every player's characters, character sheets, and inventories will be removed. This
-                can't be undone.
+                Delete <strong>{campaign.name}</strong> permanently? Its details, member list,
+                notes, and every player's characters, character sheets, and inventories will be
+                removed. This can't be undone.
               </p>
               <div className="campaign-settings__actions">
                 <button

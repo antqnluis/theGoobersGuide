@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { planetAppearance } from './planetModel'
 import { CampaignCamp } from './CampaignCamp'
+import type { CampLocationId } from './camp/campLayout'
+
+type UnsavedChanges = Partial<Record<CampLocationId, boolean>>
 
 // jsdom has no canvas, so the lazy scene is replaced by nothing here; the real
 // renderer is covered by the draw-plan tests and the browser tests.
@@ -14,17 +17,17 @@ function campElement({
   isOwner = true,
   isDeleting = false,
   cancelDelete = vi.fn(),
-  hasUnsavedChanges = false,
+  unsavedChanges = {},
 }: {
   isOwner?: boolean
   isDeleting?: boolean
   cancelDelete?: () => void
-  hasUnsavedChanges?: boolean
+  unsavedChanges?: UnsavedChanges
 } = {}) {
   return (
     <CampaignCamp
       cancelDelete={cancelDelete}
-      hasUnsavedChanges={hasUnsavedChanges}
+      unsavedChanges={unsavedChanges}
       isDeleting={isDeleting}
       isOwner={isOwner}
       notice={null}
@@ -39,6 +42,7 @@ function campElement({
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
       characters={<h2 id="camp-characters-heading">My characters</h2>}
+      notes={<h2 id="camp-notes-heading">Campaign notes</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
     />
@@ -54,7 +58,7 @@ function renderCamp(options: Parameters<typeof campElement>[0] = {}) {
 describe('CampaignCamp unsaved characters', () => {
   async function openTent(hasUnsavedChanges: boolean) {
     const user = userEvent.setup()
-    const out = renderCamp({ hasUnsavedChanges })
+    const out = renderCamp({ unsavedChanges: { characters: hasUnsavedChanges } })
     await user.click(screen.getByRole('button', { name: /My characters\s*Tent/ }))
     return { ...out, user }
   }
@@ -81,6 +85,40 @@ describe('CampaignCamp unsaved characters', () => {
 
   it('closes straight away with nothing to lose', async () => {
     const { cancelDelete, user } = await openTent(false)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CampaignCamp unsaved notes', () => {
+  async function openCrates(unsavedChanges: UnsavedChanges) {
+    const user = userEvent.setup()
+    const out = renderCamp({ unsavedChanges })
+    await user.click(screen.getByRole('button', { name: /Notes\s*Journal crates/ }))
+    return { ...out, user }
+  }
+
+  it('asks in the journal’s own words before closing with an unsaved note', async () => {
+    const { cancelDelete, user } = await openCrates({ notes: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    expect(screen.getByText(/Leaving the journal now will discard them/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('does not ask for a destination other than the one with edits', async () => {
+    // Unsaved character edits do not guard the notes page, and the reverse.
+    const { cancelDelete, user } = await openCrates({ characters: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes straight away with nothing to lose', async () => {
+    const { cancelDelete, user } = await openCrates({})
     await user.click(screen.getByRole('button', { name: 'Back to camp' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(cancelDelete).toHaveBeenCalledTimes(1)
@@ -157,6 +195,21 @@ describe('CampaignCamp destinations', () => {
     expect(entry).toHaveFocus()
   })
 
+  it('opens the journal crates as Notes for everyone', async () => {
+    const user = userEvent.setup()
+    renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /Notes\s*Journal crates/,
+    })
+
+    await user.click(entry)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'notes')
+    expect(screen.getByRole('dialog', { name: 'Campaign notes' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(entry).toHaveFocus()
+  })
+
   it('names Places entries by label and object, and hides settings from members', () => {
     renderCamp({ isOwner: false })
     expect(screen.getAllByRole('list', { name: 'Camp places', hidden: true })).toHaveLength(1)
@@ -220,6 +273,7 @@ describe('CampaignCamp frame loop cleanup', () => {
           overview={<h2 id="camp-overview-heading">Overview</h2>}
           party={<h2 id="camp-party-heading">Party</h2>}
           characters={<h2 id="camp-characters-heading">Characters</h2>}
+          notes={<h2 id="camp-notes-heading">Notes</h2>}
           settings={<h2 id="camp-settings-heading">Settings</h2>}
           title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
         />,

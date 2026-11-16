@@ -1,7 +1,7 @@
 /** Size of the authored panorama in base art pixels. */
 export const panorama = { width: 960, height: 270 } as const
 
-export type CampLocationId = 'overview' | 'party' | 'characters' | 'settings'
+export type CampLocationId = 'overview' | 'party' | 'characters' | 'notes' | 'settings'
 
 export type CampLocation = {
   id: CampLocationId
@@ -21,6 +21,19 @@ export type CampLocation = {
   plateAlign: 'center' | 'end'
   ownerOnly: boolean
 }
+
+/** Static scenery drawn at fixed spots, never labeled or focusable. */
+export type CampProp = {
+  id: string
+  x: number
+  y: number
+  flip?: boolean
+  /** Draws the sprite this many times its size, to whole art pixels (default 1). */
+  scale?: number
+}
+
+/** The journal crates, the "Notes" destination (32×38 sprite). */
+export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
 
 /** The one table that drives scene buttons, the Places list, and panel gating. */
 export const campLocations: readonly CampLocation[] = [
@@ -52,6 +65,17 @@ export const campLocations: readonly CampLocation[] = [
     // The tent's spot, and its 50×35 sprite at `tent.scale` (1.3), rounded to whole art pixels.
     world: { x: 280, y: 244 },
     hit: { width: 65, height: 46 },
+    plate: 'above',
+    plateAlign: 'center',
+    ownerOnly: false,
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    place: 'Journal crates',
+    // The crates' spot, and their 32×38 sprite, rounded up to a comfortable target.
+    world: { x: journalCrates.x, y: journalCrates.y },
+    hit: { width: 40, height: 46 },
     plate: 'above',
     plateAlign: 'center',
     ownerOnly: false,
@@ -89,20 +113,8 @@ export function parkedLocations(isOwner: boolean): CampLocation[] {
  */
 export const restFocusX = 384
 
-/** Static scenery drawn at fixed spots, never labeled or focusable. */
-export type CampProp = {
-  id: string
-  x: number
-  y: number
-  flip?: boolean
-  /** Draws the sprite this many times its size, to whole art pixels (default 1). */
-  scale?: number
-}
-
-export const dormantProps: readonly CampProp[] = [
-  { id: 'map-table', x: 690, y: 242 },
-  { id: 'journal-crates', x: 770, y: 244 },
-]
+/** Scenery that is not a destination, drawn at fixed spots and never labeled or focusable. */
+export const dormantProps: readonly CampProp[] = [{ id: 'map-table', x: 690, y: 242 }]
 
 /** Where the high-road waystone stands, a pointer shortcut back to the galaxy. */
 export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
