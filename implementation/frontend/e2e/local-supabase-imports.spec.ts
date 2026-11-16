@@ -5,6 +5,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcError,
   rpcOk,
@@ -1480,6 +1481,149 @@ test('deleting a campaign or an account removes import history', async () => {
     expect(deleted.error).toBeNull()
     expect(importRows(ownerCharacter)).toBe('')
   } finally {
+    await cleanup(players, ids)
+  }
+})
+
+test('a player imports a character and then applies an update in the tent, and both persist', async ({
+  browser,
+}) => {
+  test.setTimeout(150_000)
+  const { players } = await newPlayers(['owner'])
+  const { owner } = players
+  const ids: string[] = []
+  // Light on resources: one context, reduced motion, no screenshots or video.
+  const context = await browser.newContext({ reducedMotion: 'reduce' })
+  try {
+    const campaignId = await createCampaign(owner, 'M8 real-stack import')
+    ids.push(campaignId)
+
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${owner.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+    const openTent = async () => {
+      await page.goto(`/app/campaigns/${campaignId}`)
+      await page
+        .locator('.camp-directory')
+        .getByRole('button', { name: /^My characters/ })
+        .click()
+      return page.getByRole('dialog', { name: 'My characters' })
+    }
+    const tent = await openTent()
+
+    // Import as a new character: review everything, then create.
+    await tent.getByRole('button', { name: 'Import a character' }).click()
+    const importer = page.getByRole('dialog', { name: 'Import a character' })
+    await importer.getByLabel('Character document (JSON)').fill(
+      JSON.stringify({
+        format: 'the-goobers-guide-character',
+        version: 3,
+        character: {
+          name: 'Arlen Vale',
+          species: 'Human',
+          class_name: 'Ranger',
+          level: 3,
+          vitals: { max_hp: 24, current_hp: 20, temp_hp: 0, armor_class: 15, speed: 30 },
+          abilities: { str: 12, dex: 16, con: 14, int: 10, wis: 15, cha: 8 },
+          attacks: [{ name: 'Longbow', bonus: '+5', damage: '1d8 + 3' }],
+          inventory: [{ name: 'Rope', quantity: 2, weight: 10 }],
+          currency: { sp: 4, gp: 12 },
+        },
+      }),
+    )
+    await expect(importer.getByText('Everything checks out')).toBeVisible()
+    await importer.getByLabel(/Source/).fill('arlen.md')
+    await importer.getByRole('button', { name: 'Create character' }).click()
+    await expect(tent.getByText('Character imported.')).toBeVisible()
+    await expect(tent.getByRole('heading', { name: 'Arlen Vale' })).toBeVisible()
+
+    const characterId = localDatabaseQuery(
+      `select id from public.characters where campaign_id = '${campaignId}' and name = 'Arlen Vale';`,
+      {},
+    ).trim()
+    expect(characterId).not.toBe('')
+    expect(
+      localDatabaseQuery(
+        `select status || '|' || in_party || '|' || sheet_visibility
+         from public.characters where id = '${characterId}';`,
+        {},
+      ),
+    ).toBe('active|false|private')
+
+    // After a reload the character is still there.
+    const reloaded = await openTent()
+    await expect(reloaded.getByRole('heading', { name: 'Arlen Vale' })).toBeVisible()
+    await reloaded.getByRole('button', { name: 'Open Arlen Vale' }).click()
+    await expect(reloaded.locator('[data-coin="gp"]')).toContainText('12 gp')
+    await expect(reloaded.locator('.inventory-item', { hasText: 'Rope' })).toContainText(
+      'Quantity 2',
+    )
+
+    // Import updates: target the real attack and item ids, select two of three changes.
+    const attackId = localDatabaseQuery(
+      `select sheet->'attacks'->0->>'id' from public.character_sheets
+       where character_id = '${characterId}';`,
+      {},
+    ).trim()
+    const itemId = localDatabaseQuery(
+      `select id from public.character_items where character_id = '${characterId}';`,
+      {},
+    ).trim()
+    await reloaded.getByRole('button', { name: 'Import and export' }).click()
+    await reloaded.getByRole('button', { name: 'Import updates' }).click()
+    const review = page.getByRole('dialog', { name: 'Import updates' })
+    await review.getByLabel('Update document (JSON)').fill(
+      JSON.stringify({
+        format: 'the-goobers-guide-character-update',
+        version: 2,
+        changes: {
+          details: { set: { level: 4 } },
+          attacks: [{ op: 'update', id: attackId, set: { bonus: '+6' } }],
+          inventory: [{ op: 'update', id: itemId, set: { quantity: 5 } }],
+          currency: { set: { gp: 20 } },
+        },
+      }),
+    )
+    const list = review.getByRole('region', { name: 'Review' })
+    await expect(list.getByRole('checkbox')).toHaveCount(4)
+    await list.getByRole('checkbox', { name: 'Level' }).check()
+    await list.getByRole('checkbox', { name: 'Gold' }).check()
+    await list.getByRole('checkbox', { name: /Quantity/ }).check()
+    await review.getByLabel(/Source/).fill('session-2.json')
+    await review.getByRole('button', { name: 'Apply 3 changes' }).click()
+    await expect(reloaded.getByText('Update applied: 3 changes saved.')).toBeVisible()
+
+    // The unselected change did not apply; the selected ones did.
+    expect(
+      localDatabaseQuery(
+        `select c.level || '|' || s.gp || '|' || (s.sheet->'attacks'->0->>'bonus')
+         from public.characters c join public.character_sheets s on s.character_id = c.id
+         where c.id = '${characterId}';`,
+        {},
+      ),
+    ).toBe('4|20|+5')
+    expect(
+      localDatabaseQuery(`select quantity from public.character_items where id = '${itemId}';`, {}),
+    ).toBe('5')
+
+    // After another reload the update is on the sheet, and the history lists both imports.
+    const again = await openTent()
+    await again.getByRole('button', { name: 'Open Arlen Vale' }).click()
+    await expect(again.locator('.folio-head__meta')).toHaveText('Level 4 Human Ranger')
+    await expect(again.locator('[data-coin="gp"]')).toContainText('20 gp')
+    await again.getByRole('button', { name: 'Import and export' }).click()
+    await again.getByText('Import history').click()
+    await expect(again.getByText('Imported as new')).toBeVisible()
+    await expect(again.getByText('Updated from import')).toBeVisible()
+    await expect(again.getByText(/arlen\.md/)).toBeVisible()
+    await expect(again.getByText(/session-2\.json/)).toBeVisible()
+    expect(importRows(characterId)).toBe('new|arlen.md|3;update|session-2.json|3')
+  } finally {
+    await context.close()
     await cleanup(players, ids)
   }
 })

@@ -91,7 +91,7 @@ Characters exist only inside a campaign and belong to one player. Neither can ch
 | `id`, `campaign_id` and `owner_id` never change | `private.guard_character_write` trigger (`character_reassignment_forbidden`), plus no column grant |
 | A character is created, or joins the party, only while its owner is a member | The same trigger (`character_owner_not_member`) |
 | `status_changed_at` follows `status` | The same trigger |
-| Sheet structure and size | `character_sheets_sheet_check`: object of at most 64 KiB, known keys only, ability scores 1–30, known skill values, at most 30 attacks, via `private.character_sheet_is_valid` (pure, executable by `authenticated` because check constraints run under the writing role) |
+| Sheet structure and size | `character_sheets_sheet_check`: object of at most 64 KiB, known keys only, ability scores 1–30, known skill values, at most 30 attacks, each with a lowercase UUID `id` unique within the sheet (M03.8), via `private.character_sheet_is_valid` (pure, executable by `authenticated` because check constraints run under the writing role) |
 | Vitals | `max_hp` 1–9999, `current_hp` 0–`max_hp`, `temp_hp` 0–9999, AC 0–99, speed 0–999 |
 
 Because only one character can be active and only active characters can be in the party, a player has at most one in-party character per campaign.
@@ -181,6 +181,37 @@ Coins live on the sheet row, so every coin change moves `character_sheets.update
 
 - **Leaving or removal** keeps items, balances and the log. The leaver can no longer read or change them, and other members stop seeing them even on a shared sheet. **Rejoining** restores access to the same rows.
 - **Deleting a character** deletes its items and log. **Deleting a campaign** deletes everything in it, including a departed player's. **Deleting a member's account** deletes only their own.
+
+## Character imports
+
+A player can bring a character in from a document, or bring later changes into an existing one. The app parses and reviews the document; the database only adds atomicity and a record of what happened. Neither RPC grants anything a player could not already do one write at a time, and neither can change `status`, `in_party`, `sheet_visibility`, `portrait_path`, the owner, or the campaign.
+
+### Table
+
+`public.character_imports` records each successful import: `id`, `character_id` (references `characters`, `ON DELETE CASCADE`), `imported_by` (references `profiles`, `ON DELETE CASCADE`), `kind` (`new` or `update`), `source_label` (1–120 characters, trimmed, no control characters, null when empty), `change_count` (0 or more) and `imported_at`. Indexed by `character_id`. The source document itself is not stored.
+
+- `change_count` is, for `new`, one for the character plus the number of items plus one if coins were added, and for `update`, the number of changes the player selected.
+- Imported coin changes appear in `character_currency_log` as ordinary rows; the log has no source column.
+
+### Access
+
+RLS is enabled; `anon`, `service_role` and `public` have no access.
+
+| Data | Authenticated access |
+| --- | --- |
+| Read | Same rule as the sheet: the owner while a member, other current members only when `sheet_visibility = 'campaign'`. **The campaign owner has no override.** |
+| Insert, update, delete | Nobody through the API (select only). Rows are written only by `private.record_character_import`, which the two RPCs call as their last step, so a failed import records nothing. The history goes away only with its character. |
+
+### RPCs
+
+Both are `SECURITY INVOKER` and executable only by `authenticated`: every write runs under the caller's own grants, RLS, guard triggers, caps and check constraints. Only `private.record_character_import` is `SECURITY DEFINER`; it re-checks that the caller owns the character and is a current member. Payloads are database-shaped (the client parses the document); every key and type is checked before anything is written.
+
+| RPC | Effect and errors |
+| --- | --- |
+| `import_character(p_campaign_id, p_character, p_source_label)` | Creates the character (active, out of the party, private, no portrait) through `create_character`, then its vitals and body, items (at most 200) and coins (through `adjust_character_currency`, one log row), and the history row, in one transaction. Returns the new id. Any failure leaves nothing behind. |
+| `apply_character_update(p_character_id, p_expected, p_changes, p_source_label)` | Applies the selected details, vitals, full body replacement, item adds, updates and removes, and coin targets, in one transaction, and returns the sheet's new `updated_at`. `p_expected` carries the character's, the sheet's and each targeted item's `updated_at`; any difference fails the whole update. Locks the campaign and sheet in the usual order (through `adjust_character_currency(…, 0, 0, 0)`, which changes and logs nothing), then the character row. `p_changes` may carry an informational `change_count`. |
+
+Errors: `import_invalid` (wrong payload shape, a forbidden key, an empty `p_changes`), `import_values_invalid` (a value the table rules refuse) and `import_source_invalid` (a bad label) are `22023`. `import_conflict` (the character, sheet or an item changed after the review was loaded) and `character_unavailable` (unknown, inaccessible, someone else's, or departed) are `P0001`. Errors from the inner functions (`character_active_exists`, `character_campaign_unavailable`, `item_limit_reached`, `currency_limit_exceeded`, `currency_insufficient`) pass through unchanged.
 
 ## Camp appearance
 

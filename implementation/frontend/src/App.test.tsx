@@ -159,7 +159,10 @@ describe('auth routes and forms', () => {
     await user.type(form.getByLabelText('Confirm password'), 'adventure1')
     await user.click(within(registration).getByRole('button', { name: 'Create account' }))
 
-    expect(await screen.findByRole('heading', { name: 'Your campaigns' })).toBeVisible()
+    // The page can swap its heading while it transitions in, so look it up again until it settles.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Your campaigns' })).toBeVisible(),
+    )
     expect(window.location.pathname).toBe('/app/campaigns')
   })
 

@@ -15,9 +15,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Status |
 | --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M3 are done; M8 character imports are planned; M4–M7 are not started. |
-| [M03.8 — Character Imports](in-progress/M03.8-Character-Imports.md) | Approved. Phases 0–3 done (baseline; schema and RPCs; formats and prompts; import as a new character, Markdown export, import history); Phase 4 (import updates) is next. |
-| [M03.8 — Implementation Log](in-progress/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
+| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M3 are done; M8 character imports are implemented; M4–M7 are not started. |
 
 ## Completed
 
@@ -31,6 +29,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.2 — Implementation Log](completed/M03.2-Implementation-Log.md) | Per-phase record of the M03.2 work. |
 | [M03.3 — Inventory and Currency](completed/M03.3-Inventory-and-Currency.md) | Phases 0–5 done. The full browser suite and local-stack suite pass; the camp-scene tests are timing-flaky under load and pass alone. |
 | [M03.3 — Implementation Log](completed/M03.3-Implementation-Log.md) | Per-phase record of the M03.3 work, including the later change requests. |
+| [M03.8 — Character Imports](completed/M03.8-Character-Imports.md) | Implemented (Phases 0–5): attack ids, `character_imports`, `import_character` and `apply_character_update`, the version-3 and update-2 formats, copyable prompts, import as new and import updates with review, Markdown export, and import history. |
+| [M03.8 — Implementation Log](completed/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
 
 ## Paused
 
