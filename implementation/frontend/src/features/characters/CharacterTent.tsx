@@ -8,6 +8,7 @@ import { CharacterStatusControls, type CharacterConfirmation } from './Character
 import { describeCharacter } from './characterDisplay'
 import type { CharacterDetails, CharacterStatus, CharacterSummary } from './characterTypes'
 import { PixelIcon } from './PixelIcon'
+import { sameTentView, tentDirection, turnPage } from './tentTransition'
 import { UnsavedChangesDialog } from './UnsavedChangesDialog'
 import type { useCharacterActions } from './useCharacterActions'
 import './characters.css'
@@ -123,9 +124,13 @@ export function CharacterTent({
       setPendingNav(next)
       return
     }
-    actions.clearError()
-    onConfirmationChange(null)
-    onViewChange(next)
+    const apply = () => {
+      actions.clearError()
+      onConfirmationChange(null)
+      onViewChange(next)
+    }
+    if (sameTentView(current, next)) apply()
+    else turnPage(tentDirection(current, next), apply)
   }
 
   async function create(details: CharacterDetails, inParty: boolean) {

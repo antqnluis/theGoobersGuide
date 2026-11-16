@@ -2787,6 +2787,8 @@ test('edits details, vitals, and the sheet, and keeps them after a reload', asyn
   await dialog.getByRole('button', { name: 'Save sheet' }).click()
   await expect(dialog.getByText('Character sheet saved.')).toBeVisible()
   await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  // The page turn applies the new screen a frame later.
+  await expect(dialog.getByRole('button', { name: 'Edit character' })).toBeVisible()
   await dialog.getByLabel('Current HP').fill('25')
   await dialog.getByRole('button', { name: 'Save stats' }).click()
   await expect(dialog.getByText('Stats saved.').last()).toBeVisible()
@@ -3399,9 +3401,13 @@ test('clicking outside asks about unsaved sheet edits instead of discarding them
   const { dialog } = await openTent(page, withCharacter())
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
   await dialog.getByRole('button', { name: 'Edit character' }).click()
+  // The page turn applies the new screen a frame later.
+  await expect(dialog.getByRole('heading', { name: /^Edit / })).toBeVisible()
   await dialog.getByRole('textbox', { name: 'Spells', exact: true }).fill('Light')
   await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
 
+  // Pointer events wait out the page turn.
+  await expect(page.locator('html')).not.toHaveAttribute('data-tent-turn', /.+/)
   const point = await outsidePoint(page)
   // The journal learns of the edit a frame after the sheet shows it.
   await page.evaluate(

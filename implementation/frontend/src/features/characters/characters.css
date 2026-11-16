@@ -1082,6 +1082,143 @@
   }
 }
 
+/* Page turns between the tent's screens (see tentTransition.ts). The root carries
+   data-tent-turn="forward" or "back" while a View Transition runs: the cover morphs when
+   the journal changes width, and the parchment page slides out quickly and the next one
+   settles in. The scene behind stays live, so the camera pan underneath still plays.
+   Browsers without View Transitions fall back to `.tent-turn`'s entrance above. */
+:root[data-tent-turn] {
+  --tent-turn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-tent-turn] .tent-turn {
+  animation: none;
+}
+
+:root[data-tent-turn] .camp-ledger[data-variant][open] {
+  view-transition-name: journal-cover;
+}
+
+:root[data-tent-turn] .camp-ledger[data-variant] .camp-ledger__body {
+  view-transition-name: journal-page;
+}
+
+:root[data-tent-turn]::view-transition-old(root),
+:root[data-tent-turn]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:root[data-tent-turn]::view-transition-group(journal-cover),
+:root[data-tent-turn]::view-transition-group(journal-page) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--tent-turn-ease);
+}
+
+/* The page is clipped to its box, so a page taller than the journal never spills out. */
+:root[data-tent-turn]::view-transition-group(journal-page) {
+  overflow: clip;
+}
+
+/* The cover fills its box as it resizes instead of keeping its aspect ratio, and the new
+   one fades in over the old (the default cross-fade would brighten where they overlap). */
+:root[data-tent-turn]::view-transition-old(journal-cover),
+:root[data-tent-turn]::view-transition-new(journal-cover) {
+  inline-size: 100%;
+  block-size: 100%;
+  mix-blend-mode: normal;
+}
+
+:root[data-tent-turn]::view-transition-old(journal-cover) {
+  animation: none;
+}
+
+:root[data-tent-turn]::view-transition-new(journal-cover) {
+  animation: tent-page-fade-in 140ms ease-out both;
+}
+
+/* The page keeps its own size while the box around it grows or shrinks. */
+:root[data-tent-turn]::view-transition-old(journal-page),
+:root[data-tent-turn]::view-transition-new(journal-page) {
+  inline-size: auto;
+  block-size: auto;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-tent-turn]::view-transition-old(journal-page) {
+    animation: tent-page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
+  :root[data-tent-turn]::view-transition-new(journal-page) {
+    animation: tent-page-in 280ms var(--tent-turn-ease) 50ms both;
+  }
+
+  :root[data-tent-turn='back']::view-transition-old(journal-page) {
+    animation-name: tent-page-out-back;
+  }
+
+  :root[data-tent-turn='back']::view-transition-new(journal-page) {
+    animation-name: tent-page-in-back;
+  }
+
+  @keyframes tent-page-out {
+    to {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+  }
+
+  @keyframes tent-page-in {
+    from {
+      opacity: 0;
+      transform: translateX(28px);
+    }
+  }
+
+  @keyframes tent-page-out-back {
+    to {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+  }
+
+  @keyframes tent-page-in-back {
+    from {
+      opacity: 0;
+      transform: translateX(-28px);
+    }
+  }
+}
+
+@keyframes tent-page-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tent-page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: no travel and no resizing, only a short fade between pages. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-tent-turn]::view-transition-group(journal-cover),
+  :root[data-tent-turn]::view-transition-group(journal-page) {
+    animation: none;
+  }
+
+  :root[data-tent-turn]::view-transition-old(journal-page) {
+    animation: tent-page-fade-out 100ms linear both;
+  }
+
+  :root[data-tent-turn]::view-transition-new(journal-page) {
+    animation: tent-page-fade-in 160ms linear 60ms both;
+  }
+}
+
 /* The display's one quick edit: current HP, saved from the pinned bar. */
 .sheet-derived--vitals .sheet-quickhp {
   grid-column: 1 / -1;

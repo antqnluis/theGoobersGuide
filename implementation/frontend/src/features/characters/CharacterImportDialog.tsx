@@ -9,6 +9,7 @@ import {
 import { abilityLabels, skillLabels } from './characterSheetRules'
 import { conversionPrompt } from './characterPrompts'
 import { abilityKeys, type SkillKey } from './characterTypes'
+import { closeWithExit } from './dialogExit'
 import { maxDocumentBytes } from './importText'
 import { useCharacterImport } from './useCharacterImport'
 import { UnsavedChangesDialog } from './UnsavedChangesDialog'
@@ -67,7 +68,12 @@ export function CharacterImportDialog({ campaignId, userId, onClose, onImported 
   function requestClose() {
     if (pending) return
     if (text.trim() !== '') setConfirmClose(true)
-    else onClose()
+    else leave(onClose)
+  }
+
+  /** The dialog eases out before the screen behind it changes. */
+  function leave(done: () => void) {
+    closeWithExit(ref.current, done)
   }
 
   async function copyPrompt() {
@@ -98,7 +104,7 @@ export function CharacterImportDialog({ campaignId, userId, onClose, onImported 
   async function submit() {
     if (!ready || result?.kind !== 'parsed' || pending) return
     const id = await importer.importNew(toImportPayload(result.character), trimmedLabel || null)
-    if (id) onImported(id)
+    if (id) leave(() => onImported(id))
   }
 
   return (
@@ -253,7 +259,7 @@ export function CharacterImportDialog({ campaignId, userId, onClose, onImported 
         <UnsavedChangesDialog
           discardLabel="Discard import"
           message="You pasted a document that hasn't been imported. Closing now will discard it."
-          onDiscard={onClose}
+          onDiscard={() => leave(onClose)}
           onKeep={() => setConfirmClose(false)}
           title="Discard this import?"
         />
