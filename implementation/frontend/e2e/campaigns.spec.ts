@@ -2581,6 +2581,7 @@ test('pastes, reviews, and imports a character, then opens its sheet and history
   expect(state.sheets[0]).toMatchObject({ max_hp: 24, current_hp: 20, sp: 4, gp: 12 })
   expect(state.items).toHaveLength(1)
 
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
   await dialog.getByText('Import history').click()
   await expect(dialog.getByText('Imported as new')).toBeVisible()
   await expect(dialog.getByText(/arlen\.md/)).toBeVisible()
@@ -2663,6 +2664,192 @@ test('import is withheld while a character is active, with the reason', async ({
   await expect(dialog.getByText(/before creating or importing another character/)).toBeVisible()
 })
 
+const updateAttackId = '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10'
+
+function withUpdatableCharacter() {
+  const state = withCharacter({ level: 3 })
+  const id = state.characters[0].id
+  state.sheets[0] = mockSheet(id, {
+    max_hp: 30,
+    current_hp: 12,
+    gp: 5,
+    sheet: {
+      version: 1,
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      saving_throws: [],
+      skills: {},
+      attacks: [
+        { id: updateAttackId, name: 'Greataxe', bonus: '+6', damage: '1d12 + 4', notes: '' },
+      ],
+      features: '',
+      spells: '',
+      notes: '',
+      alignment: '',
+      experience: null,
+    },
+  })
+  state.items = [mockItem(id, { name: 'Rope', quantity: 1 })]
+  return state
+}
+
+const updateDocument = (itemId: string) =>
+  JSON.stringify({
+    format: 'the-goobers-guide-character-update',
+    version: 2,
+    changes: {
+      details: { set: { level: 4 } },
+      vitals: { set: { max_hp: 40 } },
+      attacks: [{ op: 'update', id: updateAttackId, set: { bonus: '+7' } }],
+      inventory: [{ op: 'update', id: itemId, set: { quantity: 3 } }],
+      currency: { set: { gp: 20 } },
+    },
+  })
+
+async function openUpdates(page: Page, state: CharacterState) {
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  const entry = dialog.getByRole('button', { name: 'Import updates' })
+  await expect(entry).toBeEnabled()
+  await entry.click()
+  return { dialog, review: page.getByRole('dialog', { name: 'Import updates' }) }
+}
+
+test('the active-character note links to Import updates on the sheet', async ({ page }) => {
+  const { dialog } = await openTent(page, withUpdatableCharacter())
+  await dialog.getByRole('button', { name: 'Import updates' }).click()
+  await expect(dialog.getByLabel('Current HP')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeVisible()
+})
+
+test('pastes an update, applies only the selected changes, and shows them in history', async ({
+  page,
+}) => {
+  const state = withUpdatableCharacter()
+  const { dialog, review } = await openUpdates(page, state)
+  await expect(review.getByRole('button', { name: /^Apply/ })).toBeDisabled()
+
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  const list = review.getByRole('region', { name: 'Review' })
+  await expect(list.getByRole('checkbox')).toHaveCount(5)
+  await expect(list.getByRole('checkbox', { name: 'Level' }).locator('..')).toContainText('4')
+  for (const box of await list.getByRole('checkbox').all()) await expect(box).not.toBeChecked()
+
+  // Only the chosen changes are applied.
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+  await list.getByRole('checkbox', { name: 'Attack “Greataxe”: Bonus' }).check()
+  await list.getByRole('checkbox', { name: 'Gold' }).check()
+  await review.getByLabel(/Source/).fill('session-12.json')
+  await review.getByRole('button', { name: 'Apply 3 changes' }).click()
+
+  await expect(dialog.getByText('Update applied: 3 changes saved.')).toBeVisible()
+  await expect(review).toHaveCount(0)
+  expect(state.characters[0]).toMatchObject({ level: 4 })
+  expect(state.sheets[0]).toMatchObject({ gp: 20, max_hp: 30 })
+  expect(state.items![0]).toMatchObject({ quantity: 1 })
+  expect(state.imports?.at(-1)).toMatchObject({
+    kind: 'update',
+    source_label: 'session-12.json',
+    change_count: 3,
+  })
+
+  // The sheet shows the new values, and the history lists the update.
+  await expect(dialog.locator('.folio-head__meta')).toHaveText('Level 4 Elf Fighter')
+  await dialog.getByText('Import history').click()
+  await expect(dialog.getByText('Updated from import')).toBeVisible()
+  await expect(dialog.getByText(/session-12\.json/)).toBeVisible()
+})
+
+test('a character that changed during review loads the latest and applies nothing', async ({
+  page,
+}) => {
+  const state = withUpdatableCharacter()
+  const { dialog, review } = await openUpdates(page, state)
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  const list = review.getByRole('region', { name: 'Review' })
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+
+  // Another device spends coins after the review was loaded.
+  state.sheets[0].gp = 99
+  state.sheets[0].updated_at = new Date().toISOString()
+  await review.getByRole('button', { name: 'Apply 1 change' }).click()
+
+  await expect(review.getByRole('alert')).toContainText('changed while you were reviewing')
+  expect(state.characters[0]).toMatchObject({ level: 3 })
+  expect(state.imports ?? []).toHaveLength(0)
+  // The review starts again against the latest values, with nothing selected.
+  await expect(list.getByRole('checkbox', { name: 'Gold' }).locator('..')).toContainText('99')
+  for (const box of await list.getByRole('checkbox').all()) await expect(box).not.toBeChecked()
+  await expect(review.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+  await review.getByRole('button', { name: 'Apply 1 change' }).click()
+  await expect(dialog.getByText('Update applied: 1 change saved.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ level: 4 })
+})
+
+test('an update with a doubt, or an unknown target, is blocked as a whole', async ({ page }) => {
+  const state = withUpdatableCharacter()
+  const { review } = await openUpdates(page, state)
+  const field = review.getByLabel('Update document (JSON)')
+
+  await field.fill(
+    JSON.stringify({
+      format: 'the-goobers-guide-character-update',
+      version: 2,
+      changes: { details: { set: { level: 4 } } },
+      issues: ['Is Brand level 4 or 5?'],
+    }),
+  )
+  await expect(review.getByRole('alert')).toContainText('Is Brand level 4 or 5?')
+  await expect(review.getByRole('checkbox')).toHaveCount(0)
+
+  await field.fill(
+    JSON.stringify({
+      format: 'the-goobers-guide-character-update',
+      version: 2,
+      changes: {
+        attacks: [{ op: 'remove', id: '11111111-1111-4111-8111-111111111111' }],
+      },
+    }),
+  )
+  await expect(review.getByRole('alert')).toBeVisible()
+  await expect(review.getByRole('checkbox')).toHaveCount(0)
+  await expect(review.getByRole('button', { name: /^Apply/ })).toBeDisabled()
+
+  // Closing a pasted update asks first.
+  await review.getByRole('button', { name: 'Cancel' }).click()
+  const question = page.getByRole('alertdialog', { name: 'Discard this update?' })
+  await question.getByRole('button', { name: 'Discard update' }).click()
+  await expect(review).toHaveCount(0)
+})
+
+test('Import updates is disabled while the sheet has unsaved edits', async ({ page }) => {
+  const { dialog } = await openTent(page, withUpdatableCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Notes and backstory').fill('A change')
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeDisabled()
+  await expect(dialog.getByText('Save or cancel your edits first.').first()).toBeVisible()
+})
+
+test('the update review fits a phone without horizontal scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 700 })
+  const state = withUpdatableCharacter()
+  const { review } = await openUpdates(page, state)
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  await expect(review.getByRole('checkbox')).toHaveCount(5)
+  const overflow = await review.evaluate((el) => ({
+    dialog: el.scrollWidth - el.clientWidth,
+    page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }))
+  expect(overflow).toEqual({ dialog: 0, page: 0 })
+  await review.getByRole('button', { name: 'Cancel' }).scrollIntoViewIfNeeded()
+  await expect(review.getByRole('button', { name: 'Cancel' })).toBeInViewport()
+})
+
 test('the sheet pages stack without an empty gap, and inventory and notes fold away', async ({
   page,
 }) => {
@@ -2725,6 +2912,7 @@ test('exports a character as a Markdown file', async ({ page }) => {
   const { dialog } = await openTent(page, state)
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
 
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
   const exportButton = dialog.getByRole('button', { name: 'Export Markdown' })
   await expect(exportButton).toBeEnabled()
   const download = page.waitForEvent('download')
@@ -2742,9 +2930,12 @@ test('exports a character as a Markdown file', async ({ page }) => {
 
   // Unsaved edits are not in the file, so the export waits for them.
   await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByRole('button', { name: 'Notes', exact: true }).click()
   await dialog.getByLabel('Notes and backstory').fill('Changed')
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
   await expect(dialog.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
-  await expect(dialog.getByText('Save or cancel your edits first.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeDisabled()
+  await expect(dialog.getByText('Save or cancel your edits first.')).toHaveCount(2)
 })
 
 test('unticking "Join the party" creates a character outside the party', async ({ page }) => {

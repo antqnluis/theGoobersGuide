@@ -438,7 +438,18 @@ export function CharacterTent({
           {active ? (
             <p className="tent-note">
               <PixelIcon name="lock" />
-              Retire or mark {active.name} deceased before creating or importing another character.
+              <span>
+                Retire or mark {active.name} deceased before creating or importing another
+                character. To bring in later changes instead, open {active.name} and choose{' '}
+                <button
+                  className="tent-note__link"
+                  onClick={() => go({ type: 'character', id: active.id })}
+                  type="button"
+                >
+                  Import updates
+                </button>
+                .
+              </span>
             </p>
           ) : (
             mine.length > 0 && (

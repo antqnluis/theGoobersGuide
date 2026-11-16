@@ -1883,3 +1883,197 @@
 .sheet-export small {
   color: var(--journal-ink-soft);
 }
+
+.tent-note__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Import updates: the change list with a checkbox, before and after, per change. */
+.update-review__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.update-review__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-review__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.update-review__change {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: start;
+}
+
+.update-review__change[data-invalid] {
+  opacity: 0.85;
+}
+
+.update-review__change > p {
+  grid-column: 2;
+  margin: 0;
+}
+
+.update-review__values {
+  overflow-wrap: anywhere;
+  color: var(--journal-ink-soft);
+}
+
+.update-review__before {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.update-review__after {
+  color: var(--journal-ink);
+  font-weight: 600;
+}
+
+/* The tools tab sits at the end of the bar and shows which view is open. */
+.sheet-nav__end {
+  margin-left: auto;
+}
+
+.sheet-nav__tab[aria-pressed='true'] {
+  border-bottom-color: var(--journal-oxblood);
+}
+
+.sheet-tools {
+  padding: 22px clamp(16px, 3vw, 28px);
+}
+
+/* Spells: a spell book of cards, one per cantrip or spell level. */
+.spell-book {
+  display: grid;
+  gap: 12px;
+}
+
+.spell-book__text {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+.spell-group {
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  background: color-mix(in srgb, var(--journal-page) 70%, white);
+  overflow: hidden;
+}
+
+.spell-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  border-bottom: 1px dashed var(--journal-rule);
+  padding: 8px 12px;
+}
+
+.spell-group__head h4 {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 1.05rem / 1.2 var(--journal-font-display);
+}
+
+.spell-group__mark {
+  display: inline-grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--journal-page);
+  background: var(--journal-oxblood);
+  font: 700 0.85rem / 1 var(--journal-font-ui);
+}
+
+.spell-group[data-cantrip] .spell-group__mark {
+  background: var(--journal-brass-deep);
+}
+
+.spell-group__slots {
+  border: 1px solid var(--journal-oxblood);
+  border-radius: 999px;
+  padding: 1px 9px;
+  color: var(--journal-oxblood);
+  font: 700 0.72rem / 1.5 var(--journal-font-ui);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.spell-group__count {
+  margin-left: auto;
+  color: var(--journal-ink-soft);
+  font: 600 0.75rem / 1.2 var(--journal-font-ui);
+}
+
+.spell-group__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  gap: 0 16px;
+  margin: 0;
+  padding: 4px 12px 8px;
+  list-style: none;
+}
+
+.spell-group__list li {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px dotted var(--journal-rule);
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+.spell-group__name {
+  color: var(--journal-ink);
+  font-weight: 600;
+}
+
+.spell-group__detail {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.sheet-hint {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.spell-preview {
+  margin-top: 10px;
+}
+
+.spell-preview summary {
+  min-height: var(--journal-touch);
+  color: var(--journal-ink-soft);
+  font: 700 0.75rem / 1 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.spell-preview[open] summary {
+  margin-bottom: 6px;
+}

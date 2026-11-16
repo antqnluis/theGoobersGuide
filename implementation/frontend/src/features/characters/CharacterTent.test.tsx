@@ -141,10 +141,18 @@ describe('CharacterTent list', () => {
     expect(screen.queryByRole('button', { name: 'Create a character' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Import a character' })).not.toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Retire or mark Brand deceased before creating or importing another character.',
-      ),
+      screen.getByText(/Retire or mark Brand deceased before creating or importing another/),
     ).toBeInTheDocument()
+  })
+
+  it('points to Import updates on the active character instead of importing a new one', async () => {
+    const { user } = setup({ characters: [character()] })
+    expect(screen.queryByRole('dialog', { name: 'Import a character' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Import updates' }))
+    // The link opens the character's sheet, where Import updates lives under its tab.
+    expect(await screen.findByLabelText('Current HP')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Import and export' }))
+    expect(await screen.findByRole('button', { name: 'Import updates' })).toBeInTheDocument()
   })
 
   it('lists previous characters with status and date', () => {

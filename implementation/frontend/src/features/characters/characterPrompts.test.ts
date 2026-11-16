@@ -78,6 +78,13 @@ describe('conversionPrompt', () => {
     }
   })
 
+  it('asks for spells as grouped lines without descriptions, so the sheet can lay them out', () => {
+    const prompt = conversionPrompt()
+    expect(prompt).toContain('Cantrips: Light, Mage Hand')
+    expect(prompt).toContain('Magic Initiate (Cleric): Spare the Dying, Thaumaturgy')
+    expect(prompt).toContain("Never write a spell's description")
+  })
+
   it('lists every ability and skill key the app accepts', () => {
     for (const key of ['str', 'dex', 'con', 'int', 'wis', 'cha', ...skillKeys]) {
       expect(prompt, key).toContain(key)
@@ -114,6 +121,10 @@ describe('updatePrompt', () => {
     expect(prompt).toContain(ITEM)
     expect(prompt).toContain('"name": "Brand"')
     expect(prompt).toContain(JSON.stringify(current, null, 2))
+  })
+
+  it('keeps the spell format for new spells text', () => {
+    expect(updatePrompt(currentDocument())).toContain('keeps the spell format')
   })
 
   it('ends with the marker for the new handoff', () => {

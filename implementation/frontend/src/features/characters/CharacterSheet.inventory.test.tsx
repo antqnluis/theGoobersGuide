@@ -88,6 +88,7 @@ describe('Coins and Inventory sections', () => {
         'Coins',
         'Inventory',
         'Notes',
+        'Import and export',
       ])
       cleanup()
     }

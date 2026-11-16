@@ -73,6 +73,13 @@ function renderSheet({
   return { sheetActions, onNotice, user: userEvent.setup() }
 }
 
+/** Opens the import and export tools tab (owners and read-only viewers name it differently). */
+async function openTools(user: ReturnType<typeof userEvent.setup>, owner: boolean) {
+  await user.click(
+    await screen.findByRole('button', { name: owner ? 'Import and export' : 'Export and history' }),
+  )
+}
+
 const fullSheet = () =>
   sheet({
     sheet: {
@@ -291,11 +298,12 @@ describe('CharacterSheet (read-only)', () => {
     renderSheet({ readOnly: true })
     expect(await screen.findByRole('heading', { name: 'Vitals' })).toBeInTheDocument()
     expect(document.querySelector('input, textarea, select')).toBeNull()
-    // The only controls on a read-only sheet fold sections away and export Markdown.
+    // The only controls on a read-only sheet switch views and fold sections away.
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Sheet',
+      'Export and history',
       'Collapse inventory',
       'Collapse features and notes',
-      'Export Markdown',
     ])
     expect(screen.getByText('12 / 30')).toBeInTheDocument()
     expect(screen.getByText('30 ft.')).toBeInTheDocument()
@@ -415,12 +423,43 @@ describe('CharacterSheet save bar and unsaved edits', () => {
   })
 })
 
+describe('CharacterSheet spells', () => {
+  const withSpells = () =>
+    sheet({
+      sheet: {
+        ...defaultSheetBody(),
+        spells: 'Cantrips: Light\n1st level (2 slots): Shield, Magic Missile',
+      },
+    })
+
+  it('shows the spells as a spell book in the display view', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(withSpells())
+    renderSheet({ readOnly: true })
+    const slots = await screen.findByRole('region', { name: '1st level' })
+    expect(within(slots).getByText('2 slots')).toBeInTheDocument()
+    expect(within(slots).getByText('Magic Missile')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Cantrips' })).toBeInTheDocument()
+  })
+
+  it('explains the format while editing and previews it', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(withSpells())
+    const { user } = renderSheet()
+    const field = await screen.findByRole('textbox', { name: 'Spells' })
+    expect(field).toHaveAccessibleDescription(/one group per line/i)
+    await user.click(screen.getByText('Preview'))
+    expect(screen.getByRole('region', { name: '1st level' })).toBeInTheDocument()
+    await user.clear(field)
+    expect(screen.queryByText('Preview')).not.toBeInTheDocument()
+  })
+})
+
 describe('CharacterSheet export and history', () => {
   it('exports the saved character as Markdown and says so', async () => {
     vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
     vi.mocked(listCharacterItems).mockResolvedValue([item({ name: 'Rope' })])
     const onNotice = vi.fn()
     const { user } = renderSheet({ readOnly: true, onNotice })
+    await openTools(user, false)
     const button = await screen.findByRole('button', { name: 'Export Markdown' })
     await waitFor(() => expect(button).toBeEnabled())
     await user.click(button)
@@ -437,14 +476,59 @@ describe('CharacterSheet export and history', () => {
   it('is disabled while there are unsaved edits, and explains why', async () => {
     vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
     const { user } = renderSheet()
+    await user.type(await screen.findByLabelText('Notes and backstory'), ' more')
+    await openTools(user, true)
     const button = await screen.findByRole('button', { name: 'Export Markdown' })
-    await waitFor(() => expect(button).toBeEnabled())
-    expect(screen.queryByText('Save or cancel your edits first.')).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('Notes and backstory'), ' more')
     expect(button).toBeDisabled()
-    expect(screen.getByText('Save or cancel your edits first.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import updates' })).toBeDisabled()
+    // One explanation beside each of the two buttons.
+    expect(screen.getAllByText('Save or cancel your edits first.')).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
-    expect(button).toBeEnabled()
+    await waitFor(() => expect(button).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Import updates' })).toBeEnabled()
+  })
+
+  it('offers Import updates to the owner only, and opens the review', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterItems).mockResolvedValue([item({ name: 'Rope' })])
+    const { user } = renderSheet()
+    await openTools(user, true)
+    const button = await screen.findByRole('button', { name: 'Import updates' })
+    await waitFor(() => expect(button).toBeEnabled())
+    await user.click(button)
+    expect(screen.getByRole('dialog', { name: 'Import updates' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Import updates' })).not.toBeInTheDocument(),
+    )
+    cleanup()
+
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    const reader = renderSheet({ readOnly: true })
+    await openTools(reader.user, false)
+    await screen.findByRole('button', { name: 'Export Markdown' })
+    expect(screen.queryByRole('button', { name: 'Import updates' })).not.toBeInTheDocument()
+  })
+
+  it('swaps the sheet for the tools and back, keeping unsaved edits', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    const { user } = renderSheet()
+    await user.type(await screen.findByLabelText('Notes and backstory'), ' more')
+    const tools = screen.getByRole('button', { name: 'Import and export' })
+    expect(tools).toHaveAttribute('aria-pressed', 'false')
+    await user.click(tools)
+    expect(tools).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: 'Export and history' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Notes and backstory')).not.toBeVisible()
+    expect(screen.getByText('Unsaved sheet changes')).toBeInTheDocument()
+    // A section tab brings the sheet back, with the edit still there.
+    await user.click(screen.getByRole('button', { name: 'Attacks' }))
+    expect(tools).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('heading', { name: 'Export and history' })).not.toBeInTheDocument()
+    expect((screen.getByLabelText('Notes and backstory') as HTMLTextAreaElement).value).toContain(
+      ' more',
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Attacks' })).toHaveFocus())
   })
 
   it('reports a download that fails', async () => {
@@ -453,6 +537,7 @@ describe('CharacterSheet export and history', () => {
       throw new Error('blocked')
     })
     const { user } = renderSheet({ readOnly: true })
+    await openTools(user, false)
     const button = await screen.findByRole('button', { name: 'Export Markdown' })
     await waitFor(() => expect(button).toBeEnabled())
     await user.click(button)
@@ -472,6 +557,8 @@ describe('CharacterSheet export and history', () => {
     ])
     const { user } = renderSheet({ readOnly: true })
     await screen.findByRole('heading', { name: 'Vitals' })
+    expect(listCharacterImports).not.toHaveBeenCalled()
+    await openTools(user, false)
     expect(listCharacterImports).not.toHaveBeenCalled()
     await user.click(screen.getByText('Import history'))
     expect(await screen.findByText('Imported as new')).toBeInTheDocument()
@@ -527,8 +614,10 @@ describe('CharacterSheet folding sections', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse features and notes' }))
     expect(notes).not.toBeVisible()
     expect(screen.getByText('Unsaved sheet changes')).toBeInTheDocument()
+    await openTools(user, true)
     expect(screen.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Expand features and notes' }))
+    // The Notes tab brings the sheet back and opens the folded section.
+    await user.click(screen.getByRole('button', { name: 'Notes' }))
     expect((screen.getByLabelText('Notes and backstory') as HTMLTextAreaElement).value).toContain(
       ' more',
     )

@@ -584,6 +584,7 @@ export async function mockCharacters(
         'adjust_character_currency',
         'adjust_character_item_quantity',
         'import_character',
+        'apply_character_update',
       ].includes(table)
     ) {
       return route.fallback()
@@ -849,6 +850,92 @@ export async function mockCharacters(
         imported_at: new Date().toISOString(),
       })
       return route.fulfill({ status: 200, headers, json: row.id })
+    }
+
+    // apply_character_update: all or nothing, and refused when anything changed since the review.
+    if (table === 'apply_character_update') {
+      const input = body as {
+        p_character_id: string
+        p_source_label?: string | null
+        p_expected: {
+          character_updated_at: string
+          sheet_updated_at: string
+          items: Record<string, string>
+        }
+        p_changes: {
+          details?: Record<string, string | number | null>
+          vitals?: Partial<MockSheet>
+          sheet?: Record<string, unknown>
+          items?: {
+            add?: Array<Partial<MockItem> & { name: string }>
+            update?: Array<Partial<MockItem> & { id: string }>
+            remove?: string[]
+          }
+          coins?: { cp?: number; sp?: number; gp?: number }
+          change_count?: number
+        }
+      }
+      const owner = characterOf(input.p_character_id)
+      const sheet = state.sheets.find((row) => row.character_id === input.p_character_id)
+      if (!owner || !isMine(owner) || !sheet) return fail('character_unavailable')
+      const expected = input.p_expected
+      const stale =
+        owner.updated_at !== expected.character_updated_at ||
+        sheet.updated_at !== expected.sheet_updated_at ||
+        [
+          ...(input.p_changes.items?.update ?? []).map((entry) => entry.id),
+          ...(input.p_changes.items?.remove ?? []),
+        ].some((id) => {
+          const row = items.find((candidate) => candidate.id === id)
+          return !row || row.character_id !== owner.id || row.updated_at !== expected.items[id]
+        })
+      if (stale) return fail('import_conflict')
+
+      const changes = input.p_changes
+      if (changes.details) Object.assign(owner, changes.details, { updated_at: nextStamp() })
+      if (changes.vitals || changes.sheet) {
+        Object.assign(sheet, changes.vitals ?? {}, changes.sheet ? { sheet: changes.sheet } : {})
+      }
+      for (const entry of changes.items?.update ?? []) {
+        const row = items.find((candidate) => candidate.id === entry.id)
+        if (row) Object.assign(row, entry, { updated_at: nextStamp() })
+      }
+      for (const id of changes.items?.remove ?? []) {
+        items.splice(
+          items.findIndex((candidate) => candidate.id === id),
+          1,
+        )
+      }
+      for (const entry of changes.items?.add ?? []) items.push(mockItem(owner.id, entry))
+      if (changes.coins) {
+        const next = { cp: sheet.cp, sp: sheet.sp, gp: sheet.gp, ...changes.coins }
+        if (next.cp !== sheet.cp || next.sp !== sheet.sp || next.gp !== sheet.gp) {
+          const seq = coinLog.reduce((top, row) => Math.max(top, row.seq), 0) + 1
+          coinLog.push({
+            id: `00000000-0000-4000-8000-${String(9000 + seq).padStart(12, '0')}`,
+            seq,
+            character_id: owner.id,
+            created_at: new Date(Date.UTC(2026, 10, 14, 11, 0, seq)).toISOString(),
+            cp_delta: next.cp - sheet.cp,
+            sp_delta: next.sp - sheet.sp,
+            gp_delta: next.gp - sheet.gp,
+            cp_after: next.cp,
+            sp_after: next.sp,
+            gp_after: next.gp,
+          })
+          Object.assign(sheet, next)
+        }
+      }
+      sheet.updated_at = nextStamp()
+      imports.push({
+        id: `00000000-0000-4000-8000-${String(7000 + imports.length).padStart(12, '0')}`,
+        character_id: owner.id,
+        kind: 'update',
+        source_label: input.p_source_label ?? null,
+        change_count: changes.change_count ?? 1,
+        imported_at: new Date().toISOString(),
+      })
+      return route.fulfill({ status: 200, headers, json: sheet.updated_at })
     }
 
     if (table === 'create_character') {

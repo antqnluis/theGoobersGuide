@@ -28,9 +28,11 @@ import { limits, validateSheetBody, validateVitals } from './characterValidation
 import { CharacterCoins, type CoinActions } from './CharacterCoins'
 import { CharacterExport } from './CharacterExport'
 import { CharacterImportHistory } from './CharacterImportHistory'
+import { CharacterImportUpdates } from './CharacterImportUpdates'
 import { CharacterInventory, type InventoryActions } from './CharacterInventory'
 import { carryingCapacity } from './inventoryRules'
 import { PixelIcon, type PixelIconName } from './PixelIcon'
+import { SpellList } from './SpellList'
 import { inventoryActions, type useCharacterActions } from './useCharacterActions'
 
 export type SheetActions = Pick<
@@ -195,6 +197,9 @@ function SheetContent({
   const [itemFormDirty, setItemFormDirty] = useState(false)
   // Inventory and notes can fold away; their content stays mounted so edits are never lost.
   const [open, setOpen] = useState({ inventory: true, notes: true })
+  // The sheet's pages, or the import and export tools; the sheet stays mounted behind the tools.
+  const [view, setView] = useState<'sheet' | 'tools'>('sheet')
+  const pendingJump = useRef<string | null>(null)
   const savingVitals = busy && actions?.pendingAction === 'vitals'
   const savingSheet = busy && actions?.pendingAction === 'sheet'
 
@@ -262,6 +267,12 @@ function SheetContent({
 
   /** Scrolls a section into view and moves keyboard focus to its heading. */
   function jump(key: string) {
+    if (view === 'tools') {
+      // The sheet is hidden behind the tools: show it, then scroll once it is back.
+      setView('sheet')
+      pendingJump.current = key
+      return
+    }
     if (key === 'inventory' || key === 'notes') setOpen((current) => ({ ...current, [key]: true }))
     const section = document.getElementById(`sheet-section-${key}-${character.id}`)
     if (!section) return
@@ -269,6 +280,18 @@ function SheetContent({
     section.scrollIntoView?.({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
     section.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true })
   }
+
+  const jumpRef = useRef(jump)
+  useEffect(() => {
+    jumpRef.current = jump
+  })
+  useEffect(() => {
+    const key = pendingJump.current
+    if (key && view === 'sheet') {
+      pendingJump.current = null
+      jumpRef.current(key)
+    }
+  }, [view])
 
   const derived = (
     <dl className="sheet-derived">
@@ -365,23 +388,46 @@ function SheetContent({
 
   return (
     <>
-      {hasBar && (
-        <nav aria-label="Sheet sections" className="sheet-nav">
-          <ul>
-            {sectionTabs.map(([key, label, icon]) => (
+      <nav aria-label="Sheet sections" className="sheet-nav">
+        <ul>
+          {hasBar ? (
+            sectionTabs.map(([key, label, icon]) => (
               <li key={key}>
                 <button className="sheet-nav__tab" onClick={() => jump(key)} type="button">
                   <PixelIcon name={icon} />
                   {label}
                 </button>
               </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+            ))
+          ) : (
+            <li>
+              <button
+                aria-pressed={view === 'sheet'}
+                className="sheet-nav__tab"
+                onClick={() => setView('sheet')}
+                type="button"
+              >
+                <PixelIcon name="shield" />
+                Sheet
+              </button>
+            </li>
+          )}
+          <li className="sheet-nav__end">
+            <button
+              aria-pressed={view === 'tools'}
+              className="sheet-nav__tab"
+              onClick={() => setView('tools')}
+              type="button"
+            >
+              <PixelIcon name="book" />
+              {hasBar ? 'Import and export' : 'Export and history'}
+            </button>
+          </li>
+        </ul>
+      </nav>
 
       <div className="character-sheet" data-read-only={readOnly || undefined}>
-        <div className="sheet-spread">
+        <div className="sheet-spread" hidden={view === 'tools'}>
           <div className="sheet-page">
             <section
               aria-labelledby={`sheet-vitals-${character.id}`}
@@ -688,7 +734,7 @@ function SheetContent({
                 Spells
               </h3>
               {readOnly ? (
-                <p className="sheet-text">{body.spells || 'Nothing recorded.'}</p>
+                <SpellList text={body.spells} />
               ) : (
                 <div className="journal-field">
                   <label className="visually-hidden" htmlFor={`sheet-spells-${character.id}`}>
@@ -702,9 +748,23 @@ function SheetContent({
                     onChange={(event) =>
                       update((current) => ({ ...current, spells: event.target.value }))
                     }
-                    rows={5}
+                    placeholder={
+                      'Cantrips: Light, Mage Hand\n1st level (3 slots): Shield, Magic Missile'
+                    }
+                    rows={6}
                     value={body.spells}
+                    aria-describedby={`sheet-spells-hint-${character.id}`}
                   />
+                  <p className="sheet-hint" id={`sheet-spells-hint-${character.id}`}>
+                    Write one group per line, like “1st level (3 slots): Shield, Magic Missile”. The
+                    sheet shows it as a spell book.
+                  </p>
+                  {body.spells.trim() !== '' && (
+                    <details className="spell-preview">
+                      <summary>Preview</summary>
+                      <SpellList text={body.spells} />
+                    </details>
+                  )}
                 </div>
               )}
             </section>
@@ -871,7 +931,10 @@ function SheetContent({
                 )}
               </div>
             </section>
-
+          </div>
+        </div>
+        {view === 'tools' && (
+          <div className="sheet-tools">
             <section
               aria-labelledby={`sheet-export-title-${character.id}`}
               className="sheet-section"
@@ -885,6 +948,15 @@ function SheetContent({
                 <PixelIcon name="book" />
                 Export and history
               </h3>
+              {owned && (
+                <CharacterImportUpdates
+                  character={character}
+                  onNotice={onNotice}
+                  sheet={sheet}
+                  unsaved={unsaved}
+                  userId={userId}
+                />
+              )}
               <CharacterExport
                 character={character}
                 onNotice={onNotice}
@@ -895,7 +967,7 @@ function SheetContent({
               <CharacterImportHistory characterId={character.id} userId={userId} />
             </section>
           </div>
-        </div>
+        )}
         {hasBar && !dock && saveBar}
       </div>
       {hasBar && dock && createPortal(saveBar, dock)}
