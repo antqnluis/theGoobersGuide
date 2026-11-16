@@ -98,7 +98,8 @@ test('creates a personal and a main adventure, works one through, and keeps them
   await dialog.getByLabel('Add an objective').fill('Search the cellar')
   await dialog.getByRole('button', { name: 'Add objective' }).click()
   await expect(dialog.getByLabel('Add an objective')).toBeFocused()
-  await dialog.getByRole('checkbox', { name: 'Search the cellar' }).check()
+  // The tick shows once the write is done, so click and then look.
+  await dialog.getByRole('checkbox', { name: 'Search the cellar' }).click()
   await expect(dialog.getByText(/Done by you/)).toBeVisible()
   await expect(dialog.getByRole('heading', { name: /Objectives/ })).toContainText('1 of 1 done')
   await dialog.getByLabel('Write an update').fill('The cellar was empty.')
@@ -256,7 +257,7 @@ test('a member sees the main story and not another player’s personal adventure
   // A member edits a main adventure but does not archive it.
   await expect(dialog.getByRole('button', { name: 'Edit details' })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Archive adventure' })).toHaveCount(0)
-  await dialog.getByRole('checkbox', { name: 'Reach the pass' }).check()
+  await dialog.getByRole('checkbox', { name: 'Reach the pass' }).click()
   await expect(dialog.getByText(/Done by you/)).toBeVisible()
   expect(state.adventures[0].objectives[0].completed_by).toBe(accountId)
 })

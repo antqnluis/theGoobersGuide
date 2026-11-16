@@ -20,7 +20,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Access rules
 
-Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, character sheets, and notes. Anonymous clients have no table access.
+Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, character sheets, notes, and adventures. Anonymous clients have no table access.
 
 | Data | Authenticated access |
 | --- | --- |
@@ -252,6 +252,52 @@ The app saves with an `updated_at` filter (optimistic concurrency): a stale save
 
 - **Leaving or removal** keeps every note. The leaver reads and writes nothing; members still read and edit the leaver's shared notes but cannot delete them or make them private. **Rejoining** restores the author's access to both.
 - **Deleting a campaign** deletes every note in it, including a departed author's. **Deleting a member's account** deletes their notes and clears `updated_by` on notes they edited.
+
+## Adventures
+
+`public.adventures` holds the map table's board. A **main** adventure is the campaign's storyline: every current member reads and edits it, and it has no participants. A **personal** or **side** adventure belongs to one character and is visible only to that character's owner, **the campaign owner included**. Access is computed from current membership, so the departure hook is unchanged. Sharing a personal or side adventure with others (proposing, inviting, party visibility) is not built yet.
+
+### Tables
+
+- `adventures`: `id`, `campaign_id` (`ON DELETE CASCADE`), `created_by` (`ON DELETE CASCADE`, default `auth.uid()`), `type` (`main`, `side`, `personal`), `visibility` (`participants` or `campaign`; a check ties it to the type, so main is always `campaign`), `status` (`pending` default, `in_progress`, `on_hold`, `completed`), `title` (1–120, one line), `description` (0–4,000; newlines and tabs allowed), `next_step` and `reference` (0–280, one line), `updated_by`, `status_changed_at` and `status_changed_by` (`ON DELETE SET NULL`), `archived_at`, `created_at` and `updated_at`. `(id, campaign_id)` is unique so children can pin themselves to the adventure's campaign.
+- `adventure_participants`: the character that takes part, with `profile_id` its owner. Composite foreign keys to `characters (id, campaign_id)` and `characters (id, owner_id)` (both `ON DELETE CASCADE`) guarantee the character belongs to the same campaign and the owner is that character's owner. `status` allows `proposed`, `invited`, `accepted`, `declined`, and `left`; only `accepted` is written today. One row per `(adventure_id, character_id)`.
+- `adventure_objectives`: `title` (1–200), `done`, `created_by`, `completed_by` and `completed_at` (`ON DELETE SET NULL`). `done` must agree with `completed_at`.
+- `adventure_updates`: an append-only log. `author_id` (`ON DELETE CASCADE`), `body` (1–2,000; newlines and tabs allowed).
+
+### Integrity
+
+| Rule | Enforced by |
+| --- | --- |
+| `id`, `campaign_id`, `created_by`, `created_at` and `visibility` never change | `private.guard_adventure_write` (`adventure_reassignment_forbidden`), plus no column grant |
+| A main adventure never becomes personal or side, or the reverse | The same trigger (`adventure_type_change_forbidden`) |
+| An archived adventure is read-only; only its creator archives or restores it | The same trigger (`adventure_archived`, `adventure_archive_creator_only`). The trigger stamps `archived_at`. |
+| Who last changed the status, and when; who last edited | The same trigger sets `status_changed_*` and `updated_by` from the caller |
+| At most 50 objectives per adventure, 500 updates per adventure, 200 adventures per creator per campaign, under concurrency | Advisory-locked triggers and `create_adventure` (`adventure_objective_limit_reached`, `adventure_update_limit_reached`, `adventure_limit_reached`) |
+| A ticked objective records who ticked it and when | `private.guard_adventure_objective_write` |
+| Participant keys never change, and a main adventure has no participants | `private.guard_adventure_participant_write` |
+| A personal or side adventure with no accepted participant is deleted | `private.delete_orphaned_adventure`, after a participant is deleted |
+| Field bounds | The `adventures_*_check`, `adventure_objectives_*_check` and `adventure_updates_body_check` constraints |
+
+### Access
+
+`anon`, `service_role` and `public` have no access. `authenticated` has select on all four tables, update on `type, status, title, description, next_step, reference, archived_at` of `adventures`, insert on `(adventure_id, title)` and update on `(title, done)` and delete of objectives, and insert on `(adventure_id, body)` and delete of updates. Nothing inserts or deletes an adventure or a participant directly. Every policy goes through two helpers, `private.visible_adventure_ids()` and `private.editable_adventure_ids()` (visible and not archived), so no list, count, or embed can reveal a private adventure.
+
+| Action | Who |
+| --- | --- |
+| Read a main adventure, its objectives and updates | Any current member |
+| Read a personal or side adventure | The owner of its participant character, while a member. **The campaign owner has no override.** |
+| Edit details, status, objectives, and updates | Anyone who can read it, unless it is archived |
+| Archive or restore | The creator only. An archived adventure is hidden from everyone but its creator. |
+| Delete an update | Its author, while the adventure is editable |
+| Create | `create_adventure(p_campaign_id, p_type, p_title, p_character_id, p_next_step, p_description)` only: `SECURITY DEFINER`, executable by `authenticated` only. It locks the campaign `FOR SHARE`, then the character, and inserts the adventure and its participant in one transaction. Personal and side adventures need one of the caller's own characters of any status; main takes none. Errors: `adventure_campaign_required`, `adventure_type_invalid`, `adventure_title_invalid`, `adventure_details_invalid`, `adventure_main_has_no_participants`, `adventure_character_required` (`22023`); `adventure_character_unavailable`, `adventure_campaign_unavailable`, `adventure_limit_reached` (`P0001`). |
+
+The app saves details with an `updated_at` filter (optimistic concurrency), as notes do. Status changes, objectives, and updates are small single-field writes where the last write wins.
+
+### Lifecycle
+
+- **Leaving or removal** changes no adventure rows. Reads and writes stop through RLS, so a leaver's personal and side adventures are invisible to everyone, while members still read and edit the main adventures the leaver created or edited. **Rejoining** restores the player's own adventures. Participations are not marked `left` (see [M03.5](../completed/M03.5-Adventures-Core.md) D6).
+- **Deleting a character** deletes its participations, and so every personal or side adventure it was the only participant in, with their objectives and updates. The app's delete confirmation gives the count.
+- **Deleting a campaign** deletes every adventure in it. **Deleting a member's account** deletes the adventures they created (main ones included) and the updates they wrote, and clears the other attributions.
 
 ## Camp appearance
 

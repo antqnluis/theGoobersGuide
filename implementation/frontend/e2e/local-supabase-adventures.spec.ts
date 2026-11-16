@@ -5,12 +5,14 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcOk,
   type Player,
 } from './support/localPlayers.ts'
 
-// M03.5 adventures (Phase 1): schema, RLS, and integrity against the real local stack.
+// M03.5 adventures: schema, RLS, and integrity against the real local stack (Phase 1), and the
+// map table's board with real accounts (Phase 5).
 
 const ROLES = ['anon', 'authenticated', 'service_role', 'public']
 const TABLES = [
@@ -1413,6 +1415,129 @@ test('deleting a campaign removes its adventures and everything in them', async 
              + (select count(*) from public.adventure_objectives where adventure_id in ('${personal}', '${main}'))
              + (select count(*) from public.adventure_updates where adventure_id in ('${personal}', '${main}'));`),
     ).toBe(0)
+  } finally {
+    await cleanup(players, ids)
+  }
+})
+
+// --- The board at the map table, against the real stack ------------------------------
+
+test('players create adventures at the map table, and a second player ticks an objective on the main story', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const players = await newCast()
+  const { owner, guest } = players
+  const ids: string[] = []
+  // Light on resources: one context at a time, reduced motion, no screenshots or video.
+  const signIn = async (player: Player) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    return { context, page }
+  }
+  try {
+    const campaignId = await createCampaign(owner, 'M5 real-stack board')
+    ids.push(campaignId)
+    await invite(owner, campaignId, guest)
+    await createdCharacter(owner, campaignId, 'Brindle')
+
+    const openBoard = async (page: Awaited<ReturnType<typeof signIn>>['page']) => {
+      await page.goto(`/app/campaigns/${campaignId}`)
+      await page
+        .getByRole('list', { name: 'Camp places' })
+        .getByRole('button', { name: /^Adventures/ })
+        .click()
+      const dialog = page.getByRole('dialog', { name: 'Adventures' })
+      await expect(dialog).toBeVisible()
+      return dialog
+    }
+
+    // The owner starts a personal adventure and a main one, and adds an objective to the main one.
+    const first = await signIn(owner)
+    try {
+      const { page } = first
+      let dialog = await openBoard(page)
+      await expect(dialog.getByText('No adventures yet. Start one.')).toBeVisible()
+
+      await dialog.getByRole('button', { name: 'New adventure' }).click()
+      await dialog.getByLabel('Title', { exact: true }).fill('Private quest')
+      await expect(dialog.getByLabel('For which character')).toHaveValue(/.+/)
+      await dialog.getByRole('button', { name: 'Create adventure' }).click()
+      await expect(dialog.getByRole('heading', { level: 3, name: 'Private quest' })).toBeVisible()
+      await dialog.getByRole('button', { name: 'Back to adventures' }).click()
+
+      await dialog.getByRole('button', { name: 'New adventure' }).click()
+      await dialog.getByLabel('Title', { exact: true }).fill('The long road')
+      await dialog.getByRole('radio', { name: 'Main' }).check()
+      await dialog.getByRole('button', { name: 'Create adventure' }).click()
+      await expect(dialog.getByRole('heading', { level: 3, name: 'The long road' })).toBeVisible()
+      await dialog.getByLabel('Add an objective').fill('Reach the pass')
+      await dialog.getByRole('button', { name: 'Add objective' }).click()
+      await expect(dialog.getByRole('checkbox', { name: 'Reach the pass' })).toBeVisible()
+
+      // What the screen shows is what the database holds.
+      await expect
+        .poll(() =>
+          localDatabaseQuery(
+            `select string_agg(a.title || '|' || a.type || '|' || a.visibility || '|'
+                    || (select count(*) from public.adventure_participants p where p.adventure_id = a.id),
+                    ';' order by a.title)
+             from public.adventures a where a.campaign_id = '${campaignId}';`,
+            {},
+          ),
+        )
+        .toBe('Private quest|personal|participants|1;The long road|main|campaign|0')
+
+      // Both survive a reload.
+      dialog = await openBoard(page)
+      await expect(dialog.getByRole('button', { name: 'Private quest' })).toBeVisible()
+      await expect(dialog.getByRole('button', { name: 'The long road' })).toBeVisible()
+    } finally {
+      await first.context.close()
+    }
+
+    // A second player sees only the main story and ticks the objective.
+    const second = await signIn(guest)
+    try {
+      const { page } = second
+      const dialog = await openBoard(page)
+      await expect(dialog.getByRole('button', { name: 'The long road' })).toBeVisible()
+      await expect(dialog.getByRole('button', { name: 'Private quest' })).toHaveCount(0)
+      await dialog.getByRole('button', { name: 'The long road' }).click()
+      await expect(dialog.getByRole('button', { name: 'Archive adventure' })).toHaveCount(0)
+      // The tick shows once the database has taken it, so click and then look.
+      await dialog.getByRole('checkbox', { name: 'Reach the pass' }).click()
+      await expect(dialog.getByText(/^Done by you/)).toBeVisible()
+      await expect
+        .poll(() =>
+          localDatabaseQuery(
+            `select (done and completed_by = '${guest.id}')::text
+             from public.adventure_objectives where title = 'Reach the pass'
+               and adventure_id in (select id from public.adventures where campaign_id = '${campaignId}');`,
+            {},
+          ),
+        )
+        .toBe('true')
+    } finally {
+      await second.context.close()
+    }
+
+    // The owner sees who ticked it after reopening.
+    const third = await signIn(owner)
+    try {
+      const { page } = third
+      const dialog = await openBoard(page)
+      await dialog.getByRole('button', { name: 'The long road' }).click()
+      await expect(dialog.getByRole('checkbox', { name: 'Reach the pass' })).toBeChecked()
+      await expect(dialog.getByText(new RegExp(`^Done by ${guest.username}`))).toBeVisible()
+    } finally {
+      await third.context.close()
+    }
   } finally {
     await cleanup(players, ids)
   }

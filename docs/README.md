@@ -15,8 +15,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Status |
 | --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M4 are done; M8 character imports are implemented; M5–M7 are not started. |
-| [M03.5 — Adventures Core](in-progress/M03.5-Adventures-Core.md) | Approved plan for M5 (D1–D13). In progress. |
+| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M5 are done; M8 character imports are implemented; M6–M7 are not started. |
 
 ## Completed
 
@@ -32,6 +31,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.3 — Implementation Log](completed/M03.3-Implementation-Log.md) | Per-phase record of the M03.3 work, including the later change requests. |
 | [M03.4 — Notes](completed/M03.4-Notes.md) | Phases 0–5 done. Journal crates, private and shared notes, optimistic saves, 500-note cap. The full mocked browser suite was last run before Phase 5; Phase 5 ran only the light checks. |
 | [M03.4 — Implementation Log](completed/M03.4-Implementation-Log.md) | Per-phase record of the M03.4 work. |
+| [M03.5 — Adventures Core](completed/M03.5-Adventures-Core.md) | Phases 0–5 done. Map table, personal, side, and main adventures, objectives and updates, optimistic saves, creator-only archive. The full mocked browser suite and the camp-scene specs were not run; their new and updated cases are written. |
+| [M03.5 — Implementation Log](completed/M03.5-Implementation-Log.md) | Per-phase record of the M03.5 work. |
 | [M03.8 — Character Imports](completed/M03.8-Character-Imports.md) | Implemented (Phases 0–5): attack ids, `character_imports`, `import_character` and `apply_character_update`, the version-3 and update-2 formats, copyable prompts, import as new and import updates with review, Markdown export, and import history. |
 | [M03.8 — Implementation Log](completed/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
 
@@ -53,4 +54,4 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Covers |
 | --- | --- |
-| [Database schema](reference/DATABASE_SCHEMA.md) | Profiles, campaigns, membership, invitations, characters and party, access rules, and retention |
+| [Database schema](reference/DATABASE_SCHEMA.md) | Profiles, campaigns, membership, invitations, characters and party, notes, adventures, access rules, and retention |
