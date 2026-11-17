@@ -443,7 +443,7 @@ function SheetContent({
                 Vitals
               </h3>
               {readOnly ? (
-                <dl className="sheet-derived sheet-derived--vitals">
+                <dl className="sheet-readout">
                   {quickHp ? (
                     <div className="sheet-quickhp">
                       <dt>Hit points</dt>
@@ -483,6 +483,15 @@ function SheetContent({
                           ))}
                           <span className="sheet-quickhp__max">of {notSet(sheet.max_hp)} max</span>
                         </form>
+                        {sheet.max_hp !== null && sheet.max_hp > 0 && sheet.current_hp !== null && (
+                          <div aria-hidden="true" className="sheet-quickhp__bar">
+                            <span
+                              style={{
+                                width: `${Math.min(100, Math.max(0, (sheet.current_hp / sheet.max_hp) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                        )}
                       </dd>
                     </div>
                   ) : (
@@ -501,13 +510,25 @@ function SheetContent({
                       <dd>{sheet.temp_hp}</dd>
                     </div>
                   )}
-                  <div>
+                  <div className="sheet-readout__key">
                     <dt>Armor class</dt>
                     <dd>{notSet(sheet.armor_class)}</dd>
                   </div>
-                  <div>
+                  <div className="sheet-readout__key">
+                    <dt>Initiative</dt>
+                    <dd>{formatModifier(initiativeBonus(body))}</dd>
+                  </div>
+                  <div className="sheet-readout__key">
                     <dt>Speed</dt>
                     <dd>{notSet(sheet.speed, ' ft.')}</dd>
+                  </div>
+                  <div className="sheet-readout__minor">
+                    <dt>Proficiency bonus</dt>
+                    <dd>{formatModifier(proficiencyBonus(level))}</dd>
+                  </div>
+                  <div className="sheet-readout__minor">
+                    <dt>Passive Perception</dt>
+                    <dd>{passivePerception(body, level)}</dd>
                   </div>
                 </dl>
               ) : (
@@ -546,7 +567,7 @@ function SheetContent({
                   </div>
                 </form>
               )}
-              {derived}
+              {!readOnly && derived}
             </section>
 
             <section
@@ -589,9 +610,7 @@ function SheetContent({
                 ))}
               </ul>
             </section>
-          </div>
 
-          <div className="sheet-page">
             <section
               aria-labelledby={`sheet-skills-${character.id}`}
               className="sheet-section"
@@ -615,9 +634,9 @@ function SheetContent({
                         {label} <small>({abilityLabels[ability].slice(0, 3)})</small>
                       </span>
                       {readOnly ? (
-                        <span>
-                          {bonus}
-                          {proficiency ? ` · ${proficiency}` : ''}
+                        <span className="sheet-skills__value">
+                          <strong>{bonus}</strong>
+                          {proficiency && <small>{proficiency}</small>}
                         </span>
                       ) : (
                         <span className="sheet-skills__control">
@@ -642,6 +661,62 @@ function SheetContent({
                 })}
               </ul>
             </section>
+
+            <section
+              aria-labelledby={`sheet-notes-title-${character.id}`}
+              className="sheet-section"
+              id={`sheet-section-notes-${character.id}`}
+            >
+              <SectionHead
+                bodyId={`sheet-notes-body-${character.id}`}
+                icon="quill"
+                id={`sheet-notes-title-${character.id}`}
+                name="features and notes"
+                onToggle={() => setOpen((current) => ({ ...current, notes: !current.notes }))}
+                open={open.notes}
+                title="Features and notes"
+              />
+              <div
+                className="sheet-section__body"
+                hidden={!open.notes}
+                id={`sheet-notes-body-${character.id}`}
+              >
+                {(
+                  [
+                    ['features', 'Features and traits'],
+                    ['notes', 'Notes and backstory'],
+                  ] as const
+                ).map(([name, label]) =>
+                  readOnly ? (
+                    <div key={name}>
+                      <h4>{label}</h4>
+                      <div
+                        className="sheet-resizable"
+                        style={body[name].length > 1200 ? { height: '18rem' } : undefined}
+                        tabIndex={0}
+                      >
+                        <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="journal-field" key={name}>
+                      <label htmlFor={`sheet-${name}-${character.id}`}>{label}</label>
+                      <textarea
+                        className="journal-input"
+                        disabled={busy}
+                        id={`sheet-${name}-${character.id}`}
+                        maxLength={limits.text}
+                        onChange={(event) =>
+                          update((current) => ({ ...current, [name]: event.target.value }))
+                        }
+                        rows={5}
+                        value={body[name]}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
+            </section>
           </div>
 
           <div className="sheet-page">
@@ -665,9 +740,24 @@ function SheetContent({
                   <ul className="sheet-attacks">
                     {body.attacks.map((attack) => (
                       <li key={attack.id}>
-                        <strong>{attack.name || 'Unnamed attack'}</strong>
-                        <span>{[attack.bonus, attack.damage].filter(Boolean).join(' · ')}</span>
-                        {attack.notes && <small>{attack.notes}</small>}
+                        <strong className="sheet-attacks__name">
+                          {attack.name || 'Unnamed attack'}
+                        </strong>
+                        {attack.bonus && (
+                          <span className="sheet-attacks__bonus">
+                            <small>To hit</small>
+                            {attack.bonus}
+                          </span>
+                        )}
+                        {attack.damage && (
+                          <span className="sheet-attacks__damage">
+                            <small>Damage</small>
+                            {attack.damage}
+                          </span>
+                        )}
+                        {attack.notes && (
+                          <small className="sheet-attacks__notes">{attack.notes}</small>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -822,9 +912,7 @@ function SheetContent({
                 </div>
               )}
             </section>
-          </div>
 
-          <div className="sheet-page">
             <section
               aria-labelledby={`sheet-coins-${character.id}`}
               className="sheet-section"
@@ -877,64 +965,6 @@ function SheetContent({
                   onNotice={onNotice}
                   userId={userId}
                 />
-              </div>
-            </section>
-          </div>
-
-          <div className="sheet-page">
-            <section
-              aria-labelledby={`sheet-notes-title-${character.id}`}
-              className="sheet-section"
-              id={`sheet-section-notes-${character.id}`}
-            >
-              <SectionHead
-                bodyId={`sheet-notes-body-${character.id}`}
-                icon="quill"
-                id={`sheet-notes-title-${character.id}`}
-                name="features and notes"
-                onToggle={() => setOpen((current) => ({ ...current, notes: !current.notes }))}
-                open={open.notes}
-                title="Features and notes"
-              />
-              <div
-                className="sheet-section__body"
-                hidden={!open.notes}
-                id={`sheet-notes-body-${character.id}`}
-              >
-                {(
-                  [
-                    ['features', 'Features and traits'],
-                    ['notes', 'Notes and backstory'],
-                  ] as const
-                ).map(([name, label]) =>
-                  readOnly ? (
-                    <div key={name}>
-                      <h4>{label}</h4>
-                      <div
-                        className="sheet-resizable"
-                        style={body[name].length > 1200 ? { height: '18rem' } : undefined}
-                        tabIndex={0}
-                      >
-                        <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="journal-field" key={name}>
-                      <label htmlFor={`sheet-${name}-${character.id}`}>{label}</label>
-                      <textarea
-                        className="journal-input"
-                        disabled={busy}
-                        id={`sheet-${name}-${character.id}`}
-                        maxLength={limits.text}
-                        onChange={(event) =>
-                          update((current) => ({ ...current, [name]: event.target.value }))
-                        }
-                        rows={5}
-                        value={body[name]}
-                      />
-                    </div>
-                  ),
-                )}
               </div>
             </section>
           </div>

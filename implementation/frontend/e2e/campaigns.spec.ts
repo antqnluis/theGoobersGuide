@@ -2946,13 +2946,17 @@ test('the sheet pages stack without an empty gap, and inventory and notes fold a
         return { x, y, width, height }
       }),
     )
-  const [, , attacks, inventory, notes] = await boxes()
-  // The notes page sits right under the attacks page in the left column.
-  expect(notes.x).toBeCloseTo(attacks.x, 0)
-  expect(notes.y - (attacks.y + attacks.height)).toBeLessThan(4)
-  // Inventory is the tall page beside them, and does not push the notes down.
-  expect(inventory.x).toBeGreaterThan(attacks.x + attacks.width / 2)
-  expect(inventory.height).toBeGreaterThan(attacks.height)
+  // Two stacks: what you roll on the left (with the notes), what you carry on the right.
+  const [left, right] = await boxes()
+  expect(left.x).toBeLessThan(right.x)
+  const notesBox = await dialog.locator('[id^="sheet-section-notes-"]').boundingBox()
+  const skillsBox = await dialog.locator('[id^="sheet-section-skills-"]').boundingBox()
+  const inventoryBox = await dialog.locator('[id^="sheet-section-inventory-"]').boundingBox()
+  // The notes sit right under the skills in the left stack, with no gap.
+  expect(notesBox!.x).toBeCloseTo(skillsBox!.x, 0)
+  expect(notesBox!.y).toBeGreaterThan(skillsBox!.y)
+  // Inventory is in the right stack and does not push the notes down.
+  expect(inventoryBox!.x).toBeGreaterThan(left.x + left.width / 2)
 
   await dialog.getByRole('button', { name: 'Collapse inventory' }).click()
   await expect(dialog.getByText('Supply 13', { exact: true })).toBeHidden()
@@ -2961,9 +2965,8 @@ test('the sheet pages stack without an empty gap, and inventory and notes fold a
     'aria-expanded',
     'false',
   )
-  const [, , , folded] = await boxes()
-  // A long list is capped (and scrolls), so the page can already be as short as the stack beside it.
-  expect(folded.height).toBeLessThanOrEqual(inventory.height)
+  const folded = await dialog.locator('[id^="sheet-section-inventory-"]').boundingBox()
+  expect(folded!.height).toBeLessThan(inventoryBox!.height)
 
   await dialog.getByRole('button', { name: 'Collapse features and notes' }).click()
   await expect(dialog.getByText('Brave.')).toBeHidden()

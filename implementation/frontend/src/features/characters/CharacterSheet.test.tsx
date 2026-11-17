@@ -302,8 +302,8 @@ describe('CharacterSheet (read-only)', () => {
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Sheet',
       'Export and history',
-      'Collapse inventory',
       'Collapse features and notes',
+      'Collapse inventory',
     ])
     expect(screen.getByText('12 / 30')).toBeInTheDocument()
     expect(screen.getByText('30 ft.')).toBeInTheDocument()
@@ -311,7 +311,7 @@ describe('CharacterSheet (read-only)', () => {
     expect(screen.getByText('Rage')).toBeInTheDocument()
     expect(screen.getByText('CN')).toBeInTheDocument()
     expect(screen.getByText('300')).toBeInTheDocument()
-    expect(screen.getByText(/Athletics/).closest('li')).toHaveTextContent('+6 · proficient')
+    expect(screen.getByText(/Athletics/).closest('li')).toHaveTextContent(/\+6\s*proficient/)
   })
 
   it('shows "Not set" and "Nothing recorded." for empty values', async () => {

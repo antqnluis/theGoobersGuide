@@ -458,37 +458,13 @@
     border-top: 0;
   }
 
-  .sheet-page:nth-child(n + 3) {
-    border-top: 1px dashed var(--journal-rule);
-  }
-
   /*
-   * Two stacks, not one grid of rows. The coins and inventory page is far taller than the
-   * attacks page beside it, so the notes page tucks up under the attacks instead of waiting
-   * for the whole row, and the left page has no empty gap.
+   * Two stacks, left and right. What you roll sits on the left (vitals, abilities, skills);
+   * what you carry and write sits on the right (attacks, spells, coins, inventory, notes).
+   * Each stack runs its own height, so neither page has an empty gap.
    */
   .sheet-spread {
-    grid-template-rows: auto auto 1fr;
-  }
-
-  .sheet-page:nth-child(1) {
-    grid-area: 1 / 1;
-  }
-
-  .sheet-page:nth-child(2) {
-    grid-area: 1 / 2;
-  }
-
-  .sheet-page:nth-child(3) {
-    grid-area: 2 / 1;
-  }
-
-  .sheet-page:nth-child(4) {
-    grid-area: 2 / 2 / 4 / 3;
-  }
-
-  .sheet-page:nth-child(5) {
-    grid-area: 3 / 1;
+    align-items: start;
   }
 
   /* The binding, down the middle of the spread. */
@@ -1008,11 +984,6 @@
   .folio-head__tools .character-controls__everyday {
     display: contents;
   }
-
-  .folio-head__tools .journal-check {
-    order: 3;
-    flex-basis: 100%;
-  }
 }
 
 /* Phones: one page at a time, a tighter header, and a save bar of full-width buttons. */
@@ -1220,11 +1191,7 @@
 }
 
 /* The display's one quick edit: current HP, saved from the pinned bar. */
-.sheet-derived--vitals .sheet-quickhp {
-  grid-column: 1 / -1;
-  border-style: solid;
-  border-color: var(--journal-brass-deep);
-}
+/* See the readout rules below for the hit-point block's frame. */
 
 .sheet-quickhp form {
   display: flex;
@@ -2102,4 +2069,283 @@
 
 .inventory-list.sheet-resizable {
   padding: 8px 10px 12px;
+}
+
+/* ------------------------------------------------------------------------------------------
+   At a glance (M6 polish). The sheet is read mid-play: the numbers you reach for most are the
+   largest, grouped as a table of facts, and labels are small and quiet.
+   ------------------------------------------------------------------------------------------ */
+
+/* Vitals as a readout: hit points across the top, then the combat numbers as large tiles. */
+.sheet-readout {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.sheet-readout > div {
+  grid-column: 1 / -1;
+  min-width: 0;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--journal-field) 45%, transparent);
+}
+
+.sheet-readout dt {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font: 700 0.7rem / 1.25 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-readout dd {
+  margin: 2px 0 0;
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.15 var(--journal-font-display);
+}
+
+.sheet-readout .sheet-quickhp {
+  border-color: var(--journal-brass-deep);
+  padding: 12px 14px 14px;
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.sheet-readout .sheet-quickhp dd {
+  margin: 0;
+}
+
+.sheet-quickhp__max {
+  padding-bottom: 12px;
+  font: 600 1.25rem / 1.2 var(--journal-font-display);
+}
+
+.sheet-quickhp__bar {
+  height: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--journal-line);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--journal-ink) 8%, transparent);
+}
+
+.sheet-quickhp__bar span {
+  display: block;
+  height: 100%;
+  background: var(--journal-forest, #2d5a41);
+}
+
+/* Armor class, initiative, and speed: the three numbers asked for every turn. */
+.sheet-readout .sheet-readout__key {
+  grid-column: span 2;
+  display: grid;
+  justify-items: center;
+  padding: 10px 6px 8px;
+  text-align: center;
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.sheet-readout__key dd {
+  font-size: 2.1rem;
+  line-height: 1.05;
+}
+
+/* Proficiency bonus and passive Perception: needed, but not on every turn. */
+.sheet-readout .sheet-readout__minor {
+  grid-column: span 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+  border-style: dashed;
+}
+
+.sheet-readout__minor dd {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* Skills: read down two columns, like a printed sheet; trained skills stand out. */
+.sheet-skills__value {
+  display: grid;
+  justify-items: end;
+  line-height: 1.1;
+}
+
+.sheet-skills__value strong {
+  font: 700 1.2rem / 1.1 var(--journal-font-display);
+}
+
+.sheet-skills__value small {
+  color: var(--journal-ink-soft);
+  font: 700 0.66rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-skills li[data-proficiency='proficient'],
+.sheet-skills li[data-proficiency='expertise'] {
+  background: color-mix(in srgb, var(--journal-oxblood) 7%, transparent);
+}
+
+.sheet-skills
+  li:is([data-proficiency='proficient'], [data-proficiency='expertise'])
+  .sheet-skills__name {
+  font-weight: 700;
+}
+
+.sheet-skills
+  li:is([data-proficiency='proficient'], [data-proficiency='expertise'])
+  .sheet-skills__name
+  small {
+  font-weight: 400;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) {
+    column-count: 2;
+    column-gap: 28px;
+  }
+
+  .sheet-skills:has(.sheet-skills__value) li {
+    break-inside: avoid;
+    min-height: 46px;
+  }
+}
+
+/* Attacks: the name, then what to roll and what it deals, in large figures. */
+.sheet-attacks > li:has(.sheet-attacks__name) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 2px 20px;
+  border-bottom: 1px solid var(--journal-rule);
+  padding-bottom: 10px;
+}
+
+.sheet-attacks__name {
+  grid-column: 1;
+  font: 600 1.15rem / 1.2 var(--journal-font-display);
+  overflow-wrap: anywhere;
+}
+
+.sheet-attacks__bonus,
+.sheet-attacks__damage {
+  display: grid;
+  font: 700 1.3rem / 1.15 var(--journal-font-display);
+}
+
+.sheet-attacks__bonus {
+  grid-column: 2;
+  justify-items: center;
+}
+
+.sheet-attacks__damage {
+  grid-column: 3;
+  justify-items: start;
+  min-width: 6rem;
+}
+
+.sheet-attacks__bonus small,
+.sheet-attacks__damage small {
+  color: var(--journal-ink-soft);
+  font: 700 0.64rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-attacks__notes {
+  grid-column: 1 / -1;
+  color: var(--journal-ink-soft);
+}
+
+@container page (max-width: 24rem) {
+  .sheet-attacks > li:has(.sheet-attacks__name) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sheet-attacks__name {
+    grid-column: 1 / -1;
+  }
+
+  .sheet-attacks__bonus {
+    grid-column: 1;
+  }
+
+  .sheet-attacks__damage {
+    grid-column: 2;
+  }
+}
+
+/* The header's tools: the two actions side by side, the sharing choice beneath them. */
+.folio-head__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+}
+
+.folio-head__tools .character-controls,
+.folio-head__tools .character-controls__everyday {
+  display: contents;
+}
+
+.folio-head__tools .character-share {
+  order: 3;
+  flex-basis: 100%;
+  justify-items: end;
+  text-align: right;
+}
+
+.folio-head__tools .character-share .journal-check {
+  justify-content: flex-end;
+}
+
+@container tent (max-width: 860px) {
+  .folio-head__tools .character-share {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .folio-head__tools .character-share .journal-check {
+    justify-content: flex-start;
+  }
+}
+
+.sheet-readout .sheet-quickhp dt {
+  margin-bottom: 8px;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) li {
+    min-height: 52px;
+  }
+}
+
+/* An inventory line: the name and badges, then the quantity and toggles, with Edit and Remove at the end. */
+.inventory-item__controls > .journal-button--ghost {
+  margin-left: auto;
+}
+
+/* Skills: breathing room inside each row, so the pip and the bonus never touch the edge. */
+.sheet-skills li {
+  padding-right: 14px;
+  padding-left: 30px;
+}
+
+.sheet-skills li::before {
+  left: 10px;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) {
+    column-gap: 20px;
+  }
 }
