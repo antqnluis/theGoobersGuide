@@ -1,8 +1,10 @@
 /* The campaign notebook at the journal crates. Built on the journal-* primitives. */
 .camp-notes {
   display: grid;
-  gap: 18px;
+  gap: 26px;
   margin-top: 4px;
+  /* The notebook answers to the journal's width, not the viewport's. */
+  container: notes / inline-size;
 }
 
 .note-toolbar {
@@ -36,10 +38,12 @@
 
 .note-row {
   display: grid;
+  align-content: start;
   gap: 4px;
+  min-width: 0;
   border: 1px solid var(--journal-rule);
   border-radius: var(--journal-radius);
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: rgb(255 255 255 / 0.35);
 }
 
@@ -49,7 +53,7 @@
   padding: 0;
   color: var(--journal-oxblood-deep);
   background: none;
-  font: 700 1.05rem / 1.35 var(--journal-font-display, inherit);
+  font: 700 1.15rem / 1.35 var(--journal-font-display, inherit);
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -98,9 +102,10 @@
 .note-body {
   border: 1px solid var(--journal-rule);
   border-radius: var(--journal-radius);
-  padding: 12px 14px;
+  padding: 14px 18px;
   background: rgb(255 255 255 / 0.35);
-  line-height: 1.6;
+  font-size: 1.05rem;
+  line-height: 1.7;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -161,4 +166,54 @@
   font: 600 clamp(1.4rem, 3vw, 1.8rem) / 1.15 var(--journal-font-display);
   letter-spacing: normal;
   text-transform: none;
+}
+
+/* Layout: groups breathe apart, rows pack tight, prose keeps a readable measure. */
+.note-body {
+  max-width: 68ch;
+}
+
+.note-form {
+  max-width: 48rem;
+}
+
+.note-page__head > .journal-button--ghost {
+  margin-inline-start: -18px;
+}
+
+@container notes (min-width: 40rem) {
+  .note-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  }
+
+  /* The note reads on the left; what can be done with it waits in a narrow column. */
+  .note-page {
+    grid-template-columns: minmax(0, 1fr) minmax(11rem, 14rem);
+    column-gap: 28px;
+    align-items: start;
+  }
+
+  .note-page > * {
+    grid-column: 1 / -1;
+  }
+
+  .note-page > .note-body {
+    grid-column: 1;
+  }
+
+  .note-page > .note-page__actions {
+    grid-column: 2;
+    display: grid;
+    gap: 10px;
+    padding-left: 20px;
+    border-left: 1px solid var(--journal-rule);
+  }
+
+  .note-page__actions .journal-button {
+    width: 100%;
+  }
+
+  .note-form__body {
+    min-height: 18rem;
+  }
 }

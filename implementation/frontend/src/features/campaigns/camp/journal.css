@@ -738,6 +738,11 @@ textarea.journal-input {
   .camp-ledger[data-variant='folio'] {
     width: clamp(760px, 88vw, 1680px);
   }
+
+  /* Adventures: a board and a two-column page, so wider than the compact journal. */
+  .camp-ledger[data-variant='wide'] {
+    width: clamp(640px, 70vw, 1200px);
+  }
 }
 
 @media (max-width: 899px), (max-height: 480px) {

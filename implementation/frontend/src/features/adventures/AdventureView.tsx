@@ -177,112 +177,115 @@ export function AdventureView({
         <p className="journal-status">This adventure is archived. Restore it to make changes.</p>
       )}
 
-      {readOnly ? (
-        <p className="adventure-status">
-          <strong>Status:</strong> {adventureStatusLabels[adventure.status]}
-          {statusNote && <span className="adventure-status__note"> {statusNote}</span>}
-        </p>
-      ) : (
-        <div className="journal-field adventure-status">
-          <label htmlFor={`${base}-status`}>Status</label>
-          <select
-            aria-busy={statusBusy || undefined}
-            className="journal-select"
-            disabled={!editable || busy}
-            id={`${base}-status`}
-            onChange={(event) => void onStatus(event.target.value as AdventureStatus)}
-            value={adventure.status}
-          >
-            {adventureStatuses.map((status) => (
-              <option key={status} value={status}>
-                {adventureStatusLabels[status]}
-              </option>
-            ))}
-          </select>
-          {statusNote && <p className="adventure-status__note">{statusNote}</p>}
-        </div>
-      )}
+      <div className="adventure-page__body">
+        <div className="adventure-page__main">
+          {readOnly ? (
+            <p className="adventure-status">
+              <strong>Status:</strong> {adventureStatusLabels[adventure.status]}
+              {statusNote && <span className="adventure-status__note"> {statusNote}</span>}
+            </p>
+          ) : (
+            <div className="journal-field adventure-status">
+              <label htmlFor={`${base}-status`}>Status</label>
+              <select
+                aria-busy={statusBusy || undefined}
+                className="journal-select"
+                disabled={!editable || busy}
+                id={`${base}-status`}
+                onChange={(event) => void onStatus(event.target.value as AdventureStatus)}
+                value={adventure.status}
+              >
+                {adventureStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {adventureStatusLabels[status]}
+                  </option>
+                ))}
+              </select>
+              {statusNote && <p className="adventure-status__note">{statusNote}</p>}
+            </div>
+          )}
 
-      <dl className="adventure-facts">
-        <div>
-          <dt>Next step</dt>
-          <dd className={adventure.next_step ? undefined : 'adventure-facts__empty'}>
-            {adventure.next_step || 'None yet.'}
-          </dd>
+          <dl className="adventure-facts">
+            <div>
+              <dt>Next step</dt>
+              <dd className={adventure.next_step ? undefined : 'adventure-facts__empty'}>
+                {adventure.next_step || 'None yet.'}
+              </dd>
+            </div>
+            {adventure.reference && (
+              <div>
+                <dt>Reference</dt>
+                <dd>{adventure.reference}</dd>
+              </div>
+            )}
+            {progress.total > 0 && (
+              <div>
+                <dt>Objectives</dt>
+                <dd>
+                  {progress.done} of {progress.total} done
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {adventure.description ? (
+            <div className="adventure-description">{adventure.description}</div>
+          ) : (
+            <p className="adventure-description adventure-description--empty">
+              This adventure has no description yet.
+            </p>
+          )}
+
+          <AdventureObjectives
+            editable={editable}
+            objectives={adventure.objectives}
+            readOnly={readOnly}
+            onAdd={onAddObjective}
+            onRemove={onRemoveObjective}
+            onRename={onRenameObjective}
+            onToggle={onToggleObjective}
+            pendingAction={pendingAction}
+            pendingId={pendingId}
+            roster={roster}
+            userId={userId}
+          />
+
+          <AdventureUpdates
+            editable={editable}
+            onPost={onPostUpdate}
+            onRemove={onRemoveUpdate}
+            pendingAction={pendingAction}
+            pendingId={pendingId}
+            roster={roster}
+            updates={adventure.updates}
+            userId={userId}
+          />
         </div>
-        {adventure.reference && (
-          <div>
-            <dt>Reference</dt>
-            <dd>{adventure.reference}</dd>
+        {!main && (
+          <div className="adventure-page__side">
+            <AdventureParticipants
+              adventure={adventure}
+              characters={characters}
+              onApprove={onApprove}
+              onCancel={onCancel}
+              onLeave={onLeave}
+              onPropose={onPropose}
+              pendingAction={pendingAction}
+              pendingId={pendingId}
+              roster={roster}
+              userId={userId}
+            />
+
+            <AdventureSharing
+              adventure={adventure}
+              onConsent={onConsent}
+              pendingAction={pendingAction}
+              roster={roster}
+              userId={userId}
+            />
           </div>
         )}
-        {progress.total > 0 && (
-          <div>
-            <dt>Objectives</dt>
-            <dd>
-              {progress.done} of {progress.total} done
-            </dd>
-          </div>
-        )}
-      </dl>
-
-      {adventure.description ? (
-        <div className="adventure-description">{adventure.description}</div>
-      ) : (
-        <p className="adventure-description adventure-description--empty">
-          This adventure has no description yet.
-        </p>
-      )}
-
-      {!main && (
-        <AdventureParticipants
-          adventure={adventure}
-          characters={characters}
-          onApprove={onApprove}
-          onCancel={onCancel}
-          onLeave={onLeave}
-          onPropose={onPropose}
-          pendingAction={pendingAction}
-          pendingId={pendingId}
-          roster={roster}
-          userId={userId}
-        />
-      )}
-
-      {!main && (
-        <AdventureSharing
-          adventure={adventure}
-          onConsent={onConsent}
-          pendingAction={pendingAction}
-          roster={roster}
-          userId={userId}
-        />
-      )}
-
-      <AdventureObjectives
-        editable={editable}
-        objectives={adventure.objectives}
-        readOnly={readOnly}
-        onAdd={onAddObjective}
-        onRemove={onRemoveObjective}
-        onRename={onRenameObjective}
-        onToggle={onToggleObjective}
-        pendingAction={pendingAction}
-        pendingId={pendingId}
-        roster={roster}
-        userId={userId}
-      />
-
-      <AdventureUpdates
-        editable={editable}
-        onPost={onPostUpdate}
-        onRemove={onRemoveUpdate}
-        pendingAction={pendingAction}
-        pendingId={pendingId}
-        roster={roster}
-        updates={adventure.updates}
-        userId={userId}
-      />
+      </div>
 
       {!confirming && (
         <div className="journal-actions adventure-page__actions">

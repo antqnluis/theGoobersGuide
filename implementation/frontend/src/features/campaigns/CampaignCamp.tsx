@@ -192,17 +192,22 @@ export function CampaignCamp({
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
   // Every destination wears the leather journal (the folio, wider, for a sheet). The
   // variant outlives the close so the exit animation keeps the same look.
-  const wantedVariant: 'journal' | 'folio' =
+  // Adventures and notes read as a board and a two-column page, so they get a wider journal ('wide').
+  const wantedVariant: 'journal' | 'folio' | 'wide' =
     active?.id === 'characters'
       ? characterFolio
         ? 'folio'
         : 'journal'
       : active?.id === 'party' && partyFolio
         ? 'folio'
-        : 'journal'
+        : active?.id === 'adventures' || active?.id === 'notes'
+          ? 'wide'
+          : 'journal'
   const folioOpen =
     active?.id === 'party' ? partyFolio : active?.id === 'characters' ? characterFolio : false
-  const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | undefined>(undefined)
+  const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | 'wide' | undefined>(
+    undefined,
+  )
   if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
   const variant = active ? wantedVariant : (lastVariant ?? 'journal')
   const guarded = active ? Boolean(unsavedChanges[active.id]) : false

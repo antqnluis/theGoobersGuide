@@ -464,17 +464,24 @@ function AdventureList({
         >
           {item.title}
         </button>
-        <p className="adventure-row__meta">
-          <span>{adventureTypeLabels[item.type]}</span>
-          <span>{adventureStatusLabels[item.status]}</span>
-          {names.length > 0 && <span>{names.join(', ')}</span>}
-          {groups.shared.includes(item) && <span>Read-only</span>}
-          {progress.total > 0 && (
-            <span>
-              {progress.done} of {progress.total} objectives
-            </span>
-          )}
-        </p>
+        <div className="adventure-row__facts">
+          <ul aria-label="About this adventure" className="journal-chips adventure-row__chips">
+            <li className="journal-chip">
+              <PixelIcon name="flag" />
+              <span>{adventureTypeLabels[item.type]}</span>
+            </li>
+            <li className="journal-chip">{adventureStatusLabels[item.status]}</li>
+          </ul>
+          <p className="adventure-row__meta">
+            {names.length > 0 && <span>{names.join(', ')}</span>}
+            {groups.shared.includes(item) && <span>Read-only</span>}
+            {progress.total > 0 && (
+              <span>
+                {progress.done} of {progress.total} objectives
+              </span>
+            )}
+          </p>
+        </div>
         {reasons.map((reason) => (
           <p className="adventure-row__waiting" key={reason}>
             <PixelIcon name="flame" />
