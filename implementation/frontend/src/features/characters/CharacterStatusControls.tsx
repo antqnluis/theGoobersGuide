@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { CharacterAdventureCounts } from '../adventures/adventureTypes'
 import type { CharacterAction } from './useCharacterActions'
 import { PixelIcon } from './PixelIcon'
 import type { CharacterStatus, CharacterSummary, SheetVisibility } from './characterTypes'
@@ -22,10 +23,11 @@ type CharacterStatusControlsProps = {
   onChangeVisibility: (visibility: SheetVisibility) => void
   onDelete: () => void
   /**
-   * How many adventures deleting the character would delete too (D5); undefined while it is
-   * unknown, which leaves the sentence out.
+   * What deleting the character does to adventures (D5, D11): `sole` adventures only it is in
+   * are deleted, and it leaves `shared` ones. Undefined while unknown, which leaves the
+   * sentences out.
    */
-  adventureCount?: number
+  adventureCounts?: CharacterAdventureCounts
   /**
    * `everyday` is sharing and the party; `lifecycle` is retiring, dying, returning, and
    * deleting, with their confirmations. `all` shows both, with a confirmation replacing them.
@@ -70,7 +72,7 @@ export function CharacterStatusControls({
   onChangeParty,
   onChangeVisibility,
   onDelete,
-  adventureCount,
+  adventureCounts,
   part = 'all',
 }: CharacterStatusControlsProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -154,11 +156,14 @@ export function CharacterStatusControls({
           <p>
             Delete <strong>{name}</strong> permanently? Their sheet, inventory, and coins will be
             removed and this can't be undone.{' '}
-            {adventureCount ? (
+            {adventureCounts && adventureCounts.shared > 0 ? (
               <>
-                {adventureCount === 1
-                  ? 'Its 1 adventure will be deleted too.'
-                  : `Its ${adventureCount} adventures will be deleted too.`}{' '}
+                {`It will leave ${adventureCounts.shared} shared ${adventureCounts.shared === 1 ? 'adventure' : 'adventures'}.`}{' '}
+              </>
+            ) : null}
+            {adventureCounts && adventureCounts.sole > 0 ? (
+              <>
+                {`${adventureCounts.sole} ${adventureCounts.sole === 1 ? 'adventure' : 'adventures'} only it is in will be deleted.`}{' '}
               </>
             ) : null}
             To keep them as history, retire them instead.

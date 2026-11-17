@@ -409,7 +409,7 @@ describe('CharacterTent detail', () => {
     expect(countCharacterAdventures).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Delete character' }))
     expect(
-      await screen.findByText(/Its 2 adventures will be deleted too\./, { exact: false }),
+      await screen.findByText(/2 adventures only it is in will be deleted\./, { exact: false }),
     ).toBeVisible()
     expect(countCharacterAdventures).toHaveBeenCalledWith(character().id)
   })

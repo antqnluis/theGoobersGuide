@@ -521,3 +521,134 @@ test('leaving asks first, then returns to a board without the adventure', async 
   await expect(dialog.getByRole('button', { name: 'The heist' })).toHaveCount(0)
   expect(adventure.participantRows!.find((p) => p.profile_id === accountId)?.status).toBe('left')
 })
+
+// --- M03.6 collaboration (Phase 4): sharing with the party and its read-only view -------------
+
+test('sharing needs everyone: one agreement is a request, the second shares it, Stop sharing ends it', async ({
+  page,
+}) => {
+  const adventure = mockAdventure({ title: 'The heist', type: 'side', participantRows: [] })
+  adventure.participantRows = [myRow(adventure.id), hostRow(adventure.id)]
+  const state: AdventureState = { adventures: [adventure] }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+
+  const sharing = dialog.getByRole('region', { name: 'Sharing' })
+  await expect(sharing).toContainText('Only the people in this adventure can see it.')
+  await sharing.getByRole('button', { name: 'Share with party' }).click()
+  await expect(dialog.getByRole('button', { name: 'Yes, share' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Yes, share' }).click()
+  await expect(dialog.getByText('Your agreement was saved.')).toBeVisible()
+  await expect(sharing).toContainText('Waiting for Mira')
+  expect(adventure.visibility).toBe('participants')
+
+  await sharing.getByRole('button', { name: 'Cancel the request' }).click()
+  await expect(sharing).toContainText('Only the people in this adventure can see it.')
+  expect(adventure.participantRows!.some((p) => p.share_consent)).toBe(false)
+})
+
+test('a share request waits in "Waiting for you", and Agree completes the share', async ({
+  page,
+}) => {
+  const adventure = mockAdventure({ title: 'The heist', type: 'side', participantRows: [] })
+  adventure.participantRows = [
+    myRow(adventure.id),
+    { ...hostRow(adventure.id), share_consent: true },
+  ]
+  const state: AdventureState = { adventures: [adventure] }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+  await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toContainText(
+    'Mira wants to share this with the party',
+  )
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+  const sharing = dialog.getByRole('region', { name: 'Sharing' })
+  await sharing.getByRole('button', { name: 'Agree' }).click()
+  await dialog.getByRole('button', { name: 'Yes, share' }).click()
+  await expect(sharing).toContainText('Shared with the party.')
+  expect(adventure.visibility).toBe('party')
+
+  await sharing.getByRole('button', { name: 'Stop sharing' }).click()
+  await expect(dialog.getByRole('button', { name: 'Yes, stop sharing' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Yes, stop sharing' }).click()
+  await expect(sharing).toContainText('Only the people in this adventure can see it.')
+  expect(adventure.visibility).toBe('participants')
+  expect(adventure.participantRows!.some((p) => p.share_consent)).toBe(false)
+})
+
+test('Not now clears the request without sharing', async ({ page }) => {
+  const adventure = mockAdventure({ title: 'The heist', type: 'side', participantRows: [] })
+  adventure.participantRows = [
+    myRow(adventure.id),
+    { ...hostRow(adventure.id), share_consent: true },
+  ]
+  const { dialog } = await openAdventures(page, { adventures: [adventure] }, { others: [tess] })
+  await dialog.getByRole('button', { name: 'The heist' }).click()
+  await dialog.getByRole('button', { name: 'Not now' }).click()
+  await expect(dialog.getByRole('region', { name: 'Sharing' })).toContainText(
+    'Only the people in this adventure can see it.',
+  )
+  expect(adventure.participantRows!.some((p) => p.share_consent)).toBe(false)
+})
+
+test('the party reads a shared adventure in its own group, with nothing to change', async ({
+  page,
+}) => {
+  const adventure = mockAdventure({
+    title: 'The lantern job',
+    type: 'side',
+    visibility: 'party',
+    created_by: mira,
+    participantRows: [],
+    objectives: [
+      {
+        id: 'lantern-1',
+        adventure_id: 'x',
+        title: 'Light the lantern',
+        done: true,
+        created_by: mira,
+        completed_by: mira,
+        completed_at: '2026-11-16T10:00:00.000Z',
+        created_at: '2026-11-16T09:00:00.000Z',
+        updated_at: '2026-11-16T10:00:00.000Z',
+      },
+    ],
+  })
+  adventure.participantRows = [{ ...hostRow(adventure.id), share_consent: true }]
+  const state: AdventureState = { adventures: [adventure], partyViewer: true }
+  const { dialog } = await openAdventures(page, state, { others: [tess] })
+
+  const shared = dialog.getByRole('region', { name: 'Shared with the party' })
+  await expect(shared).toContainText('The lantern job')
+  await expect(shared).toContainText('Read-only')
+  await expect(dialog.getByRole('region', { name: 'Your adventures' })).not.toContainText(
+    'The lantern job',
+  )
+
+  await shared.getByRole('button', { name: 'The lantern job' }).click()
+  await expect(dialog.getByText(/Shared with the party by .*Only the people in it/)).toBeVisible()
+  await expect(dialog.getByText('Light the lantern')).toBeVisible()
+  await expect(dialog.getByText('(done)')).toBeVisible()
+  for (const name of ['Edit details', 'Archive adventure', 'Stop sharing', 'Leave adventure']) {
+    await expect(dialog.getByRole('button', { name })).toHaveCount(0)
+  }
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await expect(dialog.getByRole('combobox')).toHaveCount(0)
+})
+
+test('a member outside the party does not see a shared adventure', async ({ page }) => {
+  const adventure = mockAdventure({
+    title: 'The lantern job',
+    type: 'side',
+    visibility: 'party',
+    created_by: mira,
+    participantRows: [],
+  })
+  adventure.participantRows = [{ ...hostRow(adventure.id), share_consent: true }]
+  const { dialog } = await openAdventures(
+    page,
+    { adventures: [adventure], partyViewer: false },
+    { others: [tess] },
+  )
+  await expect(dialog.getByRole('button', { name: 'The lantern job' })).toHaveCount(0)
+  await expect(dialog.getByRole('region', { name: 'Shared with the party' })).toHaveCount(0)
+})

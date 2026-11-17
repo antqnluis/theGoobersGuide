@@ -1270,7 +1270,7 @@ export type MockAdventure = {
   campaign_id: string
   created_by: string
   type: 'main' | 'side' | 'personal'
-  visibility: 'participants' | 'campaign'
+  visibility: 'participants' | 'party' | 'campaign'
   status: 'pending' | 'in_progress' | 'on_hold' | 'completed'
   title: string
   description: string
@@ -1335,6 +1335,8 @@ export type MockInvitation = {
 export type AdventureState = {
   /** M6: which player owns a character the mocks may propose (profile id by character id). */
   characterOwners?: Record<string, string>
+  /** M6: the signed-in player owns an active, in-party character, so party-shared adventures read. */
+  partyViewer?: boolean
   /** M6: open invitations to the signed-in player; accepting one adds the adventure. */
   invitations?: MockInvitation[]
   adventures: MockAdventure[]
@@ -1396,6 +1398,7 @@ export async function mockAdventures(
     (row.archived_at === null || row.created_by === accountId || mineRow(row)) &&
     (row.type === 'main' ||
       mineRow(row) ||
+      (row.visibility === 'party' && row.archived_at === null && state.partyViewer === true) ||
       (!row.participantRows && row.participantIds.length > 0 && row.created_by === accountId))
   const editable = (row: MockAdventure) => readable(row) && row.archived_at === null
 
@@ -1475,21 +1478,24 @@ export async function mockAdventures(
                 share_consent: false,
                 invited_by: null,
               }))
-            ).map((p) => ({
-              id: p.id,
-              adventure_id: row.id,
-              campaign_id: row.campaign_id,
-              character_id: p.character_id,
-              profile_id: p.profile_id,
-              status: p.status,
-              invited_by: p.invited_by ?? null,
-              share_consent: p.share_consent,
-              share_consent_at: p.share_consent ? row.updated_at : null,
-              responded_at: null,
-              created_at: row.created_at,
-              updated_at: row.created_at,
-              approvals: p.approvals.map((approver_id) => ({ approver_id })),
-            }))
+            )
+              // Pending, declined, and left rows are for the people in the adventure alone (D7).
+              .filter((p) => p.status === 'accepted' || mineRow(row))
+              .map((p) => ({
+                id: p.id,
+                adventure_id: row.id,
+                campaign_id: row.campaign_id,
+                character_id: p.character_id,
+                profile_id: p.profile_id,
+                status: p.status,
+                invited_by: p.invited_by ?? null,
+                share_consent: p.share_consent,
+                share_consent_at: p.share_consent ? row.updated_at : null,
+                responded_at: null,
+                created_at: row.created_at,
+                updated_at: row.created_at,
+                approvals: p.approvals.map((approver_id) => ({ approver_id })),
+              }))
             if (!detail) {
               return {
                 ...columns,
@@ -1721,6 +1727,22 @@ export async function mockAdventures(
       }
     }
   }
+  /** Shares an adventure when every accepted participant agrees; ending a share clears every agreement. */
+  const reconcileShare = (adventure: MockAdventure) => {
+    const accepted = adventure.participantRows?.filter((p) => p.status === 'accepted') ?? []
+    const wasShared = adventure.visibility === 'party'
+    const shared =
+      adventure.type !== 'main' &&
+      adventure.archived_at === null &&
+      accepted.length > 0 &&
+      accepted.every((p) => p.share_consent)
+    if (shared) adventure.visibility = 'party'
+    else if (adventure.type !== 'main') {
+      adventure.visibility = 'participants'
+      if (wasShared) for (const p of adventure.participantRows ?? []) p.share_consent = false
+    }
+    adventure.updated_at = nextStamp()
+  }
   const collaboration = (
     name: string,
     handler: (input: Record<string, unknown>) => { error?: string; data?: unknown },
@@ -1756,7 +1778,19 @@ export async function mockAdventures(
       .filter((row) => readable(row) && row.archived_at === null)
       .flatMap((row) => row.participantRows ?? [])
       .filter((p) => p.status === 'proposed' && !p.approvals.includes(accountId)).length
-    return { data: (state.invitations ?? []).length + waitingApprovals }
+    const waitingConsent = state.adventures.filter((row) => {
+      const accepted = row.participantRows?.filter((p) => p.status === 'accepted') ?? []
+      const mine = accepted.find((p) => p.profile_id === accountId)
+      return (
+        readable(row) &&
+        row.archived_at === null &&
+        row.visibility === 'participants' &&
+        mine &&
+        !mine.share_consent &&
+        accepted.some((p) => p.share_consent)
+      )
+    }).length
+    return { data: (state.invitations ?? []).length + waitingApprovals + waitingConsent }
   })
   await collaboration('respond_to_adventure_invitation', (input) => {
     const invitation = (state.invitations ?? []).find(
@@ -1845,7 +1879,22 @@ export async function mockAdventures(
       return { error: 'adventure_last_participant' }
     }
     mine.status = 'left'
+    mine.share_consent = false
     promote(adventure)
+    reconcileShare(adventure)
+    return {}
+  })
+  await collaboration('set_adventure_share_consent', (input) => {
+    const adventure = owned(String(input.p_adventure_id))
+    const mine = adventure?.participantRows?.find(
+      (p) => p.profile_id === accountId && p.status === 'accepted',
+    )
+    if (!adventure || !mine) return { error: 'adventure_unavailable' }
+    if (adventure.archived_at !== null) return { error: 'adventure_archived' }
+    if (adventure.type === 'main') return { error: 'adventure_main_has_no_participants' }
+    if (input.p_consent) mine.share_consent = true
+    else for (const p of adventure.participantRows!) p.share_consent = false
+    reconcileShare(adventure)
     return {}
   })
 

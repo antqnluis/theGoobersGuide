@@ -4,6 +4,7 @@ import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { AdventureObjectives } from './AdventureObjectives'
 import { AdventureParticipants } from './AdventureParticipants'
+import { AdventureSharing } from './AdventureSharing'
 import { AdventureUpdates } from './AdventureUpdates'
 import {
   adventureCharacterNames,
@@ -15,7 +16,9 @@ import {
   canArchive,
   canEdit,
   isArchived,
+  isPartyReader,
   objectiveProgress,
+  sharedByLabel,
 } from './adventureRules'
 import { adventureStatuses, type AdventureDetail, type AdventureStatus } from './adventureTypes'
 import type { AdventureAction, AdventureResult } from './useAdventureActions'
@@ -37,6 +40,7 @@ export function AdventureView({
   onArchive,
   onBack,
   onCancel,
+  onConsent,
   onEdit,
   onLeave,
   onPostUpdate,
@@ -61,6 +65,8 @@ export function AdventureView({
   onApprove: (participantId: string) => Promise<AdventureResult<unknown>>
   /** Rejects a proposal or withdraws an invitation. */
   onCancel: (participantId: string) => Promise<AdventureResult<unknown>>
+  /** `true` gives the viewer's agreement to share with the party; `false` clears every agreement. */
+  onConsent: (consent: boolean) => Promise<AdventureResult<unknown>>
   /** Resolves to whether the viewer left. */
   onLeave: () => Promise<boolean>
   onPropose: (characterId: string) => Promise<AdventureResult<unknown>>
@@ -100,6 +106,8 @@ export function AdventureView({
   const statusBusy = pendingAction === 'status'
   const archiveBusy = pendingAction === 'archive'
   const main = adventure.type === 'main'
+  // A member of the party reads a shared adventure without being in it (D7).
+  const readOnly = isPartyReader(adventure, userId)
   const progress = objectiveProgress(adventure.objectives)
   const who = adventureCharacterNames(adventure, characters)
   const audience = main
@@ -151,6 +159,11 @@ export function AdventureView({
           )}
         </ul>
         <p className="adventure-page__meta">{adventureEditedLabel(adventure, userId, roster)}</p>
+        {readOnly && (
+          <p className="adventure-page__readonly">
+            {sharedByLabel(adventure, userId, roster)} Only the people in it can make changes.
+          </p>
+        )}
       </header>
 
       {error && (
@@ -164,24 +177,31 @@ export function AdventureView({
         <p className="journal-status">This adventure is archived. Restore it to make changes.</p>
       )}
 
-      <div className="journal-field adventure-status">
-        <label htmlFor={`${base}-status`}>Status</label>
-        <select
-          aria-busy={statusBusy || undefined}
-          className="journal-select"
-          disabled={!editable || busy}
-          id={`${base}-status`}
-          onChange={(event) => void onStatus(event.target.value as AdventureStatus)}
-          value={adventure.status}
-        >
-          {adventureStatuses.map((status) => (
-            <option key={status} value={status}>
-              {adventureStatusLabels[status]}
-            </option>
-          ))}
-        </select>
-        {statusNote && <p className="adventure-status__note">{statusNote}</p>}
-      </div>
+      {readOnly ? (
+        <p className="adventure-status">
+          <strong>Status:</strong> {adventureStatusLabels[adventure.status]}
+          {statusNote && <span className="adventure-status__note"> {statusNote}</span>}
+        </p>
+      ) : (
+        <div className="journal-field adventure-status">
+          <label htmlFor={`${base}-status`}>Status</label>
+          <select
+            aria-busy={statusBusy || undefined}
+            className="journal-select"
+            disabled={!editable || busy}
+            id={`${base}-status`}
+            onChange={(event) => void onStatus(event.target.value as AdventureStatus)}
+            value={adventure.status}
+          >
+            {adventureStatuses.map((status) => (
+              <option key={status} value={status}>
+                {adventureStatusLabels[status]}
+              </option>
+            ))}
+          </select>
+          {statusNote && <p className="adventure-status__note">{statusNote}</p>}
+        </div>
+      )}
 
       <dl className="adventure-facts">
         <div>
@@ -229,9 +249,20 @@ export function AdventureView({
         />
       )}
 
+      {!main && (
+        <AdventureSharing
+          adventure={adventure}
+          onConsent={onConsent}
+          pendingAction={pendingAction}
+          roster={roster}
+          userId={userId}
+        />
+      )}
+
       <AdventureObjectives
         editable={editable}
         objectives={adventure.objectives}
+        readOnly={readOnly}
         onAdd={onAddObjective}
         onRemove={onRemoveObjective}
         onRename={onRenameObjective}
@@ -295,7 +326,7 @@ export function AdventureView({
             Archive <strong>{adventure.title}</strong>?{' '}
             {main
               ? 'Every member stops seeing it, and no one can change it. Only you can restore it.'
-              : 'It moves to your Archived list and no one can change it until you restore it.'}
+              : 'It moves to your Archived list, the party stops seeing it, and no one can change it until you restore it.'}
           </p>
           <div className="journal-actions">
             <button

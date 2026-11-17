@@ -17,6 +17,7 @@ import {
   mergeAdventure,
   missingApprovals,
   myParticipation,
+  isPartyReader,
   needsMyApproval,
   needsMyConsent,
   objectiveDoneLabel,
@@ -26,6 +27,8 @@ import {
   selectableTypes,
   shareRequestLabel,
   shareState,
+  sharedByLabel,
+  sharedThreadCount,
   sortAdventures,
   summarizeAdventure,
   updateAuthorLabel,
@@ -488,6 +491,46 @@ describe('shareRequestLabel', () => {
     ).toBe('Mira and Bram want to share this with the party')
     expect(shareRequestLabel({ participants: [participant()] }, userId, roster)).toBe(
       'Someone wants to share this with the party',
+    )
+  })
+})
+
+describe('the party audience', () => {
+  const mira = (overrides = {}) =>
+    participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+
+  it('reads a personal or side adventure without being in it, never a main one', () => {
+    const theirs = adventure({ type: 'side', participants: [mira()] })
+    expect(isPartyReader(theirs, userId)).toBe(true)
+    expect(isPartyReader(adventure({ type: 'side' }), userId)).toBe(false)
+    expect(isPartyReader(adventure({ type: 'main', participants: [] }), userId)).toBe(false)
+    // A participant who has left reads it like anyone else in the party.
+    expect(
+      isPartyReader(adventure({ participants: [participant({ status: 'left' })] }), userId),
+    ).toBe(true)
+  })
+
+  it('counts the threads with someone else in them, not solo or main ones', () => {
+    const duo = adventure({ type: 'side', participants: [participant(), mira()] })
+    const solo = adventure({ type: 'personal' })
+    const pending = adventure({
+      type: 'side',
+      participants: [participant(), mira({ status: 'proposed' })],
+    })
+    const main = adventure({ type: 'main', participants: [] })
+    const theirs = adventure({ type: 'side', participants: [mira()] })
+    expect(sharedThreadCount([duo, solo, pending, main, theirs], userId)).toBe(1)
+    expect(sharedThreadCount([], userId)).toBe(0)
+  })
+
+  it('names who shared it with the party', () => {
+    const duo = adventure({ type: 'side', participants: [participant(), mira()] })
+    expect(sharedByLabel(duo, userId, roster)).toBe('Shared with the party by You and Mira.')
+    expect(sharedByLabel(adventure({ participants: [mira()] }), 'someone', roster)).toBe(
+      'Shared with the party by Mira.',
+    )
+    expect(sharedByLabel(adventure({ participants: [] }), userId, roster)).toBe(
+      'Shared with the party.',
     )
   })
 })

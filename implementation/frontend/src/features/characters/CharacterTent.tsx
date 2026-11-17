@@ -206,8 +206,7 @@ export function CharacterTent({
   )
 
   const controls = selected && {
-    // Phase 4 adds the shared-adventure sentence; until then only the adventures deleted are named.
-    adventureCount: adventureCount.data?.sole,
+    adventureCounts: adventureCount.data,
     character: selected,
     confirmation,
     onChangeParty: (inParty: boolean) => changeParty(selected, inParty),

@@ -9,10 +9,12 @@ import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
 import {
   adventuresKey,
+  adventuresOptions,
   invitationsKey,
   requestCountKey,
   requestCountOptions,
 } from '../adventures/adventureQueries'
+import { sharedThreadCount } from '../adventures/adventureRules'
 import { useAdventureActions } from '../adventures/useAdventureActions'
 import { CampNotes, type NoteScreen } from '../notes/CampNotes'
 import { notesKey } from '../notes/noteQueries'
@@ -109,6 +111,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   })
   // Without Realtime (M7), the Places entry shows how many adventure requests wait for the
   // player: read when the camp opens and on focus. A failed read shows no count.
+  // Read only when the Adventures list is already cached: leaving names the shared ones (D9).
+  const adventuresList = useQuery(adventuresOptions(campaignId, userId, false))
   const requestCount = useQuery(
     requestCountOptions(
       campaignId,
@@ -409,6 +413,9 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           isOwner={isOwner}
           onConfirmationChange={changeConfirmation}
           onLeaveCampaign={leaveCampaign}
+          sharedAdventureCount={
+            adventuresList.data ? sharedThreadCount(adventuresList.data, userId) : undefined
+          }
           onRemoveMember={removeMember}
           onRetry={() => rosterQuery.refetch()}
           pendingAction={membership.pendingAction}

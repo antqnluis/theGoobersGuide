@@ -45,6 +45,7 @@ function setup(
     onApprove: vi.fn().mockResolvedValue(ok),
     onBack: vi.fn(),
     onCancel: vi.fn().mockResolvedValue(ok),
+    onConsent: vi.fn().mockResolvedValue(ok),
     onEdit: vi.fn(),
     onLeave: vi.fn().mockResolvedValue(true),
     onPropose: vi.fn().mockResolvedValue(ok),
@@ -273,5 +274,71 @@ describe('AdventureView with others', () => {
     cleanup()
     asMira([participant({ status: 'left' }), mira])
     expect(screen.getByRole('button', { name: 'Archive adventure' })).toBeVisible()
+  })
+})
+
+describe('an adventure shared with the party', () => {
+  const miraRow = participant({ profile_id: miraId, character_id: miraCharacterId })
+  const shared = adventure({
+    id: 'a3',
+    title: 'The lantern job',
+    type: 'side',
+    visibility: 'party',
+    status: 'in_progress',
+    created_by: miraId,
+    updated_by: miraId,
+    participants: [miraRow],
+    objectives: [
+      objective({
+        id: 'o1',
+        title: 'Light the lantern',
+        done: true,
+        completed_by: miraId,
+        completed_at: '2026-11-16T10:00:00+00:00',
+      }),
+      objective({ id: 'o2', title: 'Hide the oil', done: false }),
+    ],
+    updates: [update({ id: 'u9', author_id: miraId, body: 'The oil is gone.' })],
+  })
+
+  it('reads as a read-only page: no editing, status, archive, sharing, or participant controls', () => {
+    setup(shared)
+    expect(
+      screen.getByText('Shared with the party by Mira. Only the people in it can make changes.'),
+    ).toBeVisible()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getByText('In progress')).toBeVisible()
+    for (const name of [
+      'Edit details',
+      'Archive adventure',
+      'Stop sharing',
+      'Share with party',
+      'Leave adventure',
+      'Add',
+    ]) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('lists objectives with done marks and who ticked them, and the updates', () => {
+    setup(shared)
+    expect(screen.getByText('Light the lantern')).toBeVisible()
+    expect(screen.getByText('(done)')).toBeVisible()
+    expect(screen.getByText('(not done)')).toBeVisible()
+    expect(screen.getByText(/Done by Mira/)).toBeVisible()
+    expect(screen.getByText('The oil is gone.')).toBeVisible()
+  })
+
+  it('shows participants and sharing controls to an accepted participant of the same adventure', () => {
+    const mine = adventure({
+      ...shared,
+      participants: [participant(), miraRow],
+      created_by: userId,
+    })
+    setup(mine)
+    expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeVisible()
+    expect(screen.queryByText(/Only the people in it can make changes/)).not.toBeInTheDocument()
   })
 })

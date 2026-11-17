@@ -287,6 +287,13 @@ export function CampAdventures({
             }}
             onBack={() => backToList(adventure.id)}
             onCancel={(participantId) => actions.cancel(adventure.id, participantId)}
+            onConsent={async (consent) => {
+              const result = await actions.setConsent(adventure.id, consent)
+              if (result.ok) {
+                onNotice(consent ? 'Your agreement was saved.' : 'Sharing with the party is off.')
+              }
+              return result
+            }}
             onEdit={() => {
               setEditing(adventure)
               go({ type: 'edit', id: adventure.id }, { force: true })
@@ -461,6 +468,7 @@ function AdventureList({
           <span>{adventureTypeLabels[item.type]}</span>
           <span>{adventureStatusLabels[item.status]}</span>
           {names.length > 0 && <span>{names.join(', ')}</span>}
+          {groups.shared.includes(item) && <span>Read-only</span>}
           {progress.total > 0 && (
             <span>
               {progress.done} of {progress.total} objectives
@@ -594,6 +602,8 @@ function AdventureList({
                 groups.yours,
                 'No personal or side adventures under way.',
               )}
+              {groups.shared.length > 0 &&
+                group('adventures-shared-heading', 'Shared with the party', groups.shared, '')}
               {groups.completed.length > 0 &&
                 group('adventures-done-heading', 'Completed', groups.completed, '')}
               {groups.archived.length > 0 && (

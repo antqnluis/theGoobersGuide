@@ -13,6 +13,7 @@ import type { AdventureAction, AdventureResult } from './useAdventureActions'
 export function AdventureObjectives({
   editable,
   objectives,
+  readOnly = false,
   onAdd,
   onRemove,
   onRename,
@@ -24,6 +25,8 @@ export function AdventureObjectives({
 }: {
   editable: boolean
   objectives: readonly AdventureObjective[]
+  /** A list with done marks instead of checkboxes: the party's view of a shared adventure (D7). */
+  readOnly?: boolean
   onAdd: (title: string) => Promise<AdventureResult<unknown>>
   onRemove: (objectiveId: string) => Promise<AdventureResult<unknown>>
   onRename: (objectiveId: string, title: string) => Promise<AdventureResult<unknown>>
@@ -125,7 +128,18 @@ export function AdventureObjectives({
                 data-objective-id={objective.id}
                 key={objective.id}
               >
-                {editingId === objective.id ? (
+                {readOnly ? (
+                  <>
+                    <p className="objective-row__plain">
+                      <PixelIcon name={objective.done ? 'star' : 'flag'} />
+                      <span>{objective.title}</span>
+                      <span className="objective-row__state">
+                        {objective.done ? '(done)' : '(not done)'}
+                      </span>
+                    </p>
+                    {doneBy && <p className="objective-row__meta">{doneBy}</p>}
+                  </>
+                ) : editingId === objective.id ? (
                   <form
                     aria-label={`Rename ${objective.title}`}
                     className="objective-row__edit"

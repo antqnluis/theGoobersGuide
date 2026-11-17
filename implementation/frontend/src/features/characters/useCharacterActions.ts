@@ -158,12 +158,15 @@ export function useCharacterActions(campaignId: string, userId: string) {
   const changeStatus = (characterId: string, status: CharacterStatus) =>
     run('status', characterId, async () => {
       await setCharacterStatus(characterId, status)
+      // The party audience of shared adventures depends on an active, in-party character (D6).
+      void queryClient.invalidateQueries({ queryKey: adventuresPrefix })
       await refreshCharacters()
     })
 
   const changeParty = (characterId: string, inParty: boolean) =>
     run('party', characterId, async () => {
       await setCharacterInParty(characterId, inParty)
+      void queryClient.invalidateQueries({ queryKey: adventuresPrefix })
       await refreshCharacters()
     })
 

@@ -178,6 +178,23 @@ describe('useCharacterActions', () => {
     expect(stale(queryClient, adventuresKey)).toBe(true)
   })
 
+  it('refreshes adventures when the party flag or status changes, since the party audience follows it', async () => {
+    vi.mocked(setCharacterInParty).mockResolvedValue(undefined)
+    vi.mocked(setCharacterStatus).mockResolvedValue(undefined)
+    for (const change of [
+      (a: ReturnType<typeof setup>['result']['current']) => a.changeParty(characterId, false),
+      (a: ReturnType<typeof setup>['result']['current']) => a.changeStatus(characterId, 'retired'),
+    ]) {
+      const { queryClient, result } = setup()
+      const adventuresKey = ['campaigns', 'adventures', campaignId, userId]
+      queryClient.setQueryData(adventuresKey, [])
+      await act(async () => {
+        expect(await change(result.current)).toBe(true)
+      })
+      expect(stale(queryClient, adventuresKey)).toBe(true)
+    }
+  })
+
   it('shows known error copy and keeps caches untouched on an ordinary failure', async () => {
     vi.mocked(createCharacter).mockRejectedValue({ message: 'character_active_exists' })
     const { queryClient, result } = setup()

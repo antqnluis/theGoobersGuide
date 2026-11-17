@@ -450,3 +450,40 @@ export function shareRequestLabel(
   const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(names)
   return `${list} ${names.length === 1 ? 'wants' : 'want'} to share this with the party`
 }
+
+/**
+ * Whether the viewer reads a personal or side adventure only because it is shared with the
+ * party (D7): they are not an accepted participant. Main adventures are never read-only here.
+ */
+export function isPartyReader(adventure: Pick<Adventure, 'type'> & Participation, userId: string) {
+  return adventure.type !== 'main' && myParticipation(adventure, userId) === null
+}
+
+/**
+ * Personal and side adventures the viewer is accepted in with at least one other accepted
+ * participant: the threads leaving the campaign takes them out of (D9).
+ */
+export function sharedThreadCount(
+  adventures: readonly (Pick<Adventure, 'type'> & Participation)[],
+  userId: string,
+) {
+  return adventures.filter(
+    (adventure) =>
+      adventure.type !== 'main' &&
+      myParticipation(adventure, userId) !== null &&
+      acceptedParticipants(adventure).length > 1,
+  ).length
+}
+
+/** "Shared with the party by Mira and Bram." for the party's read-only view. */
+export function sharedByLabel(
+  adventure: Participation,
+  userId: string,
+  roster: readonly RosterEntry[],
+) {
+  const names = acceptedParticipants(adventure).map((participant) =>
+    noteAuthorLabel(participant.profile_id, userId, roster),
+  )
+  if (names.length === 0) return 'Shared with the party.'
+  return `Shared with the party by ${new Intl.ListFormat('en', { type: 'conjunction' }).format(names)}.`
+}

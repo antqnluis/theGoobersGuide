@@ -21,6 +21,7 @@ type Overrides = {
   pendingAction?: MembershipAction | null
   pendingProfileId?: string | null
   error?: string | null
+  sharedAdventureCount?: number
 }
 
 function Harness({
@@ -44,6 +45,7 @@ function Harness({
       onLeaveCampaign={onLeaveCampaign}
       onRemoveMember={onRemoveMember}
       onRetry={onRetry}
+      sharedAdventureCount={overrides.sharedAdventureCount}
       pendingAction={overrides.pendingAction ?? null}
       pendingProfileId={overrides.pendingProfileId ?? null}
       roster={overrides.roster ?? roster}
@@ -162,6 +164,31 @@ describe('CampaignPartyMembers', () => {
     await user.click(screen.getByRole('button', { name: 'Leave campaign' }))
     await user.click(screen.getByRole('button', { name: 'Yes, leave campaign' }))
     expect(onLeaveCampaign).toHaveBeenCalledTimes(1)
+  })
+
+  it('says how many shared adventures leaving takes the player out of, and nothing when none', async () => {
+    for (const [count, sentence] of [
+      [1, 'You’ll leave 1 shared adventure. Rejoining the campaign won’t bring you back into it.'],
+      [
+        3,
+        'You’ll leave 3 shared adventures. Rejoining the campaign won’t bring you back into them.',
+      ],
+    ] as const) {
+      const { user } = setup({ sharedAdventureCount: count })
+      await user.click(screen.getByRole('button', { name: 'Leave campaign' }))
+      expect(screen.getByRole('group', { name: 'Confirm leaving the campaign' })).toHaveTextContent(
+        `Your characters are kept and leave the party. ${sentence}`,
+      )
+      cleanup()
+    }
+    for (const count of [0, undefined]) {
+      const { user } = setup({ sharedAdventureCount: count })
+      await user.click(screen.getByRole('button', { name: 'Leave campaign' }))
+      expect(
+        screen.getByRole('group', { name: 'Confirm leaving the campaign' }),
+      ).not.toHaveTextContent('shared adventure')
+      cleanup()
+    }
   })
 
   it('disables the controls and shows pending labels while a request is in flight', async () => {

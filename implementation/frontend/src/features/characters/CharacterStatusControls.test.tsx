@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { character } from './characterTestData'
+import type { CharacterAdventureCounts } from '../adventures/adventureTypes'
 import type { CharacterSummary } from './characterTypes'
 import { CharacterStatusControls, type CharacterConfirmation } from './CharacterStatusControls'
 import type { CharacterAction } from './useCharacterActions'
@@ -13,10 +14,10 @@ function Harness({
   subject,
   pendingAction = null,
   handlers,
-  adventureCount,
+  adventureCounts,
 }: {
   subject: CharacterSummary
-  adventureCount?: number
+  adventureCounts?: CharacterAdventureCounts
   pendingAction?: CharacterAction | null
   handlers: Record<
     'onChangeStatus' | 'onChangeParty' | 'onChangeVisibility' | 'onDelete',
@@ -31,7 +32,7 @@ function Harness({
       onConfirmationChange={setConfirmation}
       pendingAction={pendingAction}
       pendingCharacterId={pendingAction ? subject.id : null}
-      adventureCount={adventureCount}
+      adventureCounts={adventureCounts}
       {...handlers}
     />
   )
@@ -40,7 +41,7 @@ function Harness({
 function setup(
   subject = character(),
   pendingAction: CharacterAction | null = null,
-  adventureCount?: number,
+  adventureCounts?: CharacterAdventureCounts,
 ) {
   const handlers = {
     onChangeStatus: vi.fn(),
@@ -50,7 +51,7 @@ function setup(
   }
   render(
     <Harness
-      adventureCount={adventureCount}
+      adventureCounts={adventureCounts}
       handlers={handlers}
       pendingAction={pendingAction}
       subject={subject}
@@ -157,20 +158,27 @@ describe('CharacterStatusControls', () => {
     expect(out.handlers.onDelete).toHaveBeenCalledTimes(1)
   })
 
-  it('says how many adventures a delete takes with it, and nothing when there are none', async () => {
-    for (const [count, sentence] of [
-      [1, 'Its 1 adventure will be deleted too.'],
-      [3, 'Its 3 adventures will be deleted too.'],
-    ] as const) {
-      const out = setup(character(), null, count)
+  it('says what a delete does to adventures, each sentence only when its count is above zero', async () => {
+    const cases: [{ sole: number; shared: number }, string][] = [
+      [{ sole: 1, shared: 0 }, '1 adventure only it is in will be deleted.'],
+      [{ sole: 3, shared: 0 }, '3 adventures only it is in will be deleted.'],
+      [{ sole: 0, shared: 1 }, 'It will leave 1 shared adventure.'],
+      [{ sole: 0, shared: 2 }, 'It will leave 2 shared adventures.'],
+      [
+        { sole: 1, shared: 2 },
+        'It will leave 2 shared adventures. 1 adventure only it is in will be deleted.',
+      ],
+    ]
+    for (const [counts, sentence] of cases) {
+      const out = setup(character(), null, counts)
       await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
       expect(screen.getByRole('group', { name: 'Confirm character deletion' })).toHaveTextContent(
         `removed and this can't be undone. ${sentence} To keep them as history, retire them instead.`,
       )
       cleanup()
     }
-    for (const count of [0, undefined]) {
-      const out = setup(character(), null, count)
+    for (const counts of [{ sole: 0, shared: 0 }, undefined]) {
+      const out = setup(character(), null, counts)
       await out.user.click(screen.getByRole('button', { name: 'Delete character' }))
       expect(
         screen.getByRole('group', { name: 'Confirm character deletion' }),

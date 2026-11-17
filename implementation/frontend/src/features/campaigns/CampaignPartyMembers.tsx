@@ -21,6 +21,12 @@ type CampaignPartyMembersProps = {
   /** Failure copy for a leave or remove attempt. */
   error: string | null
   onLeaveCampaign: () => void
+  /**
+   * Shared adventures (two or more accepted participants) the viewer is in; they are left when
+   * the campaign is (D9). Undefined while the adventures are not loaded, which leaves the
+   * sentence out.
+   */
+  sharedAdventureCount?: number
   onRemoveMember: (profileId: string, name: string) => void
   /** Owner-only controls that follow the list (invitations). */
   children?: ReactNode
@@ -57,6 +63,7 @@ export function CampaignPartyMembers({
   pendingProfileId,
   error,
   onLeaveCampaign,
+  sharedAdventureCount,
   onRemoveMember,
   children,
   characters = [],
@@ -346,6 +353,14 @@ export function CampaignPartyMembers({
             <p>
               Leave <strong>{campaignName}</strong>? You'll lose access until the owner invites you
               again. Your characters are kept and leave the party.
+              {sharedAdventureCount ? (
+                <>
+                  {' '}
+                  You&rsquo;ll leave {sharedAdventureCount} shared{' '}
+                  {sharedAdventureCount === 1 ? 'adventure' : 'adventures'}. Rejoining the campaign
+                  won&rsquo;t bring you back into {sharedAdventureCount === 1 ? 'it' : 'them'}.
+                </>
+              ) : null}
             </p>
             <div className="campaign-settings__actions">
               <button

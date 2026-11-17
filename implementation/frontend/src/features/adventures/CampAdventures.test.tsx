@@ -58,6 +58,7 @@ function makeActions(overrides: Record<string, unknown> = {}) {
     cancel: vi.fn().mockResolvedValue(ok),
     respond: vi.fn().mockResolvedValue(ok),
     leave: vi.fn().mockResolvedValue(ok),
+    setConsent: vi.fn().mockResolvedValue(ok),
     ...overrides,
   }
 }
@@ -624,5 +625,86 @@ describe('participants in an open adventure', () => {
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Send invitation' })).not.toBeInTheDocument(),
     )
+  })
+})
+
+describe('sharing with the party', () => {
+  const mira = (overrides = {}) =>
+    participant({ profile_id: miraId, character_id: miraCharacterId, ...overrides })
+  const others = adventure({
+    id: 'others',
+    title: 'The lantern job',
+    type: 'side',
+    visibility: 'party',
+    created_by: miraId,
+    updated_by: miraId,
+    participants: [
+      mira({ share_consent: true }),
+      participant({
+        profile_id: 'bram',
+        character_id: 'c-bram',
+        share_consent: true,
+      }),
+    ],
+    objectives: [objective({ id: 'o9', title: 'Light the lantern', done: true })],
+  })
+
+  it('lists adventures shared with the party that the viewer is not in, read-only', async () => {
+    vi.mocked(listAdventures).mockResolvedValue(
+      [heir, others].map((item) => summarizeAdventure(item)),
+    )
+    setup()
+    const shared = await screen.findByRole('region', { name: 'Shared with the party' })
+    expect(within(shared).getByRole('button', { name: 'The lantern job' })).toBeVisible()
+    expect(shared).toHaveTextContent('Read-only')
+    const yours = screen.getByRole('region', { name: 'Your adventures' })
+    expect(within(yours).queryByRole('button', { name: 'The lantern job' })).not.toBeInTheDocument()
+  })
+
+  it('leaves the group out when nothing is shared', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(heir)])
+    setup()
+    await screen.findByRole('region', { name: 'Your adventures' })
+    expect(screen.queryByRole('region', { name: 'Shared with the party' })).not.toBeInTheDocument()
+  })
+
+  it('opens a shared adventure with no controls for changing it', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(others)])
+    vi.mocked(getAdventure).mockResolvedValue(others)
+    setup({ initial: { type: 'adventure', id: 'others' } })
+    expect(await screen.findByText(/Shared with the party by/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Archive adventure' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Stop sharing' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('gives and withdraws agreement from an open adventure, and says so', async () => {
+    const duo = adventure({
+      id: 'duo',
+      title: 'Two of us',
+      type: 'side',
+      participants: [participant(), mira()],
+    })
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(duo)])
+    vi.mocked(getAdventure).mockResolvedValue(duo)
+    const { actions, onNotice, user } = setup({ initial: { type: 'adventure', id: 'duo' } })
+    await user.click(await screen.findByRole('button', { name: 'Share with party' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, share' }))
+    expect(actions.setConsent).toHaveBeenCalledWith('duo', true)
+    expect(onNotice).toHaveBeenLastCalledWith('Your agreement was saved.')
+  })
+
+  it('keeps the page on a failed sharing write and says nothing succeeded', async () => {
+    const solo = adventure({ id: 'solo', title: 'Alone', type: 'side' })
+    vi.mocked(listAdventures).mockResolvedValue([summarizeAdventure(solo)])
+    vi.mocked(getAdventure).mockResolvedValue(solo)
+    const actions = makeActions({
+      setConsent: vi.fn().mockResolvedValue({ ok: false, reason: 'failed' }),
+    })
+    const { onNotice, user } = setup({ actions, initial: { type: 'adventure', id: 'solo' } })
+    await user.click(await screen.findByRole('button', { name: 'Share with party' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, share' }))
+    expect(onNotice).not.toHaveBeenCalled()
   })
 })
