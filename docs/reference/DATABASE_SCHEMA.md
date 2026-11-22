@@ -344,7 +344,7 @@ Two foreign keys, `(character_id, campaign_id)` to `characters (id, campaign_id)
 
 ### Realtime
 
-`dice_rolls` is in the `supabase_realtime` publication (inserts only, default replica identity). Postgres-changes delivery checks each subscriber's select policy per row, so private rolls and other campaigns never reach a client.
+The `supabase_realtime` publication holds `dice_rolls` and, since M03.7 Phase 6, `character_sheets`, `notes`, `adventures`, `adventure_participants`, `adventure_objectives` and `adventure_updates`, all with default replica identity. Postgres-changes delivery checks each subscriber's select policy against the changed row, so a private roll, a private sheet, a private note, an adventure the subscriber is not in, and another campaign's rows never reach that client. The app listens for inserts and updates only: a delete event carries no row the policy has checked, so removals (and rows that stop being readable, such as a note made private) still arrive through the queries' refetch on focus. `character_sheets`, `adventure_objectives` and `adventure_updates` have no campaign column, so their events cannot be filtered by campaign; the client refetches only reads it already holds.
 
 ### Lifecycle
 

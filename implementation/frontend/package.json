@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test e2e/setup.spec.ts e2e/auth.spec.ts e2e/campaigns.spec.ts e2e/notes.spec.ts e2e/dice.spec.ts",
     "test:e2e:browsers": "PW_ALL=1 playwright test e2e/setup.spec.ts e2e/auth.spec.ts e2e/campaigns.spec.ts",
-    "test:local-supabase": "playwright test e2e/local-supabase.spec.ts e2e/local-supabase-membership.spec.ts e2e/local-supabase-characters.spec.ts e2e/local-supabase-inventory.spec.ts e2e/local-supabase-appearances.spec.ts e2e/local-supabase-imports.spec.ts e2e/local-supabase-notes.spec.ts e2e/local-supabase-adventures.spec.ts e2e/local-supabase-adventure-collaboration.spec.ts e2e/local-supabase-dice.spec.ts",
+    "test:local-supabase": "playwright test e2e/local-supabase.spec.ts e2e/local-supabase-membership.spec.ts e2e/local-supabase-characters.spec.ts e2e/local-supabase-inventory.spec.ts e2e/local-supabase-appearances.spec.ts e2e/local-supabase-imports.spec.ts e2e/local-supabase-notes.spec.ts e2e/local-supabase-adventures.spec.ts e2e/local-supabase-adventure-collaboration.spec.ts e2e/local-supabase-dice.spec.ts e2e/local-supabase-live.spec.ts",
     "test:perf": "playwright test -c playwright.perf.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",

@@ -22,7 +22,8 @@ export function adventuresOptions(campaignId: string, userId: string, enabled = 
     queryKey: adventuresKey(campaignId, userId),
     queryFn: () => listAdventures(campaignId),
     enabled,
-    // Without Realtime (M7), refetch on focus and on opening so shared edits show up.
+    // Realtime (useCampaignLive) refreshes this as others change it; refetching on focus stays as
+    // the backstop for deletions and for adventures that stopped being readable.
     refetchOnWindowFocus: true,
   }
 }

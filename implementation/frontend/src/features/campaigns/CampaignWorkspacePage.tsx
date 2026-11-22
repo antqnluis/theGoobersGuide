@@ -35,6 +35,7 @@ import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
 import { planetAppearance } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
+import { useCampaignLive } from './useCampaignLive'
 import { useCampaignManagement } from './useCampaignManagement'
 import { useCampaignMembership, type MembershipConfirmation } from './useCampaignMembership'
 
@@ -110,8 +111,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     ...campaignCharactersOptions(campaignId, userId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
-  // Without Realtime (M7), the Places entry shows how many adventure requests wait for the
-  // player: read when the camp opens and on focus. A failed read shows no count.
+  // The Places entry shows how many adventure requests wait for the player: read when the camp
+  // opens, kept live by useCampaignLive, and refetched on focus. A failed read shows no count.
   // Read only when the Adventures list is already cached: leaving names the shared ones (D9).
   const adventuresList = useQuery(adventuresOptions(campaignId, userId, false))
   const requestCount = useQuery(
@@ -138,6 +139,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   })
   const appearances = appearancesQuery.data
   const campaign = campaignQuery.data
+  // Sheets, notes, and adventures update live once the campaign has loaded.
+  useCampaignLive(campaignId, userId, Boolean(campaign))
   const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const [background, setBackground] = useCampBackground(campaignId)
   const [hue, setHue] = useCampHue(campaignId)

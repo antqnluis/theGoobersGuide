@@ -1,7 +1,7 @@
 import { createContext } from 'react'
 import type { DiceRollRecord, DiceSource, DiceVisibility } from './diceRules'
 import type { RollMode, RollSpec } from './diceTypes'
-import type { LiveState } from './useDiceLog'
+import type { LiveState } from '../../lib/useRealtimeChanges'
 
 /** The campaign the dice are rolling in, registered by the campaign workspace. */
 export type DiceScope = {
