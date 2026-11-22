@@ -742,6 +742,81 @@ export type Database = {
           },
         ]
       }
+      dice_rolls: {
+        Row: {
+          campaign_id: string
+          character_id: string | null
+          created_at: string
+          dice: NonNullable<Json>
+          expression: string
+          id: string
+          label: string | null
+          roller_id: string
+          source: string
+          terms: NonNullable<Json>
+          total: number
+          visibility: string
+        }
+        ComputedFields: never
+        Insert: {
+          campaign_id: string
+          character_id?: string | null
+          created_at?: string
+          dice: NonNullable<Json>
+          expression: string
+          id?: string
+          label?: string | null
+          roller_id: string
+          source: string
+          terms: NonNullable<Json>
+          total: number
+          visibility: string
+        }
+        Update: {
+          campaign_id?: string
+          character_id?: string | null
+          created_at?: string
+          dice?: NonNullable<Json>
+          expression?: string
+          id?: string
+          label?: string | null
+          roller_id?: string
+          source?: string
+          terms?: NonNullable<Json>
+          total?: number
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'dice_rolls_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'dice_rolls_character_campaign_fkey'
+            columns: ['character_id', 'campaign_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id', 'campaign_id']
+          },
+          {
+            foreignKeyName: 'dice_rolls_character_owner_fkey'
+            columns: ['character_id', 'roller_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id', 'owner_id']
+          },
+          {
+            foreignKeyName: 'dice_rolls_roller_id_fkey'
+            columns: ['roller_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       notes: {
         Row: {
           author_id: string
@@ -956,6 +1031,36 @@ export type Database = {
       respond_to_campaign_invitation: {
         Args: { p_accept: boolean; p_invitation_id: string }
         Returns: undefined
+      }
+      roll_dice: {
+        Args: {
+          p_campaign_id: string
+          p_character_id?: string
+          p_label?: string
+          p_source?: string
+          p_terms: Json
+          p_visibility?: string
+        }
+        Returns: {
+          campaign_id: string
+          character_id: string | null
+          created_at: string
+          dice: NonNullable<Json>
+          expression: string
+          id: string
+          label: string | null
+          roller_id: string
+          source: string
+          terms: NonNullable<Json>
+          total: number
+          visibility: string
+        }
+        SetofOptions: {
+          from: '*'
+          to: 'dice_rolls'
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
