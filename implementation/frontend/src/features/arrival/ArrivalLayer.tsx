@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import { arrivalTiming } from './arrivalController'
 import { useArrival } from './useArrival'
 import './arrival.css'
 
@@ -30,7 +31,13 @@ function glideBrand(host: HTMLElement) {
           color: getComputedStyle(target).color,
         },
       ],
-      { duration: 800, delay: 250, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' },
+      {
+        // It arrives before the controls do and waits there; the header's own takes over.
+        duration: arrivalTiming.departMs + arrivalTiming.landMs - 450,
+        delay: 120,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards',
+      },
     )
   }
   start()

@@ -33,12 +33,21 @@ export type ArrivalFlight = {
   phase: 'off' | 'waiting' | 'flying' | 'skipping'
   progress: number
   finished: () => void
+  /**
+   * The doorway's camera, when the sign-in page drew the same sky: the flight then glides
+   * from that exact view to the chart instead of arriving from far out.
+   */
+  from?: CameraPose | null
+  /** The doorway's star offset beyond the heading's own, which fades out as the camera glides. */
+  carry?: number
 }
 
 export const travelDurations = { approach: 0.9, swing: 0.8, retreat: 0.6, skip: 0.35 }
 
 /** Seconds the arrival flight takes from the far pose to the chart. */
 export const arrivalDuration = 1.9
+/** Seconds the glide from the doorway's view to the chart takes. */
+export const glideDuration = 2.4
 /** How many times farther than the chart the arrival starts. */
 export const arrivalDistance = 6
 

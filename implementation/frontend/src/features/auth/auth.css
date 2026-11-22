@@ -1,0 +1,791 @@
+/*
+ * Sign in, create account, and the session check that precedes them. They are the
+ * galaxy's doorway: the same midnight violet, starlight accent and deep sky a signed-in
+ * player flies into, with the hearth star burning in the half of the page the form
+ * leaves open. Tokens mirror the galaxy shell's (`--galaxy-*`).
+ */
+
+.auth-page,
+.auth-status-page {
+  --auth-night: #080714;
+  --auth-ink: #f4efff;
+  --auth-muted: #d2cce6;
+  --auth-rule: #d8cbff32;
+  --auth-rule-strong: #d8cbff66;
+  --auth-surface: #111021e6;
+  --auth-accent: #f5d3ae;
+  --auth-accent-hover: #ffe2c4;
+  --auth-accent-ink: #261826;
+  --auth-focus: #d2baff;
+  --auth-danger: #ffc6bf;
+  --auth-success: #bfe8cc;
+  --auth-field: #fffdf8;
+  --auth-field-ink: #222922;
+  --auth-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--auth-ink);
+}
+
+/* Browser surfaces that sit outside the page: the ground, the scrollbar, the caret's field. */
+:root:has(:is(.auth-page, .auth-status-page)) {
+  color-scheme: dark;
+  background: #080714;
+  scrollbar-color: #4a4160 #080714;
+}
+
+:root:has(:is(.auth-page, .auth-status-page)) body {
+  background: #080714;
+}
+
+.auth-page ::selection,
+.auth-status-page ::selection {
+  color: #251829;
+  background: #f5d3ae;
+}
+
+/* The sky ------------------------------------------------------------ */
+
+.auth-sky {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #080714;
+}
+
+/* The galaxy's two faint tints, laid over the sky so a still copy of it keeps them. */
+.auth-sky::after {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 85% 22%, #20325066, transparent 40%),
+    radial-gradient(ellipse at 15% 81%, #40203950, transparent 37%);
+  content: '';
+  mix-blend-mode: screen;
+}
+
+.auth-sky canvas,
+.auth-sky img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.auth-sky canvas {
+  opacity: 0;
+  animation: auth-sky-rise 1.4s ease-out 80ms forwards;
+}
+
+/* Before the real star draws, and without WebGL, a painted glow keeps the open half lit. */
+.auth-switch::before {
+  position: absolute;
+  top: 36%;
+  left: 50%;
+  width: min(34rem, 120%);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, #f5d3ae3d 0%, #f5d3ae14 28%, transparent 62%);
+  content: '';
+  pointer-events: none;
+  translate: -50% -50%;
+}
+
+.auth-page[data-sky='ready'] .auth-switch::before {
+  display: none;
+}
+
+@keyframes auth-sky-rise {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Page ---------------------------------------------------------------- */
+
+.auth-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 6.1vw 48px;
+}
+
+.auth-page .auth-header {
+  min-height: 82px;
+  border-top: 0;
+  border-bottom: 1px solid var(--auth-rule);
+}
+
+.auth-page .auth-brand {
+  color: var(--auth-ink);
+}
+
+.auth-page :is(.auth-brand, .auth-navigation a, .auth-footer a, .auth-switch a):focus-visible,
+.auth-route__heading h2:focus {
+  outline: 3px solid var(--auth-focus);
+  outline-offset: 4px;
+}
+
+.auth-navigation {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.auth-navigation a {
+  position: relative;
+  padding-block: 8px;
+  color: var(--auth-muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.auth-navigation a:hover {
+  color: var(--auth-accent);
+  text-decoration: underline;
+}
+
+.auth-navigation a::after {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 2px;
+  background: var(--auth-accent);
+  content: '';
+  transform: scaleX(0);
+}
+
+.auth-navigation a[aria-current='page'] {
+  color: var(--auth-ink);
+  font-weight: 700;
+}
+
+.auth-navigation a[aria-current='page']::after {
+  transform: scaleX(1);
+}
+
+.auth-header__folio {
+  margin: 0;
+  color: var(--auth-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.auth-intro {
+  max-width: 760px;
+  margin: 62px 0 34px;
+}
+
+.auth-intro h1 {
+  margin: 0 0 14px;
+  color: var(--auth-ink);
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 5vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.auth-intro p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--auth-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+/* The two routes: a form plate and the open half, which swap sides ------- */
+
+.auth-routes {
+  position: relative;
+  width: 100%;
+}
+
+.auth-routes__panel {
+  position: relative;
+  z-index: 1;
+  width: 50%;
+  min-height: 390px;
+  border: 1px solid var(--auth-rule);
+  border-radius: 14px;
+  background: var(--auth-surface);
+  box-shadow: 0 24px 60px rgb(3 2 10 / 55%);
+  backdrop-filter: blur(12px);
+}
+
+.auth-routes[data-mode='register'] .auth-routes__panel {
+  transform: translateX(100%);
+}
+
+.auth-route {
+  position: relative;
+  min-width: 0;
+  padding: 36px 42px 38px;
+}
+
+/* A short starlight rule marks the route, like a bookmark ribbon's tip. */
+.auth-route::before {
+  position: absolute;
+  top: -1px;
+  left: 42px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
+  background: var(--auth-accent);
+  content: '';
+}
+
+.auth-route__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.auth-route__heading h2 {
+  margin: 0;
+  scroll-margin-top: 16px;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.auth-route__heading span {
+  color: var(--auth-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auth-route__description {
+  margin: 0 0 24px;
+  color: var(--auth-muted);
+}
+
+.auth-switch {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  width: 50%;
+  align-items: flex-end;
+  padding: 42px 8%;
+  color: var(--auth-ink);
+  transform: translateX(100%);
+}
+
+.auth-routes[data-mode='register'] .auth-switch {
+  transform: translateX(0);
+}
+
+.auth-switch__content {
+  position: relative;
+  z-index: 1;
+  max-width: 320px;
+}
+
+.auth-switch h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 2.7vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.auth-switch p {
+  margin: 0 0 25px;
+  color: var(--auth-muted);
+  line-height: 1.6;
+}
+
+.auth-switch a {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  border: 1px solid var(--auth-accent);
+  border-radius: var(--radius-control);
+  padding: 10px 20px;
+  color: var(--auth-accent);
+  background: #080714a6;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-switch a:hover {
+  color: var(--auth-accent-ink);
+  background: var(--auth-accent);
+}
+
+/* Fields -------------------------------------------------------------- */
+
+.auth-field {
+  margin-bottom: 18px;
+}
+
+.auth-field label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--auth-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.auth-field input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #b9b2cf;
+  border-radius: var(--radius-control);
+  padding: 10px 13px;
+  color: var(--auth-field-ink);
+  background: var(--auth-field);
+  font: 400 1rem/1.5 var(--font-body);
+}
+
+.auth-field input::placeholder {
+  color: #5f5c70;
+}
+
+.auth-field input:focus-visible {
+  border-color: var(--auth-focus);
+  outline: 3px solid var(--auth-focus);
+  outline-offset: 2px;
+}
+
+.auth-field input[aria-invalid='true'] {
+  border: 2px solid #c4473d;
+  padding: 9px 12px;
+}
+
+.auth-field input:disabled {
+  color: #4a4560;
+  background: #d9d5e4;
+}
+
+.auth-field__with-toggle {
+  position: relative;
+}
+
+.auth-field__with-toggle input {
+  padding-right: 52px;
+}
+
+.auth-field__with-toggle input::-ms-reveal {
+  display: none;
+}
+
+.auth-field__toggle {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--auth-field-ink);
+  background: transparent;
+}
+
+.auth-field__toggle:hover:not(:disabled) {
+  color: #7a2932;
+}
+
+.auth-field__toggle:focus-visible {
+  outline: 3px solid #1b5f8c;
+  outline-offset: -3px;
+}
+
+.auth-field__toggle:disabled {
+  color: #6f6b80;
+}
+
+.auth-field__error,
+.auth-field__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 7px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.auth-field__error svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.auth-field__error {
+  color: var(--auth-danger);
+}
+
+.auth-field__hint {
+  color: var(--auth-muted);
+}
+
+.auth-page .auth-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.auth-feedback__mark {
+  flex: none;
+  margin-top: 2px;
+}
+
+.auth-page .auth-feedback--error {
+  color: var(--auth-danger);
+}
+
+.auth-page .auth-feedback--success {
+  color: var(--auth-success);
+}
+
+.auth-page .auth-button,
+.auth-status-page .auth-button {
+  min-height: 48px;
+  border: 1px solid transparent;
+  padding: 11px 22px;
+  color: var(--auth-accent-ink);
+  background: var(--auth-accent);
+}
+
+.auth-page .auth-button:hover:not(:disabled),
+.auth-status-page .auth-button:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--auth-accent-ink);
+  background: var(--auth-accent-hover);
+}
+
+.auth-page .auth-button:focus-visible,
+.auth-status-page .auth-button:focus-visible {
+  outline: 3px solid var(--auth-focus);
+  outline-offset: 3px;
+}
+
+.auth-page .auth-button:disabled {
+  color: #e6e1f4;
+  background: #3b3350;
+}
+
+.auth-page .auth-footer {
+  justify-content: flex-end;
+  color: var(--auth-muted);
+}
+
+.auth-page .auth-footer a {
+  color: var(--auth-accent);
+}
+
+/* Registration is a shorter, two-column form where there is room. ----- */
+
+.auth-page:has(.auth-routes[data-mode='register']) .auth-intro {
+  margin-block: clamp(24px, 4vw, 44px) 24px;
+}
+
+.auth-page:has(.auth-routes[data-mode='register']) .auth-intro h1 {
+  margin-bottom: 8px;
+  font-size: clamp(1.75rem, 3.6vw, 3rem);
+}
+
+.auth-routes[data-mode='register'] .auth-route {
+  container: registration / inline-size;
+}
+
+.auth-routes[data-mode='register'] form {
+  display: grid;
+  gap: 14px 16px;
+}
+
+.auth-routes[data-mode='register'] .auth-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.auth-routes[data-mode='register'] form > :is(.auth-feedback, .auth-button) {
+  grid-column: 1 / -1;
+}
+
+.auth-routes[data-mode='register'] form > .auth-feedback {
+  margin: 0;
+}
+
+@container registration (min-width: 28rem) {
+  .auth-routes[data-mode='register'] form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auth-routes[data-mode='register'] form > .auth-button {
+    justify-self: start;
+  }
+}
+
+/* The session check ---------------------------------------------------- */
+
+.auth-status-page {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(ellipse at 85% 22%, #20325066, transparent 40%),
+    radial-gradient(ellipse at 15% 81%, #40203950, transparent 37%), #080714;
+}
+
+.auth-status-page__content {
+  width: min(100%, 680px);
+}
+
+.auth-status-page h1 {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: clamp(2.45rem, 5vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.auth-status-page p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--auth-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.auth-status-page p[role='alert'] {
+  color: var(--auth-danger);
+}
+
+.auth-status-page__content .auth-button {
+  margin-top: 22px;
+}
+
+.auth-status-page .auth-button--secondary {
+  border-color: var(--auth-accent);
+  color: var(--auth-accent);
+  background: transparent;
+}
+
+.auth-status-page .auth-button--secondary:hover:not(:disabled) {
+  border-color: var(--auth-accent);
+  color: var(--auth-accent-ink);
+  background: var(--auth-accent);
+}
+
+/* Small screens ---------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .auth-page {
+    padding-inline: 32px;
+  }
+
+  .auth-header__folio {
+    display: none;
+  }
+
+  .auth-route {
+    padding-inline: 28px;
+  }
+
+  .auth-route::before {
+    left: 28px;
+  }
+}
+
+@media (max-width: 680px) {
+  .auth-page {
+    padding: 20px 22px 32px;
+  }
+
+  .auth-page .auth-header {
+    min-height: 0;
+    flex-wrap: wrap;
+    padding: 17px 0 15px;
+  }
+
+  .auth-page .auth-brand {
+    font-size: 1.35rem;
+  }
+
+  .auth-navigation {
+    width: 100%;
+    order: 1;
+    justify-content: flex-start;
+    gap: 24px;
+    padding-top: 4px;
+  }
+
+  .auth-navigation a {
+    padding-block: 7px;
+  }
+
+  .auth-intro {
+    margin: 42px 0 25px;
+  }
+
+  .auth-intro h1 {
+    font-size: clamp(2.45rem, 10vw, 3.1rem);
+  }
+
+  .auth-routes__panel {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .auth-routes[data-mode='register'] .auth-routes__panel {
+    transform: none;
+  }
+
+  .auth-switch {
+    position: static;
+    width: 100%;
+    min-height: 240px;
+    padding: 28px 22px 32px;
+    transform: none;
+  }
+
+  .auth-switch h2 {
+    font-size: 1.65rem;
+  }
+
+  .auth-switch::before {
+    display: none;
+  }
+
+  .auth-route {
+    padding: 28px 22px 30px;
+  }
+
+  .auth-route::before {
+    left: 22px;
+  }
+
+  .auth-route__heading h2 {
+    font-size: 1.75rem;
+  }
+
+  .auth-page:has(.auth-routes[data-mode='register']) .auth-header {
+    row-gap: 8px;
+    padding-block: 12px 4px;
+  }
+
+  .auth-page:has(.auth-routes[data-mode='register']) .auth-navigation a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .auth-page:has(.auth-routes[data-mode='register']) .auth-intro {
+    margin-block: 16px 12px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-route {
+    padding: 22px 16px 24px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-route::before {
+    left: 16px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-route__description {
+    margin-bottom: 12px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-route__heading span {
+    display: none;
+  }
+
+  .auth-routes[data-mode='register'] form {
+    row-gap: 12px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-switch {
+    padding: 20px 16px 24px;
+  }
+
+  .auth-routes[data-mode='register'] .auth-switch p {
+    margin-bottom: 12px;
+  }
+}
+
+/* Motion: the open half and the form swap sides while the sky follows the star. -- */
+
+@media (prefers-reduced-motion: no-preference) and (min-width: 681px) {
+  .auth-routes__panel,
+  .auth-switch {
+    transition: transform 520ms var(--auth-ease);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .auth-routes__page--transition {
+    animation: auth-page-enter 400ms var(--auth-ease) both;
+  }
+
+  .auth-switch__content--transition {
+    animation: auth-switch-reveal 480ms var(--auth-ease) both;
+  }
+
+  .auth-navigation a::after {
+    transition: transform 300ms var(--auth-ease);
+  }
+
+  .auth-switch a,
+  .auth-navigation a {
+    transition:
+      background-color 140ms ease-out,
+      border-color 140ms ease-out,
+      color 140ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-sky canvas {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+@keyframes auth-page-enter {
+  from {
+    opacity: 0.45;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-switch-reveal {
+  from {
+    opacity: 0.35;
+    clip-path: inset(0 0 45% 0);
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+    transform: translateY(0);
+  }
+}

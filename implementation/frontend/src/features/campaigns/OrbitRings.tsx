@@ -126,7 +126,7 @@ export function OrbitRings({
     material.current.uniforms.uHover.value = highlightRef.current.hover
     const flight = arrival.current
     material.current.uniforms.uReach.value =
-      flight.phase === 'off' ? 1e4 : arrivalReveal(flight.progress, 1) * reach
+      flight.phase === 'off' || flight.from ? 1e4 : arrivalReveal(flight.progress, 1) * reach
   })
 
   return (

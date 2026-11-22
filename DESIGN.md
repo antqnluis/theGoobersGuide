@@ -35,6 +35,8 @@ colors:
   galaxy-ink: "#f4efff"
   galaxy-accent: "#f5d3ae"
   galaxy-focus: "#d2baff"
+  starlight-accent: "#f5d3ae"
+  doorway-surface: "#111021"
 typography:
   display:
     fontFamily: "Source Serif 4, Georgia, serif"
@@ -95,7 +97,17 @@ spacing:
   page-pad: "28px"
 components:
   auth-panel:
-    backgroundColor: "{colors.light-paper}"
+    backgroundColor: "{colors.doorway-surface}"
+    textColor: "{colors.galaxy-ink}"
+    rounded: "14px"
+    padding: "36px 42px 38px"
+  auth-button:
+    backgroundColor: "{colors.starlight-accent}"
+    textColor: "#261826"
+    typography: "{typography.button}"
+    rounded: "{rounded.control}"
+    height: "48px"
+    padding: "11px 22px"
   button-primary:
     backgroundColor: "{colors.oxblood-folio}"
     textColor: "{colors.light-paper}"
@@ -165,14 +177,14 @@ A calm, personal player record for quick use during and between sessions. The vi
 
 The mood is a personal campaign journal with softer earth tones and lightly lifted sections. Familiar web controls stay clear and central; the forms share equal weight and stack in reading order on small screens.
 
-The ledger now has three rooms that share one ink and one accent. Sign-in and account pages are the **plain ledger**: light paper, charcoal ink, oxblood folios. The campaign galaxy and the camp are **night scenes**: midnight violet chrome with starlight and brass. Everything a player reads or edits inside the camp (Overview, Party, Campaign settings, My characters, the character sheet) is the **adventurer's journal**: a leather cover around parchment pages, with brass fittings and a lantern accent. Oxblood runs through all three; the journal is where the ledger became a physical book.
+The ledger now has three rooms. Sign-in, account creation and the session check are the **doorway**: the galaxy's own midnight sky seen from outside, with the hearth star burning in the half of the page the form leaves open. The campaign galaxy and the camp are **night scenes**: midnight violet chrome with starlight and brass. Everything a player reads or edits inside the camp (Overview, Party, Campaign settings, My characters, the character sheet) is the **adventurer's journal**: a leather cover around parchment pages, with brass fittings and a lantern accent. The doorway and the galaxy share one sky and one starlight accent; the journal is where the ledger became a physical book. Plain warm paper and oxblood remain for the development status and not-found pages, which are outside the player's path.
 
 **Key Characteristics:**
 
-- Warm paper and charcoal ink establish a quiet reading surface; in the journal the same role is played by parchment and brown-black ink.
+- Warm paper and charcoal ink establish a quiet reading surface on the remaining plain pages; in the journal the same role is played by parchment and brown-black ink, and at the doorway by a midnight plate with cream ink.
 - Serif display type and sans-serif interface text balance print character with quick scanning.
-- Oxblood folios mark primary actions and active routes; supporting colors stay tied to states.
-- Light paper panels receive a restrained lift, and form controls remain conventional.
+- Starlight marks primary actions and the active route at the doorway and in the galaxy; oxblood marks them on plain paper and in the journal. Supporting colors stay tied to states.
+- The auth plate takes one restrained lift, and form controls remain conventional light fields.
 - The journal's controls are tactile (pressed-key buttons, double-ruled plates, dashed stitching) but always at least 44px and always labelled in words.
 - Small pixel icons, drawn in one weight, mark places and states; they never replace a label.
 
@@ -182,13 +194,14 @@ The palette pairs warm paper neutrals with an oxblood accent, reserving other hu
 
 ### Primary
 
-- **Oxblood Folio** (`#7a2932`): The page rule, active route, panel folios, primary buttons in every room, icon accents in the journal, and text selection. **Oxblood Deep** (`#571a22`) is its pressed and hover shade and the journal's error text.
+- **Oxblood Folio** (`#7a2932`): The page rule, active route, panel folios, primary buttons on plain paper and in the journal, icon accents in the journal, and text selection there. The doorway and the galaxy use Starlight Accent for the same jobs. **Oxblood Deep** (`#571a22`) is its pressed and hover shade and the journal's error text.
 
 ### Secondary
 
 - **Focus Blue** (`#235c7a`): Keyboard focus and supporting links on plain paper. **Journal Focus** (`#1b5f8c`) is the same job on parchment.
 - **Forest Green** (`#315b44`): Successful form feedback and journal notices; the journal's own green is `#2d5a41`.
 - **Starlight Focus** (`#ffe7ac`): Focus ring on every dark surface (camp chrome, leather cover, save bar).
+- **Starlight Accent** (`#f5d3ae`, hover `#ffe2c4`, ink `#261826`): The primary button, the active route, the route's bookmark rule and links at the doorway, and the same role in the galaxy. **Doorway Focus** (`#d2baff`) is its focus ring, with the galaxy's `#d2baff` on `#080714`.
 
 ### Tertiary
 
@@ -210,7 +223,7 @@ The palette pairs warm paper neutrals with an oxblood accent, reserving other hu
 
 **The Oxblood Folio Rule.** Use oxblood for the main route and action cues; keep focus blue and success green tied to their specific states.
 
-**The Three Rooms Rule.** Plain paper, night scene, and journal each keep their own tokens. Do not carry a journal color onto the auth pages, or a `--camp-*` color onto parchment.
+**The Three Rooms Rule.** The doorway (and galaxy), the camp, and the journal each keep their own tokens. Do not carry a journal color onto the auth pages, or a `--camp-*` color onto parchment.
 
 **The Words Beside Color Rule.** Status chips, save state, and errors always pair color with an icon and words.
 
@@ -223,7 +236,7 @@ The palette pairs warm paper neutrals with an oxblood accent, reserving other hu
 
 ### Hierarchy
 
-- **Display** (600, `clamp(2.75rem, 5vw, 3.6rem)`, 1.06, -0.025em): Large serif page headings on the auth pages.
+- **Display** (600, `clamp(2.75rem, 5vw, 3.6rem)`, 1.06, -0.025em): Large serif page headings on the auth pages, in cream ink over the sky.
 - **Headline** (600, 1.9rem, 1.15, -0.02em): Serif form headings separating the two account routes.
 - **Journal title** (600, `clamp(1.8rem, 3.4vw, 2.4rem)`, 1.05, -0.015em): The `h2` of each camp page, balanced wrapping.
 - **Journal heading** (600, 1.4rem, 1.15): Character names and sub-views inside the tent; long names wrap anywhere.
@@ -238,17 +251,17 @@ The palette pairs warm paper neutrals with an oxblood accent, reserving other hu
 
 ## Layout
 
-On wider screens, the plain-ledger pages center content in a frame capped at 1264px with two equal form columns. The header, title, and footer align to the same frame. The page uses generous outer gutters; they step down to 32px below 900px and to 22px on small screens. At widths below 680px, the account columns become one vertical stack, the header navigation moves to its own row, and the footer links stack. Keep both routes visible in normal page flow. The current title and form descriptions use readable line lengths rather than stretching across the frame.
+On wider screens, the doorway centers content in a frame capped at 1264px with two equal halves: the form plate and the open half, which swap sides between sign-in and registration while the sky follows the star. The header, title, and footer align to the same frame. The page uses generous outer gutters; they step down to 32px below 900px and to 22px on small screens. At widths below 680px, the account columns become one vertical stack, the header navigation moves to its own row, and the footer links stack. Keep both routes visible in normal page flow. The current title and form descriptions use readable line lengths rather than stretching across the frame.
 
 Inside the camp, the scene fills the viewport and the journal is a modal sheet, docked to the side of the screen the scene is not framed on at 900px and above (with at least 481px of height) and full-screen otherwise. Journal pages pad `clamp(18px, 3vw, 28px)` and stack on a 16px rhythm. The journal responds to its own width, not the viewport's: the tent is a container, and Adventures and Notes open a wider journal (`data-variant='wide'`, 70vw, 640 to 1200px) whose boards list in two or more columns and whose detail pages put the story or note beside its side column (people and sharing, or the note's actions) at 40rem of their own width; the character sheet becomes a two-page spread at 720px and above, tightens its header tools under 860px, and shows one page at a time with full-width save buttons under 560px. Vitals sit two to a row; ability cards fill the width at a 9.5rem minimum.
 
 ## Elevation & Depth
 
-Depth is mostly carried by paper tone and fine rules. The auth panels use one restrained shadow to lift the shared form surface from the page; the header and surrounding page remain flat. In the camp, depth is physical: the journal cover lifts off a dimmed scene, and parchment is inset into it.
+Depth is mostly carried by tone and fine rules. The auth plate uses one restrained shadow to lift the form from the sky; the header and surrounding page remain flat. In the camp, depth is physical: the journal cover lifts off a dimmed scene, and parchment is inset into it.
 
 ### Shadow Vocabulary
 
-- **Auth panel lift** (`0 8px 18px rgb(34 41 34 / 10%)`): A soft, low-contrast shadow under the shared account panel.
+- **Auth plate lift** (`0 24px 60px rgb(3 2 10 / 55%)`): A deep, soft fall under the account plate, as the journal cover falls onto the scene.
 - **Journal cover** (`0 0 0 2px #8f6b34, 0 24px 70px rgb(11 9 18 / 0.65)`): A brass rim and a deep fall onto the scene.
 - **Printed plate** (`inset 0 0 0 3px parchment, inset 0 0 0 4px journal-rule`): A double rule inside a 1px line. Used by `journal-panel`, vitals, and ability cards.
 - **Pressed key** (`0 3px 0` in the button's own darker shade, dropping to `0 1px 0` and a 2px shift on press): The journal button only; it is a control state, not a surface effect.
@@ -256,13 +269,13 @@ Depth is mostly carried by paper tone and fine rules. The auth panels use one re
 
 ### Named Rules
 
-**The Quiet Lift Rule.** Keep the shadow on the auth panel and let paper contrast and rules do the remaining work on plain pages.
+**The Quiet Lift Rule.** Keep the shadow on the auth plate and let tone and rules do the remaining work on the doorway.
 
 **The Plate Not Card Rule.** Group parchment content with a double rule, a divider, or a ribbon, not nested rounded cards.
 
 ## Shapes
 
-Controls use a single subtle radius (3px), while larger plain-ledger surfaces stay square. The journal cover alone takes an 8px corner, and the appearance drawer's tab rounds only the corners that face away from the journal. Circles are reserved for portraits and ability modifiers (a brass double-ring). Thin rules and panel dividers provide structure; dashed lines mean either stitching (the cover), a page break, or a destructive zone. Avoid ornamental silhouettes around ordinary web controls.
+Controls use a single subtle radius (3px), while larger plain-paper surfaces stay square. The doorway plate takes the galaxy's 14px corner, as the standalone create form does. The journal cover alone takes an 8px corner, and the appearance drawer's tab rounds only the corners that face away from the journal. Circles are reserved for portraits and ability modifiers (a brass double-ring). Thin rules and panel dividers provide structure; dashed lines mean either stitching (the cover), a page break, or a destructive zone. Avoid ornamental silhouettes around ordinary web controls.
 
 ## Components
 
@@ -271,7 +284,7 @@ The components feel refined and restrained: familiar controls sit inside a calm,
 ### Buttons
 
 - **Shape:** Nearly square control corners, shared across all variants.
-- **Primary:** Oxblood fill with light-paper text and compact, clear padding. In the journal: 44px minimum height, 2px oxblood-deep border, cream text, pressed-key shadow.
+- **Primary:** Oxblood fill with light-paper text and compact, clear padding; at the doorway and in the galaxy, a Starlight Accent fill with `#261826` text and 48px height. In the journal: 44px minimum height, 2px oxblood-deep border, cream text, pressed-key shadow.
 - **Hover / Focus:** Hover deepens the primary fill. Keyboard focus uses a visible blue outline with offset (starlight on dark surfaces).
 - **Secondary:** Transparent at rest with a quiet border; on hover it becomes a charcoal-filled action. In the journal: parchment-shade fill with a brown line.
 - **Ghost, danger, solid-danger (journal):** Ghost for quiet or cancel actions; outlined oxblood for destructive choices; solid oxblood only for the confirmation step of retiring, killing, or deleting.
@@ -279,21 +292,21 @@ The components feel refined and restrained: familiar controls sit inside a calm,
 
 ### Cards / Containers
 
-- **Corner Style:** The auth panel remains square; journal plates take the 3px control radius.
-- **Background:** Light Paper separates the auth form area from Warm Paper. Journal plates are a translucent parchment-field wash over the page.
+- **Corner Style:** The auth plate takes a 14px corner; journal plates take the 3px control radius.
+- **Background:** The auth plate is midnight violet (`#111021` at about 90%, lightly blurred so type stays legible over stars). Journal plates are a translucent parchment-field wash over the page.
 - **Shadow Strategy:** Use the shadow vocabulary above; do not add new ones.
-- **Border:** A thin center divider separates the equal desktop auth columns; the oxblood top rule identifies each route. Journal plates use the double rule.
+- **Border:** A hairline in `#d8cbff32` frames the auth plate; a short starlight rule (56px by 3px) at its top edge identifies the route, like the tip of a bookmark ribbon. Journal plates use the double rule.
 - **Internal Padding:** Generous on desktop (auth) and `clamp(18px, 3vw, 28px)` (journal); both tighten on mobile.
 
 ### Inputs / Fields
 
-- **Style:** Familiar full-width fields with a near-white fill, thin muted stroke, and shared control corners. In the journal: parchment-field fill, a 2px brown border, a faint inset top shadow, 44px minimum height; placeholders stay at `#6b5a4a`.
-- **Focus:** A clear blue outline and border change identify keyboard focus.
-- **Error / Disabled:** Invalid fields receive an oxblood border and nearby error text. Disabled fields use a muted fill and text; in the journal they also go dashed.
+- **Style:** Familiar full-width fields with a near-white fill, thin muted stroke, and shared control corners; on the dark doorway they stay light (`#fffdf8`, 48px) so they read as fields, as the create-campaign form does. In the journal: parchment-field fill, a 2px brown border, a faint inset top shadow, 44px minimum height; placeholders stay at `#6b5a4a`.
+- **Focus:** A clear blue outline and border change identify keyboard focus (lilac `#d2baff` on the doorway).
+- **Error / Disabled:** Invalid fields receive a red 2px border (an oxblood border on plain paper) and nearby error text that pairs a warning icon with words, in `#ffc6bf` on dark. Disabled fields use a muted fill and text; in the journal they also go dashed.
 
 ### Navigation
 
-- **Style:** The brand uses serif display type. Account links use compact sans-serif text with a fine underline for the current route; hover adds an underline and oxblood text.
+- **Style:** The brand uses serif display type. Account links use compact sans-serif text with a fine underline for the current route (starlight at the doorway); hover adds an underline and the accent color.
 - **Mobile:** Navigation moves to its own full-width row beneath the brand.
 - **Sheet ribbons:** The character sheet has a sticky strip of section tabs (icon plus uppercase label, 44px, a 4px oxblood underline on hover) that scrolls sideways without a visible scrollbar.
 
@@ -330,6 +343,17 @@ On your own sheet's display view, the numbers that can roll are buttons: an abil
 ### Empty states
 
 The empty tent is a dashed parchment plate with a drawn tent, flame, and lantern, a serif title, and one short line pointing to the next action.
+
+## The doorway (sign in and create account)
+
+Sign-in and account creation open onto the galaxy's own sky. `AuthSky` draws the deep sky (stars, nebulae), the hearth star and the six faint orbits of the orrery full-bleed behind the page; no worlds are charted, since the visitor has no campaigns yet, and one small starlight traveller circles the third orbit. The plate holds the form; the **open half** holds the invitation to the other route over the star's warm pool: "New to the Guide?" or "Already have an account?" The star sits in the open half's upper middle, so the invitation reads below it and the star never sits under type. When the routes swap sides, the panel slides across and the camera's view offset carries the star to the new open half with the stars at different depths slipping by different amounts. On phones the routes stack and the star keeps to the top right, in the brand's row.
+
+- **Moving parts:** the pointer leans the camera a few degrees; the traveller circles slowly and hurries while a sign-in or registration request is pending (the button's busy state and label carry the same news in words). Nothing else moves.
+- **The hearth answers the form:** a refusal (wrong password, name taken, no connection) dims the star at once and stills the traveller, and both rekindle over about two seconds; the plate shakes a few pixels, the password clears and the field to retype takes focus. An account made with no session yet (email to confirm) flares the star once. Signing in flares it as the still dissolves into the galaxy. The words and icons always carry the news; under reduced motion the star keeps its resting light and the plate does not shake.
+- **Fallbacks:** without WebGL 2 or after a context loss the sky is the painted night (`#080714` with the galaxy's two faint tints) and a warm radial glow stands in for the star. Under reduced motion the sky draws only when something changes and the traveller rests.
+- **Colours:** `--auth-*` tokens in `auth.css` mirror the galaxy shell: night `#080714`, ink `#f4efff`, muted `#d2cce6`, rule `#d8cbff32`, surface `#111021e6`, starlight accent, focus `#d2baff`, danger text `#ffc6bf`, success text `#bfe8cc`. Fields stay light. The browser's own surfaces (page ground, scrollbar, selection) take the night palette.
+- **The session check** (`AuthStatus`) is the same night without the sky, so the wait before the form does not flash paper.
+- **The arrival:** one continuous move, with no cut. The doorway hands its camera pose, the star's screen position and the stars' drift to the galaxy, which starts drawing that exact view under a still of the sky. The form, words and rules lift away (about 0.5s, the form first); the still and its ground then dissolve over the live galaxy while the camera glides (2.4s, `glideDuration`) from the doorway's view to the chart, the star travelling from the open half to the middle and the orbits already drawn. The worlds grow in as before. The wordmark glides to the header and swaps with the header's own when the controls begin to arrive, about 1.35s into the glide, in the order account, index, orbit controls, labels (0.64s each). Skip, Escape-free keys and pointer press fast-forward it; Skip sits at the bottom left, since the dice key owns the bottom right. Under reduced motion the page crossfades in 0.25s and nothing travels.
 
 ## Campaign selector
 
@@ -380,10 +404,10 @@ See the [camp plan](docs/completed/M02-Landfall-Camp.md) for the destination map
 
 ### Do:
 
-- **Do** keep sign-in and account creation equally weighted in the current auth layout.
+- **Do** keep sign-in and account creation equally weighted in the current auth layout: a form plate and an open half that swap sides.
 - **Do** retain standard labeled fields, visible keyboard focus, and clear text states.
 - **Do** stack the account panels in reading order on small screens.
-- **Do** reserve the panel shadow for the auth panel and use paper tones and rules for surrounding structure.
+- **Do** reserve the panel shadow for the auth plate and use tone and rules for surrounding structure.
 - **Do** keep camp colours in `--camp-*` tokens, journal colours in `--journal-*` tokens, and status text in always-mounted live regions.
 - **Do** build new camp pages from `CampPanel` and the `journal-*` primitives (button, field, input, section title, chip, status, alert) so they inherit the cover, parchment, and 44px targets.
 - **Do** pair every status color with an icon and words, and keep touch targets at 44px or more in the journal.
@@ -395,6 +419,7 @@ See the [camp plan](docs/completed/M02-Landfall-Camp.md) for the destination map
 - **Don't** let fantasy ornament or surface decoration compete with the form labels and actions.
 - **Don't** use the focus and success colors as general-purpose accents.
 - **Don't** let camp name plates or scene art carry information the Places list and the journal do not also provide.
-- **Don't** put a journal skin (leather, brass, parchment) on the auth pages or the galaxy.
+- **Don't** put a journal skin (leather, brass, parchment) on the auth pages or the galaxy, and don't put paper and oxblood back on the doorway.
+- **Don't** let the sky carry information, place the star under type, or add a second moving thing to the doorway.
 - **Don't** nest plates inside plates, or use the pressed-key shadow outside buttons.
 - **Don't** use Lantern as a fill or for large areas; it is a small warm signal.

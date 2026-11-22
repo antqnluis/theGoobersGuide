@@ -1,6 +1,31 @@
 import type { LoginSnapshot } from './arrivalContext'
+import { readSkyHandoff } from './skyHandoff'
 
 const maskedAutocomplete = /password/
+
+/**
+ * The sky is a live canvas, which a clone would copy as a blank one. Its last frame stands in
+ * as a still, laid out against the page's own scroll position so it keeps the viewport.
+ */
+function keepSky(page: HTMLElement, copy: HTMLElement) {
+  const sky = copy.querySelector<HTMLElement>('.auth-sky')
+  if (!sky) return
+  sky.style.position = 'absolute'
+  sky.style.top = `${window.scrollY}px`
+  sky.style.height = `${window.innerHeight}px`
+
+  const live = page.querySelector<HTMLCanvasElement>('.auth-sky canvas')
+  const blank = sky.querySelector('canvas')
+  if (!live || !blank) return
+  try {
+    const frame = document.createElement('img')
+    frame.alt = ''
+    frame.src = live.toDataURL('image/jpeg', 0.9)
+    blank.replaceWith(frame)
+  } catch {
+    blank.remove()
+  }
+}
 
 /**
  * Copies the login page for the arrival to leave from. The page itself
@@ -39,6 +64,7 @@ export function captureLoginPage(): LoginSnapshot | null {
         element.removeAttribute(name)
       }
     })
+  keepSky(page, copy)
   copy.classList.add('arrival-snapshot')
   copy.setAttribute('inert', '')
   copy.setAttribute('aria-hidden', 'true')
@@ -48,5 +74,6 @@ export function captureLoginPage(): LoginSnapshot | null {
     scrollY: window.scrollY,
     width: document.documentElement.clientWidth,
     height: window.innerHeight,
+    sky: readSkyHandoff(),
   }
 }

@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, type RefObject } from 'react'
 import { AdditiveBlending, type Mesh, type ShaderMaterial } from 'three'
+import type { HearthBoost } from './hearthBoost'
 import { hearthRadius } from './orreryLayout'
 
 const coronaRadius = 3.6
@@ -22,6 +23,7 @@ const coreFragment = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
   uniform float uTime;
+  uniform float uGlow;
 
   void main() {
     vec3 outward = normalize(vLocal);
@@ -30,6 +32,8 @@ const coreFragment = /* glsl */ `
       * sin(outward.y * 9.0 - uTime * 0.17)
       * sin(outward.z * 8.0 + uTime * 0.13);
     vec3 color = mix(vec3(1.0, 0.60, 0.28), vec3(1.0, 0.95, 0.83), pow(facing, 0.55));
+    // A hush dims the disc a little; only the corona ever exceeds its resting light.
+    color *= mix(0.62, 1.0, clamp(uGlow, 0.0, 1.0));
     gl_FragColor = vec4(color + cells * 0.014, 1.0);
   }
 `
@@ -46,6 +50,7 @@ const coronaVertex = /* glsl */ `
 const coronaFragment = /* glsl */ `
   varying vec2 vUv;
   uniform float uTime;
+  uniform float uGlow;
 
   const float core = ${(hearthRadius / coronaRadius).toFixed(4)};
   const vec3 starlight = vec3(1.0, 0.851, 0.627);
@@ -56,23 +61,33 @@ const coronaFragment = /* glsl */ `
     // A bright rim that hugs the disc, inside a wide veil that breathes.
     float rim = exp(-max(radius - core, 0.0) * mix(13.0, 11.0, breath));
     float veil = pow(max(1.0 - radius, 0.0), 2.4) * mix(0.26, 0.34, breath);
-    float glow = (rim * 0.62 + veil) * (1.0 - smoothstep(0.72, 1.0, radius));
+    float glow = (rim * 0.62 + veil) * (1.0 - smoothstep(0.72, 1.0, radius)) * uGlow;
 
     // Add light only. Alpha stays 0 so the page behind the canvas still shows through.
     gl_FragColor = vec4(starlight * glow, 0.0);
   }
 `
 
-export function HearthStar({ animate }: { animate: boolean }) {
+export function HearthStar({
+  animate,
+  boost,
+}: {
+  animate: boolean
+  /** Brightens or dims the light, for moments that answer someone. Rests at 1. */
+  boost?: RefObject<HearthBoost>
+}) {
   const corona = useRef<Mesh>(null)
   const core = useRef<ShaderMaterial>(null)
   // The disc and its corona keep time together.
-  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), [])
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uGlow: { value: 1 } }), [])
   const time = useRef(0)
 
   useFrame(({ camera }, delta) => {
     if (animate) time.current += Math.min(delta, 0.1)
-    if (core.current) core.current.uniforms.uTime.value = time.current
+    if (core.current) {
+      core.current.uniforms.uTime.value = time.current
+      core.current.uniforms.uGlow.value = boost?.current.value ?? 1
+    }
     // The corona is a flat glow that always faces the viewer.
     corona.current?.quaternion.copy(camera.quaternion)
   })

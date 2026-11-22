@@ -1,10 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import './auth.css'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { captureLoginPage } from '../arrival/captureLoginPage'
 import { useArrival } from '../arrival/useArrival'
 import { useAuth } from './useAuth'
 import { signInWithPassword, signUpWithPassword } from './authService'
 import { AuthField } from './AuthField'
+import { AuthSky } from './AuthSky'
+import { AuthSkySignal } from './authSkySignal'
 import {
   validateRegistration,
   validateSignIn,
@@ -17,7 +20,30 @@ type Feedback = {
   message: string
 }
 
-function AccountForm({ mode }: { mode: AuthMode }) {
+function FeedbackMark({ type }: { type: Feedback['type'] }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="auth-feedback__mark"
+      fill="none"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      {type === 'error' ? (
+        <path d="M12 3 2.5 20h19L12 3ZM12 10v4.5M12 17.2v.1" />
+      ) : (
+        <path d="M4 12.5 9.5 18 20 6.5" />
+      )}
+    </svg>
+  )
+}
+
+function AccountForm({ mode, signal }: { mode: AuthMode; signal: AuthSkySignal }) {
   const navigate = useNavigate()
   const { acceptSession } = useAuth()
   const { begin: beginArrival } = useArrival()
@@ -29,8 +55,45 @@ function AccountForm({ mode }: { mode: AuthMode }) {
   const [errors, setErrors] = useState<CredentialErrors>({})
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const route = useRef<HTMLElement>(null)
   const formId = mode === 'sign-in' ? 'sign-in' : 'register'
   const isSignIn = mode === 'sign-in'
+
+  // The sky hurries its traveller while a request is in flight.
+  useEffect(() => {
+    signal.setPending(isPending)
+    return () => signal.setPending(false)
+  }, [isPending, signal])
+
+  // A refusal is answered three ways: the words, the hearth dimming, and a small shake of
+  // the plate. The first field to retype takes focus, so trying again is one keystroke away.
+  const refuse = (message: string, retype?: { id: string; clear: () => void }) => {
+    setFeedback({ type: 'error', message })
+    signal.hush()
+    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      route.current?.animate?.(
+        [
+          { translate: '0 0' },
+          { translate: '-7px 0' },
+          { translate: '6px 0' },
+          { translate: '-4px 0' },
+          { translate: '2px 0' },
+          { translate: '0 0' },
+        ],
+        { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      )
+    }
+    if (retype) {
+      retype.clear()
+      requestAnimationFrame(() => {
+        const field = document.getElementById(retype.id)
+        if (field instanceof HTMLInputElement) {
+          field.focus()
+          field.select()
+        }
+      })
+    }
+  }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -58,13 +121,14 @@ function AccountForm({ mode }: { mode: AuthMode }) {
         const { data, error } = await signInWithPassword(validated.identifier, password)
 
         if (error || !data.session) {
-          setFeedback({
-            type: 'error',
-            message:
-              error?.status === 429
-                ? 'Too many sign-in attempts. Wait a moment and try again.'
-                : 'Username, email, or password did not match. Check your details and try again.',
-          })
+          refuse(
+            error?.status === 429
+              ? 'Too many sign-in attempts. Wait a moment and try again.'
+              : 'Username, email, or password did not match. Check your details and try again.',
+            error?.status === 429
+              ? undefined
+              : { id: 'sign-in-password', clear: () => setPassword('') },
+          )
           return
         }
 
@@ -81,11 +145,10 @@ function AccountForm({ mode }: { mode: AuthMode }) {
       )
 
       if (error) {
-        setFeedback({
-          type: 'error',
-          message:
-            "We couldn't create that account. Try a different username or email, or sign in if you already have an account.",
-        })
+        refuse(
+          "We couldn't create that account. Try a different username or email, or sign in if you already have an account.",
+          { id: 'register-username', clear: () => {} },
+        )
         return
       }
 
@@ -96,17 +159,18 @@ function AccountForm({ mode }: { mode: AuthMode }) {
         return
       }
 
+      // No session yet: the hearth takes to its new keeper while they go and check their mail.
+      signal.kindle()
       setFeedback({
         type: 'success',
         message: 'Account created. Check your email for the next step before signing in.',
       })
     } catch {
-      setFeedback({
-        type: 'error',
-        message: isSignIn
+      refuse(
+        isSignIn
           ? "We couldn't sign you in. Check your connection and try again."
           : "We couldn't create your account. Check your connection and try again.",
-      })
+      )
     } finally {
       setIsPending(false)
     }
@@ -118,7 +182,7 @@ function AccountForm({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <section className="auth-route" aria-labelledby={`${formId}-heading`}>
+    <section className="auth-route" ref={route} aria-labelledby={`${formId}-heading`}>
       <div className="auth-route__heading">
         <h2 id={`${formId}-heading`} tabIndex={-1}>
           {isSignIn ? 'Sign in' : 'Create account'}
@@ -226,7 +290,8 @@ function AccountForm({ mode }: { mode: AuthMode }) {
             className={`auth-feedback auth-feedback--${feedback.type}`}
             role={feedback.type === 'error' ? 'alert' : 'status'}
           >
-            {feedback.message}
+            <FeedbackMark type={feedback.type} />
+            <span>{feedback.message}</span>
           </p>
         )}
         <button className="auth-button" disabled={isPending} type="submit">
@@ -246,6 +311,9 @@ function AccountForm({ mode }: { mode: AuthMode }) {
 export function AuthPage({ mode }: { mode: AuthMode }) {
   const isSignIn = mode === 'sign-in'
   const { hash } = useLocation()
+  const [signal] = useState(() => new AuthSkySignal())
+  const [skyReady, setSkyReady] = useState(false)
+  const handleSkyAvailability = useCallback((ready: boolean) => setSkyReady(ready), [])
 
   useEffect(() => {
     const targetId = hash.slice(1)
@@ -265,7 +333,8 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   }, [hash])
 
   return (
-    <main className="auth-page">
+    <main className="auth-page" data-sky={skyReady ? 'ready' : 'painted'}>
+      <AuthSky onAvailabilityChange={handleSkyAvailability} signal={signal} paused={false} />
       <div className="auth-page__frame">
         <header className="auth-header">
           <Link className="auth-brand" to="/" aria-label="The Goober's Guide home">
@@ -293,39 +362,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
               key={mode}
               className={`auth-routes__page${hash ? ' auth-routes__page--transition' : ''}`}
             >
-              <AccountForm mode={mode} />
+              <AccountForm mode={mode} signal={signal} />
             </div>
           </div>
           <aside className="auth-switch">
-            <svg
-              key={`${mode}-map`}
-              aria-hidden="true"
-              className="auth-map"
-              preserveAspectRatio="none"
-              viewBox="0 0 600 360"
-            >
-              <path
-                className="auth-map__contour"
-                d="M-30 114C58 77 102 87 160 111s89 30 149-1 100-45 157-13 95 31 164-8M-26 154c87-33 123-15 180 9s94 23 151-4 101-39 154-6 102 36 169 1M-22 194c76-26 128-4 182 16s92 11 145-11 98-29 152 1 102 39 170 12"
-              />
-              <path
-                className="auth-map__route"
-                pathLength="1"
-                d="M72 314c54 0 46-24 106-24s69 36 122 20 57-22 110-10 62 28 118 28"
-              />
-              <circle className="auth-map__waypoint" cx="178" cy="290" r="4" />
-              <circle className="auth-map__waypoint" cx="300" cy="310" r="4" />
-              <circle className="auth-map__waypoint" cx="410" cy="300" r="4" />
-              <text className="auth-map__label" textAnchor="start" x="68" y="345">
-                RETURN
-              </text>
-              <text className="auth-map__label" textAnchor="end" x="532" y="345">
-                BEGIN
-              </text>
-            </svg>
-            <span className="auth-map__marker" aria-hidden="true">
-              <span />
-            </span>
             <div
               key={mode}
               className={`auth-switch__content${hash ? ' auth-switch__content--transition' : ''}`}
@@ -342,7 +382,6 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         </div>
 
         <footer className="auth-footer">
-          <span>Local account access</span>
           <Link to="/dev/status">Development status</Link>
         </footer>
       </div>

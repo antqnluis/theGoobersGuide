@@ -1,12 +1,14 @@
 import { createContext, type RefObject } from 'react'
 import type { ArrivalFlight } from '../campaigns/orreryCamera'
+import type { SkyHandoff } from './skyHandoff'
 
 /**
- * Where the sign-in arrival is. `departing` takes the login page away,
- * `flying` runs the camera in, `settling` brings the controls back, and
- * `fading` is the reduced-motion crossfade.
+ * Where the sign-in arrival is. `departing` lifts the login page away, `flying`
+ * glides the camera from the doorway's view to the chart, `landing` brings the controls in
+ * while the camera finishes, `settling` lets the last of it land, and `fading` is the
+ * reduced-motion crossfade.
  */
-export type ArrivalStage = 'idle' | 'departing' | 'flying' | 'settling' | 'fading'
+export type ArrivalStage = 'idle' | 'departing' | 'flying' | 'landing' | 'settling' | 'fading'
 
 /** The login page as the person last saw it, kept to leave from. */
 export type LoginSnapshot = {
@@ -14,6 +16,8 @@ export type LoginSnapshot = {
   scrollY: number
   width: number
   height: number
+  /** The sky's view when the page was left, if it drew one. */
+  sky?: SkyHandoff | null
 }
 
 export type ArrivalContextValue = {

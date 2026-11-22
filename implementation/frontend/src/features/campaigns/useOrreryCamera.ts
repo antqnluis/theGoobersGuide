@@ -10,6 +10,7 @@ import {
   clamp,
   chartPose,
   focusPose,
+  glideDuration,
   heading,
   interpolatePose,
   starfieldPan,
@@ -168,18 +169,27 @@ export function useOrreryCamera({
       let pose = destination
       let streak = 0
       let radial = 0
+      let carryFade = 1
       if (arriving) {
+        // Coming from the doorway the camera glides from the view the page showed; without one
+        // it arrives from far out along the chart's line of sight.
+        const from = flight.from ?? null
+        const duration = from ? glideDuration : arrivalDuration
         if (flight.phase === 'waiting') {
           state.flightElapsed = 0
           flight.progress = 0
-          pose = arrivalPose(destination, 0)
+          pose = from ?? arrivalPose(destination, 0)
         } else {
           state.flightElapsed += Math.min(delta, 0.1)
-          const elapsed = Math.min(state.flightElapsed, arrivalDuration)
-          flight.progress = clamp(elapsed / arrivalDuration, 0, 1)
-          pose = arrivalPose(destination, arrivalEase(elapsed))
-          radial = arrivalStreak(elapsed)
-          if (state.flightElapsed >= arrivalDuration) {
+          const elapsed = Math.min(state.flightElapsed, duration)
+          flight.progress = clamp(elapsed / duration, 0, 1)
+          carryFade = 1 - arrivalEase(elapsed, duration)
+          pose = from
+            ? interpolatePose(from, destination, arrivalEase(elapsed, duration))
+            : arrivalPose(destination, arrivalEase(elapsed))
+          // A glide from the doorway is a drift, not a push: no stars streaking outward.
+          radial = from ? 0 : arrivalStreak(elapsed)
+          if (state.flightElapsed >= duration) {
             flight.phase = 'off'
             flight.progress = 1
             radial = 0
@@ -222,7 +232,7 @@ export function useOrreryCamera({
       }
 
       state.heading = unwrapHeading(state.heading, heading(pose))
-      space.offset = state.heading * starfieldPan
+      space.offset = state.heading * starfieldPan + (arriving ? (flight.carry ?? 0) * carryFade : 0)
       space.streak = streak
       space.radial = radial
 

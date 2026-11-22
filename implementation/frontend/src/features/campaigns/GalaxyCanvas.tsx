@@ -1,4 +1,4 @@
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   useCallback,
   useEffect,
@@ -11,10 +11,11 @@ import {
 
 import type { GalaxyProps } from './GalaxyBackdrop'
 import { DeepSpace } from './DeepSpace'
+import { kindleBoost, type HearthBoost } from './hearthBoost'
 import { HearthStar } from './HearthStar'
 import { OrbitRings, type RingHighlight } from './OrbitRings'
 import { OrreryWorlds } from './OrreryWorlds'
-import { cameraFov, type SpaceMotion } from './orreryCamera'
+import { cameraFov, glideDuration, type ArrivalFlight, type SpaceMotion } from './orreryCamera'
 import { catalogueNumeral, galaxyLayout, planetKey } from './orreryLayout'
 
 // The rig places the camera before the first frame is drawn.
@@ -23,13 +24,23 @@ const cameraOptions = { position: [0, 12, 30] as const, fov: cameraFov, near: 0.
 function GalaxyScene({
   animate,
   spaceMotion,
+  arrival,
   onContextLost,
 }: {
   animate: boolean
   spaceMotion: RefObject<SpaceMotion>
+  arrival: RefObject<ArrivalFlight>
   onContextLost: () => void
 }) {
   const canvas = useThree((state) => state.gl.domElement)
+  const boost = useRef<HearthBoost>({ value: 1 })
+
+  // Signing in from the doorway, the hearth takes to you as the sky it had dissolves.
+  useFrame(() => {
+    const flight = arrival.current
+    boost.current.value =
+      flight.from && flight.phase === 'flying' ? kindleBoost(flight.progress * glideDuration) : 1
+  })
 
   useEffect(() => {
     canvas.addEventListener('webglcontextlost', onContextLost)
@@ -39,7 +50,7 @@ function GalaxyScene({
   return (
     <>
       <DeepSpace animate={animate} spaceMotion={spaceMotion} />
-      <HearthStar animate={animate} />
+      <HearthStar animate={animate} boost={boost} />
     </>
   )
 }
@@ -100,6 +111,7 @@ export default function GalaxyCanvas({
         <GalaxyScene
           animate={animate}
           spaceMotion={spaceMotion}
+          arrival={arrival}
           onContextLost={handleContextLost}
         />
         <OrbitRings

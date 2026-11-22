@@ -57,7 +57,22 @@ export function AuthField({ id, label, error, hint, revealLabel, ...input }: Aut
       </div>
       {(error || hint) && (
         <p className={error ? 'auth-field__error' : 'auth-field__hint'} id={`${id}-help`}>
-          {error ?? hint}
+          {error && (
+            <svg
+              aria-hidden="true"
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <path d="M12 3 2.5 20h19L12 3ZM12 10v4.5M12 17.2v.1" />
+            </svg>
+          )}
+          <span>{error ?? hint}</span>
         </p>
       )}
     </div>

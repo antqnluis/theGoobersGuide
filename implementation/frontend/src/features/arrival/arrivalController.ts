@@ -2,10 +2,12 @@ import type { ArrivalFlight } from '../campaigns/orreryCamera'
 import type { ArrivalStage, LoginSnapshot } from './arrivalContext'
 
 export const arrivalTiming = {
-  /** The login page leaves and the dusk falls. */
-  departMs: 1000,
+  /** The login page lifts away, leaving the sky. */
+  departMs: 560,
   /** Longest the galaxy scene is waited for before the flight is dropped. */
   sceneWaitMs: 2600,
+  /** Into the flight: the controls start to come in while the camera finishes its glide. */
+  landMs: 1350,
   /** Longest the flight may run if the camera never reports back. */
   flightLimitMs: 4500,
   /** Controls arriving after the flight. */
@@ -45,11 +47,20 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
     stage = next
     clearTimeout(stageTimer)
     if (next === 'flying') {
+      gateTimers.push(
+        setTimeout(() => stage === 'flying' && enter('landing'), arrivalTiming.landMs),
+      )
       stageTimer = setTimeout(() => {
         flight.phase = 'off'
         flight.progress = 1
         enter('settling')
       }, arrivalTiming.flightLimitMs)
+    } else if (next === 'landing') {
+      stageTimer = setTimeout(() => {
+        flight.phase = 'off'
+        flight.progress = 1
+        enter('settling')
+      }, arrivalTiming.flightLimitMs - arrivalTiming.landMs)
     } else if (next === 'settling') {
       stageTimer = setTimeout(() => enter('idle'), arrivalTiming.settleMs)
     } else if (next === 'fading') {
@@ -58,6 +69,8 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
       clearTimers()
       flight.phase = 'off'
       flight.progress = 1
+      flight.from = null
+      flight.carry = 0
       onSnapshot(null)
     }
     onStage(next)
@@ -79,7 +92,7 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
   }
 
   flight.finished = () => {
-    if (stage === 'flying') enter('settling')
+    if (stage === 'flying' || stage === 'landing') enter('settling')
   }
 
   return {
@@ -103,6 +116,8 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
         return
       }
       onSnapshot(snapshot)
+      flight.from = snapshot?.sky?.pose ?? null
+      flight.carry = snapshot?.sky?.carry ?? 0
       departed = false
       sceneReady = false
       sceneWaitOver = false
@@ -123,7 +138,7 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
     },
     reportGalaxy(ready: boolean) {
       sceneReady = ready
-      if (!ready && stage === 'flying') {
+      if (!ready && (stage === 'flying' || stage === 'landing')) {
         flight.phase = 'off'
         flight.progress = 1
         enter('settling')
@@ -132,7 +147,7 @@ export function createArrivalController({ onStage, onSnapshot, prefetch }: Envir
       }
     },
     skip() {
-      if (stage === 'departing' || stage === 'flying') {
+      if (stage === 'departing' || stage === 'flying' || stage === 'landing') {
         flight.phase = 'skipping'
         enter('settling')
       } else if (stage === 'fading') {

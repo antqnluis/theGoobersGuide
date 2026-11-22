@@ -31,11 +31,44 @@ describe('arrival timeline', () => {
     expect(controller.getStage()).toBe('flying')
     expect(controller.flight.phase).toBe('flying')
 
+    // The controls come in while the camera is still gliding.
+    vi.advanceTimersByTime(arrivalTiming.landMs)
+    expect(controller.getStage()).toBe('landing')
+    expect(controller.flight.phase).toBe('flying')
+
     controller.flight.finished()
     expect(controller.getStage()).toBe('settling')
     vi.advanceTimersByTime(arrivalTiming.settleMs)
-    expect(stages).toEqual(['departing', 'flying', 'settling', 'idle'])
+    expect(stages).toEqual(['departing', 'flying', 'landing', 'settling', 'idle'])
     expect(controller.flight.phase).toBe('off')
+  })
+
+  it('glides from the sky the page showed, and lets go of it at the end', () => {
+    const { controller } = setup()
+    const pose = { position: [0, 8, 28], target: [0, 0, 0], principal: [900, 300] }
+    const sky = { pose, carry: 0.002 }
+    controller.begin({
+      userId: 'u1',
+      snapshot: { ...snapshot, sky } as unknown as LoginSnapshot,
+      reducedMotion: false,
+    })
+    expect(controller.flight.from).toBe(pose)
+    expect(controller.flight.carry).toBe(0.002)
+    controller.skip()
+    vi.advanceTimersByTime(arrivalTiming.settleMs)
+    expect(controller.getStage()).toBe('idle')
+    expect(controller.flight.from).toBeNull()
+  })
+
+  it('can be skipped while the controls are coming in', () => {
+    const { controller } = setup()
+    controller.begin({ userId: 'u1', snapshot, reducedMotion: false })
+    controller.reportGalaxy(true)
+    vi.advanceTimersByTime(arrivalTiming.departMs + arrivalTiming.landMs)
+    expect(controller.getStage()).toBe('landing')
+    controller.skip()
+    expect(controller.getStage()).toBe('settling')
+    expect(controller.flight.phase).toBe('skipping')
   })
 
   it('drops the flight, not the arrival, when the scene never becomes ready', () => {

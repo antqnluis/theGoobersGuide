@@ -1,3 +1,5 @@
+import './auth.css'
+
 export function AuthStatus({
   error,
   isLoading,
