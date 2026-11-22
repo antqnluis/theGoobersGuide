@@ -258,12 +258,12 @@ export function AdventureObjectives({
               aria-invalid={draftError ? 'true' : undefined}
               autoComplete="off"
               className="journal-input"
-              disabled={pendingAction === 'objective-add'}
               id={`${base}-new`}
               onChange={(event) => {
                 setDraft(event.target.value)
                 setDraftError(null)
               }}
+              readOnly={pendingAction === 'objective-add'}
               ref={addRef}
               value={draft}
             />

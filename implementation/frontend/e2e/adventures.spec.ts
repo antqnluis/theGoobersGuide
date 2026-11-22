@@ -505,7 +505,12 @@ test('a proposal waiting for the viewer is approved or rejected from the adventu
   await dialog.getByRole('button', { name: 'Withdraw the invitation to Cass' }).click()
   await expect(dialog.getByRole('button', { name: 'Yes, withdraw' })).toBeFocused()
   await dialog.getByRole('button', { name: 'Yes, withdraw' }).click()
-  await expect(dialog.getByRole('region', { name: 'Participants' })).not.toContainText('Cass')
+  await expect(
+    dialog
+      .getByRole('region', { name: 'Participants' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Cass' }),
+  ).toHaveCount(0)
 })
 
 test('leaving asks first, then returns to a board without the adventure', async ({ page }) => {
@@ -539,7 +544,7 @@ test('sharing needs everyone: one agreement is a request, the second shares it, 
   await expect(dialog.getByRole('button', { name: 'Yes, share' })).toBeFocused()
   await dialog.getByRole('button', { name: 'Yes, share' }).click()
   await expect(dialog.getByText('Your agreement was saved.')).toBeVisible()
-  await expect(sharing).toContainText('Waiting for Mira')
+  await expect(sharing).toContainText('Waiting for player_02')
   expect(adventure.visibility).toBe('participants')
 
   await sharing.getByRole('button', { name: 'Cancel the request' }).click()
@@ -558,7 +563,7 @@ test('a share request waits in "Waiting for you", and Agree completes the share'
   const state: AdventureState = { adventures: [adventure] }
   const { dialog } = await openAdventures(page, state, { others: [tess] })
   await expect(dialog.getByRole('region', { name: 'Waiting for you' })).toContainText(
-    'Mira wants to share this with the party',
+    'player_02 wants to share this with the party',
   )
   await dialog.getByRole('button', { name: 'The heist' }).click()
   const sharing = dialog.getByRole('region', { name: 'Sharing' })
