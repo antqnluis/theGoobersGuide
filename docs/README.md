@@ -13,9 +13,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 ## In progress
 
-| Doc | Status |
-| --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. All eight are done: M1–M6, M7 (dice everywhere, plus live sheets, notes, and adventures), and M8 (character imports and DM handoffs). |
+None.
 
 ## Completed
 
@@ -24,6 +22,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M01 — Authentication](completed/M01-Authentication.md) | Phases 1–3 done. |
 | [M02 — Campaign Management](completed/M02-Campaign-Management.md) | Phases 1–3 done. |
 | [M02 — Landfall Camp](completed/M02-Landfall-Camp.md) | Phases 0–7 done. Firefox, VoiceOver, and real-device checks were not run. |
+| [M03 — Campaign Functionality Audit and Roadmap](completed/M03-Campaign-Functionality-Audit.md) | Completed 2026-11-22. Architecture and roadmap for M1–M8; all eight are done. Lists what was still open at close-out (unrun mocked browser specs, the Party-to-tent empty-state link, finding 7's minor issues). |
 | [M03.1 — Membership Lifecycle](completed/M03.1-Membership-Lifecycle.md) | Phases 0–7 done. |
 | [M03.2 — Characters and Party](completed/M03.2-Characters-and-Party.md) | Phases 0–6 done. The full browser suite was last run after Phase 5; Phase 6 re-ran only lint, format, build, unit, and local-stack tests. |
 | [M03.2 — Implementation Log](completed/M03.2-Implementation-Log.md) | Per-phase record of the M03.2 work. |
