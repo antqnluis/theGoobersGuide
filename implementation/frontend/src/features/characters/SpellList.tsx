@@ -1,10 +1,11 @@
+import { DiceText } from '../dice/TextWithDice'
 import { parseSpells } from './spellFormat'
 
 /**
  * The spells field laid out as a spell book: a card per group (cantrips, each spell level)
  * with its slots, and a list of spells. Text it cannot place is shown as written.
  */
-export function SpellList({ text }: { text: string }) {
+export function SpellList({ text, characterId }: { text: string; characterId?: string | null }) {
   const blocks = parseSpells(text)
   if (blocks.length === 0) return <p className="sheet-text">Nothing recorded.</p>
 
@@ -13,7 +14,7 @@ export function SpellList({ text }: { text: string }) {
       {blocks.map((block, index) =>
         block.kind === 'text' ? (
           <p className="sheet-text spell-book__text" key={index}>
-            {block.text}
+            <DiceText characterId={characterId} text={block.text} />
           </p>
         ) : (
           <section
@@ -38,7 +39,15 @@ export function SpellList({ text }: { text: string }) {
               {block.spells.map((spell, at) => (
                 <li key={`${spell.name}:${at}`}>
                   <span className="spell-group__name">{spell.name}</span>
-                  {spell.detail && <span className="spell-group__detail">{spell.detail}</span>}
+                  {spell.detail && (
+                    <span className="spell-group__detail">
+                      <DiceText
+                        characterId={characterId}
+                        context={spell.name}
+                        text={spell.detail}
+                      />
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

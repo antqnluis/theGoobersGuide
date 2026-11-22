@@ -6,6 +6,7 @@ import {
   listAdventures,
   listInvitations,
 } from './adventureService'
+import { listHandoffs } from './handoffService'
 
 /** Every adventure query, for the membership cache. Under ['campaigns'] so transfers refresh it too. */
 export const adventuresPrefix = ['campaigns', 'adventures'] as const
@@ -22,7 +23,8 @@ export function adventuresOptions(campaignId: string, userId: string, enabled = 
     queryKey: adventuresKey(campaignId, userId),
     queryFn: () => listAdventures(campaignId),
     enabled,
-    // Without Realtime (M7), refetch on focus and on opening so shared edits show up.
+    // Realtime (useCampaignLive) refreshes this as others change it; refetching on focus stays as
+    // the backstop for deletions and for adventures that stopped being readable.
     refetchOnWindowFocus: true,
   }
 }
@@ -85,5 +87,18 @@ export function characterAdventureCountOptions(
     // A stale count could understate what a delete removes, so read it afresh each time.
     staleTime: 0,
     gcTime: 0,
+  }
+}
+
+export const handoffsKey = (adventureId: string, userId: string) =>
+  ['campaigns', 'adventures', 'handoffs', adventureId, userId] as const
+
+/** One adventure's kept handoff sources; under the adventures prefix so a full refresh reads them too. */
+export function handoffsOptions(adventureId: string, userId: string, enabled = true) {
+  return {
+    queryKey: handoffsKey(adventureId, userId),
+    queryFn: () => listHandoffs(adventureId),
+    enabled,
+    refetchOnWindowFocus: true,
   }
 }

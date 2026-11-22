@@ -37,6 +37,16 @@ function setup(props: Partial<React.ComponentProps<typeof AdventureUpdates>> = {
 }
 
 describe('AdventureUpdates', () => {
+  it('labels updates a handoff created, and only those', () => {
+    setup({
+      updates: [update({ id: 'u3', body: 'We reached Saltmere.', handoff_id: 'h1' }), mine],
+      handoffLabels: new Map([['h1', 'session-4.md']]),
+    })
+    const items = screen.getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('From handoff: session-4.md')
+    expect(items[1]).not.toHaveTextContent('From handoff')
+  })
+
   it('lists updates as given, with author and time, keeping line breaks', () => {
     setup()
     const items = screen.getAllByRole('listitem')
@@ -104,5 +114,16 @@ describe('AdventureUpdates', () => {
   it('shows an empty state', () => {
     setup({ updates: [] })
     expect(screen.getByText('No updates yet.')).toBeVisible()
+  })
+})
+
+describe('dice in updates', () => {
+  it('turns dice in an update into a chip named for the adventure', () => {
+    setup({
+      context: 'The cellar',
+      updates: [update({ id: 'u9', body: 'Took 2d6 fire damage from the trap.' })],
+    })
+    expect(screen.getByRole('button', { name: 'Roll 2d6 for The cellar' })).toBeVisible()
+    expect(screen.getByText(/Took/).textContent).toBe('Took 2d6 fire damage from the trap.')
   })
 })

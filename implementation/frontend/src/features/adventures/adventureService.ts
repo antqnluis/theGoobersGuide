@@ -17,8 +17,8 @@ const summaryFields =
   'id,campaign_id,created_by,type,visibility,status,title,next_step,reference,updated_by,status_changed_at,status_changed_by,archived_at,created_at,updated_at'
 const adventureFields = `${summaryFields},description`
 const objectiveFields =
-  'id,adventure_id,title,done,created_by,completed_by,completed_at,created_at,updated_at'
-const updateFields = 'id,adventure_id,author_id,body,created_at'
+  'id,adventure_id,title,done,handoff_id,created_by,completed_by,completed_at,created_at,updated_at'
+const updateFields = 'id,adventure_id,author_id,body,handoff_id,created_at'
 const approvals = 'approvals:adventure_invite_approvals(approver_id)'
 const participantFields = `id,adventure_id,campaign_id,character_id,profile_id,status,invited_by,share_consent,share_consent_at,responded_at,created_at,updated_at,${approvals}`
 

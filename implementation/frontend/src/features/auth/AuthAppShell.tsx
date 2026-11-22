@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router'
 import { useArrival } from '../arrival/useArrival'
+import { DiceDock } from '../dice/DiceDock'
 import { AccountDisplayName } from './AccountDisplayName'
 import { useAuth } from './useAuth'
 import { signOutFromAuth } from './authService'
@@ -109,6 +110,7 @@ export function AuthAppShell() {
         <main className="campaign-app-main" id="campaign-content" tabIndex={-1}>
           <Outlet />
         </main>
+        <DiceDock />
         {!isGalaxy && !isCamp && (
           <footer className="auth-footer">
             <span>Account session active</span>

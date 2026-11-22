@@ -15,7 +15,8 @@ export function notesOptions(campaignId: string, userId: string, enabled = true)
     queryKey: notesKey(campaignId, userId),
     queryFn: () => listNotes(campaignId),
     enabled,
-    // Without Realtime (M7), refetch on focus and on opening so shared edits show up.
+    // Realtime (useCampaignLive) refreshes this as others change it; refetching on focus stays as
+    // the backstop for deletions and for notes that stopped being readable.
     refetchOnWindowFocus: true,
   }
 }

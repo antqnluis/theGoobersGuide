@@ -162,8 +162,20 @@ describe('CharacterInventory list', () => {
   it('is read-only for others', async () => {
     renderInventory({ owner: false })
     await screen.findByText('Rope')
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    // Nothing to edit: the only buttons are roll chips for dice written in descriptions.
+    const controls = screen
+      .queryAllByRole('button')
+      .filter((button) => !button.classList.contains('roll-button'))
+    expect(controls).toHaveLength(0)
     expect(screen.getByText('Longsword')).toBeInTheDocument()
+  })
+
+  it('turns dice in a description into roll chips, leaving the words as written', async () => {
+    renderInventory({ owner: false })
+    await screen.findByText('Rope')
+    const chip = screen.getByRole('button', { name: 'Roll 2d4 + 2 for Healing potion' })
+    expect(chip).toHaveTextContent('2d4 + 2')
+    expect(chip.closest('p')).toHaveTextContent(/Restores 2d4 \+ 2 hit points\./)
   })
 })
 

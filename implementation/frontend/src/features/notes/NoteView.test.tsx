@@ -192,3 +192,15 @@ describe('deleting', () => {
     expect(screen.getByRole('button', { name: 'Edit note' })).toBeDisabled()
   })
 })
+
+describe('dice in a note', () => {
+  it('turns written dice into roll chips and leaves the text as typed', () => {
+    setup({}, { title: 'Trap', body: 'The dart trap deals 1d4 + 2 piercing.\nDC 13 to spot.' })
+    const body = screen.getByText(/dart trap/).closest('.note-body')!
+    expect(body).toHaveTextContent('The dart trap deals 1d4 + 2 piercing. DC 13 to spot.')
+    expect(
+      within(body as HTMLElement).getByRole('button', { name: 'Roll 1d4 + 2 for Trap' }),
+    ).toBeVisible()
+    expect(within(body as HTMLElement).getAllByRole('button')).toHaveLength(1)
+  })
+})

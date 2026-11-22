@@ -1,8 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { AdventureObjectives } from './AdventureObjectives'
+import { AdventureSources } from './AdventureSources'
+import { handoffsOptions } from './adventureQueries'
+import { HandoffDialog } from './HandoffDialog'
 import { AdventureParticipants } from './AdventureParticipants'
 import { AdventureSharing } from './AdventureSharing'
 import { AdventureUpdates } from './AdventureUpdates'
@@ -22,6 +26,7 @@ import {
 } from './adventureRules'
 import { adventureStatuses, type AdventureDetail, type AdventureStatus } from './adventureTypes'
 import type { AdventureAction, AdventureResult } from './useAdventureActions'
+import { DiceText } from '../dice/TextWithDice'
 
 type Roster = readonly Pick<CampaignRosterMember, 'profile_id' | 'username' | 'display_name'>[]
 
@@ -43,6 +48,7 @@ export function AdventureView({
   onConsent,
   onEdit,
   onLeave,
+  onNotice,
   onPostUpdate,
   onPropose,
   onRemoveObjective,
@@ -67,6 +73,8 @@ export function AdventureView({
   onCancel: (participantId: string) => Promise<AdventureResult<unknown>>
   /** `true` gives the viewer's agreement to share with the party; `false` clears every agreement. */
   onConsent: (consent: boolean) => Promise<AdventureResult<unknown>>
+  /** A short confirmation the page announces, such as after a handoff is saved. */
+  onNotice?: (notice: string) => void
   /** Resolves to whether the viewer left. */
   onLeave: () => Promise<boolean>
   onPropose: (characterId: string) => Promise<AdventureResult<unknown>>
@@ -88,6 +96,14 @@ export function AdventureView({
 }) {
   const base = useId()
   const [confirming, setConfirming] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const importRef = useRef<HTMLButtonElement>(null)
+  const sourcesRef = useRef<HTMLHeadingElement>(null)
+  const handoffs = useQuery(handoffsOptions(adventure.id, userId))
+  const handoffLabels = useMemo(
+    () => new Map((handoffs.data ?? []).map((record) => [record.id, record.source_label])),
+    [handoffs.data],
+  )
   const archiveRef = useRef<HTMLButtonElement>(null)
   const restoreFocusRef = useRef(false)
 
@@ -209,7 +225,11 @@ export function AdventureView({
             <div>
               <dt>Next step</dt>
               <dd className={adventure.next_step ? undefined : 'adventure-facts__empty'}>
-                {adventure.next_step || 'None yet.'}
+                {adventure.next_step ? (
+                  <DiceText context={adventure.title} text={adventure.next_step} />
+                ) : (
+                  'None yet.'
+                )}
               </dd>
             </div>
             {adventure.reference && (
@@ -229,7 +249,9 @@ export function AdventureView({
           </dl>
 
           {adventure.description ? (
-            <div className="adventure-description">{adventure.description}</div>
+            <div className="adventure-description">
+              <DiceText context={adventure.title} text={adventure.description} />
+            </div>
           ) : (
             <p className="adventure-description adventure-description--empty">
               This adventure has no description yet.
@@ -248,9 +270,11 @@ export function AdventureView({
             pendingId={pendingId}
             roster={roster}
             userId={userId}
+            handoffLabels={handoffLabels}
           />
 
           <AdventureUpdates
+            context={adventure.title}
             editable={editable}
             onPost={onPostUpdate}
             onRemove={onRemoveUpdate}
@@ -258,6 +282,15 @@ export function AdventureView({
             pendingId={pendingId}
             roster={roster}
             updates={adventure.updates}
+            userId={userId}
+            handoffLabels={handoffLabels}
+          />
+
+          <AdventureSources
+            adventureId={adventure.id}
+            editable={editable}
+            headingRef={sourcesRef}
+            roster={roster}
             userId={userId}
           />
         </div>
@@ -292,6 +325,17 @@ export function AdventureView({
           {editable && (
             <button className="journal-button" disabled={busy} onClick={onEdit} type="button">
               Edit details
+            </button>
+          )}
+          {editable && (
+            <button
+              className="journal-button journal-button--secondary"
+              disabled={busy}
+              onClick={() => setImporting(true)}
+              ref={importRef}
+              type="button"
+            >
+              Import handoff
             </button>
           )}
           {mayArchive &&
@@ -361,6 +405,27 @@ export function AdventureView({
             </button>
           </div>
         </div>
+      )}
+
+      {importing && (
+        <HandoffDialog
+          adventure={adventure}
+          onApplied={(count) => {
+            setImporting(false)
+            onNotice?.(
+              count > 0
+                ? `Handoff saved — ${count} ${count === 1 ? 'change' : 'changes'} applied.`
+                : 'Handoff saved — kept as a source.',
+            )
+            // Focus follows the new source (§5.3).
+            window.setTimeout(() => sourcesRef.current?.focus(), 0)
+          }}
+          onClose={() => {
+            setImporting(false)
+            window.setTimeout(() => importRef.current?.focus(), 0)
+          }}
+          userId={userId}
+        />
       )}
     </section>
   )

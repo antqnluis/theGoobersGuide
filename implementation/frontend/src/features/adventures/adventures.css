@@ -559,3 +559,246 @@
 .adventure-page__head > .journal-button--ghost {
   margin-inline-start: -18px;
 }
+
+/* M03.9 handoffs: the import dialog, its review, the Sources section, and the "From handoff" tag. */
+.handoff-tag {
+  margin: 2px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.journal-prompt.handoff-dialog {
+  width: min(46rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.handoff-dialog > * + * {
+  margin-top: 14px;
+}
+
+.handoff-dialog__lede,
+.handoff-dialog__hint {
+  margin: 0;
+}
+
+.handoff-dialog__hint {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.handoff-dialog__text {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.handoff-dialog__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 12px;
+}
+
+.handoff-dialog__prompt summary,
+.handoff-review__ignored summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.handoff-dialog__prompt > * + * {
+  margin-top: 10px;
+}
+
+.handoff-dialog__prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.handoff-dialog__copied {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.handoff-dialog__actions {
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.handoff-review {
+  display: grid;
+  gap: 12px;
+}
+
+.handoff-review__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.handoff-review__notes {
+  padding: 10px 12px;
+  border: 1px solid var(--journal-line, currentColor);
+  border-radius: 6px;
+}
+
+.handoff-review__notes p {
+  margin: 0 0 6px;
+}
+
+.handoff-review__notes ul,
+.handoff-review__ignored ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.handoff-review__ignored p {
+  margin: 6px 0;
+}
+
+.handoff-review__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.handoff-review__summary {
+  margin: 0;
+}
+
+.handoff-review__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.handoff-review__section {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.handoff-review__section legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.handoff-review__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.handoff-review__change {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: start;
+}
+
+.handoff-review__change[data-state='unchanged'],
+.handoff-review__change[data-state='invalid'] {
+  opacity: 0.85;
+}
+
+.handoff-review__change > p {
+  grid-column: 2;
+  margin: 0;
+}
+
+/* Current and proposed values sit on one line when they fit and stack on a phone. */
+.handoff-review__values {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--journal-ink-soft);
+}
+
+.handoff-review__before {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.handoff-review__after {
+  color: var(--journal-ink);
+  font-weight: 600;
+}
+
+.handoff-review__note {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+@container adventures (max-width: 34rem) {
+  .handoff-review__before,
+  .handoff-review__after {
+    display: block;
+  }
+}
+
+.source-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-row {
+  display: grid;
+  gap: 6px;
+}
+
+.source-row > p {
+  margin: 0;
+}
+
+.source-row__title {
+  display: grid;
+  gap: 2px;
+}
+
+.source-row__title small,
+.source-row__summary,
+.source-row__copied {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.source-row__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Plain text only: the source is never rendered as Markdown or HTML (H14). */
+.source-row__text {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--journal-line, currentColor);
+  border-radius: 6px;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}

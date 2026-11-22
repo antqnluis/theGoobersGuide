@@ -111,6 +111,7 @@ export function objective(overrides: Partial<AdventureObjective> = {}): Adventur
     created_by: userId,
     completed_by: null,
     completed_at: null,
+    handoff_id: null,
     created_at: '2026-11-16T10:00:00+00:00',
     updated_at: '2026-11-16T10:00:00+00:00',
     ...overrides,
@@ -123,6 +124,7 @@ export function update(overrides: Partial<AdventureUpdate> = {}): AdventureUpdat
     adventure_id: 'a1',
     author_id: userId,
     body: 'The cellar was empty.',
+    handoff_id: null,
     created_at: '2026-11-16T10:30:00+00:00',
     ...overrides,
   }

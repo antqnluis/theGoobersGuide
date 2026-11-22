@@ -13,9 +13,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 ## In progress
 
-| Doc | Status |
-| --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M6 are done; M8 character imports are implemented; M7 is not started. |
+None.
 
 ## Completed
 
@@ -24,6 +22,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M01 — Authentication](completed/M01-Authentication.md) | Phases 1–3 done. |
 | [M02 — Campaign Management](completed/M02-Campaign-Management.md) | Phases 1–3 done. |
 | [M02 — Landfall Camp](completed/M02-Landfall-Camp.md) | Phases 0–7 done. Firefox, VoiceOver, and real-device checks were not run. |
+| [M03 — Campaign Functionality Audit and Roadmap](completed/M03-Campaign-Functionality-Audit.md) | Completed 2026-11-22. Architecture and roadmap for M1–M8; all eight are done. Lists what was still open at close-out (unrun mocked browser specs, the Party-to-tent empty-state link, finding 7's minor issues). |
 | [M03.1 — Membership Lifecycle](completed/M03.1-Membership-Lifecycle.md) | Phases 0–7 done. |
 | [M03.2 — Characters and Party](completed/M03.2-Characters-and-Party.md) | Phases 0–6 done. The full browser suite was last run after Phase 5; Phase 6 re-ran only lint, format, build, unit, and local-stack tests. |
 | [M03.2 — Implementation Log](completed/M03.2-Implementation-Log.md) | Per-phase record of the M03.2 work. |
@@ -35,8 +34,12 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.5 — Implementation Log](completed/M03.5-Implementation-Log.md) | Per-phase record of the M03.5 work. |
 | [M03.6 — Adventure Collaboration](completed/M03.6-Adventure-Collaboration.md) | Phases 0–5 done. Proposals with unanimous approval, invitations, leaving, share-with-party by consent, a read-only party view, and the campaign-departure rules (D9). The real-stack UI test and `adventures.spec.ts` pass; the rest of the mocked browser suite and the camp-scene specs were not run. |
 | [M03.6 — Implementation Log](completed/M03.6-Implementation-Log.md) | Per-phase record of the M03.6 work. |
+| [M03.7 — Session Utilities: Dice Everywhere](completed/M03.7-Session-Utilities.md) | Implemented (Phases 0–6, D1–D12 as written): the server-rolled shared dice roller (`dice_rolls`, `roll_dice`, the tray and dock), sheet roll buttons, dice chips in text, and live sheets, notes, and adventures. The mocked browser spec `e2e/dice.spec.ts` is written but was not run. |
+| [M03.7 — Implementation Log](completed/M03.7-Implementation-Log.md) | Per-phase record of the M03.7 work. |
 | [M03.8 — Character Imports](completed/M03.8-Character-Imports.md) | Implemented (Phases 0–5): attack ids, `character_imports`, `import_character` and `apply_character_update`, the version-3 and update-2 formats, copyable prompts, import as new and import updates with review, Markdown export, and import history. |
 | [M03.8 — Implementation Log](completed/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
+| [M03.9 — DM Handoffs](completed/M03.9-DM-Handoffs.md) | Implemented (Phases 0–5, H1–H14 as written): `adventure_handoffs` with kept sources, `handoff_id` labels on imported objectives and updates, `attach_adventure_handoff` and `create_adventure_from_handoff`, the version-1 handoff format and prompt, the import dialog with selective review, Sources on the adventure, start from a handoff, and live sources. The mocked browser specs are not written. |
+| [M03.9 — Implementation Log](completed/M03.9-Implementation-Log.md) | Per-phase record of the M03.9 work. |
 
 ## Paused
 

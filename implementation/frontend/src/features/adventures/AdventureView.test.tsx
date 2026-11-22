@@ -1,7 +1,10 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdventureView } from './AdventureView'
+import { attachHandoff, listHandoffs } from './handoffService'
+import { handoffRecord } from './handoffTestData'
 import {
   adventure,
   characterId,
@@ -13,6 +16,16 @@ import {
   update,
   userId,
 } from './adventureTestData'
+
+vi.mock('./handoffService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./handoffService')>()),
+  listHandoffs: vi.fn(),
+  attachHandoff: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(listHandoffs).mockResolvedValue([])
+})
 
 afterEach(cleanup)
 
@@ -57,19 +70,22 @@ function setup(
     onStatus: vi.fn().mockResolvedValue(ok),
     onToggleObjective: vi.fn().mockResolvedValue(ok),
   }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <AdventureView
-      adventure={subject}
-      characters={[{ id: characterId, name: 'Brindle', owner_id: userId, status: 'active' }]}
-      error={null}
-      headingRef={{ current: null }}
-      pendingAction={null}
-      pendingId={null}
-      roster={roster}
-      userId={userId}
-      {...handlers}
-      {...props}
-    />,
+    <QueryClientProvider client={client}>
+      <AdventureView
+        adventure={subject}
+        characters={[{ id: characterId, name: 'Brindle', owner_id: userId, status: 'active' }]}
+        error={null}
+        headingRef={{ current: null }}
+        pendingAction={null}
+        pendingId={null}
+        roster={roster}
+        userId={userId}
+        {...handlers}
+        {...props}
+      />
+    </QueryClientProvider>,
   )
   return { ...handlers, user: userEvent.setup() }
 }
@@ -277,6 +293,75 @@ describe('AdventureView with others', () => {
   })
 })
 
+describe('handoffs', () => {
+  it('offers Import handoff to editors and shows the Sources section', async () => {
+    vi.mocked(listHandoffs).mockResolvedValue([])
+    setup()
+    expect(screen.getByRole('button', { name: 'Import handoff' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Sources' })).toBeVisible()
+    expect(await screen.findByText('No handoffs yet.')).toBeVisible()
+  })
+
+  it('opens the dialog from the button and tells the page when a handoff is saved', async () => {
+    vi.mocked(listHandoffs).mockResolvedValue([])
+    vi.mocked(attachHandoff).mockResolvedValue('h1')
+    const onNotice = vi.fn()
+    const { user } = setup(personal, { onNotice })
+    await user.click(screen.getByRole('button', { name: 'Import handoff' }))
+    expect(screen.getByRole('dialog', { name: 'Import handoff' })).toBeVisible()
+
+    await user.click(screen.getByLabelText('1. The handoff text'))
+    await user.paste('The recap.')
+    await user.click(screen.getByRole('button', { name: 'Keep as source only' }))
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith('Handoff saved — kept as a source.'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Sources' })).toHaveFocus()
+  })
+
+  it('returns focus to the button when the dialog is cancelled', async () => {
+    vi.mocked(listHandoffs).mockResolvedValue([])
+    const { user } = setup()
+    await user.click(screen.getByRole('button', { name: 'Import handoff' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Import handoff' })).toHaveFocus(),
+    )
+  })
+
+  it('hides Import handoff when the adventure is archived or the viewer only reads it', () => {
+    vi.mocked(listHandoffs).mockResolvedValue([])
+    setup(adventure({ ...personal, archived_at: '2026-11-17T10:00:00+00:00' }))
+    expect(screen.queryByRole('button', { name: 'Import handoff' })).not.toBeInTheDocument()
+    cleanup()
+    setup(
+      adventure({
+        id: 'a3',
+        type: 'side',
+        visibility: 'party',
+        created_by: miraId,
+        participants: [participant({ profile_id: miraId, character_id: miraCharacterId })],
+      }),
+    )
+    expect(screen.queryByRole('button', { name: 'Import handoff' })).not.toBeInTheDocument()
+    // Party readers still read the sources section.
+    expect(screen.getByRole('heading', { name: 'Sources' })).toBeVisible()
+  })
+
+  it('labels the objectives and updates a handoff created with its source', async () => {
+    vi.mocked(listHandoffs).mockResolvedValue([
+      handoffRecord({ id: 'h1', source_label: 'session-4.md' }),
+    ])
+    setup(
+      adventure({
+        id: 'a4',
+        objectives: [objective({ id: 'o9', title: 'Recover the clapper', handoff_id: 'h1' })],
+        updates: [update({ id: 'u9', body: 'We reached Saltmere.', handoff_id: 'h1' })],
+      }),
+    )
+    await waitFor(() => expect(screen.getAllByText('From handoff: session-4.md')).toHaveLength(2))
+  })
+})
+
 describe('an adventure shared with the party', () => {
   const miraRow = participant({ profile_id: miraId, character_id: miraCharacterId })
   const shared = adventure({
@@ -340,5 +425,18 @@ describe('an adventure shared with the party', () => {
     setup(mine)
     expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeVisible()
     expect(screen.queryByText(/Only the people in it can make changes/)).not.toBeInTheDocument()
+  })
+})
+
+describe('dice in an adventure', () => {
+  it('turns dice in the description and the next step into chips', () => {
+    setup(
+      adventure({
+        description: 'The ogre hits for 2d8 + 4.',
+        next_step: 'Roll d20 to sneak past.',
+      }),
+    )
+    expect(screen.getByRole('button', { name: 'Roll 2d8 + 4 for Find the heir' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Roll d20 for Find the heir' })).toBeVisible()
   })
 })

@@ -65,6 +65,14 @@ describe('AdventureSharing', () => {
     expect(box).not.toHaveTextContent('Everyone in this adventure must agree')
   })
 
+  it('says that sharing includes the handoff sources', async () => {
+    const { user } = setup(duo())
+    await user.click(screen.getByRole('button', { name: 'Share with party' }))
+    expect(screen.getByRole('group', { name: 'Confirm' })).toHaveTextContent(
+      'Sharing includes this adventure’s handoff sources.',
+    )
+  })
+
   it('returns focus to the control that opened the confirmation', async () => {
     const { user } = setup(duo())
     await user.click(screen.getByRole('button', { name: 'Share with party' }))

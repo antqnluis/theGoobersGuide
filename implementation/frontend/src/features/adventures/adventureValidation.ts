@@ -79,6 +79,20 @@ export function validateAdventureCreateInput(input: AdventureCreateInput): Adven
   return errors
 }
 
+/** The error for one details field, or null when it is valid. The field's own rules apply. */
+export function validateAdventureField(
+  field: 'title' | 'description' | 'nextStep' | 'reference',
+  value: string,
+): string | null {
+  const errors = validateAdventureInput({
+    title: field === 'title' ? value : 'x',
+    description: field === 'description' ? value : '',
+    nextStep: field === 'nextStep' ? value : '',
+    reference: field === 'reference' ? value : '',
+  })
+  return errors[field] ?? null
+}
+
 /** An error message for an objective title, or null when it is valid. */
 export function validateObjectiveTitle(title: string): string | null {
   return validLine(title, adventureLimits.objective, 1) ? null : messages.objective
