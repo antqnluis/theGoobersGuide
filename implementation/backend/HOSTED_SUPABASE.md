@@ -6,6 +6,7 @@ How The Goober's Guide connects to the hosted Supabase project, and how to keep 
 - **Project ref:** `fidtqamnxcefbdxafiem`
 - **API URL:** `https://fidtqamnxcefbdxafiem.supabase.co`
 - **Dashboard:** https://supabase.com/dashboard/project/fidtqamnxcefbdxafiem
+- **Live site (Vercel):** https://the-goobers-guide.vercel.app
 
 Local development is unchanged. `npm run supabase:start` and `frontend/.env.local` still point at the Docker stack.
 
@@ -21,7 +22,8 @@ This CLI version targets the *local* stack by default. Without `--remote`, `db p
 | Database schema | `supabase/migrations/` applied by `db:migrate` / `db:reset` | Same files, applied by `db push --remote` |
 | Edge Function `sign-in-with-username` | Served by the local stack | Deployed with `functions deploy` |
 | Auth URLs, email settings | `supabase/config.toml` | Set in the dashboard (config.toml is not applied automatically) |
-| Frontend settings | `frontend/.env.local` | `frontend/.env.hosted.local` (git-ignored) |
+| Frontend settings | `frontend/.env.local` | `frontend/.env.hosted.local` (git-ignored) when running on your machine; Vercel environment variables for the live site |
+| Frontend hosting | `npm run dev` | Vercel, auto-deployed from `main` |
 
 ## One-time setup (already done unless noted)
 
@@ -33,19 +35,39 @@ This CLI version targets the *local* stack by default. Without `--remote`, `db p
    npx supabase link --project-ref fidtqamnxcefbdxafiem
    ```
 3. Push all migrations. ✅ (see "Push schema changes" below)
-4. Deploy the sign-in function. ⬜
+4. Deploy the sign-in function. ✅
    ```bash
    npx supabase functions deploy sign-in-with-username
    ```
    `config.toml` already sets `verify_jwt = false` for this function, which sign-in needs because the user has no session yet.
 5. Set Auth URLs in the dashboard. ⬜
    Go to **Authentication → URL Configuration**.
-   - **Site URL:** where the hosted app will live. Use `http://localhost:5173` for now if you only test locally against hosted.
-   - **Redirect URLs:** add every origin you will use, for example `http://localhost:5173`.
+   - **Site URL:** `https://the-goobers-guide.vercel.app`
+   - **Redirect URLs:** `https://the-goobers-guide.vercel.app/**` and `http://localhost:5173/**` (for local testing). Add any new domain here too.
 6. Decide on email confirmation. ⬜
    It is **off** locally. On the hosted project, check **Authentication → Sign In / Providers → Email**. If you turn confirmation on, set up custom SMTP, because the built-in email sender allows only a few emails per hour.
 
-## Run the app against the hosted project
+## Deploy the frontend on Vercel
+
+Vercel builds and deploys automatically on every push to `main`.
+
+One-time project settings:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `implementation/frontend` (not `implementation`) |
+| Application Preset | Vite |
+| Build / Output | `npm run build` / `dist` (defaults) |
+| Env var `VITE_SUPABASE_URL` | `https://fidtqamnxcefbdxafiem.supabase.co` |
+| Env var `VITE_SUPABASE_PUBLISHABLE_KEY` | the `sb_publishable_...` key from Supabase → Project Settings → API Keys |
+
+Notes:
+- `frontend/vercel.json` rewrites every path to `index.html`. Without it, refreshing a page like `/campaigns` returns 404.
+- `VITE_` values are baked in at build time. After changing one in Vercel, **redeploy** for it to take effect.
+- Use only the publishable key. Never add the secret / `service_role` key to Vercel env vars.
+- A custom domain needs two follow-ups: add it to the Supabase Redirect URLs, and set it as the Site URL if it becomes the main address.
+
+## Run the app against the hosted project from your machine
 
 ```bash
 cd implementation/frontend
@@ -93,3 +115,6 @@ Re-run the `functions deploy` command from step 4 whenever `supabase/functions/s
 | Username sign-in fails, email sign-in works | The Edge Function is not deployed (step 4). |
 | Sign-up works but no confirmation email arrives | Email confirmation is on without custom SMTP (step 6). |
 | Auth redirect goes to the wrong site | Fix Site URL / Redirect URLs (step 5). |
+| Live site refresh gives 404 | `frontend/vercel.json` is missing or not pushed to `main`. |
+| Live site shows "Supabase environment variables are not configured" | The two `VITE_` env vars are missing in Vercel, or you did not redeploy after adding them. |
+| Vercel build fails with "package.json not found" | Root Directory is not `implementation/frontend`. |
