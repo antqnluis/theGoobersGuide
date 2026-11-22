@@ -15,9 +15,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Status |
 | --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M5 are done; M8 character imports are implemented; M6 is planned and approved; M7 is not started. |
-| [M03.6 — Adventure Collaboration](in-progress/M03.6-Adventure-Collaboration.md) | Approved 2026-11-16 (D1–D15 as written). Phases 0 (baseline), 1 (schema, RLS, RPCs, departure), 2 (types and data layer), 3 (participants and invitations UI), and 4 (sharing and the party view) done; Phase 5 not started. |
-| [M03.6 — Implementation Log](in-progress/M03.6-Implementation-Log.md) | Per-phase record of the M03.6 work. |
+| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M6 are done; M8 character imports are implemented; M7 is not started. |
 
 ## Completed
 
@@ -35,6 +33,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.4 — Implementation Log](completed/M03.4-Implementation-Log.md) | Per-phase record of the M03.4 work. |
 | [M03.5 — Adventures Core](completed/M03.5-Adventures-Core.md) | Phases 0–5 done. Map table, personal, side, and main adventures, objectives and updates, optimistic saves, creator-only archive. The full mocked browser suite and the camp-scene specs were not run; their new and updated cases are written. |
 | [M03.5 — Implementation Log](completed/M03.5-Implementation-Log.md) | Per-phase record of the M03.5 work. |
+| [M03.6 — Adventure Collaboration](completed/M03.6-Adventure-Collaboration.md) | Phases 0–5 done. Proposals with unanimous approval, invitations, leaving, share-with-party by consent, a read-only party view, and the campaign-departure rules (D9). The real-stack UI test passes; the mocked browser suite and camp-scene specs were not run. |
+| [M03.6 — Implementation Log](completed/M03.6-Implementation-Log.md) | Per-phase record of the M03.6 work. |
 | [M03.8 — Character Imports](completed/M03.8-Character-Imports.md) | Implemented (Phases 0–5): attack ids, `character_imports`, `import_character` and `apply_character_update`, the version-3 and update-2 formats, copyable prompts, import as new and import updates with review, Markdown export, and import history. |
 | [M03.8 — Implementation Log](completed/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
 
@@ -56,4 +56,4 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Covers |
 | --- | --- |
-| [Database schema](reference/DATABASE_SCHEMA.md) | Profiles, campaigns, membership, invitations, characters and party, notes, adventures, access rules, and retention |
+| [Database schema](reference/DATABASE_SCHEMA.md) | Profiles, campaigns, membership, invitations, characters and party, notes, adventures and their collaboration, access rules, and retention |

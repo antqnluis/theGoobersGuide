@@ -6,6 +6,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcError,
   rpcOk,
@@ -1693,6 +1694,121 @@ test('races: approvals, rejections, answers, consent, leaving, and membership', 
     expect(['left', 'none']).toContain(statusOf(gate, scene.chars.c))
     expect(statusOf(gate, scene.chars.c)).not.toBe('accepted')
     assertInvariants(scene.campaignId)
+  } finally {
+    await cleanup(scene.players, scene.ids)
+  }
+})
+
+// --- The invitation and the shared view, against the real stack ---------------------------------
+
+test('a player invites another, who accepts and keeps it shared, and a third reads it in the party group', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000)
+  const scene = await newScene()
+  const { a, b, c } = scene.players
+  // Light on resources: one context at a time, reduced motion, no screenshots or video.
+  const signIn = async (player: Player) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+    return { context, page }
+  }
+  const openBoard = async (page: Awaited<ReturnType<typeof signIn>>['page']) => {
+    await page.goto(`/app/campaigns/${scene.campaignId}`)
+    await page
+      .getByRole('list', { name: 'Camp places' })
+      .getByRole('button', { name: /^Adventures/ })
+      .click()
+    const dialog = page.getByRole('dialog', { name: 'Adventures' })
+    await expect(dialog).toBeVisible()
+    return dialog
+  }
+  const stored = (title: string) =>
+    localDatabaseQuery(
+      `select a.visibility || '|' || coalesce((
+         select string_agg(p.character_id || ':' || p.status || ':' || p.share_consent::text, ',' order by p.created_at)
+         from public.adventure_participants p where p.adventure_id = a.id), '')
+       from public.adventures a where a.campaign_id = '${scene.campaignId}' and a.title = '${title}';`,
+      {},
+    )
+
+  try {
+    // A starts a personal adventure, shares it (alone, so it is shared at once), and invites Bram.
+    const first = await signIn(a)
+    try {
+      const { page } = first
+      const dialog = await openBoard(page)
+      await dialog.getByRole('button', { name: 'New adventure' }).click()
+      await dialog.getByLabel('Title', { exact: true }).fill('The lantern job')
+      await dialog.getByRole('button', { name: 'Create adventure' }).click()
+      await expect(dialog.getByRole('heading', { level: 3, name: 'The lantern job' })).toBeVisible()
+
+      await dialog
+        .getByRole('region', { name: 'Sharing' })
+        .getByRole('button', { name: 'Share with party' })
+        .click()
+      await dialog.getByRole('button', { name: 'Yes, share' }).click()
+      await expect
+        .poll(() => stored('The lantern job'))
+        .toBe(`party|${scene.chars.a}:accepted:true`)
+
+      const people = dialog.getByRole('region', { name: 'Participants' })
+      await people.getByLabel('Invite a character').selectOption(scene.chars.b)
+      await people.getByRole('button', { name: 'Invite' }).click()
+      await dialog.getByRole('button', { name: 'Send invitation' }).click()
+      await expect(dialog.getByText('Invitation proposed.')).toBeVisible()
+      await expect
+        .poll(() => stored('The lantern job'))
+        .toBe(`party|${scene.chars.a}:accepted:true,${scene.chars.b}:invited:false`)
+    } finally {
+      await first.context.close()
+    }
+
+    // B sees the title and the inviter only, keeps it shared, and accepts.
+    const second = await signIn(b)
+    try {
+      const { page } = second
+      const dialog = await openBoard(page)
+      const waiting = dialog.getByRole('region', { name: 'Waiting for you' })
+      await expect(waiting).toContainText('The lantern job')
+      await expect(waiting).toContainText(a.username)
+      await waiting.getByLabel('Keep it shared with the party').check()
+      await dialog.getByRole('button', { name: 'Accept the invitation to The lantern job' }).click()
+      await expect(dialog.getByRole('heading', { level: 3, name: 'The lantern job' })).toBeVisible()
+      await expect(
+        dialog.getByRole('region', { name: 'Participants' }).getByRole('listitem'),
+      ).toHaveCount(2)
+      await expect
+        .poll(() => stored('The lantern job'))
+        .toBe(`party|${scene.chars.a}:accepted:true,${scene.chars.b}:accepted:true`)
+    } finally {
+      await second.context.close()
+    }
+
+    // C, a party member outside the adventure, reads it and can change nothing.
+    const third = await signIn(c)
+    try {
+      const { page } = third
+      const dialog = await openBoard(page)
+      const shared = dialog.getByRole('region', { name: 'Shared with the party' })
+      await expect(shared).toContainText('The lantern job')
+      await expect(shared).toContainText('Read-only')
+      await shared.getByRole('button', { name: 'The lantern job' }).click()
+      await expect(
+        dialog.getByText(/Shared with the party by .*Only the people in it/),
+      ).toBeVisible()
+      for (const name of ['Edit details', 'Archive adventure', 'Stop sharing', 'Leave adventure']) {
+        await expect(dialog.getByRole('button', { name })).toHaveCount(0)
+      }
+      await expect(dialog.getByRole('combobox')).toHaveCount(0)
+    } finally {
+      await third.context.close()
+    }
   } finally {
     await cleanup(scene.players, scene.ids)
   }

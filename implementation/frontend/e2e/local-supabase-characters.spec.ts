@@ -260,11 +260,11 @@ rollback;`,
     const result = localDatabaseQuery(
       `${fixture}
 ${insertCharacter(CAMPAIGN, MEMBER)};
-update public.characters set status_changed_at = now() - interval '1 day';
-update public.characters set name = 'Renamed';
-select 'same:' || (status_changed_at < now() - interval '1 hour') from public.characters;
-update public.characters set status = 'retired';
-select 'moved:' || (status_changed_at > now() - interval '1 minute') from public.characters;
+update public.characters set status_changed_at = now() - interval '1 day' where owner_id = ${MEMBER};
+update public.characters set name = 'Renamed' where owner_id = ${MEMBER};
+select 'same:' || (status_changed_at < now() - interval '1 hour') from public.characters where owner_id = ${MEMBER};
+update public.characters set status = 'retired', in_party = false where owner_id = ${MEMBER};
+select 'moved:' || (status_changed_at > now() - interval '1 minute') from public.characters where owner_id = ${MEMBER};
 rollback;`,
       {},
     )
