@@ -96,19 +96,31 @@ export function DiceDock() {
       )}
 
       {peeking && result && !failure && (
-        <button
+        <div
           className="dice-peek"
           onBlur={() => setHeld(false)}
-          onClick={openTray}
           onFocus={() => setHeld(true)}
           onPointerEnter={() => setHeld(true)}
           onPointerLeave={() => setHeld(false)}
-          type="button"
         >
-          <span className="dice-peek__title">{rollTitle(result)}</span>
-          <span className="dice-peek__total">{result.total}</span>
-          <NaturalChip roll={result} />
-        </button>
+          <button className="dice-peek__open" onClick={openTray} type="button">
+            <span className="dice-peek__title">{rollTitle(result)}</span>
+            <span className="dice-peek__total">{result.total}</span>
+            <NaturalChip roll={result} />
+          </button>
+          {dice.critical && (
+            <button
+              className="dice-peek__critical"
+              onClick={() => {
+                setSeenSeq(resultSeq)
+                void dice.rollCritical()
+              }}
+              type="button"
+            >
+              Roll critical damage
+            </button>
+          )}
+        </div>
       )}
 
       {open && <DiceTray onClose={closeTray} />}

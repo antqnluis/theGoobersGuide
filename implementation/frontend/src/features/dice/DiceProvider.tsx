@@ -9,13 +9,14 @@ import {
   type RollOutcome,
   type RollRequest,
 } from './diceContext'
-import { applyMode, formatSpec, parseDice, specError } from './diceNotation'
+import { applyMode, doubleDice, formatSpec, parseDice, specError } from './diceNotation'
 import { rollSpec } from './diceRandom'
 import { diceLogKey } from './diceQueries'
 import {
   announcement as announce,
   localRollRecord,
   mergeRollIntoLog,
+  naturalOutcome,
   type DiceRollRecord,
   type DiceSource,
   type DiceVisibility,
@@ -33,6 +34,17 @@ type PreparedRoll = {
   visibility: DiceVisibility
   source: DiceSource
   label: string | null
+  characterId: string | null
+  /** The damage an attack rolls on a natural 20, to be doubled (D9). */
+  critical?: { label: string; spec: RollSpec }
+}
+
+/** The critical-damage offer for the roll with this id, until another roll replaces it. */
+type CriticalOffer = {
+  rollId: string
+  label: string
+  spec: RollSpec
+  visibility: DiceVisibility
   characterId: string | null
 }
 
@@ -53,6 +65,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const [announcement, setAnnouncement] = useState('')
   const [resultSeq, setResultSeq] = useState(0)
   const [canRepeat, setCanRepeat] = useState(false)
+  const [offer, setOffer] = useState<CriticalOffer | null>(null)
   const [host, setHost] = useState<HTMLElement | null>(null)
 
   const scopeRef = useRef<DiceScope | null>(null)
@@ -77,6 +90,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       // A new table (or none): the last roll, its retry, and the unseen count belong to the old one.
       prepared.current = null
       setCanRepeat(false)
+      setOffer(null)
       setResult(null)
       setFailure(null)
       setUnseen(0)
@@ -123,6 +137,11 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     setResult(record)
     setResultSeq((seq) => seq + 1)
     setAnnouncement(announce('You', record))
+    setOffer(
+      roll.critical
+        ? { rollId: record.id, ...roll.critical, visibility: 'self', characterId: null }
+        : null,
+    )
     return record
   }, [])
 
@@ -162,6 +181,16 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         setResult(record)
         setResultSeq((seq) => seq + 1)
         setAnnouncement(announce('You', record))
+        setOffer(
+          roll.critical
+            ? {
+                rollId: record.id,
+                ...roll.critical,
+                visibility: roll.visibility,
+                characterId: roll.characterId,
+              }
+            : null,
+        )
         return { ok: true, roll: record }
       } finally {
         busy.current = false
@@ -190,10 +219,32 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         source: request.source ?? 'tray',
         label: request.label ? request.label.slice(0, labelLimit) : null,
         characterId: request.characterId ?? null,
+        critical: request.critical,
       })
     },
     [execute],
   )
+
+  // Offered only while the latest roll is the attack that carries it and its kept d20 is a 20.
+  const critical = useMemo(
+    () =>
+      offer && result && offer.rollId === result.id && naturalOutcome(result) === 'natural-20'
+        ? { label: offer.label }
+        : null,
+    [offer, result],
+  )
+  const rollCritical = useCallback((): Promise<RollOutcome> => {
+    if (!offer) return Promise.resolve(fail('No critical damage to roll.'))
+    const doubled = doubleDice(offer.spec)
+    if (!doubled.ok) return Promise.resolve(fail(doubled.reason))
+    return execute({
+      spec: doubled.spec,
+      visibility: offer.visibility,
+      source: 'damage',
+      label: `${offer.label} (critical)`.slice(0, labelLimit),
+      characterId: offer.characterId,
+    })
+  }, [execute, offer])
 
   const repeat = useCallback(
     () =>
@@ -246,6 +297,8 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       pending,
       result,
       resultSeq,
+      critical,
+      rollCritical,
       failure,
       retry,
       rollLocally,
@@ -272,10 +325,12 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       mode,
       open,
       pending,
+      critical,
       repeat,
       result,
       resultSeq,
       retry,
+      rollCritical,
       roll,
       rollLocally,
       rollerName,

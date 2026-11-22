@@ -23,6 +23,11 @@ export type RollRequest = {
   characterId?: string | null
   mode?: RollMode
   visibility?: DiceVisibility
+  /**
+   * For an attack: the damage to roll, doubled, if this roll's kept d20 is a natural 20 (D9).
+   * The result then offers "Roll critical damage".
+   */
+  critical?: { label: string; spec: RollSpec }
 }
 
 export type RollOutcome =
@@ -68,6 +73,9 @@ export type DiceContextValue = {
   result: DiceRollRecord | null
   /** Counts rolls made by this player, so the dock can tell a new result from an old one. */
   resultSeq: number
+  /** Set while the latest roll is a natural 20 on an attack that has damage to double. */
+  critical: { label: string } | null
+  rollCritical: () => Promise<RollOutcome>
   failure: DiceFailureState | null
   retry: () => void
   rollLocally: () => void
@@ -119,6 +127,8 @@ export const unavailableDice: DiceContextValue = {
   pending: null,
   result: null,
   resultSeq: 0,
+  critical: null,
+  rollCritical: unavailable,
   failure: null,
   retry: () => {},
   rollLocally: () => {},

@@ -92,6 +92,7 @@ export function DiceTray({ onClose }: { onClose: () => void }) {
         <div className="dice-tray__body">
           <DiceResult
             characterName={result ? dice.characterName(result) : null}
+            onCritical={dice.critical ? () => void dice.rollCritical() : undefined}
             pendingTitle={dice.pending?.title ?? null}
             roll={result}
             rollerName={result ? dice.rollerName(result) : ''}

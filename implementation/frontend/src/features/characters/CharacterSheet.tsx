@@ -30,6 +30,15 @@ import { CharacterExport } from './CharacterExport'
 import { CharacterImportHistory } from './CharacterImportHistory'
 import { CharacterImportUpdates } from './CharacterImportUpdates'
 import { CharacterInventory, type InventoryActions } from './CharacterInventory'
+import { RollButton } from '../dice/RollButton'
+import {
+  abilityCheckRoll,
+  attackDamageRoll,
+  attackHitRoll,
+  initiativeRoll,
+  savingThrowRoll,
+  skillRoll,
+} from './characterRolls'
 import { carryingCapacity } from './inventoryRules'
 import { PixelIcon, type PixelIconName } from './PixelIcon'
 import { SpellList } from './SpellList'
@@ -184,6 +193,9 @@ function SheetContent({
   userId: string
 }) {
   const level = character.level
+  // Roll buttons are for your own sheet, in its display view (D6): others' sheets only read, and
+  // the edit view is for changing numbers, not rolling them.
+  const canRoll = readOnly && character.owner_id === userId
   const vitalsFormId = useId()
   const [vitalsDraft, setVitalsDraft] = useState<Draft>(() => toDraft(sheet))
   const [vitalsErrors, setVitalsErrors] = useState<string[]>([])
@@ -516,7 +528,18 @@ function SheetContent({
                   </div>
                   <div className="sheet-readout__key">
                     <dt>Initiative</dt>
-                    <dd>{formatModifier(initiativeBonus(body))}</dd>
+                    <dd>
+                      {canRoll ? (
+                        <RollButton
+                          ariaLabel={`Roll initiative, ${formatModifier(initiativeBonus(body))}`}
+                          roll={initiativeRoll(body, character.id)}
+                        >
+                          {formatModifier(initiativeBonus(body))}
+                        </RollButton>
+                      ) : (
+                        formatModifier(initiativeBonus(body))
+                      )}
+                    </dd>
                   </div>
                   <div className="sheet-readout__key">
                     <dt>Speed</dt>
@@ -588,6 +611,7 @@ function SheetContent({
                   <AbilityCard
                     body={body}
                     busy={busy}
+                    characterId={canRoll ? character.id : null}
                     key={key}
                     level={level}
                     name={key}
@@ -635,7 +659,16 @@ function SheetContent({
                       </span>
                       {readOnly ? (
                         <span className="sheet-skills__value">
-                          <strong>{bonus}</strong>
+                          {canRoll ? (
+                            <RollButton
+                              ariaLabel={`Roll ${label} check, ${bonus}`}
+                              roll={skillRoll(body, level, key, character.id)}
+                            >
+                              {bonus}
+                            </RollButton>
+                          ) : (
+                            <strong>{bonus}</strong>
+                          )}
                           {proficiency && <small>{proficiency}</small>}
                         </span>
                       ) : (
@@ -746,13 +779,31 @@ function SheetContent({
                         {attack.bonus && (
                           <span className="sheet-attacks__bonus">
                             <small>To hit</small>
-                            {attack.bonus}
+                            {canRoll && attackHitRoll(attack, character.id) ? (
+                              <RollButton
+                                ariaLabel={`Roll ${attack.name || 'attack'} to hit, ${attack.bonus}`}
+                                roll={attackHitRoll(attack, character.id)!}
+                              >
+                                {attack.bonus}
+                              </RollButton>
+                            ) : (
+                              attack.bonus
+                            )}
                           </span>
                         )}
                         {attack.damage && (
                           <span className="sheet-attacks__damage">
                             <small>Damage</small>
-                            {attack.damage}
+                            {canRoll && attackDamageRoll(attack, character.id) ? (
+                              <RollButton
+                                ariaLabel={`Roll ${attack.name || 'attack'} damage, ${attack.damage}`}
+                                roll={attackDamageRoll(attack, character.id)!}
+                              >
+                                {attack.damage}
+                              </RollButton>
+                            ) : (
+                              attack.damage
+                            )}
                           </span>
                         )}
                         {attack.notes && (
@@ -1059,6 +1110,7 @@ function setSkill(body: CharacterSheetBody, key: SkillKey, value: string): Chara
 function AbilityCard({
   body,
   busy,
+  characterId,
   level,
   name,
   onSave,
@@ -1067,6 +1119,8 @@ function AbilityCard({
 }: {
   body: CharacterSheetBody
   busy: boolean
+  /** Set on your own sheet in display view: the modifier and the save then roll for this character. */
+  characterId: string | null
   level: number
   name: AbilityKey
   onSave: (proficient: boolean) => void
@@ -1081,7 +1135,16 @@ function AbilityCard({
       <h4>{label}</h4>
       <p className="ability__modifier">
         <span className="visually-hidden">Modifier </span>
-        <strong>{formatModifier(abilityModifier(score))}</strong>
+        {characterId ? (
+          <RollButton
+            ariaLabel={`Roll ${label} check, ${formatModifier(abilityModifier(score))}`}
+            roll={abilityCheckRoll(body, name, characterId)}
+          >
+            {formatModifier(abilityModifier(score))}
+          </RollButton>
+        ) : (
+          <strong>{formatModifier(abilityModifier(score))}</strong>
+        )}
       </p>
       {readOnly ? (
         <p className="ability__score">{score}</p>
@@ -1100,7 +1163,17 @@ function AbilityCard({
       )}
       <div className="ability__save">
         <p>
-          Save <strong>{formatModifier(savingThrowBonus(body, level, name))}</strong>
+          Save{' '}
+          {characterId ? (
+            <RollButton
+              ariaLabel={`Roll ${label} save, ${formatModifier(savingThrowBonus(body, level, name))}`}
+              roll={savingThrowRoll(body, level, name, characterId)}
+            >
+              {formatModifier(savingThrowBonus(body, level, name))}
+            </RollButton>
+          ) : (
+            <strong>{formatModifier(savingThrowBonus(body, level, name))}</strong>
+          )}
           {readOnly && proficient ? ' · proficient' : ''}
         </p>
         {!readOnly && (

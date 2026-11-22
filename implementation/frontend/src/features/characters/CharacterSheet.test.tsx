@@ -298,8 +298,12 @@ describe('CharacterSheet (read-only)', () => {
     renderSheet({ readOnly: true })
     expect(await screen.findByRole('heading', { name: 'Vitals' })).toBeInTheDocument()
     expect(document.querySelector('input, textarea, select')).toBeNull()
-    // The only controls on a read-only sheet switch views and fold sections away.
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
+    // The only controls on a read-only sheet switch views and fold sections away, besides the
+    // roll buttons on your own sheet.
+    const controls = screen
+      .getAllByRole('button')
+      .filter((button) => !button.classList.contains('roll-button'))
+    expect(controls.map((button) => button.textContent)).toEqual([
       'Sheet',
       'Export and history',
       'Collapse features and notes',

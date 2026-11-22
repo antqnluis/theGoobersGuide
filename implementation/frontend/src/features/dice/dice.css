@@ -111,7 +111,8 @@
 }
 
 .dice-dock__button:focus-visible,
-.dice-peek:focus-visible,
+.dice-peek__open:focus-visible,
+.dice-peek__critical:focus-visible,
 .dice-tray__close:focus-visible,
 .dice-tray__bar :focus-visible {
   outline-color: var(--dice-focus-dark);
@@ -134,8 +135,19 @@
 
 .dice-peek {
   display: flex;
-  min-height: var(--dice-touch);
   max-width: 100%;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 8px;
+  animation: dice-rise 180ms ease-out;
+}
+
+.dice-peek__open,
+.dice-peek__critical {
+  display: flex;
+  min-height: var(--dice-touch);
+  min-width: 0;
   align-items: center;
   gap: 12px;
   border: 2px solid var(--dice-brass);
@@ -147,7 +159,17 @@
   font: 600 0.92rem / 1.35 var(--font-body);
   text-align: left;
   cursor: pointer;
-  animation: dice-rise 180ms ease-out;
+}
+
+.dice-peek__critical {
+  justify-content: center;
+  border-color: var(--dice-lantern);
+  font-weight: 700;
+}
+
+.dice-peek__open:hover,
+.dice-peek__critical:hover {
+  background: var(--dice-leather-light);
 }
 
 .dice-peek__title {
@@ -836,5 +858,92 @@
   .dice-face,
   .dice-mode {
     border: 2px solid CanvasText;
+  }
+}
+
+/* --- Roll sources on the sheet: a number that rolls ------------------------------------------ */
+/* These sit on parchment inside the journal, so they use the journal's tokens. */
+
+.roll-button {
+  display: inline-flex;
+  min-width: var(--journal-touch, 44px);
+  min-height: var(--journal-touch, 44px);
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px solid var(--journal-line);
+  border-radius: var(--journal-radius, 3px);
+  padding: 2px 10px;
+  color: var(--journal-ink);
+  background: var(--journal-page-shade);
+  font: 700 1rem / 1.2 var(--journal-font-ui, var(--font-body));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.roll-button:hover {
+  border-color: var(--journal-oxblood-deep);
+  color: var(--journal-cream, #fff4e0);
+  background: var(--journal-oxblood);
+}
+
+.roll-button:active {
+  background: var(--journal-oxblood-deep);
+}
+
+.roll-button[aria-busy='true'] {
+  cursor: progress;
+}
+
+.roll-button:focus-visible,
+.roll-menu__item:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 3px;
+}
+
+.roll-menu {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  width: 14rem;
+  gap: 2px;
+  border: 2px solid var(--journal-brass);
+  border-radius: var(--journal-radius, 3px);
+  padding: 4px;
+  background: var(--journal-leather-deep);
+  box-shadow: 0 6px 18px rgb(11 9 18 / 0.5);
+  animation: dice-rise 150ms ease-out;
+}
+
+.roll-menu__item {
+  min-height: var(--journal-touch, 44px);
+  border-radius: var(--journal-radius, 3px);
+  padding: 0 12px;
+  color: #fff0d7;
+  background: transparent;
+  font: 700 0.9rem / 1.25 var(--journal-font-ui, var(--font-body));
+  text-align: left;
+  cursor: pointer;
+}
+
+.roll-menu__item:hover {
+  background: var(--journal-leather-light);
+}
+
+.roll-menu .roll-menu__item:focus-visible {
+  outline-color: var(--journal-focus-dark);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roll-button,
+  .roll-menu {
+    animation: none;
+    transition: none;
   }
 }

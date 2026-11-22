@@ -115,6 +115,36 @@ function SheetRoll() {
   )
 }
 
+/** A stand-in for an attack's to-hit button: it carries the damage a critical doubles. */
+function AttackRoll() {
+  const dice = useDice()
+  return (
+    <button
+      onClick={() =>
+        void dice.roll({
+          text: '1d20 + 6',
+          label: 'Greataxe attack',
+          source: 'attack',
+          characterId: 'ch-1',
+          visibility: 'self',
+          critical: {
+            label: 'Greataxe damage',
+            spec: {
+              terms: [
+                { kind: 'dice', sign: 1, count: 1, sides: 12 },
+                { kind: 'constant', sign: 1, value: 4 },
+              ],
+            },
+          },
+        })
+      }
+      type="button"
+    >
+      Attack
+    </button>
+  )
+}
+
 function renderDock(value: DiceScope | null = scope) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -122,6 +152,7 @@ function renderDock(value: DiceScope | null = scope) {
       <DiceProvider>
         <Scope value={value} />
         <SheetRoll />
+        <AttackRoll />
         <DiceDock />
       </DiceProvider>
     </QueryClientProvider>,
@@ -506,5 +537,103 @@ describe('the dock', () => {
       expect(within(journal).getByRole('button', { name: /^Dice/ })).toBeInTheDocument(),
     )
     expect(journal.querySelector('.dice-dock')).toHaveAttribute('data-host', 'journal')
+  })
+})
+
+const natural20 = () =>
+  stored({
+    label: 'Greataxe attack',
+    source: 'attack',
+    visibility: 'self',
+    character_id: 'ch-1',
+    terms: [
+      { kind: 'dice', sign: 1, count: 1, sides: 20 },
+      { kind: 'constant', sign: 1, value: 6 },
+    ],
+    dice: [[{ value: 20, kept: true }], []],
+    total: 26,
+  })
+
+describe('critical damage', () => {
+  it('offers doubled damage after a natural 20 and rolls it as the same character', async () => {
+    vi.mocked(rollInCampaign).mockResolvedValueOnce(natural20())
+    answerRolls()
+    renderDock()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Attack' }))
+    const { tray } = await openTray(user)
+    await user.click(within(tray).getByRole('button', { name: 'Roll critical damage' }))
+
+    await waitFor(() => expect(rollInCampaign).toHaveBeenCalledTimes(2))
+    const input = vi.mocked(rollInCampaign).mock.calls[1][0]
+    expect(input.spec.terms).toEqual([
+      { kind: 'dice', sign: 1, count: 2, sides: 12 },
+      { kind: 'constant', sign: 1, value: 4 },
+    ])
+    expect(input).toMatchObject({
+      label: 'Greataxe damage (critical)',
+      source: 'damage',
+      visibility: 'self',
+      characterId: 'ch-1',
+    })
+    // The offer is spent once the damage is rolled.
+    await waitFor(() =>
+      expect(within(tray).queryByRole('button', { name: 'Roll critical damage' })).toBeNull(),
+    )
+  })
+
+  it('offers it from the peek while the tray is shut', async () => {
+    vi.mocked(rollInCampaign).mockResolvedValueOnce(natural20())
+    answerRolls()
+    renderDock()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Attack' }))
+    await user.click(await screen.findByRole('button', { name: 'Roll critical damage' }))
+    await waitFor(() => expect(rollInCampaign).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(rollInCampaign).mock.calls[1][0].label).toBe('Greataxe damage (critical)')
+  })
+
+  it('is not offered for an ordinary hit or a natural 1', async () => {
+    vi.mocked(rollInCampaign).mockResolvedValueOnce({
+      ...natural20(),
+      dice: [[{ value: 13, kept: true }], []],
+      total: 19,
+    })
+    renderDock()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Attack' }))
+    await screen.findByRole('button', { name: /Greataxe attack/ })
+    expect(screen.queryByRole('button', { name: 'Roll critical damage' })).toBeNull()
+  })
+
+  it('goes away when another roll is made', async () => {
+    vi.mocked(rollInCampaign).mockResolvedValueOnce(natural20())
+    answerRolls()
+    renderDock()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Attack' }))
+    await screen.findByRole('button', { name: 'Roll critical damage' })
+    await user.click(screen.getByRole('button', { name: 'Roll Stealth' }))
+    await waitFor(() => expect(rollInCampaign).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Roll critical damage' })).toBeNull(),
+    )
+  })
+
+  it('works on this device outside a campaign, and stays private', async () => {
+    renderDock(null)
+    const user = userEvent.setup()
+    // A natural 20 cannot be forced locally, so check the offer is wired by rolling until one comes.
+    const roll = vi.spyOn(crypto, 'getRandomValues').mockImplementation((buffer) => {
+      ;(buffer as Uint32Array)[0] = 19 // 19 % 20 + 1 = 20
+      return buffer
+    })
+    await user.click(screen.getByRole('button', { name: 'Attack' }))
+    const critical = await screen.findByRole('button', { name: 'Roll critical damage' })
+    roll.mockRestore()
+    await user.click(critical)
+    const tray = (await openTray(user)).tray
+    expect(within(tray).getAllByText('Greataxe damage (critical)').length).toBeGreaterThan(0)
+    expect(rollInCampaign).not.toHaveBeenCalled()
   })
 })
