@@ -123,6 +123,7 @@ export function adventurerImage(
 export const outlineColour = '#ffe7ac'
 
 const outlines = new WeakMap<object, CampImage>()
+const silhouettes = new WeakMap<object, CampImage>()
 
 /**
  * A one-pixel outline around an image's opaque pixels, on a canvas one pixel
@@ -157,5 +158,23 @@ export function outlineImage(image: CampImage): CampImage {
   }
   const result = { source: canvas, width, height }
   outlines.set(image, result)
+  return result
+}
+
+/** The image as one flat colour, keeping its shape: what a shadow is cut from. */
+export function silhouetteImage(image: CampImage, colour: string): CampImage {
+  const cached = silhouettes.get(image)
+  if (cached) return cached
+  const canvas = document.createElement('canvas')
+  canvas.width = image.width
+  canvas.height = image.height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas is not available')
+  context.drawImage(image.source, 0, 0)
+  context.globalCompositeOperation = 'source-in'
+  context.fillStyle = colour
+  context.fillRect(0, 0, image.width, image.height)
+  const result = { source: canvas, width: image.width, height: image.height }
+  silhouettes.set(image, result)
   return result
 }

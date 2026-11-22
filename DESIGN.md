@@ -337,6 +337,10 @@ Opening a place frames it on the side of the screen the journal does not cover, 
 
 A gear in the app header opens "Camp background": the campaign's world or one of six landscapes (grass and pines, dunes, ash and basalt, snow, scree, cloud reef). The choice is saved on this device only, per campaign. A player's own adventurer look is set from the Party journal's appearance drawer.
 
+### Firelight
+
+The campfire is the scene's light. Two overlay canvases sit above the art: a **light map** multiplied over it (the night's ambient colour, cool and dim, with the fire's pool of warm light cut into it) and a **glow** screened over it (a warm bloom in the same pool). The pool is drawn in about eight hard bands with an ordered dither, so it reads as pixel-art lighting, and it flickers across six pre-drawn levels. Figures and props (not the bedrolls or the pit) cast flattened shadows away from the flames, strongest in the brightest light and gone at its edge. On arrival the ambient eases from dusk to night over about 4.5 seconds; under reduced motion it is night from the first frame and the light holds one level. The outline and the flame sit above both canvases and keep their own colours. Tokens live in `campLight.ts`; do not tint the camp's art or chrome to fake it.
+
 ### Camp colours
 
 Camp chrome (header, Places, name plates, the settings popover) is dark and warm, defined as `--camp-*` tokens in `camp.css`:

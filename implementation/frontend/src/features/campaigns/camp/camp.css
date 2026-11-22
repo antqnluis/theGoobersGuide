@@ -240,6 +240,16 @@
   pointer-events: none;
 }
 
+/* The firelight map: the night's ambient colour with the fire's pool of light cut into it,
+   multiplied over the art (and under the outline and the flame, which stay as drawn). */
+.camp-canvas--light {
+  mix-blend-mode: multiply;
+}
+
+.camp-canvas--glow {
+  mix-blend-mode: screen;
+}
+
 /* Name plates for the seated party. Decoration only: the Party panel lists everyone. */
 .camp-names {
   position: absolute;

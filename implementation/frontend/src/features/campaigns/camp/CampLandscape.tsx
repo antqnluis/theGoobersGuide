@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { adventurerImage, loadCampImages, outlineImage, type CampImages } from './campAssets'
+import {
+  adventurerImage,
+  loadCampImages,
+  outlineImage,
+  silhouetteImage,
+  type CampImages,
+} from './campAssets'
 import { planScene, type DrawOp } from './campDrawPlan'
 import {
   embers,
@@ -13,11 +19,40 @@ import {
   type FxArea,
   type FxRect,
 } from './campFx'
-import type { CampLocationId } from './campLayout'
+import { landscapeIds } from './campArt'
+import {
+  ambientColour,
+  buildPool,
+  flickerLevel,
+  flickerLevels,
+  glowColour,
+  glowStrength,
+  lightCentre,
+  shadowColour,
+  shadowFor,
+} from './campLight'
+import { firePit, type CampLocationId } from './campLayout'
 import { baseSpriteId, frameSpriteId, outlineTargets, type PartyFigure } from './campParty'
 import { campRamps, variantKey, type CampWorld } from './campPalette'
 import { layerOffset, layerOrigin, parallax, projectToDevice, type View } from './campProjection'
 import { breathMs, type CampRig, type RigFrame } from './campRig'
+
+/** The pools of light are the same for every camp, so they are built once, on first use. */
+const poolCache = new Map<'light' | 'glow', HTMLCanvasElement[]>()
+function poolsFor(kind: 'light' | 'glow') {
+  const cached = poolCache.get(kind)
+  if (cached) return cached
+  const pools = Array.from({ length: flickerLevels }, (_, level) => {
+    const { width, height, data } = buildPool(level, kind === 'glow' ? glowColour : undefined)
+    const pool = document.createElement('canvas')
+    pool.width = width
+    pool.height = height
+    pool.getContext('2d')?.putImageData(new ImageData(data, width, height), 0, 0)
+    return pool
+  })
+  poolCache.set(kind, pools)
+  return pools
+}
 
 function drawOp(context: CanvasRenderingContext2D, source: CanvasImageSource, op: DrawOp) {
   context.save()
@@ -72,6 +107,8 @@ export default function CampLandscape({
   onFail: () => void
 }) {
   const artRef = useRef<HTMLCanvasElement>(null)
+  const lightRef = useRef<HTMLCanvasElement>(null)
+  const glowRef = useRef<HTMLCanvasElement>(null)
   const outlineRef = useRef<HTMLCanvasElement>(null)
   const fxRef = useRef<HTMLCanvasElement>(null)
   // The art is paired with the variant it was loaded for, so a change of world
@@ -120,21 +157,25 @@ export default function CampLandscape({
 
   useEffect(() => {
     const art = artRef.current
+    const light = lightRef.current
+    const glow = glowRef.current
     const outline = outlineRef.current
     const fx = fxRef.current
-    if (!art || !outline || !fx || !all) return
-    for (const canvas of [art, outline, fx]) {
+    if (!art || !light || !glow || !outline || !fx || !all) return
+    for (const canvas of [art, light, glow, outline, fx]) {
       if (canvas.width !== view.deviceWidth) canvas.width = view.deviceWidth
       if (canvas.height !== view.deviceHeight) canvas.height = view.deviceHeight
     }
     const artContext = art.getContext('2d', { alpha: false })
     const outlineContext = outline.getContext('2d')
     const fxContext = fx.getContext('2d')
-    if (!artContext || !outlineContext || !fxContext) {
+    const lightContext = light.getContext('2d')
+    const glowContext = glow.getContext('2d')
+    if (!artContext || !outlineContext || !fxContext || !lightContext || !glowContext) {
       onFail()
       return
     }
-    for (const context of [artContext, outlineContext, fxContext]) {
+    for (const context of [artContext, outlineContext, fxContext, lightContext, glowContext]) {
       context.imageSmoothingEnabled = false
     }
     const sizes = Object.fromEntries(
@@ -225,8 +266,80 @@ export default function CampLandscape({
       fillRects(fxContext, embers(frame.tick, frame.flare), ground)
     }
 
+    // The firelight: the pool of light is drawn once per flicker level, then laid over the
+    // night's ambient colour each frame, with shadows cast from the figures and props.
+    const pools = poolsFor('light')
+    const glows = poolsFor('glow')
+    const lantern = { ...firePit, y: firePit.y - 2 }
+    const layerIds = new Set(['sky', 'foreground', ...Object.values(landscapeIds(world.kind))])
+    const settled = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    let arrivedAt: number | null = null
+    const casts = (id: string) => {
+      const base = baseSpriteId(id)
+      return !layerIds.has(id) && base !== firePit.id && !base.startsWith('bedroll')
+    }
+
+    const drawLight = (frame: RigFrame) => {
+      arrivedAt ??= frame.time
+      const scene: View = { ...view, cameraX: frame.cameraX, cameraY: frame.cameraY }
+      lightContext.globalCompositeOperation = 'source-over'
+      lightContext.globalAlpha = 1
+      lightContext.fillStyle = ambientColour(frame.time - arrivedAt, settled)
+      lightContext.fillRect(0, 0, light.width, light.height)
+
+      const level = settled ? flickerLevels - 1 : flickerLevel(frame.tick)
+      const swell = 1 + frame.flare * 0.18
+      const pool = pools[level]
+      const centre = projectToDevice(lightCentre, scene)
+      const w = pool.width * scale * swell
+      const h = pool.height * scale * swell
+      lightContext.drawImage(pool, centre.x - w / 2, centre.y - h / 2, w, h)
+      glowContext.clearRect(0, 0, glow.width, glow.height)
+      glowContext.globalAlpha =
+        glowStrength * (0.8 + 0.2 * (level / (flickerLevels - 1))) + frame.flare * 0.2
+      glowContext.drawImage(glows[level], centre.x - w / 2, centre.y - h / 2, w, h)
+      glowContext.globalAlpha = 1
+
+      // Shadows fall away from the flames, flattened by the ground, only where the light reaches.
+      const fire = projectToDevice(lantern, scene)
+      for (const op of drawn?.ops ?? []) {
+        if (!casts(op.id)) continue
+        const image = all[op.id]
+        if (!image) continue
+        const foot = { x: op.dx + op.dw / 2, y: op.dy + op.dh }
+        const shadow = shadowFor(foot, fire, scale, 0.93 + 0.1 * (level / (flickerLevels - 1)), 1)
+        if (!shadow) continue
+        const flat = silhouetteImage(image, shadowColour)
+        lightContext.save()
+        lightContext.globalAlpha = shadow.alpha
+        // A sprite's height above its foot slides along the shadow's direction, so the
+        // silhouette is sheared and laid along the ground (turned over when it falls toward us).
+        lightContext.setTransform(1, 0, -shadow.shearX, -shadow.shearY, foot.x, foot.y)
+        if (op.flipX) lightContext.scale(-1, 1)
+        lightContext.drawImage(flat.source, -op.dw / 2, -op.dh, op.dw, op.dh)
+        lightContext.restore()
+        // Where it stands, a flat contact shadow in whole art pixels, so it joins the cast shadow.
+        lightContext.save()
+        lightContext.globalAlpha = shadow.alpha * 0.85
+        lightContext.fillStyle = shadowColour
+        const rx = Math.max(2, Math.round(op.dw / scale / 2.4))
+        const ry = Math.max(1, Math.round(rx * 0.32))
+        for (let row = -ry; row <= ry; row += 1) {
+          const half = Math.round(rx * Math.sqrt(1 - (row / (ry + 0.5)) ** 2))
+          lightContext.fillRect(
+            Math.round(foot.x - half * scale),
+            Math.round(foot.y + row * scale),
+            half * 2 * scale,
+            scale,
+          )
+        }
+        lightContext.restore()
+      }
+    }
+
     const render = (frame: RigFrame, force = false) => {
       drawArt(frame, force || frame.moved)
+      drawLight(frame)
       drawFx(frame)
     }
 
@@ -249,6 +362,20 @@ export default function CampLandscape({
         className="camp-canvas"
         data-camp-canvas
         ref={artRef}
+        style={style}
+      />
+      <canvas
+        aria-hidden="true"
+        className="camp-canvas camp-canvas--overlay camp-canvas--light"
+        data-camp-light
+        ref={lightRef}
+        style={style}
+      />
+      <canvas
+        aria-hidden="true"
+        className="camp-canvas camp-canvas--overlay camp-canvas--glow"
+        data-camp-glow
+        ref={glowRef}
         style={style}
       />
       <canvas
