@@ -11,6 +11,7 @@ import {
 } from './inventoryRules'
 import { ItemForm } from './ItemForm'
 import type { useCharacterActions } from './useCharacterActions'
+import { DiceText } from '../dice/TextWithDice'
 
 export type InventoryActions = Pick<
   ReturnType<typeof useCharacterActions>,
@@ -261,7 +262,9 @@ function InventoryRow({
       {item.description && (
         <details className="inventory-item__details">
           <summary>Description</summary>
-          <p className="sheet-text">{item.description}</p>
+          <p className="sheet-text">
+            <DiceText context={item.name} text={item.description} />
+          </p>
         </details>
       )}
 

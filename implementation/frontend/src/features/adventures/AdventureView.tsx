@@ -22,6 +22,7 @@ import {
 } from './adventureRules'
 import { adventureStatuses, type AdventureDetail, type AdventureStatus } from './adventureTypes'
 import type { AdventureAction, AdventureResult } from './useAdventureActions'
+import { DiceText } from '../dice/TextWithDice'
 
 type Roster = readonly Pick<CampaignRosterMember, 'profile_id' | 'username' | 'display_name'>[]
 
@@ -209,7 +210,11 @@ export function AdventureView({
             <div>
               <dt>Next step</dt>
               <dd className={adventure.next_step ? undefined : 'adventure-facts__empty'}>
-                {adventure.next_step || 'None yet.'}
+                {adventure.next_step ? (
+                  <DiceText context={adventure.title} text={adventure.next_step} />
+                ) : (
+                  'None yet.'
+                )}
               </dd>
             </div>
             {adventure.reference && (
@@ -229,7 +234,9 @@ export function AdventureView({
           </dl>
 
           {adventure.description ? (
-            <div className="adventure-description">{adventure.description}</div>
+            <div className="adventure-description">
+              <DiceText context={adventure.title} text={adventure.description} />
+            </div>
           ) : (
             <p className="adventure-description adventure-description--empty">
               This adventure has no description yet.
@@ -251,6 +258,7 @@ export function AdventureView({
           />
 
           <AdventureUpdates
+            context={adventure.title}
             editable={editable}
             onPost={onPostUpdate}
             onRemove={onRemoveUpdate}

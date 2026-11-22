@@ -342,3 +342,16 @@ describe('an adventure shared with the party', () => {
     expect(screen.queryByText(/Only the people in it can make changes/)).not.toBeInTheDocument()
   })
 })
+
+describe('dice in an adventure', () => {
+  it('turns dice in the description and the next step into chips', () => {
+    setup(
+      adventure({
+        description: 'The ogre hits for 2d8 + 4.',
+        next_step: 'Roll d20 to sneak past.',
+      }),
+    )
+    expect(screen.getByRole('button', { name: 'Roll 2d8 + 4 for Find the heir' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Roll d20 for Find the heir' })).toBeVisible()
+  })
+})

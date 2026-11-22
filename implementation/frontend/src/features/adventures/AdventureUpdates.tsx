@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import { PixelIcon } from '../characters/PixelIcon'
+import { DiceText } from '../dice/TextWithDice'
 import { updateAuthorLabel } from './adventureRules'
 import type { AdventureUpdate } from './adventureTypes'
 import {
@@ -17,6 +18,7 @@ import type { AdventureAction, AdventureResult } from './useAdventureActions'
  * deletes their own while the adventure is editable. Nobody edits one.
  */
 export function AdventureUpdates({
+  context,
   editable,
   onPost,
   onRemove,
@@ -26,6 +28,8 @@ export function AdventureUpdates({
   updates,
   userId,
 }: {
+  /** What the updates belong to (the adventure's title), for the dice log. */
+  context?: string
   editable: boolean
   onPost: (body: string) => Promise<AdventureResult<unknown>>
   onRemove: (updateId: string) => Promise<AdventureResult<unknown>>
@@ -120,7 +124,9 @@ export function AdventureUpdates({
                 <span>{updateAuthorLabel(update.author_id, userId, roster)}</span>
                 <span>{relativeTime(update.created_at, now)}</span>
               </p>
-              <p className="update-row__body">{update.body}</p>
+              <p className="update-row__body">
+                <DiceText context={context} text={update.body} />
+              </p>
               {editable && update.author_id === userId && (
                 <button
                   aria-busy={

@@ -106,3 +106,14 @@ describe('AdventureUpdates', () => {
     expect(screen.getByText('No updates yet.')).toBeVisible()
   })
 })
+
+describe('dice in updates', () => {
+  it('turns dice in an update into a chip named for the adventure', () => {
+    setup({
+      context: 'The cellar',
+      updates: [update({ id: 'u9', body: 'Took 2d6 fire damage from the trap.' })],
+    })
+    expect(screen.getByRole('button', { name: 'Roll 2d6 for The cellar' })).toBeVisible()
+    expect(screen.getByText(/Took/).textContent).toBe('Took 2d6 fire damage from the trap.')
+  })
+})

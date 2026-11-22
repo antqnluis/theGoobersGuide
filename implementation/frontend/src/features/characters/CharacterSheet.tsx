@@ -30,6 +30,7 @@ import { CharacterExport } from './CharacterExport'
 import { CharacterImportHistory } from './CharacterImportHistory'
 import { CharacterImportUpdates } from './CharacterImportUpdates'
 import { CharacterInventory, type InventoryActions } from './CharacterInventory'
+import { DiceText } from '../dice/TextWithDice'
 import { RollButton } from '../dice/RollButton'
 import {
   abilityCheckRoll,
@@ -728,7 +729,16 @@ function SheetContent({
                         style={body[name].length > 1200 ? { height: '18rem' } : undefined}
                         tabIndex={0}
                       >
-                        <p className="sheet-text">{body[name] || 'Nothing recorded.'}</p>
+                        <p className="sheet-text">
+                          {body[name] ? (
+                            <DiceText
+                              characterId={canRoll ? character.id : null}
+                              text={body[name]}
+                            />
+                          ) : (
+                            'Nothing recorded.'
+                          )}
+                        </p>
                       </div>
                     </div>
                   ) : (
@@ -807,7 +817,13 @@ function SheetContent({
                           </span>
                         )}
                         {attack.notes && (
-                          <small className="sheet-attacks__notes">{attack.notes}</small>
+                          <small className="sheet-attacks__notes">
+                            <DiceText
+                              characterId={canRoll ? character.id : null}
+                              context={attack.name || undefined}
+                              text={attack.notes}
+                            />
+                          </small>
                         )}
                       </li>
                     ))}
@@ -875,7 +891,7 @@ function SheetContent({
                 Spells
               </h3>
               {readOnly ? (
-                <SpellList text={body.spells} />
+                <SpellList characterId={canRoll ? character.id : null} text={body.spells} />
               ) : (
                 <div className="journal-field">
                   <label className="visually-hidden" htmlFor={`sheet-spells-${character.id}`}>

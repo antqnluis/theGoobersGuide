@@ -31,12 +31,13 @@ export function RollButton({
   roll,
   children,
   ariaLabel,
-  className = '',
+  variant = 'key',
 }: {
   roll: SheetRoll
   children: ReactNode
   ariaLabel?: string
-  className?: string
+  /** `chip` sits inside a line of text; `key` is the sheet's 44px button. */
+  variant?: 'key' | 'chip'
 }) {
   const dice = useDice()
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -106,7 +107,7 @@ export function RollButton({
       <button
         aria-haspopup={hasMenu ? 'menu' : undefined}
         aria-label={ariaLabel ?? `Roll ${roll.label}`}
-        className={`roll-button ${className}`.trim()}
+        className={variant === 'chip' ? 'roll-button roll-button--chip' : 'roll-button'}
         aria-busy={dice.pending ? true : undefined}
         onClick={onClick}
         onContextMenu={(event) => {

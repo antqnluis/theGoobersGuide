@@ -20,7 +20,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Access rules
 
-Row Level Security is enabled on profiles, campaigns, campaign members, campaign invitations, characters, character sheets, notes, adventures, and adventure invitation approvals. Anonymous clients have no table access.
+Row Level Security is enabled on every `public` table, including profiles, campaigns, campaign members, campaign invitations, characters, character sheets, notes, adventures, adventure invitation approvals, and dice rolls. Anonymous clients have no table access.
 
 | Data | Authenticated access |
 | --- | --- |
@@ -310,6 +310,46 @@ The app saves details with an `updated_at` filter (optimistic concurrency), as n
 - **Leaving or removal from the campaign** (`private.handle_campaign_member_departure`, M03.6 D9): in a thread with another accepted participant, the departing player's participation becomes `left`; a thread where they are the only accepted participant is **kept** (invisible while they are away), its share ends, and its pending proposals and invitations are deleted; proposals and invitations to the departing player's characters are deleted, as are their approvals, and each affected adventure is reconciled. Main adventures are untouched: members still read and edit them. **Rejoining** restores sole threads only, private; `left` rows stay `left` and need a new invitation.
 - **Deleting a character** deletes its participations. A shared thread with other accepted participants stays and is reconciled; a thread only it was in is deleted, with its objectives and updates. The app's delete confirmation gives both counts.
 - **Deleting a campaign** deletes every adventure in it. **Deleting a member's account** deletes the adventures they created (main ones included) and the updates they wrote, and clears the other attributions.
+
+## Dice rolls
+
+`public.dice_rolls` is the shared roll log. **The server alone chooses the faces:** clients can read rolls and call `roll_dice`, and nothing else. A roll is visible to every current member (`campaign`) or only to its roller (`self`).
+
+### Table
+
+`id`, `campaign_id` (references `campaigns`, `ON DELETE CASCADE`), `roller_id` (references `profiles`, `ON DELETE CASCADE`), `character_id` (optional), `visibility` (`campaign` or `self`), `source` (`tray`, `ability`, `save`, `skill`, `initiative`, `attack`, `damage`, `text`), `label` (optional, 1–80 characters), `expression` (the canonical form, such as `2d20kh1 + 5`, 1–160 characters), `terms` (the validated spec, jsonb array), `dice` (every face rolled, jsonb: one array per term of `{value, kept}`, empty for a constant), `total` and `created_at`.
+
+Two foreign keys, `(character_id, campaign_id)` to `characters (id, campaign_id)` and `(character_id, roller_id)` to `characters (id, owner_id)`, both `ON DELETE SET NULL (character_id)`: a roll may name only the roller's own character in the campaign, and deleting the character keeps the roll and clears the link. Indexes: `(campaign_id, created_at desc)` and `(roller_id, campaign_id, created_at desc)` (the rate limit).
+
+### Integrity and the RPC
+
+`roll_dice(p_campaign_id, p_terms, p_visibility, p_source, p_label, p_character_id)` is `SECURITY DEFINER`, executable by `authenticated` only, and returns the stored row. The client sends a structured spec, never results. It locks the campaign `FOR SHARE`, requires current membership, and then:
+
+| Rule | Enforced by |
+| --- | --- |
+| 1–20 terms; dice terms `{kind, sign, count 1–100, sides 2–1000, keep?}`; constants within ±10,000; at most 100 dice in all; no unknown keys | `private.validate_dice_terms` (`22023`, `dice_terms_invalid`) |
+| Bad visibility, source, or a label over 80 characters | `roll_dice` (`22023`, `dice_roll_invalid`) |
+| Not a current member | `42501`, `not_a_member` |
+| A character that is not the caller's, in this campaign | `42501`, `character_unavailable` |
+| At most 20 rolls in 10 seconds per roller per campaign, private rolls included, under concurrency (advisory lock) | `roll_dice` (`P0001`, `dice_rate_limited`) |
+| Faces come from `extensions.gen_random_bytes`: four bytes as an unsigned 32-bit draw, a draw in the biased tail (at or above the largest multiple of the sides) is redrawn | `private.random_int` |
+| Keep highest or lowest orders faces by value, earliest die first on a tie; `total` is the signed sum of kept faces plus signed constants; the stored `terms` and `expression` are rebuilt from the validated spec | `private.roll_terms` |
+| Only the newest 300 rolls per campaign are kept | `roll_dice` deletes the older ones after each insert |
+
+`private.random_int`, `dice_int_between`, `validate_dice_terms` and `roll_terms` are executable by no client role.
+
+### Access
+
+`anon`, `service_role` and `public` have no access. `authenticated` has **select only**: no insert, update, or delete. The one policy reads a roll when its campaign is one the caller belongs to and the roll is `campaign` or the caller's own. **The campaign owner has no override on private rolls.**
+
+### Realtime
+
+`dice_rolls` is in the `supabase_realtime` publication (inserts only, default replica identity). Postgres-changes delivery checks each subscriber's select policy per row, so private rolls and other campaigns never reach a client.
+
+### Lifecycle
+
+- **Leaving or removal** hides the log at once (access follows current membership). The member's rolls stay for the table, attributed by name, until retention removes them; rejoining restores their view.
+- **Deleting a character** clears `character_id` on its rolls. **Deleting a member's account** deletes their rolls. **Deleting a campaign** deletes its log.
 
 ## Camp appearance
 

@@ -4,6 +4,7 @@ import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { noteAuthorLabel, noteEditedLabel } from './noteRules'
 import type { Note } from './noteTypes'
+import { DiceText } from '../dice/TextWithDice'
 
 type Confirming = 'private' | 'delete' | null
 
@@ -108,7 +109,9 @@ export function NoteView({
       )}
 
       {note.body ? (
-        <div className="note-body">{note.body}</div>
+        <div className="note-body">
+          <DiceText context={note.title || undefined} text={note.body} />
+        </div>
       ) : (
         <p className="note-body note-body--empty">This note has no text yet.</p>
       )}
