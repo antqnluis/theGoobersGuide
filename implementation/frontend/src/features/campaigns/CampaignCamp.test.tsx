@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { planetAppearance } from './planetModel'
 import { CampaignCamp } from './CampaignCamp'
+import type { CampLocationId } from './camp/campLayout'
+
+type UnsavedChanges = Partial<Record<CampLocationId, boolean>>
 
 // jsdom has no canvas, so the lazy scene is replaced by nothing here; the real
 // renderer is covered by the draw-plan tests and the browser tests.
@@ -10,11 +13,25 @@ vi.mock('./camp/CampLandscape', () => ({ default: () => null }))
 
 afterEach(cleanup)
 
-function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
-  render(
+function campElement({
+  isOwner = true,
+  isDeleting = false,
+  cancelDelete = vi.fn(),
+  unsavedChanges = {},
+  waiting,
+}: {
+  isOwner?: boolean
+  isDeleting?: boolean
+  cancelDelete?: () => void
+  unsavedChanges?: UnsavedChanges
+  waiting?: Partial<Record<CampLocationId, number>>
+} = {}) {
+  return (
     <CampaignCamp
       cancelDelete={cancelDelete}
-      isDeleting={false}
+      unsavedChanges={unsavedChanges}
+      waiting={waiting}
+      isDeleting={isDeleting}
       isOwner={isOwner}
       notice={null}
       background="campaign"
@@ -27,12 +44,123 @@ function renderCamp({ isOwner = true, cancelDelete = vi.fn() } = {}) {
       world={planetAppearance('camp-test')}
       overview={<h2 id="camp-overview-heading">The Red Hand</h2>}
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
+      characters={<h2 id="camp-characters-heading">My characters</h2>}
+      adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
+      notes={<h2 id="camp-notes-heading">Campaign notes</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
-    />,
+    />
   )
-  return { cancelDelete }
 }
+
+function renderCamp(options: Parameters<typeof campElement>[0] = {}) {
+  const cancelDelete = options.cancelDelete ?? vi.fn()
+  const view = render(campElement({ ...options, cancelDelete }))
+  return { ...view, cancelDelete }
+}
+
+describe('CampaignCamp unsaved characters', () => {
+  async function openTent(hasUnsavedChanges: boolean) {
+    const user = userEvent.setup()
+    const out = renderCamp({ unsavedChanges: { characters: hasUnsavedChanges } })
+    await user.click(screen.getByRole('button', { name: /My characters\s*Tent/ }))
+    return { ...out, user }
+  }
+
+  it('asks before closing the tent with unsaved edits, and stays if told to', async () => {
+    const { cancelDelete, user } = await openTent(true)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute(
+      'data-camp-state',
+      'characters',
+    )
+  })
+
+  it('closes once the player discards', async () => {
+    const { cancelDelete, user } = await openTent(true)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('closes straight away with nothing to lose', async () => {
+    const { cancelDelete, user } = await openTent(false)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CampaignCamp unsaved notes', () => {
+  async function openCrates(unsavedChanges: UnsavedChanges) {
+    const user = userEvent.setup()
+    const out = renderCamp({ unsavedChanges })
+    await user.click(screen.getByRole('button', { name: /Notes\s*Journal crates/ }))
+    return { ...out, user }
+  }
+
+  it('asks in the journal’s own words before closing with an unsaved note', async () => {
+    const { cancelDelete, user } = await openCrates({ notes: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    expect(screen.getByText(/Leaving the journal now will discard them/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('does not ask for a destination other than the one with edits', async () => {
+    // Unsaved character edits do not guard the notes page, and the reverse.
+    const { cancelDelete, user } = await openCrates({ characters: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes straight away with nothing to lose', async () => {
+    const { cancelDelete, user } = await openCrates({})
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CampaignCamp unsaved adventures', () => {
+  async function openMapTable(unsavedChanges: UnsavedChanges) {
+    const user = userEvent.setup()
+    const out = renderCamp({ unsavedChanges })
+    await user.click(screen.getByRole('button', { name: /Adventures\s*Map table/ }))
+    return { ...out, user }
+  }
+
+  it('asks in the map table’s own words before closing with unsaved edits', async () => {
+    const { cancelDelete, user } = await openMapTable({ adventures: true })
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(cancelDelete).not.toHaveBeenCalled()
+    expect(screen.getByText(/Leaving the map table now will discard them/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Discard and leave' }))
+    expect(cancelDelete).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'idle')
+  })
+
+  it('does not ask when only another destination has edits, or when nothing is unsaved', async () => {
+    const other = await openMapTable({ notes: true })
+    await other.user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(other.cancelDelete).toHaveBeenCalledTimes(1)
+    cleanup()
+
+    const clean = await openMapTable({})
+    await clean.user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+})
+
+const pendingCamp = (isDeleting: boolean) => campElement({ isDeleting })
 
 describe('CampaignCamp destinations', () => {
   it('opens a destination, focuses Back to camp, and restores focus to the opener', async () => {
@@ -57,6 +185,80 @@ describe('CampaignCamp destinations', () => {
     const entry = within(places).getByRole('button', { name: /Overview\s*Campfire/ })
 
     await user.click(entry)
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(entry).toHaveFocus()
+  })
+
+  it('cannot be closed while a campaign or membership change is pending', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderCamp()
+    await user.click(screen.getByRole('button', { name: /Party\s*Bedroll circle/ }))
+    const state = () => document.querySelector('[data-camp-state]')
+
+    rerender(pendingCamp(true))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    expect(state()).toHaveAttribute('data-camp-state', 'party')
+
+    rerender(pendingCamp(false))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    await vi.waitFor(() => expect(state()).toHaveAttribute('data-camp-state', 'idle'))
+  })
+
+  it('opens the tent as My characters for everyone, and cannot close while a character change is pending', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /My characters\s*Tent/,
+    })
+
+    await user.click(entry)
+    const state = () => document.querySelector('[data-camp-state]')
+    expect(state()).toHaveAttribute('data-camp-state', 'characters')
+    expect(screen.getByRole('dialog', { name: 'My characters' })).toBeVisible()
+
+    // The workspace folds a pending character action into isDeleting.
+    rerender(pendingCamp(true))
+    expect(screen.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+    document.querySelector('dialog')?.dispatchEvent(new Event('cancel', { cancelable: true }))
+    expect(state()).toHaveAttribute('data-camp-state', 'characters')
+
+    rerender(pendingCamp(false))
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(state()).toHaveAttribute('data-camp-state', 'idle')
+    expect(entry).toHaveFocus()
+  })
+
+  it('opens the journal crates as Notes for everyone', async () => {
+    const user = userEvent.setup()
+    renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /Notes\s*Journal crates/,
+    })
+
+    await user.click(entry)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'notes')
+    expect(screen.getByRole('dialog', { name: 'Campaign notes' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Back to camp' }))
+    expect(entry).toHaveFocus()
+  })
+
+  it('opens the map table as Adventures for everyone', async () => {
+    const user = userEvent.setup()
+    renderCamp({ isOwner: false })
+    const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
+      name: /Adventures\s*Map table/,
+    })
+
+    await user.click(entry)
+    expect(document.querySelector('[data-camp-state]')).toHaveAttribute(
+      'data-camp-state',
+      'adventures',
+    )
+    expect(screen.getByRole('dialog', { name: 'Adventures' })).toBeVisible()
+
     await user.click(screen.getByRole('button', { name: 'Back to camp' }))
     expect(entry).toHaveFocus()
   })
@@ -123,6 +325,9 @@ describe('CampaignCamp frame loop cleanup', () => {
           world={planetAppearance('camp-test')}
           overview={<h2 id="camp-overview-heading">Overview</h2>}
           party={<h2 id="camp-party-heading">Party</h2>}
+          characters={<h2 id="camp-characters-heading">Characters</h2>}
+          adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
+          notes={<h2 id="camp-notes-heading">Notes</h2>}
           settings={<h2 id="camp-settings-heading">Settings</h2>}
           title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
         />,
@@ -133,5 +338,31 @@ describe('CampaignCamp frame loop cleanup', () => {
     }
     expect(added).toBeGreaterThan(0)
     expect(removed).toBe(added)
+  })
+})
+
+describe('CampaignCamp waiting count', () => {
+  it('shows how many adventure requests wait, in the entry’s name', async () => {
+    renderCamp({ waiting: { adventures: 2 } })
+    const entry = screen.getByRole('button', { name: 'Adventures, 2 waiting' })
+    expect(entry).toHaveTextContent('Adventures (2)')
+    expect(entry).toHaveTextContent('Map table')
+    await userEvent.setup().click(entry)
+    expect(screen.getByRole('dialog', { name: 'Adventures' })).toBeVisible()
+  })
+
+  it('shows nothing extra for no requests, or for an unknown count', () => {
+    for (const waiting of [{ adventures: 0 }, {}, undefined]) {
+      cleanup()
+      renderCamp({ waiting })
+      const entry = screen.getByRole('button', { name: /Adventures\s*Map table/ })
+      expect(entry).not.toHaveTextContent('(')
+      expect(entry).not.toHaveAttribute('aria-label')
+    }
+  })
+
+  it('puts a count only on the entries it is given', () => {
+    renderCamp({ waiting: { adventures: 3 } })
+    expect(screen.getByRole('button', { name: /^Notes/ })).not.toHaveTextContent('(')
   })
 })

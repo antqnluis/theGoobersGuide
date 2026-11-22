@@ -1,7 +1,8 @@
 /** Size of the authored panorama in base art pixels. */
 export const panorama = { width: 960, height: 270 } as const
 
-export type CampLocationId = 'overview' | 'party' | 'settings'
+export type CampLocationId =
+  'overview' | 'party' | 'characters' | 'adventures' | 'notes' | 'settings'
 
 export type CampLocation = {
   id: CampLocationId
@@ -21,6 +22,22 @@ export type CampLocation = {
   plateAlign: 'center' | 'end'
   ownerOnly: boolean
 }
+
+/** Static scenery drawn at fixed spots, never labeled or focusable. */
+export type CampProp = {
+  id: string
+  x: number
+  y: number
+  flip?: boolean
+  /** Draws the sprite this many times its size, to whole art pixels (default 1). */
+  scale?: number
+}
+
+/** The map table, the "Adventures" destination (47×35 sprite). */
+export const mapTable: CampProp = { id: 'map-table', x: 690, y: 242 }
+
+/** The journal crates, the "Notes" destination (32×38 sprite). */
+export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
 
 /** The one table that drives scene buttons, the Places list, and panel gating. */
 export const campLocations: readonly CampLocation[] = [
@@ -46,10 +63,45 @@ export const campLocations: readonly CampLocation[] = [
     ownerOnly: false,
   },
   {
+    id: 'characters',
+    label: 'My characters',
+    place: 'Tent',
+    // The tent's spot, and its 50×35 sprite at `tent.scale` (1.3), rounded to whole art pixels.
+    world: { x: 280, y: 244 },
+    hit: { width: 65, height: 46 },
+    plate: 'above',
+    plateAlign: 'center',
+    ownerOnly: false,
+  },
+  {
+    id: 'adventures',
+    label: 'Adventures',
+    place: 'Map table',
+    // The table's spot, and its 47×35 sprite, rounded up to a comfortable target.
+    world: { x: mapTable.x, y: mapTable.y },
+    hit: { width: 52, height: 42 },
+    // Ending at the table's right edge: centred, the plate runs into the crates' plate on a
+    // phone, 80 art pixels on.
+    plate: 'above',
+    plateAlign: 'end',
+    ownerOnly: false,
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    place: 'Journal crates',
+    // The crates' spot, and their 32×38 sprite, rounded up to a comfortable target.
+    world: { x: journalCrates.x, y: journalCrates.y },
+    hit: { width: 40, height: 46 },
+    plate: 'above',
+    plateAlign: 'center',
+    ownerOnly: false,
+  },
+  {
     id: 'settings',
     label: 'Campaign settings',
     place: 'Steward’s wagon',
-    world: { x: 240, y: 244 },
+    world: { x: 170, y: 240 },
     hit: { width: 104, height: 80 },
     plate: 'above',
     plateAlign: 'center',
@@ -78,14 +130,8 @@ export function parkedLocations(isOwner: boolean): CampLocation[] {
  */
 export const restFocusX = 384
 
-/** Static scenery drawn at fixed spots, never labeled or focusable. */
-export type CampProp = { id: string; x: number; y: number; flip?: boolean }
-
-export const dormantProps: readonly CampProp[] = [
-  { id: 'empty-tent', x: 130, y: 240 },
-  { id: 'map-table', x: 690, y: 242 },
-  { id: 'journal-crates', x: 770, y: 244 },
-]
+/** Scenery that is not a destination, drawn at fixed spots and never labeled or focusable. */
+export const dormantProps: readonly CampProp[] = []
 
 /** Where the high-road waystone stands, a pointer shortcut back to the galaxy. */
 export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
@@ -93,8 +139,11 @@ export const waystone: CampProp = { id: 'waystone', x: 880, y: 252 }
 /** The waystone's click target in base art pixels, standing on its spot (the sprite is 44×60). */
 export const waystoneHit = { width: 44, height: 60 } as const
 
+/** The player's tent, the "My characters" destination, drawn a little larger than its 50×35 sprite. */
+export const tent: CampProp = { id: 'empty-tent', x: 280, y: 244, scale: 1.3 }
+
 /** The steward's wagon, a destination for owners and parked scenery for members. */
-export const wagon: CampProp = { id: 'wagon', x: 240, y: 244 }
+export const wagon: CampProp = { id: 'wagon', x: 170, y: 240 }
 
 /** The stone-ringed fire pit; the flame itself is drawn in code. */
 export const firePit: CampProp = { id: 'firepit', x: 480, y: 244 }
@@ -137,7 +186,12 @@ export const partySeats = [
   { x: 566, y: 220 },
 ] as const
 
-export type RosterMember = { profile_id: string; role: string; username: string | null }
+export type RosterMember = {
+  profile_id: string
+  role: string
+  username: string | null
+  display_name?: string | null
+}
 
 export type SeatedMember = {
   member: RosterMember
@@ -152,9 +206,13 @@ export function memberLabel(member: RosterMember) {
 /**
  * Seats up to ten real roster members around the fire. The owner sits first and
  * the rest follow in profile order, so seating is stable between loads. The
- * remainder is reported as a count for the "+N" marker.
+ * remainder is reported as a count for the "+N" marker. A seat is named for the player's
+ * active character when `characterNames` has one for them, and for the player otherwise.
  */
-export function seatParty(roster: readonly RosterMember[]) {
+export function seatParty(
+  roster: readonly RosterMember[],
+  characterNames?: ReadonlyMap<string, string>,
+) {
   const ordered = roster.toSorted(
     (first, second) =>
       Number(second.role === 'owner') - Number(first.role === 'owner') ||
@@ -163,7 +221,7 @@ export function seatParty(roster: readonly RosterMember[]) {
   const seated: SeatedMember[] = ordered.slice(0, partySeats.length).map((member, index) => ({
     member,
     seat: partySeats[index],
-    label: memberLabel(member),
+    label: characterNames?.get(member.profile_id) ?? memberLabel(member),
   }))
   return { seated, overflow: Math.max(0, ordered.length - partySeats.length) }
 }

@@ -1,0 +1,2351 @@
+/* The tent: My characters. Surfaces, tokens, and controls come from camp/journal.css. */
+
+.character-tent {
+  container: tent / inline-size;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  min-height: 100%;
+  padding: clamp(18px, 3vw, 28px);
+  color: var(--journal-ink);
+}
+
+.character-tent > * {
+  min-width: 0;
+}
+
+.camp-ledger .character-tent h2 {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 clamp(1.8rem, 3.4vw, 2.4rem) / 1.05 var(--journal-font-display);
+  letter-spacing: -0.015em;
+}
+
+.tent-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -10px;
+}
+
+.tent-eyebrow .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.character-tent :is(h2, h3):focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 4px;
+}
+
+.character-tent h3 {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.15 var(--journal-font-display);
+  overflow-wrap: anywhere;
+}
+
+.character-tent h4 {
+  margin: 0;
+}
+
+/* Loading, errors, and the quiet states between screens. */
+.journal-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 14px 0;
+  color: var(--journal-ink-soft);
+}
+
+.journal-status p {
+  margin: 0;
+}
+
+.journal-status--error {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+.journal-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  border: 2px solid var(--journal-oxblood);
+  border-radius: var(--journal-radius);
+  padding: 12px 14px;
+  color: var(--journal-oxblood-deep);
+  background: #f8e1da;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.journal-alert .pixel-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.journal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+/* Cards in the list. */
+.tent-list {
+  display: grid;
+  gap: 18px;
+}
+
+.tent-card {
+  display: grid;
+  gap: 14px;
+}
+
+.tent-card__body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.tent-card__names,
+.tent-history__names,
+.folio-head__names {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.tent-card__meta,
+.folio-head__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.4;
+}
+
+.tent-card .journal-button {
+  justify-self: start;
+}
+
+.tent-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.5;
+}
+
+.tent-note .pixel-icon {
+  flex: none;
+  margin-top: 4px;
+}
+
+.tent-blank {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  border-style: dashed;
+}
+
+.tent-blank p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.tent-history > ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tent-history > ul > li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--journal-field) 45%, transparent);
+}
+
+.tent-history > ul > li[data-status='deceased'] {
+  border-color: color-mix(in srgb, var(--journal-oxblood) 55%, var(--journal-rule));
+}
+
+.tent-history__names {
+  flex: 1;
+}
+
+.tent-history__names small {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+/* No characters yet: a lit tent waiting for someone. */
+.tent-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 2px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 28px 18px 24px;
+  text-align: center;
+}
+
+.tent-empty__scene {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tent-empty__tent {
+  color: var(--journal-oxblood);
+}
+
+.tent-empty__flame {
+  color: var(--journal-lantern);
+}
+
+.tent-empty__lantern {
+  color: var(--journal-brass-deep);
+}
+
+.tent-empty__title {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 1.25rem / 1.25 var(--journal-font-display);
+  text-wrap: balance;
+}
+
+.tent-empty__hint {
+  max-width: 28ch;
+  margin: 0 0 6px;
+  color: var(--journal-ink-soft);
+  line-height: 1.5;
+}
+
+/* Create and edit. */
+.tent-form {
+  display: grid;
+  gap: 14px;
+}
+
+.tent-form__lede {
+  margin: -6px 0 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.5;
+}
+
+.character-form {
+  display: grid;
+  gap: 18px;
+}
+
+.character-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 16px;
+}
+
+/* Inline confirmations for retiring, dying, returning, and deleting. */
+.journal-confirm {
+  display: grid;
+  gap: 12px;
+  border: 2px solid var(--journal-oxblood);
+  border-radius: var(--journal-radius);
+  padding: 16px;
+  background: #f8e8e0;
+}
+
+.journal-confirm p {
+  margin: 0;
+  color: var(--journal-ink);
+  line-height: 1.55;
+}
+
+.journal-confirm strong {
+  color: var(--journal-oxblood-deep);
+}
+
+.journal-button--solid-danger:hover:not(:disabled) {
+  background: var(--journal-oxblood-deep);
+}
+
+.character-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.character-controls__everyday {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+
+.character-controls__lifecycle {
+  display: grid;
+  gap: 10px;
+}
+
+/* The folio: an open book of a character. */
+.character-tent:is([data-view='character'], [data-view='edit']) {
+  gap: 0;
+  padding: 0;
+}
+
+.character-tent:is([data-view='character'], [data-view='edit']) .tent-eyebrow {
+  display: none;
+}
+
+.camp-ledger .character-tent:is([data-view='character'], [data-view='edit']) h2 {
+  padding: 12px clamp(16px, 3vw, 28px) 0;
+  color: var(--journal-ink-soft);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.character-tent:is([data-view='character'], [data-view='edit']) > .journal-alert {
+  margin: 12px 16px 0;
+}
+
+.folio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-width: 0;
+}
+
+.folio-head {
+  display: grid;
+  gap: 10px 20px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'back back'
+    'identity tools';
+  align-items: center;
+  padding: 4px clamp(16px, 3vw, 28px) 18px;
+  border-bottom: 2px solid var(--journal-rule);
+}
+
+.folio-head__back {
+  grid-area: back;
+  justify-self: start;
+  margin-left: -10px;
+  padding-left: 10px;
+  color: var(--journal-oxblood-deep);
+}
+
+.folio-head__back::before {
+  width: 7px;
+  height: 7px;
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.folio-head__identity {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.folio-head h3 {
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  letter-spacing: -0.015em;
+}
+
+.folio-head__tools {
+  grid-area: tools;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+/* Section ribbons: bookmarks that jump around the sheet. */
+.sheet-nav {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  border-bottom: 2px solid var(--journal-rule);
+  padding: 0 clamp(8px, 2vw, 20px);
+  background: color-mix(in srgb, var(--journal-page) 94%, white);
+  box-shadow: 0 6px 10px -8px rgb(60 36 20 / 0.45);
+}
+
+.sheet-nav ul {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.sheet-nav__tab {
+  display: inline-flex;
+  min-height: var(--journal-touch);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  padding: 0 12px;
+  color: var(--journal-ink);
+  background: transparent;
+  font: 700 0.8rem / 1 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sheet-nav__tab .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.sheet-nav__tab:hover {
+  border-bottom-color: var(--journal-oxblood);
+}
+
+.sheet-nav__tab:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: -3px;
+}
+
+/* The sheet: pages of a spread. */
+.character-sheet {
+  min-width: 0;
+}
+
+.sheet-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sheet-page {
+  container: page / inline-size;
+  display: grid;
+  align-content: start;
+  gap: 26px;
+  min-width: 0;
+  padding: 22px clamp(16px, 3vw, 28px);
+}
+
+.sheet-page + .sheet-page {
+  border-top: 1px dashed var(--journal-rule);
+}
+
+@container tent (min-width: 720px) {
+  .sheet-spread {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sheet-page + .sheet-page {
+    border-top: 0;
+  }
+
+  /*
+   * Two stacks, left and right. What you roll sits on the left (vitals, abilities, skills);
+   * what you carry and write sits on the right (attacks, spells, coins, inventory, notes).
+   * Each stack runs its own height, so neither page has an empty gap.
+   */
+  .sheet-spread {
+    align-items: start;
+  }
+
+  /* The binding, down the middle of the spread. */
+  .sheet-spread::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 26px;
+    margin-left: -13px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(90 60 30 / 0.12) 40%,
+      rgb(90 60 30 / 0.3) 50%,
+      rgb(90 60 30 / 0.12) 60%,
+      transparent
+    );
+    content: '';
+    pointer-events: none;
+  }
+}
+
+.sheet-section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  scroll-margin-top: 58px;
+}
+
+.character-tent .journal-section-title {
+  margin: 0 0 4px;
+  font: 600 1.05rem / 1.2 var(--journal-font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sheet-section h3:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 4px;
+}
+
+/* A section heading with a fold button, and the body that folds away. */
+.sheet-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.sheet-section__head .journal-section-title {
+  margin: 0;
+}
+
+.sheet-collapse {
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.sheet-section__body {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sheet-section__body[hidden] {
+  display: none;
+}
+
+.sheet-empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+/* Vitals. */
+.sheet-vitals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.vital {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--journal-line);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px 12px;
+  background: color-mix(in srgb, var(--journal-field) 55%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.vital--hp {
+  grid-column: 1 / -1;
+}
+
+.vital__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.vital__title .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.vital__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vital-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vital-field label {
+  color: var(--journal-ink);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.04em;
+}
+
+.vital-field input {
+  min-height: 52px;
+  padding-inline: 6px;
+  text-align: center;
+  font: 600 1.5rem / 1 var(--journal-font-display);
+}
+
+.vital-field input::placeholder {
+  font: 400 0.8rem var(--journal-font-ui);
+}
+
+@container page (max-width: 290px) {
+  .vital__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sheet-derived {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.sheet-derived > div {
+  border: 1px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+}
+
+.sheet-derived dt {
+  color: var(--journal-ink-soft);
+  font: 700 0.7rem / 1.25 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sheet-derived dd {
+  margin: 2px 0 0;
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.2 var(--journal-font-display);
+}
+
+.sheet-derived--vitals {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Abilities and their saving throws. */
+.sheet-abilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ability {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--journal-line);
+  border-radius: var(--journal-radius);
+  padding: 10px 10px 8px;
+  background: color-mix(in srgb, var(--journal-field) 55%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.ability h4 {
+  color: var(--journal-ink-soft);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ability__modifier {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  place-items: center;
+  border: 3px double var(--journal-brass-deep);
+  border-radius: 50%;
+  background: var(--journal-page);
+}
+
+.ability__modifier strong {
+  font: 600 1.7rem / 1 var(--journal-font-display);
+}
+
+.ability__input {
+  width: 5.2rem;
+  padding-inline: 4px;
+  text-align: center;
+  font: 600 1.05rem / 1.2 var(--journal-font-display);
+}
+
+.ability__score {
+  margin: 0;
+  font: 600 1.05rem / 1.2 var(--journal-font-display);
+}
+
+.ability__save {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  border-top: 1px dashed var(--journal-rule);
+  padding-top: 4px;
+}
+
+.ability__save p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.ability__save strong {
+  font: 700 1.05rem var(--journal-font-display);
+}
+
+.ability[data-save-proficient] {
+  border-color: var(--journal-brass-deep);
+}
+
+/* Skills. */
+.sheet-skills {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--journal-rule);
+  list-style: none;
+}
+
+.sheet-skills li {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-height: 48px;
+  padding: 2px 0 2px 24px;
+  border-bottom: 1px solid var(--journal-rule);
+}
+
+/* A pip: empty, filled for proficient, ringed and filled for expertise. */
+.sheet-skills li::before {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--journal-line);
+  border-radius: 50%;
+  content: '';
+  transform: translateY(-50%);
+}
+
+.sheet-skills li[data-proficiency='proficient']::before {
+  background: var(--journal-oxblood);
+  border-color: var(--journal-oxblood);
+}
+
+.sheet-skills li[data-proficiency='expertise']::before {
+  background: var(--journal-oxblood);
+  border-color: var(--journal-oxblood);
+  box-shadow:
+    0 0 0 2px var(--journal-page),
+    0 0 0 4px var(--journal-oxblood);
+}
+
+.sheet-skills__name {
+  min-width: 0;
+  flex: 1;
+}
+
+.sheet-skills__name small {
+  color: var(--journal-ink-soft);
+}
+
+.sheet-skills__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sheet-skills__control strong {
+  min-width: 2ch;
+  text-align: right;
+  font: 700 1.1rem var(--journal-font-display);
+}
+
+.sheet-skills__control .journal-select {
+  width: 8.6rem;
+  padding: 4px 6px;
+  font-size: 0.9rem;
+}
+
+/* Attacks. */
+.sheet-attacks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-attacks > li {
+  display: grid;
+  gap: 4px;
+}
+
+.sheet-attack-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px;
+  background: color-mix(in srgb, var(--journal-field) 40%, transparent);
+}
+
+.sheet-attack-row [data-field='name'],
+.sheet-attack-row [data-field='notes'] {
+  grid-column: 1 / -1;
+}
+
+.sheet-attack-row .journal-button {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-height: 40px;
+  padding-block: 4px;
+}
+
+.sheet-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 12px;
+}
+
+.sheet-text {
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.sheet-section .journal-field + .journal-field {
+  margin-top: 4px;
+}
+
+/* The lifecycle zone: set apart, dashed in oxblood, so destructive choices are deliberate. */
+.folio-foot {
+  margin: 8px clamp(16px, 3vw, 28px) 24px;
+  border: 2px dashed var(--journal-oxblood);
+  border-radius: var(--journal-radius);
+  padding: 16px;
+  background: rgb(122 41 50 / 0.05);
+}
+
+/* The dock keeps Save stats, Save sheet, and any error in reach while the sheet scrolls. */
+.folio-dock {
+  position: sticky;
+  z-index: 5;
+  bottom: 0;
+  display: grid;
+}
+
+.folio-dock > .journal-alert {
+  margin: 0 12px 8px;
+  box-shadow: 0 4px 14px rgb(11 9 18 / 0.3);
+}
+
+.sheet-savebar {
+  display: grid;
+  gap: 8px;
+  border-top: 3px solid var(--journal-brass-deep);
+  padding: 10px clamp(12px, 2.5vw, 24px);
+  color: #fff0d7;
+  background: var(--journal-leather-deep);
+  box-shadow: 0 -8px 18px rgb(11 9 18 / 0.28);
+}
+
+.character-sheet > .sheet-savebar {
+  position: sticky;
+  bottom: 0;
+}
+
+.sheet-savebar__errors {
+  margin: 0;
+  padding: 8px 12px 8px 30px;
+  border-radius: var(--journal-radius);
+  color: #fff0d7;
+  background: var(--journal-oxblood-deep);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.sheet-savebar__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.sheet-savebar__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font: 700 0.85rem / 1.3 var(--journal-font-ui);
+}
+
+.sheet-savebar__dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 2px solid var(--journal-brass);
+  background: transparent;
+}
+
+.sheet-savebar[data-dirty] .sheet-savebar__dot {
+  border-color: var(--journal-lantern);
+  background: var(--journal-lantern);
+  box-shadow: 0 0 8px var(--journal-lantern);
+}
+
+.sheet-savebar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sheet-savebar .journal-button {
+  border-color: var(--journal-brass);
+  box-shadow: 0 3px 0 #000;
+}
+
+.sheet-savebar .journal-button:disabled {
+  border-color: #6b5646;
+  color: #d9c8ae;
+  background: #3b2c27;
+  box-shadow: none;
+}
+
+.sheet-savebar .journal-button--ghost {
+  border-color: transparent;
+  color: #fff0d7;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sheet-savebar .journal-button--ghost:disabled {
+  border-color: transparent;
+  background: transparent;
+}
+
+.sheet-savebar :is(.journal-button):focus-visible {
+  outline-color: var(--journal-focus-dark);
+}
+
+/* Narrow journals: the header's tools drop under the name. */
+@container tent (max-width: 860px) {
+  .folio-head {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'back'
+      'identity'
+      'tools';
+  }
+
+  .folio-head__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px 12px;
+  }
+
+  .folio-head__tools .character-controls,
+  .folio-head__tools .character-controls__everyday {
+    display: contents;
+  }
+}
+
+/* Phones: one page at a time, a tighter header, and a save bar of full-width buttons. */
+@container tent (max-width: 560px) {
+  .folio-head__identity {
+    gap: 12px;
+  }
+
+  .folio-head__identity .journal-medallion {
+    --medallion: 56px;
+  }
+
+  /* Status and Discard share the top line; the two saves sit side by side below. */
+  .sheet-savebar__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 8px;
+  }
+
+  .sheet-savebar__actions {
+    display: contents;
+  }
+
+  .sheet-savebar__status {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .sheet-savebar__actions .journal-button--ghost {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    min-height: 40px;
+    padding-block: 4px;
+  }
+
+  .tent-card .journal-button {
+    justify-self: stretch;
+  }
+
+  .tent-history > ul > li {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tent-turn {
+    animation: tent-turn 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .tent-empty__flame {
+    animation: tent-flicker 1.4s steps(3, end) infinite alternate;
+  }
+
+  @keyframes tent-turn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes tent-flicker {
+    from {
+      opacity: 0.75;
+      transform: translateY(1px);
+    }
+  }
+}
+
+/* Page turns between the tent's screens (see tentTransition.ts). The root carries
+   data-tent-turn="forward" or "back" while a View Transition runs: the cover morphs when
+   the journal changes width, and the parchment page slides out quickly and the next one
+   settles in. The scene behind stays live, so the camera pan underneath still plays.
+   Browsers without View Transitions fall back to `.tent-turn`'s entrance above. */
+:root[data-tent-turn] {
+  --tent-turn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-tent-turn] .tent-turn {
+  animation: none;
+}
+
+:root[data-tent-turn] .camp-ledger[data-variant][open] {
+  view-transition-name: journal-cover;
+}
+
+:root[data-tent-turn] .camp-ledger[data-variant] .camp-ledger__body {
+  view-transition-name: journal-page;
+}
+
+:root[data-tent-turn]::view-transition-old(root),
+:root[data-tent-turn]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+:root[data-tent-turn]::view-transition-group(journal-cover),
+:root[data-tent-turn]::view-transition-group(journal-page) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--tent-turn-ease);
+}
+
+/* The page is clipped to its box, so a page taller than the journal never spills out. */
+:root[data-tent-turn]::view-transition-group(journal-page) {
+  overflow: clip;
+}
+
+/* The cover fills its box as it resizes instead of keeping its aspect ratio, and the new
+   one fades in over the old (the default cross-fade would brighten where they overlap). */
+:root[data-tent-turn]::view-transition-old(journal-cover),
+:root[data-tent-turn]::view-transition-new(journal-cover) {
+  inline-size: 100%;
+  block-size: 100%;
+  mix-blend-mode: normal;
+}
+
+:root[data-tent-turn]::view-transition-old(journal-cover) {
+  animation: none;
+}
+
+:root[data-tent-turn]::view-transition-new(journal-cover) {
+  animation: tent-page-fade-in 140ms ease-out both;
+}
+
+/* The page keeps its own size while the box around it grows or shrinks. */
+:root[data-tent-turn]::view-transition-old(journal-page),
+:root[data-tent-turn]::view-transition-new(journal-page) {
+  inline-size: auto;
+  block-size: auto;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-tent-turn]::view-transition-old(journal-page) {
+    animation: tent-page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
+  :root[data-tent-turn]::view-transition-new(journal-page) {
+    animation: tent-page-in 280ms var(--tent-turn-ease) 50ms both;
+  }
+
+  :root[data-tent-turn='back']::view-transition-old(journal-page) {
+    animation-name: tent-page-out-back;
+  }
+
+  :root[data-tent-turn='back']::view-transition-new(journal-page) {
+    animation-name: tent-page-in-back;
+  }
+
+  @keyframes tent-page-out {
+    to {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+  }
+
+  @keyframes tent-page-in {
+    from {
+      opacity: 0;
+      transform: translateX(28px);
+    }
+  }
+
+  @keyframes tent-page-out-back {
+    to {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+  }
+
+  @keyframes tent-page-in-back {
+    from {
+      opacity: 0;
+      transform: translateX(-28px);
+    }
+  }
+}
+
+@keyframes tent-page-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tent-page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: no travel and no resizing, only a short fade between pages. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-tent-turn]::view-transition-group(journal-cover),
+  :root[data-tent-turn]::view-transition-group(journal-page) {
+    animation: none;
+  }
+
+  :root[data-tent-turn]::view-transition-old(journal-page) {
+    animation: tent-page-fade-out 100ms linear both;
+  }
+
+  :root[data-tent-turn]::view-transition-new(journal-page) {
+    animation: tent-page-fade-in 160ms linear 60ms both;
+  }
+}
+
+/* The display's one quick edit: current HP, saved from the pinned bar. */
+/* See the readout rules below for the hit-point block's frame. */
+
+.sheet-quickhp form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+
+.sheet-quickhp__field {
+  display: grid;
+  gap: 4px;
+}
+
+.sheet-quickhp__field label {
+  color: var(--journal-ink);
+  font: 700 0.72rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.04em;
+}
+
+.sheet-quickhp input {
+  width: 6.5rem;
+  min-height: 52px;
+  padding-inline: 6px;
+  text-align: center;
+  font: 600 1.5rem / 1 var(--journal-font-display);
+}
+
+.sheet-quickhp__max {
+  padding-bottom: 14px;
+  color: var(--journal-ink-soft);
+  font: 600 1rem / 1.2 var(--journal-font-ui);
+}
+
+/* The consolidated editor: a details panel above the sheet's own sections. */
+.folio-details {
+  display: grid;
+  gap: 12px;
+  padding: 22px clamp(16px, 3vw, 28px) 18px;
+}
+
+.folio-details .journal-section-title {
+  margin: 0;
+}
+
+.folio-details .character-form__grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+/* A round picture fills the medallion. */
+.journal-medallion img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.journal-medallion:has(img) {
+  overflow: hidden;
+}
+
+.portrait-editor {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 6px;
+}
+
+.portrait-editor__body {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.portrait-editor__body .journal-label {
+  margin: 0;
+}
+
+.portrait-editor__hint {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.sheet-quickhp input::placeholder {
+  font: 400 0.8rem var(--journal-font-ui);
+}
+
+.sheet-quickhp dt {
+  margin-bottom: 6px;
+}
+
+/* Coins. */
+.coins {
+  display: grid;
+  gap: 12px;
+}
+
+.coin-purse {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.coin-purse__coin {
+  min-width: 0;
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+}
+
+.coin-purse__coin dt {
+  color: var(--journal-ink-soft);
+  font: 700 0.7rem / 1.25 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coin-purse__coin dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--journal-ink-soft);
+  font: 600 0.9rem / 1.2 var(--journal-font-ui);
+}
+
+.coin-purse__coin dd strong {
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.2 var(--journal-font-display);
+}
+
+/* Each coin takes the colour of its metal: gold, silver, and copper. */
+.coins [data-coin='gp'],
+.coins [data-coin-field='gp'] {
+  --coin: #e0a92e;
+  --coin-deep: #8f6b34;
+}
+
+.coins [data-coin='sp'],
+.coins [data-coin-field='sp'] {
+  --coin: #b9bec4;
+  --coin-deep: #6d747c;
+}
+
+.coins [data-coin='cp'],
+.coins [data-coin-field='cp'] {
+  --coin: #c4703a;
+  --coin-deep: #8a4a22;
+}
+
+.coin-purse__coin {
+  border: 1.5px solid var(--coin-deep);
+  background: color-mix(in srgb, var(--coin) 26%, transparent);
+}
+
+.coin-purse__coin dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coin-icon {
+  flex: none;
+  color: var(--coin);
+  filter: drop-shadow(0 0 0.6px var(--coin-deep)) drop-shadow(0 1px 0 var(--coin-deep));
+}
+
+/* The same coin marks each amount field, and the fields line up on one row. */
+/* Beats the sheet's field-stacking rule, which would push later fields down 4px. */
+.sheet-section .coin-form__fields > .journal-field {
+  margin-top: 0;
+}
+
+.coin-form .journal-field > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coin-form .journal-field > label::before {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1.5px solid var(--coin-deep);
+  border-radius: 50%;
+  background: var(--coin);
+  content: '';
+}
+
+.coin-form .journal-input {
+  border-color: color-mix(in srgb, var(--coin-deep) 70%, var(--journal-line));
+}
+
+.coins__total {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.coin-form {
+  display: grid;
+  gap: 12px;
+  border-top: 1px dashed var(--journal-rule);
+  padding-top: 12px;
+}
+
+.coin-form__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.coin-form .journal-actions,
+.item-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Inventory. */
+.inventory {
+  display: grid;
+  gap: 12px;
+}
+
+.inventory__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.inventory__summary [data-over] {
+  color: var(--journal-oxblood-deep);
+  font-weight: 700;
+}
+
+.inventory__warning {
+  margin: 0;
+  border-left: 4px solid var(--journal-lantern);
+  padding: 6px 10px;
+  color: var(--journal-ink);
+  background: var(--journal-lantern-wash);
+  font-weight: 700;
+}
+
+.inventory__add {
+  justify-self: start;
+}
+
+.inventory-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inventory-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--journal-field) 35%, transparent);
+}
+
+.inventory-item[data-equipped] {
+  border-color: var(--journal-brass-deep);
+  border-left-width: 4px;
+}
+
+.inventory-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+
+.inventory-item__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 600 1.05rem / 1.25 var(--journal-font-display);
+}
+
+.inventory-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.inventory-item__details summary {
+  min-height: 28px;
+  cursor: pointer;
+  color: var(--journal-ink);
+  font-weight: 700;
+}
+
+.inventory-item__details .sheet-text {
+  margin: 6px 0 0;
+}
+
+.inventory-item__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-item__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inventory-item__count output {
+  min-width: 2.5ch;
+  text-align: center;
+  font: 600 1.1rem / 1 var(--journal-font-display);
+}
+
+.inventory-item__step {
+  min-width: var(--journal-touch);
+  padding-inline: 0;
+  font-size: 1.25rem;
+}
+
+.inventory-item__controls .journal-button {
+  min-height: var(--journal-touch);
+}
+
+.inventory-item--editing {
+  padding: 12px;
+}
+
+.item-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sheet-section .item-form > .journal-field {
+  margin-top: 0;
+}
+
+.item-form__name,
+.item-form__description,
+.item-form__flags,
+.item-form__actions {
+  grid-column: 1 / -1;
+}
+
+.item-form__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+
+.character-share {
+  display: grid;
+  gap: 2px;
+}
+
+.character-share-hint {
+  max-width: 34ch;
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+@container page (max-width: 24rem) {
+  .coin-form__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .item-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Recent coin transactions. */
+.coin-log {
+  border: 1px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 0 12px;
+}
+
+.coin-log > summary {
+  display: flex;
+  min-height: var(--journal-touch);
+  align-items: center;
+  cursor: pointer;
+  color: var(--journal-ink);
+  font: 700 0.8rem / 1.3 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coin-log > summary:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.coin-log[open] > summary {
+  border-bottom: 1px dashed var(--journal-rule);
+}
+
+.coin-log .journal-status,
+.coin-log .sheet-empty {
+  margin: 12px 0;
+}
+
+.coin-log__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 0;
+  list-style: none;
+}
+
+.coin-log__list > li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border-left: 3px solid var(--journal-brass-deep);
+  padding-left: 10px;
+}
+
+.coin-log__list p {
+  margin: 0;
+}
+
+.coin-log__title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 12px;
+  overflow-wrap: anywhere;
+}
+
+.coin-log__title time {
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+}
+
+.coin-log__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+  margin: 0;
+  padding: 0;
+  color: var(--journal-ink);
+  font: 600 0.85rem / 1.5 var(--journal-font-ui);
+  list-style: none;
+}
+
+.coin-log__total {
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+}
+
+/* Create and import sit side by side. */
+.tent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The import dialog: a wide journal prompt that scrolls on small screens. */
+.import-dialog {
+  width: min(46rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.import-dialog > * + * {
+  margin-top: 14px;
+}
+
+.import-dialog__lede,
+.import-dialog__hint {
+  margin: 0;
+}
+
+.import-dialog__hint {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.import-dialog__text,
+.import-dialog__prompt-text {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.import-dialog__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 12px;
+}
+
+.import-dialog__prompt summary,
+.import-review__ignored summary,
+.import-history summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.import-dialog__prompt > * + * {
+  margin-top: 10px;
+}
+
+.import-dialog__prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.import-dialog__copied {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.import-dialog__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.import-dialog__actions {
+  margin-top: 18px;
+}
+
+.import-review {
+  display: grid;
+  gap: 12px;
+}
+
+.import-review__summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.import-review__section {
+  border: 1px solid var(--journal-line, currentColor);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+}
+
+.import-review__section[data-invalid] {
+  border-color: var(--journal-danger, #a3342a);
+}
+
+.import-review__section h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.import-review__badge {
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--journal-page);
+  background: var(--journal-danger, #a3342a);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.import-review__section p {
+  margin: 0;
+}
+
+.import-review__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 6px 14px;
+  margin: 0;
+}
+
+.import-review__facts--text {
+  grid-template-columns: 1fr;
+}
+
+.import-review__facts dt {
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+}
+
+.import-review__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.import-review__list,
+.import-review__issues,
+.import-review__ignored ul,
+.import-history__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.import-review__issues {
+  margin-top: 8px;
+  color: var(--journal-danger, #a3342a);
+}
+
+.import-review__ignored p {
+  margin: 6px 0;
+}
+
+.import-history__list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 8px;
+}
+
+.import-history__list li {
+  display: grid;
+  gap: 2px;
+}
+
+.import-history__list small,
+.import-history__empty {
+  color: var(--journal-ink-soft);
+}
+
+.import-history__empty {
+  margin: 8px 0 0;
+}
+
+.sheet-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.sheet-export small {
+  color: var(--journal-ink-soft);
+}
+
+.tent-note__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Import updates: the change list with a checkbox, before and after, per change. */
+.update-review__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.update-review__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-review__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.update-review__change {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: start;
+}
+
+.update-review__change[data-invalid] {
+  opacity: 0.85;
+}
+
+.update-review__change > p {
+  grid-column: 2;
+  margin: 0;
+}
+
+.update-review__values {
+  overflow-wrap: anywhere;
+  color: var(--journal-ink-soft);
+}
+
+.update-review__before {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.update-review__after {
+  color: var(--journal-ink);
+  font-weight: 600;
+}
+
+/* The tools tab sits at the end of the bar and shows which view is open. */
+.sheet-nav__end {
+  margin-left: auto;
+}
+
+.sheet-nav__tab[aria-pressed='true'] {
+  border-bottom-color: var(--journal-oxblood);
+}
+
+.sheet-tools {
+  padding: 22px clamp(16px, 3vw, 28px);
+}
+
+/* Spells: a spell book of cards, one per cantrip or spell level. */
+.spell-book {
+  display: grid;
+  gap: 12px;
+}
+
+.spell-book__text {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+.spell-group {
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  background: color-mix(in srgb, var(--journal-page) 70%, white);
+  overflow: hidden;
+}
+
+.spell-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  border-bottom: 1px dashed var(--journal-rule);
+  padding: 8px 12px;
+}
+
+.spell-group__head h4 {
+  margin: 0;
+  color: var(--journal-ink);
+  font: 600 1.05rem / 1.2 var(--journal-font-display);
+}
+
+.spell-group__mark {
+  display: inline-grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--journal-page);
+  background: var(--journal-oxblood);
+  font: 700 0.85rem / 1 var(--journal-font-ui);
+}
+
+.spell-group[data-cantrip] .spell-group__mark {
+  background: var(--journal-brass-deep);
+}
+
+.spell-group__slots {
+  border: 1px solid var(--journal-oxblood);
+  border-radius: 999px;
+  padding: 1px 9px;
+  color: var(--journal-oxblood);
+  font: 700 0.72rem / 1.5 var(--journal-font-ui);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.spell-group__count {
+  margin-left: auto;
+  color: var(--journal-ink-soft);
+  font: 600 0.75rem / 1.2 var(--journal-font-ui);
+}
+
+.spell-group__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  gap: 0 16px;
+  margin: 0;
+  padding: 4px 12px 8px;
+  list-style: none;
+}
+
+.spell-group__list li {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px dotted var(--journal-rule);
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+.spell-group__name {
+  color: var(--journal-ink);
+  font-weight: 600;
+}
+
+.spell-group__detail {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.sheet-hint {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.spell-preview {
+  margin-top: 10px;
+}
+
+.spell-preview summary {
+  min-height: var(--journal-touch);
+  color: var(--journal-ink-soft);
+  font: 700 0.75rem / 1 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.spell-preview[open] summary {
+  margin-bottom: 6px;
+}
+
+/*
+ * Long text and long lists can be dragged taller or shorter by the corner handle. The box is
+ * as tall as its content until dragged; shrinking it makes the content scroll inside.
+ */
+.sheet-resizable {
+  min-height: 5rem;
+  border: 1px dashed var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 10px;
+  overflow: auto;
+  resize: vertical;
+}
+
+.sheet-resizable:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.sheet-resizable > .sheet-text {
+  margin: 0;
+}
+
+.inventory-list.sheet-resizable {
+  padding: 8px 10px 12px;
+}
+
+/* ------------------------------------------------------------------------------------------
+   At a glance (M6 polish). The sheet is read mid-play: the numbers you reach for most are the
+   largest, grouped as a table of facts, and labels are small and quiet.
+   ------------------------------------------------------------------------------------------ */
+
+/* Vitals as a readout: hit points across the top, then the combat numbers as large tiles. */
+.sheet-readout {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.sheet-readout > div {
+  grid-column: 1 / -1;
+  min-width: 0;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--journal-field) 45%, transparent);
+}
+
+.sheet-readout dt {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font: 700 0.7rem / 1.25 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-readout dd {
+  margin: 2px 0 0;
+  color: var(--journal-ink);
+  font: 600 1.4rem / 1.15 var(--journal-font-display);
+}
+
+.sheet-readout .sheet-quickhp {
+  border-color: var(--journal-brass-deep);
+  padding: 12px 14px 14px;
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.sheet-readout .sheet-quickhp dd {
+  margin: 0;
+}
+
+.sheet-quickhp__max {
+  padding-bottom: 12px;
+  font: 600 1.25rem / 1.2 var(--journal-font-display);
+}
+
+.sheet-quickhp__bar {
+  height: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--journal-line);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--journal-ink) 8%, transparent);
+}
+
+.sheet-quickhp__bar span {
+  display: block;
+  height: 100%;
+  background: var(--journal-forest, #2d5a41);
+}
+
+/* Armor class, initiative, and speed: the three numbers asked for every turn. */
+.sheet-readout .sheet-readout__key {
+  grid-column: span 2;
+  display: grid;
+  justify-items: center;
+  padding: 10px 6px 8px;
+  text-align: center;
+  box-shadow:
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.sheet-readout__key dd {
+  font-size: 2.1rem;
+  line-height: 1.05;
+}
+
+/* Proficiency bonus and passive Perception: needed, but not on every turn. */
+.sheet-readout .sheet-readout__minor {
+  grid-column: span 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+  border-style: dashed;
+}
+
+.sheet-readout__minor dd {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* Skills: read down two columns, like a printed sheet; trained skills stand out. */
+.sheet-skills__value {
+  display: grid;
+  justify-items: end;
+  line-height: 1.1;
+}
+
+.sheet-skills__value strong {
+  font: 700 1.2rem / 1.1 var(--journal-font-display);
+}
+
+.sheet-skills__value small {
+  color: var(--journal-ink-soft);
+  font: 700 0.66rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-skills li[data-proficiency='proficient'],
+.sheet-skills li[data-proficiency='expertise'] {
+  background: color-mix(in srgb, var(--journal-oxblood) 7%, transparent);
+}
+
+.sheet-skills
+  li:is([data-proficiency='proficient'], [data-proficiency='expertise'])
+  .sheet-skills__name {
+  font-weight: 700;
+}
+
+.sheet-skills
+  li:is([data-proficiency='proficient'], [data-proficiency='expertise'])
+  .sheet-skills__name
+  small {
+  font-weight: 400;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) {
+    column-count: 2;
+    column-gap: 28px;
+  }
+
+  .sheet-skills:has(.sheet-skills__value) li {
+    break-inside: avoid;
+    min-height: 46px;
+  }
+}
+
+/* Attacks: the name, then what to roll and what it deals, in large figures. */
+.sheet-attacks > li:has(.sheet-attacks__name) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 2px 20px;
+  border-bottom: 1px solid var(--journal-rule);
+  padding-bottom: 10px;
+}
+
+.sheet-attacks__name {
+  grid-column: 1;
+  font: 600 1.15rem / 1.2 var(--journal-font-display);
+  overflow-wrap: anywhere;
+}
+
+.sheet-attacks__bonus,
+.sheet-attacks__damage {
+  display: grid;
+  font: 700 1.3rem / 1.15 var(--journal-font-display);
+}
+
+.sheet-attacks__bonus {
+  grid-column: 2;
+  justify-items: center;
+}
+
+.sheet-attacks__damage {
+  grid-column: 3;
+  justify-items: start;
+  min-width: 6rem;
+}
+
+.sheet-attacks__bonus small,
+.sheet-attacks__damage small {
+  color: var(--journal-ink-soft);
+  font: 700 0.64rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet-attacks__notes {
+  grid-column: 1 / -1;
+  color: var(--journal-ink-soft);
+}
+
+@container page (max-width: 24rem) {
+  .sheet-attacks > li:has(.sheet-attacks__name) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sheet-attacks__name {
+    grid-column: 1 / -1;
+  }
+
+  .sheet-attacks__bonus {
+    grid-column: 1;
+  }
+
+  .sheet-attacks__damage {
+    grid-column: 2;
+  }
+}
+
+/* The header's tools: the two actions side by side, the sharing choice beneath them. */
+.folio-head__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+}
+
+.folio-head__tools .character-controls,
+.folio-head__tools .character-controls__everyday {
+  display: contents;
+}
+
+.folio-head__tools .character-share {
+  order: 3;
+  flex-basis: 100%;
+  justify-items: end;
+  text-align: right;
+}
+
+.folio-head__tools .character-share .journal-check {
+  justify-content: flex-end;
+}
+
+@container tent (max-width: 860px) {
+  .folio-head__tools .character-share {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .folio-head__tools .character-share .journal-check {
+    justify-content: flex-start;
+  }
+}
+
+.sheet-readout .sheet-quickhp dt {
+  margin-bottom: 8px;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) li {
+    min-height: 52px;
+  }
+}
+
+/* An inventory line: the name and badges, then the quantity and toggles, with Edit and Remove at the end. */
+.inventory-item__controls > .journal-button--ghost {
+  margin-left: auto;
+}
+
+/* Skills: breathing room inside each row, so the pip and the bonus never touch the edge. */
+.sheet-skills li {
+  padding-right: 14px;
+  padding-left: 30px;
+}
+
+.sheet-skills li::before {
+  left: 10px;
+}
+
+@container page (min-width: 31rem) {
+  .sheet-skills:has(.sheet-skills__value) {
+    column-gap: 20px;
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateRegistration, validateSignIn } from './authValidation'
+import { validateDisplayName, validateRegistration, validateSignIn } from './authValidation'
 
 describe('sign-in validation', () => {
   it('trims email and normalizes username casing', () => {
@@ -52,5 +52,30 @@ describe('registration validation', () => {
     expect(
       validateRegistration('player', 'p@accounts.goobersguide.invalid', 'adventure1', '').errors,
     ).toEqual({ email: 'Enter a valid email address.', confirmation: 'Confirm your password.' })
+  })
+})
+
+describe('validateDisplayName', () => {
+  it('trims, keeps unicode, and treats blank as clearing the name', () => {
+    expect(validateDisplayName('  Aria the Bold  ')).toEqual({
+      value: 'Aria the Bold',
+      error: null,
+    })
+    expect(validateDisplayName('Zoë — 日本語')).toEqual({ value: 'Zoë — 日本語', error: null })
+    expect(validateDisplayName('   ')).toEqual({ value: null, error: null })
+    expect(validateDisplayName('')).toEqual({ value: null, error: null })
+  })
+
+  it('allows exactly 40 characters and rejects 41, counting characters not code units', () => {
+    expect(validateDisplayName('x'.repeat(40)).error).toBeNull()
+    expect(validateDisplayName('x'.repeat(41)).error).toBe('Use 40 characters or fewer.')
+    expect(validateDisplayName('😀'.repeat(40)).error).toBeNull()
+  })
+
+  it('rejects control characters', () => {
+    expect(validateDisplayName('line\nbreak').error).toBe(
+      "A display name can't contain control characters.",
+    )
+    expect(validateDisplayName('tab\there').error).not.toBeNull()
   })
 })

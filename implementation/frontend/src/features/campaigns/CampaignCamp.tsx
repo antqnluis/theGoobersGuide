@@ -15,12 +15,14 @@ import {
 import {
   availableLocations,
   campLocations,
+  tent,
   waystone,
   waystoneHit,
   type CampLocation,
   type CampLocationId,
   type RosterMember,
 } from './camp/campLayout'
+import type { AdventurerAppearance } from './camp/adventurerAppearance'
 import { figureSize, minNameUnit, overflowMarker, partyFigures } from './camp/campParty'
 import {
   cameraToFrame,
@@ -37,7 +39,11 @@ import { useCampView, type CampMeasure } from './camp/useCampView'
 import { useDestinationDialog } from './camp/useDestinationDialog'
 import { CampSettings } from './camp/CampSettings'
 import type { CampBackground } from './camp/campBackground'
+import { ToastRegion } from './camp/CampToasts'
+import type { CampToast } from './camp/useCampToasts'
+import { UnsavedChangesDialog } from '../characters/UnsavedChangesDialog'
 import './camp/camp.css'
+import './camp/journal.css'
 
 const CampLandscape = lazy(() => import('./camp/CampLandscape'))
 
@@ -69,6 +75,13 @@ class SceneBoundary extends Component<
   }
 }
 
+/** What an unsaved-changes prompt calls the open page. */
+function leaveName(id: CampLocationId | undefined) {
+  if (id === 'notes') return 'the journal'
+  if (id === 'adventures') return 'the map table'
+  return 'the tent'
+}
+
 export function CampaignCamp({
   title,
   notice,
@@ -79,13 +92,26 @@ export function CampaignCamp({
   onHueChange,
   onLeave,
   roster,
+  characterNames,
+  appearances,
   landfallKey,
   isOwner,
   isDeleting,
   cancelDelete,
   overview,
   party,
+  characters,
+  adventures,
+  notes,
   settings,
+  partyDrawer,
+  characterFolio = false,
+  partyFolio = false,
+  unsavedChanges = {},
+  waiting = {},
+  onDestinationChange,
+  toasts = [],
+  onDismissToast = () => {},
 }: {
   title: ReactNode
   notice: string | null
@@ -101,6 +127,10 @@ export function CampaignCamp({
   onLeave: () => void
   /** The loaded roster; empty while loading, on error, or when none is available. */
   roster: readonly RosterMember[]
+  /** Each player's active character's name, by profile id; players without one use their own name. */
+  characterNames?: ReadonlyMap<string, string>
+  /** Looks players saved for this campaign, by profile id; others keep the default look. */
+  appearances?: ReadonlyMap<string, AdventurerAppearance>
   /**
    * Set only for a fresh arrival from the galaxy: the history entry's key, so the
    * landfall descent plays once for that arrival and never again.
@@ -111,7 +141,25 @@ export function CampaignCamp({
   cancelDelete: () => void
   overview: ReactNode
   party: ReactNode
+  characters: ReactNode
+  adventures: ReactNode
+  notes: ReactNode
   settings: ReactNode
+  /** A collapsible tab on the Party page's side (appearance), shown only there. */
+  partyDrawer?: ReactNode
+  /** My characters shows a full sheet, so its journal opens wide. */
+  characterFolio?: boolean
+  /** The Party panel shows a character's sheet, so it opens wide too. */
+  partyFolio?: boolean
+  /** Destinations whose open page holds edits that closing would lose. */
+  unsavedChanges?: Partial<Record<CampLocationId, boolean>>
+  /** How many requests wait for the player at a destination (the Adventures entry shows it). */
+  waiting?: Partial<Record<CampLocationId, number>>
+  /** Called with the open destination (or null when closed) each time it changes. */
+  onDestinationChange?: (id: CampLocationId | null) => void
+  /** Brief confirmations, shown inside the journal. */
+  toasts?: readonly CampToast[]
+  onDismissToast?: (id: number) => void
 }) {
   const [artFailed, setArtFailed] = useState(false)
   const [ready, setReady] = useState(false)
@@ -131,10 +179,68 @@ export function CampaignCamp({
     isOwner,
     scope: campRef,
   })
+  const [leaveAsked, setLeaveAsked] = useState(false)
+  const destinationRef = useRef(onDestinationChange)
+  useEffect(() => {
+    destinationRef.current = onDestinationChange
+  })
+  const activeId = active?.id ?? null
+  useEffect(() => {
+    destinationRef.current?.(activeId)
+  }, [activeId])
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
+  // Every destination wears the leather journal (the folio, wider, for a sheet). The
+  // variant outlives the close so the exit animation keeps the same look.
+  // Adventures and notes read as a board and a two-column page, so they get a wider journal ('wide').
+  const wantedVariant: 'journal' | 'folio' | 'wide' =
+    active?.id === 'characters'
+      ? characterFolio
+        ? 'folio'
+        : 'journal'
+      : active?.id === 'party' && partyFolio
+        ? 'folio'
+        : active?.id === 'adventures' || active?.id === 'notes'
+          ? 'wide'
+          : 'journal'
+  const folioOpen =
+    active?.id === 'party' ? partyFolio : active?.id === 'characters' ? characterFolio : false
+  const [lastVariant, setLastVariant] = useState<'journal' | 'folio' | 'wide' | undefined>(
+    undefined,
+  )
+  if (active && lastVariant !== wantedVariant) setLastVariant(wantedVariant)
+  const variant = active ? wantedVariant : (lastVariant ?? 'journal')
+  const guarded = active ? Boolean(unsavedChanges[active.id]) : false
+
+  /** Closing with unsaved edits asks first. */
+  function requestClose() {
+    if (isDeleting) return
+    if (guarded) {
+      // An unsaved-changes question inside the journal already has the focus.
+      if (!dialogRef.current?.querySelector('[data-unsaved-prompt]')) setLeaveAsked(true)
+      return
+    }
+    close()
+  }
+  // A click on the dimmed scene around the journal closes it, the same as Back to camp
+  // (so it asks first about unsaved edits and waits out a pending change). Both the press
+  // and the release must land outside the page, so dragging a text selection past its
+  // edge never closes it.
+  const pressedOutsideRef = useRef(false)
+  const isOutside = (event: { clientX: number; clientY: number }, dialog: HTMLElement) => {
+    const box = dialog.getBoundingClientRect()
+    return (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    )
+  }
   const ramps = useMemo(() => campRamps(world), [world])
-  const { figures, overflow } = useMemo(() => partyFigures(roster), [roster])
+  const { figures, overflow } = useMemo(
+    () => partyFigures(roster, characterNames, appearances),
+    [roster, characterNames, appearances],
+  )
   const highlight = hovered ?? focused ?? active?.id ?? null
   const onReady = useCallback(() => setReady(true), [])
   const onFail = useCallback(() => setArtFailed(true), [])
@@ -174,6 +280,10 @@ export function CampaignCamp({
       stone.style.height = `${rect.height}px`
       stone.style.visibility = isInFrame(rect, viewport) ? 'visible' : 'hidden'
     }
+    // The tent's lantern glow follows it across the scene.
+    const tentFoot = projectToDevice(tent, view)
+    scene.style.setProperty('--camp-tent-x', `${tentFoot.x / current.dpr}px`)
+    scene.style.setProperty('--camp-tent-y', `${(tentFoot.y - 20 * view.scale) / current.dpr}px`)
     for (const plate of scene.querySelectorAll<HTMLElement>('[data-camp-name-at]')) {
       const [x, y] = (plate.dataset.campNameAt ?? '').split(',').map(Number)
       const foot = projectToDevice({ x, y }, view)
@@ -219,7 +329,8 @@ export function CampaignCamp({
     measure: CampMeasure | null
     location: CampLocation | null
     before: number | null
-  }>({ measure: null, location: null, before: null })
+    folio: boolean
+  }>({ measure: null, location: null, before: null, folio: false })
   useLayoutEffect(() => {
     if (!measure) return
     const memory = cameraMemory.current
@@ -250,10 +361,15 @@ export function CampaignCamp({
         rig.panTo(memory.before ?? rest, closePanMs)
         memory.before = null
       }
+    } else if (active && memory.folio !== folioOpen) {
+      // The journal opened wider or narrower: frame the place in what is left.
+      const target = frameFor(active)
+      if (target !== null) rig.panTo(target, openPanMs)
     }
     memory.measure = measure
     memory.location = active
-  }, [measure, active, rig, dialogRef])
+    memory.folio = folioOpen
+  }, [measure, active, folioOpen, rig, dialogRef])
 
   // Drag or swipe the panorama; a small movement is still a click.
   useEffect(() => {
@@ -352,25 +468,30 @@ export function CampaignCamp({
     }
   }
 
-  const placeItems = available.map((location) => (
-    <li key={location.id}>
-      <button
-        aria-haspopup="dialog"
-        className="camp-places__destination"
-        data-location={location.id}
-        onClick={(event) => open(location, event.currentTarget)}
-        type="button"
-        {...attention(location.id)}
-        onFocus={(event) => {
-          attention(location.id).onFocus(event)
-          reveal(location)
-        }}
-      >
-        {location.label}
-        <span>{location.place}</span>
-      </button>
-    </li>
-  ))
+  const placeItems = available.map((location) => {
+    const waitingHere = waiting[location.id] ?? 0
+    return (
+      <li key={location.id}>
+        <button
+          aria-haspopup="dialog"
+          aria-label={waitingHere > 0 ? `${location.label}, ${waitingHere} waiting` : undefined}
+          className="camp-places__destination"
+          data-location={location.id}
+          onClick={(event) => open(location, event.currentTarget)}
+          type="button"
+          {...attention(location.id)}
+          onFocus={(event) => {
+            attention(location.id).onFocus(event)
+            reveal(location)
+          }}
+        >
+          {location.label}
+          {waitingHere > 0 && ` (${waitingHere})`}
+          <span>{location.place}</span>
+        </button>
+      </li>
+    )
+  })
 
   function sign(location: CampLocation) {
     // Placed by `place` from the camera; see there.
@@ -489,9 +610,22 @@ export function CampaignCamp({
         aria-labelledby={active ? `camp-${active.id}-heading` : undefined}
         className="camp-ledger"
         data-panel-side={panelSide}
+        data-variant={variant}
         onCancel={(event) => {
           event.preventDefault()
-          close()
+          requestClose()
+        }}
+        onClick={(event) => {
+          const outside =
+            event.target === event.currentTarget && isOutside(event, event.currentTarget)
+          if (outside && pressedOutsideRef.current) requestClose()
+          pressedOutsideRef.current = false
+        }}
+        onPointerDown={(event) => {
+          // Only the dialog itself is the target when the press is on its backdrop (or its
+          // own padding), never on the page content or a nested prompt.
+          pressedOutsideRef.current =
+            event.target === event.currentTarget && isOutside(event, event.currentTarget)
         }}
         ref={dialogRef}
       >
@@ -500,7 +634,7 @@ export function CampaignCamp({
             <button
               className="camp-ledger__back"
               disabled={isDeleting}
-              onClick={close}
+              onClick={requestClose}
               ref={closeRef}
               type="button"
             >
@@ -513,9 +647,27 @@ export function CampaignCamp({
             </p>
             <section hidden={active?.id !== 'overview'}>{overview}</section>
             <section hidden={active?.id !== 'party'}>{party}</section>
+            <section hidden={active?.id !== 'characters'}>{characters}</section>
+            <section hidden={active?.id !== 'adventures'}>{adventures}</section>
+            <section hidden={active?.id !== 'notes'}>{notes}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>
+        {active?.id === 'party' && !partyFolio && partyDrawer}
+        <ToastRegion onDismiss={onDismissToast} toasts={toasts} />
+        {leaveAsked && guarded && (
+          <div data-unsaved-prompt>
+            <UnsavedChangesDialog
+              discardLabel="Discard and leave"
+              message={`You have edits that haven't been saved. Leaving ${leaveName(active?.id)} now will discard them.`}
+              onDiscard={() => {
+                setLeaveAsked(false)
+                close()
+              }}
+              onKeep={() => setLeaveAsked(false)}
+            />
+          </div>
+        )}
       </dialog>
     </section>
   )

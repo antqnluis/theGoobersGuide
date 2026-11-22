@@ -150,25 +150,29 @@ export function planScene(
     size: { width: number; height: number },
     depth: number,
     flipX?: boolean,
+    /** Enlarges the sprite, to whole art pixels so it still sits on the pixel grid. */
+    enlarge = 1,
   ) => {
     const foot = projectToDevice(point, view)
+    const width = Math.round(size.width * enlarge)
+    const height = Math.round(size.height * enlarge)
     const op: DrawOp = {
       id,
       sx: 0,
       sy: 0,
       sw: size.width,
       sh: size.height,
-      dx: foot.x - Math.floor(size.width / 2) * view.scale,
-      dy: foot.y - size.height * view.scale,
-      dw: size.width * view.scale,
-      dh: size.height * view.scale,
+      dx: foot.x - Math.floor(width / 2) * view.scale,
+      dy: foot.y - height * view.scale,
+      dw: width * view.scale,
+      dh: height * view.scale,
       flipX,
     }
     if (intersects(op, view)) standing.push({ depth, op })
   }
   for (const prop of sceneProps) {
     const size = sizes[prop.id]
-    if (size) stand(prop.id, prop, size, prop.y, prop.flip)
+    if (size) stand(prop.id, prop, size, prop.y, prop.flip, prop.scale)
   }
   for (const figure of figures) {
     const id = frameSpriteId(figure.spriteId, (bobFrame + figure.phase) % 2)

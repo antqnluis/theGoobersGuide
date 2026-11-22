@@ -56,3 +56,18 @@ export function validateRegistration(
 
   return { username, email, errors }
 }
+
+export const displayNameMaxLength = 40
+
+/** A trimmed display name (null clears it) and the message to show when it is not allowed. */
+export function validateDisplayName(input: string): { value: string | null; error: string | null } {
+  const value = input.trim()
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(value)) {
+    return { value: null, error: "A display name can't contain control characters." }
+  }
+  if ([...value].length > displayNameMaxLength) {
+    return { value: null, error: `Use ${displayNameMaxLength} characters or fewer.` }
+  }
+  return { value: value || null, error: null }
+}

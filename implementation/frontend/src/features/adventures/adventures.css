@@ -1,0 +1,561 @@
+/* The adventures board at the map table. Built on the journal-* primitives. */
+.camp-adventures {
+  display: grid;
+  gap: 18px;
+  margin-top: 4px;
+  /* The board answers to the journal's width, not the viewport's. */
+  container: adventures / inline-size;
+}
+
+.adventure-toolbar {
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.adventure-toolbar__filter {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.adventure-group {
+  display: grid;
+  gap: 10px;
+}
+
+.adventure-group .journal-section-title {
+  margin-bottom: 2px;
+}
+
+.adventure-group__empty,
+.adventure-empty,
+.adventure-block__empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+}
+
+.adventure-list,
+.objective-list,
+.update-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adventure-row,
+.objective-row,
+.update-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 10px 12px;
+  background: rgb(255 255 255 / 0.35);
+  min-width: 0;
+}
+
+.adventure-row__open {
+  min-height: var(--journal-touch);
+  border: 0;
+  padding: 0;
+  color: var(--journal-oxblood-deep);
+  background: none;
+  font: 700 1.05rem / 1.35 var(--journal-font-display, inherit);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.adventure-row__open:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.adventure-row__meta,
+.update-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.adventure-row__next {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-archived {
+  border-top: 1px solid var(--journal-rule);
+  padding-top: 10px;
+}
+
+.adventure-archived summary {
+  min-height: var(--journal-touch);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.adventure-archived summary:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.adventure-archived .adventure-list {
+  margin-top: 8px;
+}
+
+.adventure-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.adventure-page__head {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.adventure-page h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-page__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  line-height: 1.4;
+}
+
+.adventure-status {
+  max-width: 18rem;
+}
+
+.adventure-status__note {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.adventure-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.adventure-facts > div {
+  display: grid;
+  gap: 2px;
+}
+
+.adventure-facts dt {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.adventure-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-facts__empty {
+  color: var(--journal-ink-soft);
+  font-style: italic;
+}
+
+.adventure-description {
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 12px 14px;
+  background: rgb(255 255 255 / 0.35);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.adventure-description--empty {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-style: italic;
+}
+
+.adventure-block {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adventure-block__count {
+  color: var(--journal-ink-soft);
+  font-weight: 400;
+}
+
+.objective-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.objective-row[data-done] .objective-row__check label {
+  color: var(--journal-ink-soft);
+  text-decoration: line-through;
+}
+
+.objective-row__check label {
+  overflow-wrap: anywhere;
+}
+
+.objective-row__meta {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.objective-row__tools,
+.objective-row__edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.objective-row__edit {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.objective-row__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.objective-add,
+.update-add {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.objective-add .journal-field,
+.update-add .journal-field {
+  width: 100%;
+}
+
+.update-row__body {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.update-row .journal-button {
+  justify-self: start;
+}
+
+.adventure-form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.adventure-form__types {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.adventure-form__help {
+  display: block;
+  margin-left: 2rem;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.adventure-form__description {
+  min-height: 9rem;
+}
+
+.adventure-form__conflict {
+  display: grid;
+  gap: 10px;
+}
+
+.adventure-form__conflict > p {
+  margin: 0;
+}
+
+.adventure-form__conflict .journal-confirm {
+  background: rgb(255 255 255 / 0.5);
+}
+
+.adventure-count {
+  margin: 6px 0 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+.adventure-count[data-over] {
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+}
+
+/* An adventure's own title is a title, not a section label: keep the writer's capitals. */
+.camp-panel .adventure-page__head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 600 clamp(1.4rem, 3vw, 1.8rem) / 1.15 var(--journal-font-display);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Collaboration (M6): invitations, "Waiting for you", and the participants section. */
+.adventure-row__waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--journal-oxblood-deep);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.adventure-invitation {
+  gap: 8px;
+}
+
+.adventure-invitation__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-invitation__keep {
+  display: grid;
+  gap: 4px;
+}
+
+.adventure-invitation__keep p {
+  margin: 0;
+}
+
+.adventure-participants,
+.participant-invite {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.participant-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.participant-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 8px 12px;
+  background: rgb(255 255 255 / 0.35);
+  min-width: 0;
+}
+
+.participant-row[data-status='declined'],
+.participant-row[data-status='left'] {
+  background: rgb(255 255 255 / 0.15);
+}
+
+.participant-row__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.participant-row__who span,
+.participant-row__state {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.participant-row__state {
+  margin: 0;
+}
+
+.participant-row__actions:empty {
+  display: none;
+}
+
+.participant-invite select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Sharing with the party and its read-only view (M6, D6 and D7). */
+.adventure-sharing {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adventure-sharing__state {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.adventure-page__readonly {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.objective-row__plain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.objective-row[data-done] .objective-row__plain span:nth-child(2) {
+  text-decoration: line-through;
+}
+
+.objective-row__state {
+  color: var(--journal-ink-soft);
+  font-size: 0.85rem;
+}
+
+/* Layout: groups breathe apart, rows pack tight, and a wide journal uses its width. */
+.camp-adventures {
+  gap: 26px;
+}
+
+.adventure-row {
+  align-content: start;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.adventure-row__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.adventure-row__facts .adventure-row__meta {
+  display: contents;
+}
+
+.adventure-row__facts .adventure-row__meta span {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.adventure-facts {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 10px 20px;
+}
+
+.adventure-facts > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.adventure-row__open {
+  font-size: 1.15rem;
+}
+
+.adventure-row__next {
+  border-top: 1px dashed var(--journal-rule);
+  padding-top: 6px;
+  color: var(--journal-ink);
+}
+
+.adventure-page__body,
+.adventure-page__main,
+.adventure-page__side {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  align-content: start;
+}
+
+.adventure-page__side {
+  gap: 20px;
+}
+
+/* A sheet is a long page: keep form fields and prose to a readable measure. */
+.adventure-form {
+  max-width: 44rem;
+}
+
+.adventure-description,
+.adventure-facts dd {
+  max-width: 62ch;
+}
+
+@container adventures (min-width: 40rem) {
+  .adventure-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+    align-items: stretch;
+  }
+
+  .adventure-page__body {
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* The people and sharing sit beside the story, set off by a rule. */
+  .adventure-page__side {
+    padding-left: 20px;
+    border-left: 1px solid var(--journal-rule);
+  }
+}
+
+@container adventures (min-width: 40rem) {
+  .objective-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+  }
+
+  .objective-row > .objective-row__meta {
+    grid-column: 1;
+  }
+
+  .objective-row__tools {
+    grid-column: 2;
+    grid-row: 1;
+    flex-wrap: nowrap;
+  }
+}
+
+@container adventures (min-width: 52rem) {
+  .adventure-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  }
+}
+
+/* The back link lines up with the page's left edge instead of its own padding. */
+.adventure-page__head > .journal-button--ghost {
+  margin-inline-start: -18px;
+}

@@ -1,5 +1,14 @@
 import type { CampKind } from './campPalette'
-import { bedrolls, dormantProps, firePit, wagon, waystone } from './campLayout'
+import {
+  bedrolls,
+  dormantProps,
+  firePit,
+  journalCrates,
+  mapTable,
+  tent,
+  wagon,
+  waystone,
+} from './campLayout'
 
 // Every camp image, as a hashed same-origin URL. `no-inline` keeps small sprites
 // as files instead of data URIs, so the camp chunk stays code only.
@@ -23,9 +32,16 @@ export function landscapeIds(kind: CampKind) {
 }
 
 /** Props drawn between the ground and the foreground, back to front. */
-export const sceneProps = [wagon, ...dormantProps, waystone, firePit, ...bedrolls].toSorted(
-  (a, b) => a.y - b.y,
-)
+export const sceneProps = [
+  wagon,
+  tent,
+  journalCrates,
+  mapTable,
+  ...dormantProps,
+  waystone,
+  firePit,
+  ...bedrolls,
+].toSorted((a, b) => a.y - b.y)
 
 /** Every image one world needs. */
 export function assetIdsFor(kind: CampKind) {

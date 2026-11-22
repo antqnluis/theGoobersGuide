@@ -4,6 +4,8 @@ import {
   campLocations,
   bedrolls,
   dormantProps,
+  journalCrates,
+  mapTable,
   firePit,
   memberLabel,
   panorama,
@@ -11,6 +13,7 @@ import {
   partySeats,
   resolveLocation,
   seatParty,
+  tent,
   wagon,
   waystone,
   type RosterMember,
@@ -28,8 +31,21 @@ const member = (
 
 describe('owner gating', () => {
   it('offers the wagon to owners only', () => {
-    expect(availableLocations(true).map(({ id }) => id)).toEqual(['overview', 'party', 'settings'])
-    expect(availableLocations(false).map(({ id }) => id)).toEqual(['overview', 'party'])
+    expect(availableLocations(true).map(({ id }) => id)).toEqual([
+      'overview',
+      'party',
+      'characters',
+      'adventures',
+      'notes',
+      'settings',
+    ])
+    expect(availableLocations(false).map(({ id }) => id)).toEqual([
+      'overview',
+      'party',
+      'characters',
+      'adventures',
+      'notes',
+    ])
     expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
     expect(parkedLocations(true)).toEqual([])
   })
@@ -46,7 +62,7 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...[wagon, firePit, waystone, ...bedrolls, ...dormantProps],
+      ...[wagon, tent, mapTable, journalCrates, firePit, waystone, ...bedrolls, ...dormantProps],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)
@@ -56,9 +72,75 @@ describe('layout table', () => {
     }
   })
 
+  it('swaps the tent and the wagon: the tent stands where the wagon did, and the wagon where the tent did', () => {
+    expect([tent.x, tent.y]).toEqual([280, 244])
+    expect([wagon.x, wagon.y]).toEqual([170, 240])
+    expect(campLocations.find(({ id }) => id === 'settings')?.world).toEqual({
+      x: wagon.x,
+      y: wagon.y,
+    })
+  })
+
   it('has unique seats and no dormant prop that is a destination', () => {
     expect(new Set(partySeats.map(({ x, y }) => `${x},${y}`)).size).toBe(partySeats.length)
     expect(dormantProps.map(({ id }) => id)).not.toContain('settings')
+  })
+
+  it('makes the tent a destination for everyone, with a target that covers its larger sprite', () => {
+    const location = campLocations.find(({ id }) => id === 'characters')
+    expect(location).toMatchObject({
+      label: 'My characters',
+      place: 'Tent',
+      world: { x: tent.x, y: tent.y },
+      hit: { width: Math.round(50 * tent.scale!), height: Math.round(35 * tent.scale!) },
+      ownerOnly: false,
+    })
+    expect(tent.scale).toBeGreaterThan(1)
+    expect(tent.id).toBe('empty-tent')
+    expect(dormantProps.map(({ id }) => id)).not.toContain('empty-tent')
+    expect(resolveLocation('characters', false)?.id).toBe('characters')
+  })
+})
+
+describe('journal crates', () => {
+  it('are the Notes destination for everyone, with a target that covers the 32×38 sprite', () => {
+    expect(campLocations.find(({ id }) => id === 'notes')).toEqual({
+      id: 'notes',
+      label: 'Notes',
+      place: 'Journal crates',
+      world: { x: journalCrates.x, y: journalCrates.y },
+      hit: { width: 40, height: 46 },
+      plate: 'above',
+      plateAlign: 'center',
+      ownerOnly: false,
+    })
+    expect(journalCrates.id).toBe('journal-crates')
+    expect(resolveLocation('notes', false)?.id).toBe('notes')
+  })
+
+  it('are no longer dormant scenery', () => {
+    expect(dormantProps.map(({ id }) => id)).not.toContain('journal-crates')
+  })
+})
+
+describe('map table', () => {
+  it('is the Adventures destination for everyone, with a target that covers the 47×35 sprite', () => {
+    expect(campLocations.find(({ id }) => id === 'adventures')).toEqual({
+      id: 'adventures',
+      label: 'Adventures',
+      place: 'Map table',
+      world: { x: mapTable.x, y: mapTable.y },
+      hit: { width: 52, height: 42 },
+      plate: 'above',
+      plateAlign: 'end',
+      ownerOnly: false,
+    })
+    expect(mapTable.id).toBe('map-table')
+    expect(resolveLocation('adventures', false)?.id).toBe('adventures')
+  })
+
+  it('is no longer dormant scenery, so nothing is dormant any more', () => {
+    expect(dormantProps).toEqual([])
   })
 })
 

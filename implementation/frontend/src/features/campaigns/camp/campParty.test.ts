@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bedrollSeats, bedrolls, firePit, partySeats, wagon, type RosterMember } from './campLayout'
+import {
+  bedrollSeats,
+  bedrolls,
+  firePit,
+  partySeats,
+  tent,
+  wagon,
+  type RosterMember,
+} from './campLayout'
 import { figureSize, outlineTargets, partyFigures, spriteIdFor } from './campParty'
 
 const member = (index: number, role = 'member', username: string | null = `player_${index}`) =>
@@ -23,6 +31,35 @@ describe('partyFigures', () => {
     expect(figures.map(({ x, y }) => ({ x, y }))).toEqual(partySeats.slice(0, 3))
     expect(figures[0].spriteId).toBe(spriteIdFor(figures[0].look))
     expect(partyFigures(roster).figures).toEqual(figures)
+  })
+
+  it("names a seat for its player's active character, and for the player otherwise", () => {
+    const roster = [member(1, 'owner', 'game_master'), member(2), member(3, 'member', null)]
+    const names = new Map([
+      [roster[0].profile_id, 'Brand'],
+      [roster[2].profile_id, 'Wren'],
+    ])
+    expect(partyFigures(roster, names).figures.map(({ label }) => label)).toEqual([
+      'Brand',
+      'player_2',
+      'Wren',
+    ])
+    expect(partyFigures(roster, new Map()).figures.map(({ label }) => label)).toEqual([
+      'game_master',
+      'player_2',
+      'Player',
+    ])
+  })
+
+  it('draws a saved look in place of the default for that player only', () => {
+    const roster = [member(1, 'owner', 'game_master'), member(2)]
+    const chosen = { cloak: 7, skin: 4, headwear: 'bare', pack: 'none' } as const
+    const { figures } = partyFigures(roster, undefined, new Map([[roster[1].profile_id, chosen]]))
+    const defaults = partyFigures(roster).figures
+    expect(figures[0].look).toEqual(defaults[0].look)
+    expect(figures[1].look).toEqual(chosen)
+    expect(figures[1].spriteId).toBe(spriteIdFor(chosen))
+    expect(figures[1].spriteId).not.toBe(defaults[1].spriteId)
   })
 
   it('labels an owner without a username as the campaign owner', () => {
@@ -77,6 +114,7 @@ describe('outlineTargets', () => {
 
   it('outlines the object behind each destination', () => {
     expect(outlineTargets('overview', figures)).toEqual(new Set([firePit.id]))
+    expect(outlineTargets('characters', figures)).toEqual(new Set([tent.id]))
     expect(outlineTargets('settings', figures)).toEqual(new Set([wagon.id]))
     expect(outlineTargets(null, figures).size).toBe(0)
   })

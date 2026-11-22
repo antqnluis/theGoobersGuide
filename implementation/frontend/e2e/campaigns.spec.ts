@@ -5,13 +5,24 @@ import { seatParty } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
 import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
+import type { RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import {
+  accountId,
   type Campaign,
+  type CharacterFailure,
+  type CharacterState,
+  type MembershipFailure,
   campDraws,
   campLog,
   corsHeaders,
   enterFromGalaxy,
   mockCampaignApi,
+  mockCharacter,
+  mockAppearances,
+  mockCharacters,
+  mockItem,
+  mockMembership,
+  mockSheet,
   mockRoster,
   openCamp,
   ownerId,
@@ -147,7 +158,9 @@ test('lets the owner edit details and confirms deletion', async ({ page }) => {
 
   await settings.click()
   await page.getByRole('button', { name: 'Delete campaign' }).click()
-  await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Confirm campaign deletion' })).toContainText(
+    "Delete The Red Hand: Reframed permanently? Its details, member list, notes, adventures, and every player's characters, character sheets, and inventories will be removed. This can't be undone.",
+  )
   await page.getByRole('button', { name: 'Keep campaign' }).click()
   const deleteButton = page.getByRole('button', { name: 'Delete campaign' })
   await expect(deleteButton).toBeFocused()
@@ -320,6 +333,8 @@ test('campaign screens fit mobile, tablet, and desktop viewports', async ({ page
 test('draws the camp scene crisp and keeps destinations usable across viewports', async ({
   page,
 }, testInfo) => {
+  // A viewport sweep over a WebGL scene: slow when the whole suite runs in parallel.
+  test.slow()
   const longName = 'The Unwritten Chronicles of the Far Shore and the Lanterns Beyond the Sea'
   const roster = Array.from({ length: 32 }, (_, index) => ({
     profile_id: `player-${index}`,
@@ -327,7 +342,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     username: `player_${String(index).padStart(2, '0')}`,
   }))
   await mockCampaignApi(page, [{ ...redHand, name: longName }])
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+  await page.route('**/rest/v1/rpc/get_campaign_party', async (route) => {
     const headers = corsHeaders()
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     await route.fulfill({ status: 200, headers, json: roster })
@@ -349,6 +364,8 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
   ]) {
     await page.setViewportSize({ width, height })
     const desktop = width >= 900 && height >= 481
+    // The sixth Places entry makes a 375 x 812 phone page scrollable, so start each size at the top.
+    await page.evaluate(() => window.scrollTo(0, 0))
     await expect(camp).toHaveAttribute('data-camp-ready', 'true')
 
     // The canvas is drawn 1:1 in device pixels, so every art pixel stays a whole block.
@@ -372,12 +389,20 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     // Scene buttons that are in frame are usable; the rest leave the tab order.
     const signs = page.locator('[data-camp-sign]')
     const total = await signs.count()
-    expect(total).toBe(3)
+    expect(total).toBe(6)
     let inFrame = 0
     for (let index = 0; index < total; index += 1) {
       const sign = signs.nth(index)
       if ((await sign.evaluate((el) => getComputedStyle(el).visibility)) === 'visible') {
-        inFrame += 1
+        // The wagon, the map table, and the crates stand off-frame at rest on a wide view, so
+        // they are not counted; Places opens them.
+        if (
+          !['settings', 'adventures', 'notes'].includes(
+            (await sign.getAttribute('data-location')) ?? '',
+          )
+        ) {
+          inFrame += 1
+        }
         await expect(sign).toBeInViewport({ ratio: 1 })
         await sign.click({ trial: true })
         const box = (await sign.boundingBox())!
@@ -386,7 +411,7 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
         await expect(sign).toBeHidden()
       }
     }
-    if (desktop) expect(inFrame).toBe(total)
+    if (desktop) expect(inFrame).toBe(total - 3)
 
     // Places is the complete, always-available navigation.
     await expect(places).toBeVisible()
@@ -407,8 +432,8 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
     await expect(dialog).toBeInViewport({ ratio: 1 })
     await expect(camp).toHaveAttribute('data-camp-state', 'party')
     if (!desktop) expect((await dialog.boundingBox())?.width).toBe(width)
-    await dialog.getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
-    await expect(dialog.getByText('player_31', { exact: true })).toBeInViewport()
+    await dialog.getByRole('list').getByText('player_31', { exact: true }).scrollIntoViewIfNeeded()
+    await expect(dialog.getByRole('list').getByText('player_31', { exact: true })).toBeInViewport()
     await expect(back).toBeInViewport({ ratio: 1 })
     await page.keyboard.press('Escape')
     await expect(party).toBeFocused()
@@ -532,7 +557,11 @@ test('seats the real roster around the fire and recovers from a roster error', a
   await expect(names).toHaveCount(0)
   const empty = await checksum()
   await page.locator('[data-camp-sign][data-location="party"]').click()
-  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Campaign members could not be loaded.'),
+  ).toBeVisible()
   await expect(names).toHaveCount(0)
 
   failing = false
@@ -592,7 +621,10 @@ test('keeps the wagon scenery but gives members no settings control', async ({ p
   await page.setViewportSize({ width: 1440, height: 900 })
   const camp = await openCamp(page)
 
-  await expect(page.locator('[data-camp-sign]')).toHaveCount(2)
+  await expect(page.locator('[data-camp-sign]')).toHaveCount(5)
+  await expect(page.locator('[data-camp-sign][data-location="characters"]')).toHaveCount(1)
+  await expect(page.locator('[data-camp-sign][data-location="adventures"]')).toHaveCount(1)
+  await expect(page.locator('[data-camp-sign][data-location="notes"]')).toHaveCount(1)
   await expect(page.locator('[data-camp-sign][data-location="settings"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Campaign settings/ })).toHaveCount(0)
   await expect(camp.locator('.camp-name')).toHaveText(['game_master', 'player_one'])
@@ -617,14 +649,15 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
 
   expect(await outlined()).toBe(0)
 
-  const wagon = page.locator('[data-camp-sign][data-location="settings"]')
-  await wagon.hover()
+  // The tent is the in-frame object at the left of the camp; the wagon is out of frame at rest.
+  const tent = page.locator('[data-camp-sign][data-location="characters"]')
+  await tent.hover()
   await expect.poll(outlined).toBeGreaterThan(0)
-  const wagonOutline = await outlined()
+  const tentOutline = await outlined()
   await page.mouse.move(700, 300)
   await expect.poll(outlined).toBe(0)
 
-  // Bedrolls and seated figures make a bigger outline than the wagon alone.
+  // Bedrolls and seated figures make a bigger outline than the tent alone.
   await page.locator('[data-camp-sign][data-location="party"]').hover()
   await expect.poll(outlined).toBeGreaterThan(0)
   await page.mouse.move(700, 300)
@@ -641,7 +674,7 @@ test('outlines the hovered, focused, or open destination in the scene', async ({
   await expect.poll(outlined).toBeGreaterThan(0)
   await page.keyboard.press('Escape')
   await expect(camp).toHaveAttribute('data-camp-state', 'idle')
-  expect(wagonOutline).toBeGreaterThan(0)
+  expect(tentOutline).toBeGreaterThan(0)
 })
 
 test('descends into camp only on arrival from the galaxy, never on load, refresh, or Back', async ({
@@ -689,6 +722,7 @@ test('descends into camp only on arrival from the galaxy, never on load, refresh
 })
 
 test('frames a destination on the open side of its panel and comes back', async ({ page }) => {
+  test.slow()
   await watchCamp(page)
   await mockCampaignApi(page, [redHand])
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -700,7 +734,7 @@ test('frames a destination on the open side of its panel and comes back', async 
   for (const [id, worldX] of [
     ['party', 480],
     ['overview', 480],
-    ['settings', 240],
+    ['characters', 280],
   ] as const) {
     await page.locator(`[data-camp-sign][data-location="${id}"]`).click()
     await expect(camp).toHaveAttribute('data-camp-state', id)
@@ -945,6 +979,68 @@ test('keeps the page scroll on a phone, where only a sideways wheel pans', async
   await expect.poll(() => camp.getAttribute('data-camera-x')).not.toBe(rest)
 })
 
+test('the journal crates open Notes from the Places list and the scene at every width', async ({
+  page,
+}, testInfo) => {
+  await watchCamp(page)
+  await mockCampaignApi(page, [redHand])
+  await mockRoster(page, () => partyRoster(3))
+  const camp = await openCamp(page)
+  const places = page.getByRole('list', { name: 'Camp places' })
+  const crates = page.locator('[data-camp-sign][data-location="notes"]')
+  const back = page.getByRole('button', { name: 'Back to camp' })
+
+  for (const [width, height] of [
+    [375, 812],
+    [768, 960],
+    [1280, 720],
+    [1440, 900],
+    [3440, 1440],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(camp).toHaveAttribute('data-camp-ready', 'true')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
+
+    // Focusing the Places entry brings the crates into view, then Enter opens the journal.
+    const entry = places.getByRole('button', { name: /^Notes\s*Journal crates/ })
+    await entry.scrollIntoViewIfNeeded()
+    expect((await entry.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await entry.focus()
+    await expect(camp).toHaveAttribute('data-animating', 'false')
+    await expect(crates).toBeVisible()
+    await expect(crates).toBeInViewport({ ratio: 1 })
+    const target = (await crates.boundingBox())!
+    expect(Math.min(target.width, target.height)).toBeGreaterThanOrEqual(44)
+    await page.keyboard.press('Enter')
+    await expect(camp).toHaveAttribute('data-camp-state', 'notes')
+    await expect(back).toBeFocused()
+    const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+    await expect(dialog).toBeInViewport({ ratio: 1 })
+
+    // On a desktop view the camera frames the crates in the part the journal leaves open.
+    if (width >= 900 && height >= 481) {
+      const panel = (await dialog.boundingBox())!
+      await expect(camp).toHaveAttribute('data-animating', 'false')
+      const framed = (await crates.boundingBox())!
+      expect(framed.x + framed.width <= panel.x || framed.x >= panel.x + panel.width).toBe(true)
+    }
+    await page.screenshot({ path: testInfo.outputPath(`notes-${width}x${height}.png`) })
+
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(entry).toBeFocused()
+
+    // The scene button opens the same page.
+    await crates.click()
+    await expect(camp).toHaveAttribute('data-camp-state', 'notes')
+    await page.keyboard.press('Escape')
+    await expect(camp).toHaveAttribute('data-camp-state', 'idle')
+    await expect(crates).toBeFocused()
+  }
+})
+
 test('pans to a place that is out of frame when it takes focus', async ({ page }) => {
   await watchCamp(page)
   await mockCampaignApi(page, [redHand])
@@ -981,7 +1077,7 @@ test('stays usable at 200% browser zoom', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport({ ratio: 1 })
 
   const places = page.getByRole('list', { name: 'Camp places' })
-  await expect(places.getByRole('button')).toHaveCount(3)
+  await expect(places.getByRole('button')).toHaveCount(6)
   for (const button of await places.getByRole('button').all()) {
     await expect(button).toBeInViewport({ ratio: 1 })
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
@@ -1211,7 +1307,7 @@ test('retries campaign and party loading from the camp', async ({ page }) => {
     await pendingCampaign
     await route.fulfill({ status: 400, headers: corsHeaders(), json: error })
   })
-  await page.route('**/rest/v1/rpc/get_campaign_roster', async (route) => {
+  await page.route('**/rest/v1/rpc/get_campaign_party', async (route) => {
     const headers = corsHeaders()
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
     if (failRoster) {
@@ -1228,9 +1324,17 @@ test('retries campaign and party loading from the camp', async ({ page }) => {
   failCampaign = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await page.getByRole('button', { name: 'Party', exact: true }).click()
-  await expect(page.getByText('Loading campaign members…')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Loading campaign members…'),
+  ).toBeVisible()
   releaseRoster()
-  await expect(page.getByText('Campaign members could not be loaded.')).toBeVisible()
+  await expect(
+    page
+      .locator('.camp-ledger__body > section:has(#camp-party-heading)')
+      .getByText('Campaign members could not be loaded.'),
+  ).toBeVisible()
   failRoster = false
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.getByText('No member information is available.')).toBeVisible()
@@ -1687,6 +1791,7 @@ test('turns the sky as the camera swings between worlds and restores it on the w
 test('keeps travelling labels inside the scene and lands each world clear of the controls', async ({
   page,
 }, testInfo) => {
+  test.slow()
   const campaigns = [
     redHand,
     { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },
@@ -2059,3 +2164,2200 @@ test('responds to invitations on a short phone viewport without WebGL', async ({
   await expect(panel).toHaveCSS('transition-property', 'none')
   await expect(page.getByText('You have no pending invitations.')).toBeInViewport()
 })
+
+const guestId = '00000000-0000-4000-8000-000000000201'
+const nameless = '00000000-0000-4000-8000-000000000202'
+
+function ownerRoster(): RosterMember[] {
+  return [
+    { profile_id: accountId, role: 'owner', username: 'player_one' },
+    { profile_id: guestId, role: 'member', username: 'player_two' },
+    { profile_id: nameless, role: 'member', username: null },
+  ]
+}
+
+function memberRoster(): RosterMember[] {
+  return [
+    { profile_id: ownerId, role: 'owner', username: 'game_master' },
+    { profile_id: accountId, role: 'member', username: 'player_one' },
+    { profile_id: guestId, role: 'member', username: 'player_two' },
+  ]
+}
+
+const hasNoHorizontalScroll = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+
+test('a member leaves from the Party panel by keyboard and lands on the selector', async ({
+  page,
+}) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  const { calls, requests } = await mockMembership(page, campaigns, memberRoster())
+  await openCamp(page, campaign)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Invite player' })).toHaveCount(0)
+  const leave = page.getByRole('button', { name: 'Leave campaign', exact: true })
+  await leave.focus()
+  await page.keyboard.press('Enter')
+
+  const confirm = page.getByRole('group', { name: 'Confirm leaving the campaign' })
+  await expect(confirm).toContainText(
+    "Leave The Red Hand? You'll lose access until the owner invites you again. Your characters are kept and leave the party.",
+  )
+  await expect(page.getByRole('button', { name: 'Yes, leave campaign' })).toBeFocused()
+  await page.getByRole('button', { name: 'Stay in campaign' }).click()
+  await expect(confirm).toHaveCount(0)
+  await expect(leave).toBeFocused()
+  expect(calls).toEqual([])
+
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+  await expect(page.getByRole('status').filter({ hasText: 'You left the campaign.' })).toBeVisible()
+  await expect(page.getByText('Campaign not available')).toHaveCount(0)
+  expect(calls).toEqual(['leave_campaign'])
+  // Nothing refetched the campaign or roster after the leave, so no "not available" flash.
+  const afterLeave = requests.slice(requests.indexOf('POST rpc/leave_campaign') + 1)
+  expect(afterLeave.filter((entry) => entry.includes('rpc/get_campaign_party'))).toEqual([])
+  expect(afterLeave.filter((entry) => entry.startsWith('GET campaigns'))).not.toContain(
+    'GET campaigns?select=*&id=eq.' + campaign.id,
+  )
+})
+
+test('the owner removes a member after one inline confirmation', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  const { calls } = await mockMembership(page, campaigns, roster)
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Leave campaign' })).toHaveCount(0)
+  await expect(page.getByText('transfer ownership in Campaign settings first.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(2)
+  await expect(
+    page.getByRole('button', { name: 'Remove this player from the campaign' }),
+  ).toBeVisible()
+
+  const removeGuest = page.getByRole('button', { name: 'Remove player_two from the campaign' })
+  await removeGuest.click()
+  const confirm = page.getByRole('group', { name: 'Confirm removal of player_two' })
+  await expect(confirm).toContainText('Remove player_two from The Red Hand?')
+  await expect(page.getByRole('button', { name: 'Yes, remove' })).toBeFocused()
+
+  // Only one confirmation is open at a time.
+  await page.getByRole('button', { name: 'Remove this player from the campaign' }).click()
+  await expect(page.getByRole('group', { name: /Confirm removal/ })).toHaveCount(1)
+  await expect(page.getByRole('group', { name: 'Confirm removal of this player' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Keep this player' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Remove this player from the campaign' }),
+  ).toBeFocused()
+  expect(calls).toEqual([])
+
+  await removeGuest.click()
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'player_two was removed.' }),
+  ).toBeVisible()
+  await expect(page.getByRole('list').getByText('player_two', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Invite player' })).toBeFocused()
+  expect(calls).toEqual([`remove_campaign_member ${guestId}`])
+})
+
+test('the owner transfers ownership and becomes a regular member', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  const { calls } = await mockMembership(page, campaigns, roster)
+  await openCamp(page)
+
+  const settings = page.getByRole('button', { name: 'Campaign settings', exact: true })
+  await settings.click()
+  const transfer = page.getByRole('button', { name: 'Transfer ownership', exact: true })
+  await expect(page.getByRole('heading', { name: 'Transfer ownership' })).toBeVisible()
+  await expect(transfer).toBeDisabled()
+  await page.getByRole('radio', { name: 'player_two' }).check()
+  await expect(transfer).toBeEnabled()
+  await transfer.click()
+
+  const confirm = page.getByRole('group', { name: 'Confirm ownership transfer' })
+  await expect(confirm).toContainText('Make player_two the owner of The Red Hand?')
+  await page.getByRole('button', { name: 'Keep ownership' }).click()
+  await expect(confirm).toHaveCount(0)
+  expect(calls).toEqual([])
+
+  await page.getByRole('radio', { name: 'player_two' }).check()
+  await transfer.click()
+  await page.getByRole('button', { name: 'Yes, transfer ownership' }).click()
+
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Ownership transferred to player_two.' }),
+  ).toBeVisible()
+  await expect(settings).toHaveCount(0)
+  await expect(page.locator('dialog.camp-ledger')).not.toHaveAttribute('open', '')
+  expect(calls).toEqual([`transfer_campaign_ownership ${guestId}`])
+
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
+  await expect(page.getByText('Your role').locator('..')).toContainText('Member')
+  await expect(page.getByText('Campaign owner').locator('..')).toContainText('player_two')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Leave campaign' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Remove / })).toHaveCount(0)
+})
+
+test('an owner with no other members is asked to invite someone before transferring', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(page, campaigns, [
+    { profile_id: accountId, role: 'owner', username: 'player_one' },
+  ])
+  await openCamp(page)
+  await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
+  await expect(page.getByText('Invite a player before you transfer ownership.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Transfer ownership', exact: true })).toHaveCount(0)
+})
+
+test('membership failures show safe copy, keep the dialog open, and can be retried', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster = ownerRoster()
+  let failure: MembershipFailure = { status: 500, message: 'connection reset' }
+  await mockMembership(page, campaigns, roster, { fail: () => failure })
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    "We couldn't remove this player. Check your connection and try again.",
+  )
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+  await expect(page.locator('dialog.camp-ledger')).toHaveAttribute('open', '')
+
+  failure = { status: 400, message: 'campaign_member_unavailable' }
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(page.getByRole('alert')).toHaveText('That player is no longer in this campaign.')
+
+  failure = null
+  await page.getByRole('button', { name: 'Yes, remove' }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'player_two was removed.' }),
+  ).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  failure = { status: 400, message: 'campaign_transfer_target_unavailable' }
+  await page.getByRole('button', { name: 'Campaign settings', exact: true }).click()
+  await page.getByRole('radio', { name: 'player', exact: false }).first().check()
+  await page.getByRole('button', { name: 'Transfer ownership', exact: true }).click()
+  await page.getByRole('button', { name: 'Yes, transfer ownership' }).click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'That player is no longer in this campaign. Choose another member.',
+  )
+})
+
+test('the camp dialog cannot close while a membership request is pending', async ({ page }) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await mockMembership(page, campaigns, memberRoster(), { hold: () => gate })
+  await openCamp(page, campaign)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Leave campaign', exact: true }).click()
+  await page.getByRole('button', { name: 'Yes, leave campaign' }).click()
+  await expect(page.getByRole('button', { name: 'Leaving…' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Stay in campaign' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('dialog.camp-ledger')).toHaveAttribute('open', '')
+
+  release()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+})
+
+test('closing the camp dialog cancels an open membership confirmation', async ({ page }) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(page, campaigns, ownerRoster())
+  await openCamp(page)
+
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(page.getByRole('group', { name: /Confirm removal/ })).toHaveCount(0)
+})
+
+const places = (page: Page) => page.getByRole('list', { name: 'Camp places' })
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['tablet', 768, 1024],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`owner membership confirmations fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const ownedCampaigns = await mockCampaignApi(page, [
+      { ...redHand, name: 'The Red Hand of the Long Night' },
+    ])
+    await mockMembership(page, ownedCampaigns, ownerRoster())
+    await openCamp(page, redHand)
+
+    await places(page)
+      .getByRole('button', { name: /^Party/ })
+      .click()
+    await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+    await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+    await page.getByRole('button', { name: 'Keep player_two' }).click()
+    await page.getByRole('button', { name: 'Back to camp' }).click()
+
+    await places(page)
+      .getByRole('button', { name: /^Campaign settings/ })
+      .click()
+    await page.getByRole('radio', { name: 'player_two' }).check()
+    await page.getByRole('button', { name: 'Transfer ownership', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Confirm ownership transfer' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+  })
+
+  test(`a member's leave confirmation fits a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const campaign: Campaign = {
+      ...redHand,
+      owner_id: ownerId,
+      name: 'The Red Hand of the Long Night',
+    }
+    const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+    await mockMembership(page, campaigns, memberRoster())
+    await openCamp(page, campaign)
+
+    await places(page)
+      .getByRole('button', { name: /^Party/ })
+      .click()
+    await page.getByRole('button', { name: 'Leave campaign', exact: true }).click()
+    await expect(page.getByRole('group', { name: 'Confirm leaving the campaign' })).toBeVisible()
+    expect(await hasNoHorizontalScroll(page)).toBe(true)
+  })
+}
+
+test('a player sets a display name from the header and the Party shows others by theirs', async ({
+  page,
+}) => {
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const roster: RosterMember[] = [
+    { profile_id: accountId, role: 'owner', username: 'player_one', display_name: null },
+    { profile_id: guestId, role: 'member', username: 'player_two', display_name: 'Aria' },
+  ]
+  await mockMembership(page, campaigns, roster)
+  let stored: string | null = null
+  const writes: unknown[] = []
+  await page.route('**/rest/v1/profiles*', async (route) => {
+    const request = route.request()
+    const headers = corsHeaders()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (request.method() === 'PATCH') {
+      writes.push(request.postDataJSON())
+      stored = (request.postDataJSON() as { display_name: string | null }).display_name
+      return route.fulfill({ status: 200, headers, json: [{ display_name: stored }] })
+    }
+    const wantsObject = (request.headers().accept ?? '').includes('vnd.pgrst.object')
+    const row = { display_name: stored }
+    return route.fulfill({ status: 200, headers, json: wantsObject ? row : [row] })
+  })
+  await openCamp(page)
+
+  const account = page.locator('.workspace-account')
+  await expect(account.getByRole('button', { name: /player_one/ })).toBeVisible()
+  await account.getByRole('button', { name: /player_one/ }).click()
+  const field = page.getByLabel('Display name', { exact: true })
+  await expect(field).toBeFocused()
+  await field.fill('x'.repeat(41))
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Use 40 characters or fewer.')).toBeVisible()
+  expect(writes).toEqual([])
+
+  await field.fill('  The Warden  ')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(account.getByRole('button', { name: /The Warden/ })).toBeVisible()
+  await expect(account.getByRole('button', { name: /The Warden/ })).toBeFocused()
+  expect(writes).toEqual([{ display_name: 'The Warden' }])
+
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const list = page.getByRole('list').filter({ hasText: 'player_two' })
+  await expect(list.getByText('Aria', { exact: false }).first()).toBeVisible()
+  await expect(list.locator('.campaign-member-list__handle')).toHaveText('player_two')
+  await expect(
+    page.getByRole('button', { name: 'Remove Aria (player_two) from the campaign' }),
+  ).toBeVisible()
+})
+
+// --- The tent: My characters --------------------------------------------------------
+
+const tentEntry = (page: Page) => places(page).getByRole('button', { name: /^My characters/ })
+const dialogFits = (page: Page) =>
+  page.evaluate(() => {
+    const body = document.querySelector('.camp-ledger__body')!
+    return (
+      body.scrollWidth <= body.clientWidth &&
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  })
+
+async function openTent(page: Page, state: CharacterState = { characters: [], sheets: [] }) {
+  await mockCampaignApi(page, [redHand])
+  const mock = await mockCharacters(page, state)
+  const camp = await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await expect(dialog).toBeVisible()
+  return { camp, dialog, state, mock }
+}
+
+function withCharacter(overrides: Parameters<typeof mockCharacter>[0] = {}): CharacterState {
+  const character = mockCharacter(overrides)
+  return { characters: [character], sheets: [mockSheet(character.id)] }
+}
+
+test('the tent opens from Places, pans the camera to it, and starts empty', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { camp, dialog } = await openTent(page)
+
+  await expect(camp).toHaveAttribute('data-camp-state', 'characters')
+  await expect(camp).toHaveAttribute('data-animating', 'false')
+  const panel = await dialog.evaluate((el: HTMLElement) => el.offsetWidth)
+  const side = await dialog.getAttribute('data-panel-side')
+  expect(side).toBe('right')
+  await expect(camp).toHaveAttribute(
+    'data-camera-x',
+    String(
+      cameraToFrame({ worldX: 280, visible: 480, panelFraction: panel / 1440, panelSide: 'right' }),
+    ),
+  )
+  await expect(dialog.getByText('You have no character in this campaign yet.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeFocused()
+})
+
+test('a member can open the tent too', async ({ page }) => {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  await mockCampaignApi(page, [campaign], { memberMode: true })
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page, campaign)
+  await tentEntry(page).click()
+  await expect(page.getByRole('dialog', { name: 'My characters' })).toBeVisible()
+})
+
+test('creating a character joins the party by default and persists across a reload', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  const form = dialog.getByRole('form', { name: 'Create a character' })
+  await expect(form.getByLabel('Join the party')).toBeChecked()
+
+  // Validation runs on submit and focuses the first problem.
+  await form.getByRole('button', { name: 'Create character' }).click()
+  await expect(form.getByLabel('Name', { exact: true })).toBeFocused()
+  await expect(form.getByText('Enter a name of up to 80 characters.')).toBeVisible()
+
+  await form.getByLabel('Name', { exact: true }).fill('Brand')
+  await form.getByLabel(/Species/).fill('Elf')
+  await form.getByLabel(/Class/).fill('Fighter')
+  await form.getByLabel('Level').fill('3')
+  await form.getByRole('button', { name: 'Create character' }).click()
+
+  await expect(dialog.getByText('Character created.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Brand' })).toBeFocused()
+  const standing = dialog.getByRole('list', { name: 'Character standing' })
+  await expect(standing.getByText('Active')).toBeVisible()
+  await expect(standing.getByText('In the party')).toBeVisible()
+  expect(state.characters).toHaveLength(1)
+  expect(state.characters[0]).toMatchObject({ in_party: true, status: 'active', level: 3 })
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  await expect(
+    page.getByRole('dialog', { name: 'My characters' }).getByRole('heading', { name: 'Brand' }),
+  ).toBeVisible()
+})
+
+const importDocument = JSON.stringify({
+  format: 'the-goobers-guide-character',
+  version: 3,
+  character: {
+    name: 'Arlen Vale',
+    species: 'Human',
+    class_name: 'Ranger',
+    level: 3,
+    vitals: { max_hp: 24, current_hp: 20, temp_hp: 0, armor_class: 15, speed: 30 },
+    abilities: { str: 12, dex: 16, con: 14, int: 10, wis: 15, cha: 8 },
+    saving_throws: ['dex'],
+    skills: { stealth: 'expertise' },
+    attacks: [{ name: 'Longbow', bonus: '+5', damage: '1d8 + 3' }],
+    inventory: [{ name: 'Rope', quantity: 2, weight: 10 }],
+    currency: { sp: 4, gp: 12 },
+    features: 'Favored Enemy',
+    status: 'deceased',
+  },
+})
+
+test('pastes, reviews, and imports a character, then opens its sheet and history', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Import a character' }).click()
+  const importer = page.getByRole('dialog', { name: 'Import a character' })
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  // Text that is not a document is refused with a message.
+  await importer.getByLabel('Character document (JSON)').fill('Arlen, a ranger')
+  await expect(importer.getByRole('alert')).toContainText('isn’t valid JSON')
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  await importer.getByLabel('Character document (JSON)').fill(importDocument)
+  const review = importer.getByRole('region', { name: 'Review' })
+  await expect(review.getByText('Everything checks out')).toBeVisible()
+  await expect(review.getByRole('region', { name: 'Attacks' }).getByText('Longbow')).toBeVisible()
+  await expect(review.getByRole('region', { name: 'Coins' }).getByText('12')).toBeVisible()
+  await importer.getByText('Not imported (1)').click()
+  await expect(importer.getByText('character.status')).toBeVisible()
+
+  await importer.getByLabel(/Source/).fill('arlen.md')
+  await importer.getByRole('button', { name: 'Create character' }).click()
+
+  await expect(dialog.getByText('Character imported.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Arlen Vale' })).toBeVisible()
+  await expect(importer).toHaveCount(0)
+  expect(state.characters).toHaveLength(1)
+  expect(state.characters[0]).toMatchObject({
+    name: 'Arlen Vale',
+    status: 'active',
+    in_party: false,
+    sheet_visibility: 'private',
+    level: 3,
+  })
+  expect(state.sheets[0]).toMatchObject({ max_hp: 24, current_hp: 20, sp: 4, gp: 12 })
+  expect(state.items).toHaveLength(1)
+
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await dialog.getByText('Import history').click()
+  await expect(dialog.getByText('Imported as new')).toBeVisible()
+  await expect(dialog.getByText(/arlen\.md/)).toBeVisible()
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: 'My characters' })
+      .getByRole('heading', { name: 'Arlen Vale' }),
+  ).toBeVisible()
+})
+
+test('an import with problems cannot be created, and a refused import keeps the document', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Import a character' }).click()
+  const importer = page.getByRole('dialog', { name: 'Import a character' })
+
+  const broken = JSON.parse(importDocument)
+  broken.character.level = 99
+  broken.character.currency = { ep: 3 }
+  await importer.getByLabel('Character document (JSON)').fill(JSON.stringify(broken))
+  await expect(importer.getByRole('alert').first()).toContainText('2 problems need fixing')
+  await expect(importer.getByText('character.level')).toBeVisible()
+  await expect(importer.getByText('character.currency.ep')).toBeVisible()
+  await expect(importer.getByRole('button', { name: 'Create character' })).toBeDisabled()
+
+  // Another device took the active slot: the refusal is explained and nothing is lost.
+  await importer.getByLabel('Character document (JSON)').fill(importDocument)
+  state.characters.push(mockCharacter({ name: 'Elsewhere' }))
+  await importer.getByRole('button', { name: 'Create character' }).click()
+  await expect(importer.getByRole('alert')).toContainText('You already have an active character')
+  await expect(importer.getByLabel('Character document (JSON)')).toHaveValue(importDocument)
+  expect(state.characters).toHaveLength(1)
+
+  // Closing a pasted document asks first.
+  await importer.getByRole('button', { name: 'Cancel' }).click()
+  const question = page.getByRole('alertdialog', { name: 'Discard this import?' })
+  await question.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(importer).toBeVisible()
+  await importer.getByRole('button', { name: 'Cancel' }).click()
+  await question.getByRole('button', { name: 'Discard import' }).click()
+  await expect(importer).toHaveCount(0)
+})
+
+for (const [label, width, height] of [
+  ['phone', 375, 700],
+  ['tablet', 768, 1024],
+] as const) {
+  test(`the import dialog and its review fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openTent(page)
+    await dialog.getByRole('button', { name: 'Import a character' }).click()
+    const importer = page.getByRole('dialog', { name: 'Import a character' })
+    await importer.getByLabel('Character document (JSON)').fill(importDocument)
+    await expect(importer.getByText('Everything checks out')).toBeVisible()
+    await importer.getByText('How do I make a document?').click()
+    const overflow = await importer.evaluate((el) => ({
+      dialog: el.scrollWidth - el.clientWidth,
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }))
+    expect(overflow).toEqual({ dialog: 0, page: 0 })
+    const box = await importer.boundingBox()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width)
+    // The buttons stay reachable: the dialog scrolls rather than growing past the screen.
+    await importer.getByRole('button', { name: 'Create character' }).scrollIntoViewIfNeeded()
+    await expect(importer.getByRole('button', { name: 'Create character' })).toBeInViewport()
+  })
+}
+
+test('import is withheld while a character is active, with the reason', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter())
+  await expect(dialog.getByRole('button', { name: 'Import a character' })).toHaveCount(0)
+  await expect(dialog.getByText(/before creating or importing another character/)).toBeVisible()
+})
+
+const updateAttackId = '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10'
+
+function withUpdatableCharacter() {
+  const state = withCharacter({ level: 3 })
+  const id = state.characters[0].id
+  state.sheets[0] = mockSheet(id, {
+    max_hp: 30,
+    current_hp: 12,
+    gp: 5,
+    sheet: {
+      version: 1,
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      saving_throws: [],
+      skills: {},
+      attacks: [
+        { id: updateAttackId, name: 'Greataxe', bonus: '+6', damage: '1d12 + 4', notes: '' },
+      ],
+      features: '',
+      spells: '',
+      notes: '',
+      alignment: '',
+      experience: null,
+    },
+  })
+  state.items = [mockItem(id, { name: 'Rope', quantity: 1 })]
+  return state
+}
+
+const updateDocument = (itemId: string) =>
+  JSON.stringify({
+    format: 'the-goobers-guide-character-update',
+    version: 2,
+    changes: {
+      details: { set: { level: 4 } },
+      vitals: { set: { max_hp: 40 } },
+      attacks: [{ op: 'update', id: updateAttackId, set: { bonus: '+7' } }],
+      inventory: [{ op: 'update', id: itemId, set: { quantity: 3 } }],
+      currency: { set: { gp: 20 } },
+    },
+  })
+
+async function openUpdates(page: Page, state: CharacterState) {
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  const entry = dialog.getByRole('button', { name: 'Import updates' })
+  await expect(entry).toBeEnabled()
+  await entry.click()
+  return { dialog, review: page.getByRole('dialog', { name: 'Import updates' }) }
+}
+
+test('the active-character note links to Import updates on the sheet', async ({ page }) => {
+  const { dialog } = await openTent(page, withUpdatableCharacter())
+  await dialog.getByRole('button', { name: 'Import updates' }).click()
+  await expect(dialog.getByLabel('Current HP')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeVisible()
+})
+
+test('pastes an update, applies only the selected changes, and shows them in history', async ({
+  page,
+}) => {
+  const state = withUpdatableCharacter()
+  const { dialog, review } = await openUpdates(page, state)
+  await expect(review.getByRole('button', { name: /^Apply/ })).toBeDisabled()
+
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  const list = review.getByRole('region', { name: 'Review' })
+  await expect(list.getByRole('checkbox')).toHaveCount(5)
+  await expect(list.getByRole('checkbox', { name: 'Level' }).locator('..')).toContainText('4')
+  for (const box of await list.getByRole('checkbox').all()) await expect(box).not.toBeChecked()
+
+  // Only the chosen changes are applied.
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+  await list.getByRole('checkbox', { name: 'Attack “Greataxe”: Bonus' }).check()
+  await list.getByRole('checkbox', { name: 'Gold' }).check()
+  await review.getByLabel(/Source/).fill('session-12.json')
+  await review.getByRole('button', { name: 'Apply 3 changes' }).click()
+
+  await expect(dialog.getByText('Update applied: 3 changes saved.')).toBeVisible()
+  await expect(review).toHaveCount(0)
+  expect(state.characters[0]).toMatchObject({ level: 4 })
+  expect(state.sheets[0]).toMatchObject({ gp: 20, max_hp: 30 })
+  expect(state.items![0]).toMatchObject({ quantity: 1 })
+  expect(state.imports?.at(-1)).toMatchObject({
+    kind: 'update',
+    source_label: 'session-12.json',
+    change_count: 3,
+  })
+
+  // The sheet shows the new values, and the history lists the update.
+  await expect(dialog.locator('.folio-head__meta')).toHaveText('Level 4 Elf Fighter')
+  await dialog.getByText('Import history').click()
+  await expect(dialog.getByText('Updated from import')).toBeVisible()
+  await expect(dialog.getByText(/session-12\.json/)).toBeVisible()
+})
+
+test('a character that changed during review loads the latest and applies nothing', async ({
+  page,
+}) => {
+  const state = withUpdatableCharacter()
+  const { dialog, review } = await openUpdates(page, state)
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  const list = review.getByRole('region', { name: 'Review' })
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+
+  // Another device spends coins after the review was loaded.
+  state.sheets[0].gp = 99
+  state.sheets[0].updated_at = new Date().toISOString()
+  await review.getByRole('button', { name: 'Apply 1 change' }).click()
+
+  await expect(review.getByRole('alert')).toContainText('changed while you were reviewing')
+  expect(state.characters[0]).toMatchObject({ level: 3 })
+  expect(state.imports ?? []).toHaveLength(0)
+  // The review starts again against the latest values, with nothing selected.
+  await expect(list.getByRole('checkbox', { name: 'Gold' }).locator('..')).toContainText('99')
+  for (const box of await list.getByRole('checkbox').all()) await expect(box).not.toBeChecked()
+  await expect(review.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+
+  await list.getByRole('checkbox', { name: 'Level' }).check()
+  await review.getByRole('button', { name: 'Apply 1 change' }).click()
+  await expect(dialog.getByText('Update applied: 1 change saved.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ level: 4 })
+})
+
+test('an update with a doubt, or an unknown target, is blocked as a whole', async ({ page }) => {
+  const state = withUpdatableCharacter()
+  const { review } = await openUpdates(page, state)
+  const field = review.getByLabel('Update document (JSON)')
+
+  await field.fill(
+    JSON.stringify({
+      format: 'the-goobers-guide-character-update',
+      version: 2,
+      changes: { details: { set: { level: 4 } } },
+      issues: ['Is Brand level 4 or 5?'],
+    }),
+  )
+  await expect(review.getByRole('alert')).toContainText('Is Brand level 4 or 5?')
+  await expect(review.getByRole('checkbox')).toHaveCount(0)
+
+  await field.fill(
+    JSON.stringify({
+      format: 'the-goobers-guide-character-update',
+      version: 2,
+      changes: {
+        attacks: [{ op: 'remove', id: '11111111-1111-4111-8111-111111111111' }],
+      },
+    }),
+  )
+  await expect(review.getByRole('alert')).toBeVisible()
+  await expect(review.getByRole('checkbox')).toHaveCount(0)
+  await expect(review.getByRole('button', { name: /^Apply/ })).toBeDisabled()
+
+  // Closing a pasted update asks first.
+  await review.getByRole('button', { name: 'Cancel' }).click()
+  const question = page.getByRole('alertdialog', { name: 'Discard this update?' })
+  await question.getByRole('button', { name: 'Discard update' }).click()
+  await expect(review).toHaveCount(0)
+})
+
+test('Import updates is disabled while the sheet has unsaved edits', async ({ page }) => {
+  const { dialog } = await openTent(page, withUpdatableCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Notes and backstory').fill('A change')
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeDisabled()
+  await expect(dialog.getByText('Save or cancel your edits first.').first()).toBeVisible()
+})
+
+test('the update review fits a phone without horizontal scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 700 })
+  const state = withUpdatableCharacter()
+  const { review } = await openUpdates(page, state)
+  await review.getByLabel('Update document (JSON)').fill(updateDocument(state.items![0].id))
+  await expect(review.getByRole('checkbox')).toHaveCount(5)
+  const overflow = await review.evaluate((el) => ({
+    dialog: el.scrollWidth - el.clientWidth,
+    page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }))
+  expect(overflow).toEqual({ dialog: 0, page: 0 })
+  await review.getByRole('button', { name: 'Cancel' }).scrollIntoViewIfNeeded()
+  await expect(review.getByRole('button', { name: 'Cancel' })).toBeInViewport()
+})
+
+test('the sheet pages stack without an empty gap, and inventory and notes fold away', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const state = withCharacter()
+  const id = state.characters[0].id
+  state.sheets[0] = mockSheet(id, {
+    sheet: { version: 1, features: 'Rage\n'.repeat(40), notes: 'Brave.' },
+  })
+  state.items = Array.from({ length: 14 }, (_, n) => mockItem(id, { name: `Supply ${n}` }))
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeVisible()
+
+  const boxes = () =>
+    dialog.locator('.sheet-page').evaluateAll((pages) =>
+      pages.map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect()
+        return { x, y, width, height }
+      }),
+    )
+  // Two stacks: what you roll on the left (with the notes), what you carry on the right.
+  const [left, right] = await boxes()
+  expect(left.x).toBeLessThan(right.x)
+  const notesBox = await dialog.locator('[id^="sheet-section-notes-"]').boundingBox()
+  const skillsBox = await dialog.locator('[id^="sheet-section-skills-"]').boundingBox()
+  const inventoryBox = await dialog.locator('[id^="sheet-section-inventory-"]').boundingBox()
+  // The notes sit right under the skills in the left stack, with no gap.
+  expect(notesBox!.x).toBeCloseTo(skillsBox!.x, 0)
+  expect(notesBox!.y).toBeGreaterThan(skillsBox!.y)
+  // Inventory is in the right stack and does not push the notes down.
+  expect(inventoryBox!.x).toBeGreaterThan(left.x + left.width / 2)
+
+  await dialog.getByRole('button', { name: 'Collapse inventory' }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeHidden()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Expand inventory' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  const folded = await dialog.locator('[id^="sheet-section-inventory-"]').boundingBox()
+  expect(folded!.height).toBeLessThan(inventoryBox!.height)
+
+  await dialog.getByRole('button', { name: 'Collapse features and notes' }).click()
+  await expect(dialog.getByText('Brave.')).toBeHidden()
+  await dialog.getByRole('button', { name: 'Expand features and notes' }).click()
+  await expect(dialog.getByText('Brave.')).toBeVisible()
+
+  // Choosing the tab for a folded section opens it.
+  await dialog.getByRole('button', { name: 'Inventory', exact: true }).click()
+  await expect(dialog.getByText('Supply 13', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Collapse inventory' })).toBeVisible()
+})
+
+test('exports a character as a Markdown file', async ({ page }) => {
+  const state = withCharacter()
+  state.sheets[0] = mockSheet(state.characters[0].id, {
+    max_hp: 30,
+    current_hp: 12,
+    gp: 7,
+    sheet: { version: 1, abilities: { str: 18 }, notes: 'Brave.' },
+  })
+  state.items = [mockItem(state.characters[0].id, { name: 'Rope', quantity: 2 })]
+  const { dialog } = await openTent(page, state)
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  const exportButton = dialog.getByRole('button', { name: 'Export Markdown' })
+  await expect(exportButton).toBeEnabled()
+  const download = page.waitForEvent('download')
+  await exportButton.click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe('brand.md')
+  const stream = await file.createReadStream()
+  let text = ''
+  for await (const chunk of stream) text += chunk
+  expect(text).toContain('# Brand')
+  expect(text).toContain('Hit points: 12 / 30')
+  expect(text).toContain('| Rope | 2 |')
+  expect(text).toContain('Gold 7')
+  await expect(dialog.getByText('Markdown downloaded.')).toBeVisible()
+
+  // Unsaved edits are not in the file, so the export waits for them.
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByRole('button', { name: 'Notes', exact: true }).click()
+  await dialog.getByLabel('Notes and backstory').fill('Changed')
+  await dialog.getByRole('button', { name: 'Import and export' }).click()
+  await expect(dialog.getByRole('button', { name: 'Export Markdown' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeDisabled()
+  await expect(dialog.getByText('Save or cancel your edits first.')).toHaveCount(2)
+})
+
+test('unticking "Join the party" creates a character outside the party', async ({ page }) => {
+  const { dialog, state } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Wren')
+  await dialog.getByLabel('Join the party').uncheck()
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(
+    dialog.getByRole('list', { name: 'Character standing' }).getByText('Not in the party'),
+  ).toBeVisible()
+  expect(state.characters[0].in_party).toBe(false)
+})
+
+test('edits details, vitals, and the sheet, and keeps them after a reload', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  // The display only edits HP in place; everything else is in the one editor.
+  await expect(dialog.getByLabel('Strength score')).toHaveCount(0)
+  await expect(dialog.getByLabel('Maximum HP')).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Brand the Bold')
+  await dialog.getByLabel('Level').fill('5')
+  await dialog.getByRole('button', { name: 'Save details' }).click()
+  await expect(dialog.getByText('Character saved.')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Edit Brand the Bold' })).toBeVisible()
+
+  await dialog.getByLabel('Maximum HP').fill('40')
+  await dialog.getByLabel('Armor class').fill('17')
+  await dialog.getByRole('button', { name: 'Save stats' }).click()
+  await expect(dialog.getByText('Stats saved.')).toBeVisible()
+
+  await dialog.getByLabel('Strength score').fill('18')
+  await dialog.getByLabel('Strength saving throw proficiency').check()
+  await dialog.getByLabel('Athletics proficiency').selectOption('proficient')
+  await dialog.getByRole('button', { name: 'Add attack' }).click()
+  await dialog.getByLabel('Attack 1 name').fill('Greataxe')
+  await dialog.getByLabel('Features and traits').fill('Rage')
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByText('Character sheet saved.')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  // The page turn applies the new screen a frame later.
+  await expect(dialog.getByRole('button', { name: 'Edit character' })).toBeVisible()
+  await dialog.getByLabel('Current HP').fill('25')
+  await dialog.getByRole('button', { name: 'Save stats' }).click()
+  await expect(dialog.getByText('Stats saved.').last()).toBeVisible()
+
+  expect(state.characters[0]).toMatchObject({ name: 'Brand the Bold', level: 5 })
+  expect(state.sheets[0]).toMatchObject({ max_hp: 40, current_hp: 25, armor_class: 17 })
+  expect(state.sheets[0].sheet).toMatchObject({
+    abilities: { str: 18 },
+    saving_throws: ['str'],
+    skills: { athletics: 'proficient' },
+    features: 'Rage',
+  })
+
+  await page.reload()
+  await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
+  await tentEntry(page).click()
+  const reopened = page.getByRole('dialog', { name: 'My characters' })
+  await reopened.getByRole('button', { name: 'Open Brand the Bold' }).click()
+  await expect(reopened.getByLabel('Current HP')).toHaveValue('25')
+  await reopened.getByRole('button', { name: 'Edit character' }).click()
+  await expect(reopened.getByLabel('Strength score')).toHaveValue('18')
+  await expect(reopened.getByLabel('Attack 1 name')).toHaveValue('Greataxe')
+  await expect(reopened.getByLabel('Features and traits')).toHaveValue('Rage')
+})
+
+test('a sheet saved on another device is not overwritten', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByLabel('Features and traits').fill('My edit')
+  // Another device saves first.
+  state.sheets[0].sheet = { version: 1, features: 'Theirs' }
+  state.sheets[0].updated_at = '2026-11-13T23:59:59.000Z'
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(
+    'This sheet changed on another device. Reload it to see the latest version.',
+  )
+  expect(state.sheets[0].sheet).toEqual({ version: 1, features: 'Theirs' })
+  await expect(dialog.getByLabel('Features and traits')).toHaveValue('My edit')
+
+  await dialog.getByRole('button', { name: 'Discard changes' }).click()
+  await expect(dialog.getByLabel('Features and traits')).toHaveValue('Theirs')
+})
+
+test('retiring moves a character to Previous characters and allows a replacement', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Retire', exact: true }).click()
+  await expect(dialog.getByRole('group', { name: 'Confirm: Retire' })).toContainText(
+    "Retire Brand? They'll leave the party",
+  )
+  await dialog.getByRole('button', { name: 'Yes, retire' }).click()
+  await expect(dialog.getByText('Brand retired.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ status: 'retired', in_party: false })
+
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  const history = dialog.getByRole('region', { name: 'Previous characters' })
+  await expect(history.getByText('Brand')).toBeVisible()
+  await expect(history.getByText(/^Retired /)).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Second Wind')
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Second Wind' })).toBeVisible()
+
+  // The old character cannot come back while the replacement is active.
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Return to active' }).click()
+  await dialog.getByRole('button', { name: 'Yes, return to active' }).click()
+  await expect(dialog.getByRole('alert')).toContainText(
+    'You already have an active character here. Retire them or mark them deceased first.',
+  )
+})
+
+test('a character marked deceased can be returned to active when the slot is free', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Mark deceased' }).click()
+  await dialog.getByRole('button', { name: 'Yes, mark deceased' }).click()
+  await expect(dialog.getByText('Brand is marked deceased.')).toBeVisible()
+  expect(state.characters[0].status).toBe('deceased')
+
+  await dialog.getByRole('button', { name: 'Return to active' }).click()
+  await dialog.getByRole('button', { name: 'Yes, return to active' }).click()
+  await expect(dialog.getByText('Brand is active again.')).toBeVisible()
+  expect(state.characters[0]).toMatchObject({ status: 'active', in_party: false })
+})
+
+test('joining, leaving, and sharing apply immediately', async ({ page }) => {
+  const { dialog, state } = await openTent(page, withCharacter({ in_party: false }))
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  await expect(dialog.getByText('Brand joined the party.')).toBeVisible()
+  expect(state.characters[0].in_party).toBe(true)
+  await dialog.getByRole('button', { name: 'Leave the party' }).click()
+  await expect(dialog.getByText('Brand left the party.')).toBeVisible()
+
+  const share = dialog.getByLabel('Share sheet with campaign members')
+  await share.click()
+  await expect(share).toBeChecked()
+  await expect(dialog.getByText("Brand's sheet is shared with campaign members.")).toBeVisible()
+  expect(state.characters[0].sheet_visibility).toBe('campaign')
+  await share.click()
+  await expect(share).not.toBeChecked()
+  await expect(dialog.getByText("Brand's sheet is private.")).toBeVisible()
+  expect(state.characters[0].sheet_visibility).toBe('private')
+})
+
+test('deleting needs a confirmation, can be cancelled, and removes the character', async ({
+  page,
+}) => {
+  const { dialog, state } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Delete character' }).click()
+  await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toContainText(
+    "Delete Brand permanently? Their sheet, inventory, and coins will be removed and this can't be undone.",
+  )
+  await expect(dialog.getByRole('button', { name: 'Yes, delete character' })).toBeFocused()
+
+  await dialog.getByRole('button', { name: 'Keep Brand' }).click()
+  await expect(dialog.getByRole('button', { name: 'Delete character' })).toBeFocused()
+  expect(state.characters).toHaveLength(1)
+
+  await dialog.getByRole('button', { name: 'Delete character' }).click()
+  await dialog.getByRole('button', { name: 'Yes, delete character' }).click()
+  await expect(dialog.getByText('Character deleted.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  expect(state.characters).toHaveLength(0)
+  expect(state.sheets).toHaveLength(0)
+})
+
+test('failures show safe copy and retry works', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const state: CharacterState = { characters: [], sheets: [] }
+  let listFails = true
+  let createFails: CharacterFailureOrNull = { status: 500, message: 'boom' }
+  type CharacterFailureOrNull = { status: number; message: string } | null
+  await mockCharacters(page, state, {
+    fail: (target) => {
+      if (target === 'characters' && listFails) return { status: 500, message: 'boom' }
+      if (target === 'create_character') return createFails
+      return null
+    },
+  })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await expect(dialog.getByRole('alert')).toContainText('Your characters could not be loaded.')
+
+  listFails = false
+  await dialog.getByRole('button', { name: 'Try again' }).click()
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Brand')
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't create this character. Check your connection and try again.",
+  )
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Brand')
+
+  createFails = { status: 400, message: 'character_campaign_unavailable' }
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText("You're no longer a member of this campaign.")
+
+  createFails = null
+  await dialog.getByRole('button', { name: 'Create character' }).click()
+  await expect(dialog.getByText('Character created.')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+})
+
+test('the tent stays open while a character change is pending', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const state = withCharacter()
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, state, { hold: () => held })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Leave the party' }).click()
+  await expect(dialog.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+
+  release()
+  await expect(dialog.getByText('Brand left the party.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+})
+
+test('closing the tent forgets an open form and returns to the list on reopening', async ({
+  page,
+}) => {
+  const { dialog } = await openTent(page)
+  await dialog.getByRole('button', { name: 'Create a character' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Draft')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  // A filled-in form asks before it is lost.
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Draft')
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Discard and leave' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(tentEntry(page)).toBeFocused()
+
+  await tentEntry(page).click()
+  await expect(dialog.getByRole('button', { name: 'Create a character' })).toBeVisible()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveCount(0)
+})
+
+test('unsaved sheet edits are guarded when going back or closing', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByRole('textbox', { name: 'Spells', exact: true }).fill('Light')
+  await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Save sheet' })).toBeEnabled()
+
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByRole('textbox', { name: 'Spells', exact: true })).toHaveValue('Light')
+
+  // Escape inside the question means "keep editing", not "close the tent".
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(prompt).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(prompt).toBeHidden()
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Save sheet' }).click()
+  await expect(dialog.getByText('Character sheet saved.')).toBeVisible()
+  await expect(dialog.getByText('All changes saved')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  await expect(dialog.getByRole('button', { name: 'Open Brand' })).toBeVisible()
+})
+
+test('character toasts fade on their own and can be dismissed', async ({ page }) => {
+  const { dialog } = await openTent(page, withCharacter({ in_party: false }))
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  const toast = dialog.getByText('Brand joined the party.')
+  await expect(toast).toBeVisible()
+  await dialog.getByRole('button', { name: 'Dismiss notification' }).click()
+  await expect(toast).toHaveCount(0)
+})
+
+for (const [width, height] of [
+  [375, 812],
+  [768, 1024],
+  [1440, 900],
+] as const) {
+  test(`the character folio fits at ${width}px and keeps Save stats in reach`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openTent(page, withCharacter())
+    await dialog.getByRole('button', { name: 'Open Brand' }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+
+    // The save bar stays on screen however far the sheet is scrolled.
+    await dialog.locator('.camp-ledger__body').evaluate((el) => el.scrollTo(0, el.scrollHeight))
+    const save = dialog.getByRole('button', { name: 'Save stats' })
+    await expect(save).toBeInViewport()
+    expect(await save.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(
+      40,
+    )
+    await expect(save).toBeDisabled()
+    await dialog.getByLabel('Current HP').fill('35')
+    await expect(save).toBeEnabled()
+    expect(await dialogFits(page)).toBe(true)
+  })
+}
+
+test('a portrait can be uploaded, replaced, and removed, and shows on the list', async ({
+  page,
+}) => {
+  const { dialog, state, mock } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  )
+
+  // A file the bucket would refuse is stopped before it is sent.
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'a.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') })
+  await expect(dialog.getByRole('alert')).toContainText('Choose a PNG, JPEG, or WebP picture.')
+  expect(mock.objects.size).toBe(0)
+
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png })
+  await expect(dialog.getByText('Portrait updated.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Change picture' })).toBeVisible()
+  expect(state.characters[0].portrait_path).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/)
+  const first = state.characters[0].portrait_path!
+  await expect(dialog.locator('.portrait-editor img')).toBeVisible()
+
+  // Replacing swaps the file and deletes the old one.
+  await dialog
+    .getByLabel('Portrait file')
+    .setInputFiles({ name: 'me2.png', mimeType: 'image/png', buffer: png })
+  await expect(async () => {
+    expect(state.characters[0].portrait_path).not.toBe(first)
+  }).toPass()
+  expect(mock.objects.has(first)).toBe(false)
+  expect(mock.objects.size).toBe(1)
+
+  await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+  await dialog.getByRole('button', { name: 'Back to my characters' }).click()
+  await expect(dialog.locator('.tent-card img')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  await dialog.getByRole('button', { name: 'Remove picture' }).click()
+  await expect(dialog.getByText('Portrait removed.')).toBeVisible()
+  expect(state.characters[0].portrait_path).toBeNull()
+  expect(mock.objects.size).toBe(0)
+  await expect(dialog.getByRole('button', { name: 'Upload picture' })).toBeVisible()
+})
+
+test('the tent works by keyboard alone', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  await tentEntry(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeFocused()
+
+  await page.getByRole('button', { name: 'Create a character' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('Name', { exact: true })).toBeFocused()
+  await page.keyboard.type('Keyboard Kay')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Keyboard Kay' })).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(tentEntry(page)).toBeFocused()
+})
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['tablet', 768, 1024],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`the tent, its sheet, and its confirmations fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const long = 'The Unfathomably Long-Named Wanderer of the Shattered Coast'
+    const { dialog } = await openTent(page, withCharacter({ name: long, species: 'Half-Elf' }))
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: `Open ${long}` }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: 'Edit character' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Add attack' }).click()
+    await dialog.getByLabel('Attack 1 notes').fill('x'.repeat(80))
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
+    await page.getByRole('button', { name: 'Discard and go back' }).click()
+
+    await dialog.getByRole('button', { name: 'Delete character' }).click()
+    await expect(dialog.getByRole('group', { name: 'Confirm character deletion' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: new RegExp(`^Keep `) }).click()
+  })
+}
+
+// --- The Party panel and characters --------------------------------------------------
+
+async function openParty(page: Page, characters: CharacterState) {
+  const campaign: Campaign = { ...redHand, owner_id: ownerId }
+  const campaigns = await mockCampaignApi(page, [campaign], { memberMode: true })
+  await mockMembership(page, campaigns, memberRoster())
+  await mockCharacters(page, characters)
+  await openCamp(page, campaign)
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'People in this campaign' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+function partyCharacters(): CharacterState {
+  const mine = mockCharacter({ owner_id: accountId, name: 'Brand', sheet_visibility: 'private' })
+  const shared = mockCharacter({
+    owner_id: guestId,
+    name: 'Sorrel',
+    species: 'Gnome',
+    class_name: 'Wizard',
+    level: 5,
+    sheet_visibility: 'campaign',
+  })
+  const hidden = mockCharacter({
+    owner_id: ownerId,
+    name: 'Dray',
+    sheet_visibility: 'private',
+  })
+  const retired = mockCharacter({
+    owner_id: guestId,
+    name: 'Old Sorrel',
+    status: 'retired',
+    in_party: false,
+  })
+  return {
+    characters: [mine, shared, hidden, retired],
+    sheets: [mine, shared, hidden, retired].map((character) =>
+      mockSheet(character.id, { max_hp: 20, current_hp: 11 }),
+    ),
+  }
+}
+
+test("the Party panel shows each member's in-party character and who has one", async ({ page }) => {
+  const state = partyCharacters()
+  state.characters[2].in_party = false
+  const dialog = await openParty(page, state)
+
+  await expect(dialog.getByText('2 of 3 members have a character in the party.')).toBeVisible()
+  const rows = dialog.getByRole('listitem')
+  await expect(rows.filter({ hasText: 'player_one' })).toContainText('Brand')
+  await expect(rows.filter({ hasText: 'player_two' })).toContainText('Sorrel')
+  await expect(rows.filter({ hasText: 'player_two' })).toContainText('Level 5 Gnome Wizard')
+  // A retired character and an out-of-party one are history, not party.
+  await expect(dialog.getByText('Old Sorrel')).toHaveCount(0)
+  await expect(rows.filter({ hasText: 'game_master' })).toContainText('No character in the party')
+  expect(await dialogFits(page)).toBe(true)
+})
+
+test('"View sheet" shows only for own and shared sheets and opens them read-only', async ({
+  page,
+}) => {
+  const dialog = await openParty(page, partyCharacters())
+
+  // Dray's sheet is private: no button and no placeholder.
+  await expect(dialog.getByRole('button', { name: /View Dray/ })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^View .+ sheet$/ })).toHaveCount(2)
+
+  const trigger = dialog.getByRole('button', { name: "View Sorrel's sheet" })
+  await trigger.click()
+  await expect(dialog.getByRole('heading', { name: 'Sorrel' })).toBeFocused()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+  await expect(dialog.getByText('Hit points')).toBeVisible()
+  await expect(dialog.getByLabel('Current HP')).toHaveCount(0)
+  await expect(dialog.locator('.character-sheet')).toHaveAttribute('data-read-only', 'true')
+  await expect(dialog.getByRole('button', { name: /^Save/ })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Edit character' })).toHaveCount(0)
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('data-variant', 'folio')
+  expect(await dialogFits(page)).toBe(true)
+
+  await dialog.getByRole('button', { name: 'Back to party' }).click()
+  await expect(trigger).toBeFocused()
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('data-variant', 'journal')
+})
+
+test('the viewer can open their own sheet from the Party panel', async ({ page }) => {
+  const dialog = await openParty(page, partyCharacters())
+  await dialog.getByRole('button', { name: "View Brand's sheet" }).click()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+})
+
+test('an unshared sheet loses its View sheet button', async ({ page }) => {
+  const state = partyCharacters()
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+
+  // The owner unshares it; the next refetch of the list no longer offers the sheet.
+  state.characters[1].sheet_visibility = 'private'
+  await page.reload()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: "View Sorrel's sheet" })).toHaveCount(0)
+})
+
+test('closing the dialog returns the Party panel to its list', async ({ page }) => {
+  const dialog = await openParty(page, partyCharacters())
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: "View Sorrel's sheet" })).toBeVisible()
+})
+
+test('the Party panel remove and leave confirmations say characters are kept', async ({ page }) => {
+  const campaign = redHand
+  const campaigns = await mockCampaignApi(page, [campaign])
+  await mockMembership(page, campaigns, memberRoster())
+  await mockCharacters(page, partyCharacters())
+  await openCamp(page, campaign)
+  await page.getByRole('button', { name: 'Party', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove player_two from the campaign' }).click()
+  await expect(page.getByRole('group', { name: 'Confirm removal of player_two' })).toContainText(
+    "They'll lose access until you invite them again. Their characters are kept and leave the party.",
+  )
+})
+
+for (const [label, width, height] of [
+  ['phone', 360, 640],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`the Party panel and a shared sheet fit a ${label} without horizontal scrolling`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    const dialog = await openParty(page, partyCharacters())
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+    await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
+    expect(await dialogFits(page)).toBe(true)
+  })
+}
+
+test('Overview, Party, and Campaign settings all wear the journal, with a titled page', async ({
+  page,
+}) => {
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  const ledger = page.locator('.camp-ledger')
+  for (const [entry, heading, place] of [
+    [/^Overview/, 'The Red Hand', 'Campfire'],
+    [/^Party/, 'People in this campaign', 'Bedroll circle'],
+    [/^Campaign settings/, 'Campaign settings', 'Steward’s wagon'],
+  ] as const) {
+    await places(page).getByRole('button', { name: entry }).click()
+    await expect(ledger).toHaveAttribute('data-variant', 'journal')
+    const dialog = page.getByRole('dialog', { name: heading })
+    await expect(dialog.locator('.camp-panel__eyebrow:visible')).toHaveText(place)
+    await expect(dialog.getByRole('heading', { level: 2, name: heading })).toBeVisible()
+    await page.getByRole('button', { name: 'Back to camp' }).click()
+    await expect(ledger).not.toHaveAttribute('open', '')
+  }
+})
+
+// --- Closing by clicking outside the journal ----------------------------------------
+
+/** A point on the dimmed scene beside the open journal. */
+async function outsidePoint(page: Page) {
+  const box = (await page.locator('.camp-ledger').boundingBox())!
+  const viewport = page.viewportSize()!
+  const x = box.x > 120 ? box.x / 2 : (box.x + box.width + viewport.width) / 2
+  return { x, y: viewport.height / 2 }
+}
+
+test('clicking the scene beside any journal page closes it and returns focus', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  const ledger = page.locator('.camp-ledger')
+  for (const entry of [/^Overview/, /^Party/, /^My characters/, /^Campaign settings/]) {
+    const opener = places(page).getByRole('button', { name: entry })
+    await opener.click()
+    await expect(ledger).toHaveAttribute('open', '')
+    const point = await outsidePoint(page)
+    await page.mouse.click(point.x, point.y)
+    await expect(ledger).not.toHaveAttribute('open', '')
+    await expect(opener).toBeFocused()
+  }
+})
+
+test('clicks and drags that start or end inside the journal keep it open', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockCharacters(page, { characters: [], sheets: [] })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^Overview/ })
+    .click()
+  const ledger = page.locator('.camp-ledger')
+  const box = (await ledger.boundingBox())!
+  const outside = await outsidePoint(page)
+
+  // A click on the page itself.
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(ledger).toHaveAttribute('open', '')
+  // Selecting text and releasing beyond the edge.
+  await page.mouse.move(box.x + 40, box.y + 150)
+  await page.mouse.down()
+  await page.mouse.move(outside.x, outside.y, { steps: 5 })
+  await page.mouse.up()
+  await expect(ledger).toHaveAttribute('open', '')
+  // Pressing outside and releasing inside.
+  await page.mouse.move(outside.x, outside.y)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 40, box.y + 150, { steps: 5 })
+  await page.mouse.up()
+  await expect(ledger).toHaveAttribute('open', '')
+})
+
+test('clicking outside asks about unsaved sheet edits instead of discarding them', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { dialog } = await openTent(page, withCharacter())
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  // The page turn applies the new screen a frame later.
+  await expect(dialog.getByRole('heading', { name: /^Edit / })).toBeVisible()
+  await dialog.getByRole('textbox', { name: 'Spells', exact: true }).fill('Light')
+  await expect(dialog.getByText('Unsaved sheet changes')).toBeVisible()
+
+  // Pointer events wait out the page turn.
+  await expect(page.locator('html')).not.toHaveAttribute('data-tent-turn', /.+/)
+  const point = await outsidePoint(page)
+  // The journal learns of the edit a frame after the sheet shows it.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
+  await page.mouse.click(point.x, point.y)
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByRole('textbox', { name: 'Spells', exact: true })).toHaveValue('Light')
+})
+
+test('clicking outside does nothing while a character change is pending', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, withCharacter({ in_party: false }), { hold: () => held })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^My characters/ })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+  await dialog.getByRole('button', { name: 'Join the party' }).click()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+
+  const point = await outsidePoint(page)
+  await page.mouse.click(point.x, point.y)
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('open', '')
+  release()
+  await expect(dialog.getByText('Brand joined the party.')).toBeVisible()
+})
+
+test("camp name plates show each player's active character, else the player", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const campaigns = await mockCampaignApi(page, [redHand])
+  const guest = '00000000-0000-4000-8000-000000000201'
+  const roster: RosterMember[] = [
+    { profile_id: accountId, role: 'owner', username: 'game_master' },
+    { profile_id: guest, role: 'member', username: 'player_two' },
+    { profile_id: nameless, role: 'member', username: 'player_three' },
+  ]
+  await mockMembership(page, campaigns, roster)
+  const mine = mockCharacter({ owner_id: accountId, name: 'Brand' })
+  // A retired character does not name its player's seat; an active one does, in or out of the party.
+  const retired = mockCharacter({
+    owner_id: guest,
+    name: 'Old Sorrel',
+    status: 'retired',
+    in_party: false,
+  })
+  const resting = mockCharacter({ owner_id: nameless, name: 'Wren', in_party: false })
+  await mockCharacters(page, { characters: [mine, retired, resting], sheets: [] })
+  await openCamp(page)
+
+  const names = page.locator('.camp-names .camp-name')
+  await expect(names).toHaveText(['Brand', 'player_two', 'Wren'])
+})
+
+// --- The appearance drawer ----------------------------------------------------------
+
+test('the Party journal has a collapsible Appearance tab that saves and resets a look', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const campaigns = await mockCampaignApi(page, [redHand])
+  await mockMembership(
+    page,
+    campaigns,
+    memberRoster().map((member) =>
+      member.profile_id === ownerId ? { ...member, profile_id: accountId } : member,
+    ),
+  )
+  const state = { rows: [] as Parameters<typeof mockAppearances>[1]['rows'] }
+  await mockAppearances(page, state)
+  await openCamp(page)
+
+  // The tab belongs to the Party page only, and its panel starts collapsed.
+  await places(page)
+    .getByRole('button', { name: /^Overview/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Appearance' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  const tab = page.getByRole('button', { name: 'Appearance' })
+  await expect(tab).toHaveAttribute('aria-expanded', 'false')
+  const panel = page.getByRole('region', { name: 'Your look at the fire' })
+  await expect(panel).toBeHidden()
+
+  // It sticks out beside the journal, toward the scene, and collapses again.
+  await tab.click()
+  await expect(panel).toBeVisible()
+  const ledger = (await page.locator('.camp-ledger').boundingBox())!
+  const drawer = (await panel.boundingBox())!
+  expect(drawer.x + drawer.width).toBeLessThanOrEqual(ledger.x + 4)
+  await tab.click()
+  await expect(panel).toBeHidden()
+  await tab.click()
+
+  await panel.getByRole('radio', { name: 'Violet cloak' }).check()
+  await panel.getByRole('radio', { name: 'Skin tone 5' }).check()
+  await panel.getByRole('radio', { name: 'Bare' }).check()
+  await panel.getByRole('radio', { name: 'None' }).check()
+  await panel.getByRole('button', { name: 'Save look' }).click()
+  await expect(page.getByText('Your look was saved.')).toBeVisible()
+  expect(state.rows).toEqual([
+    expect.objectContaining({
+      profile_id: accountId,
+      cloak: 3,
+      skin: 4,
+      headwear: 'bare',
+      pack: 'none',
+    }),
+  ])
+  await expect(panel.getByRole('button', { name: 'Save look' })).toBeDisabled()
+
+  // Clicking in the drawer, which stands outside the page, does not close the journal.
+  await expect(page.locator('.camp-ledger')).toHaveAttribute('open', '')
+
+  await page.reload()
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  await page.getByRole('button', { name: 'Appearance' }).click()
+  await expect(page.getByRole('radio', { name: 'Violet cloak' })).toBeChecked()
+
+  await page.getByRole('button', { name: 'Reset to default' }).click()
+  await expect(page.getByText('Your look is back to the default.')).toBeVisible()
+  expect(state.rows).toEqual([])
+  await expect(page.getByRole('button', { name: 'Reset to default' })).toBeDisabled()
+})
+
+test('a failed look save shows an alert and keeps the choices', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockCampaignApi(page, [redHand])
+  await mockAppearances(page, { rows: [] }, { fail: () => true })
+  await openCamp(page)
+  await places(page)
+    .getByRole('button', { name: /^Party/ })
+    .click()
+  await page.getByRole('button', { name: 'Appearance' }).click()
+  await page.getByRole('radio', { name: 'Teal cloak' }).check()
+  await page.getByRole('button', { name: 'Save look' }).click()
+  await expect(
+    page.getByRole('alert').filter({ hasText: "We couldn't save your look." }),
+  ).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Teal cloak' })).toBeChecked()
+})
+
+// --- Coins and inventory (M03.3) ------------------------------------------------------
+
+/** A character with a few items, opened in the tent's display view. */
+async function openSheet(
+  page: Page,
+  options: {
+    character?: Parameters<typeof mockCharacter>[0]
+    sheet?: Parameters<typeof mockSheet>[1]
+    items?: (characterId: string) => ReturnType<typeof mockItem>[]
+    fail?: (target: string) => CharacterFailure
+  } = {},
+) {
+  await mockCampaignApi(page, [redHand])
+  const character = mockCharacter(options.character)
+  const state: CharacterState = {
+    characters: [character],
+    sheets: [mockSheet(character.id, options.sheet)],
+    items: options.items?.(character.id) ?? [],
+  }
+  const mock = await mockCharacters(page, state, { fail: options.fail })
+  const camp = await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: `Open ${character.name}` }).click()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeVisible()
+  return { camp, dialog, state, mock, character }
+}
+
+const sampleItems = (characterId: string) => [
+  mockItem(characterId, { name: 'Rope', weight: 10 }),
+  mockItem(characterId, { name: 'Longsword', weight: 3, equipped: true }),
+  mockItem(characterId, {
+    name: 'Healing potion',
+    quantity: 4,
+    weight: 0.5,
+    description: 'Restores 2d4 + 2 hit points.',
+  }),
+]
+
+test('the Coins and Inventory tabs jump to their sections and start empty', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  const tabs = dialog.getByRole('navigation', { name: 'Sheet sections' })
+  await expect(tabs.getByRole('button')).toHaveText([
+    'Vitals',
+    'Abilities',
+    'Skills',
+    'Attacks',
+    'Spells',
+    'Coins',
+    'Inventory',
+    'Notes',
+    'Import and export',
+  ])
+  await tabs.getByRole('button', { name: 'Coins' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Coins' })).toBeFocused()
+  await tabs.getByRole('button', { name: 'Inventory' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Inventory' })).toBeFocused()
+
+  await expect(dialog.getByText('No items yet.')).toBeVisible()
+  await expect(dialog.getByText('Worth 0 gp in all')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toBeVisible()
+})
+
+test('spells have their own section, apart from features and notes', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  await dialog.getByRole('button', { name: 'Edit character' }).click()
+  const spells = dialog.getByRole('region', { name: 'Spells' })
+  await expect(spells.getByRole('textbox', { name: 'Spells', exact: true })).toBeVisible()
+  const notes = dialog.getByRole('region', { name: 'Features and notes' })
+  await expect(notes.getByLabel('Features and traits')).toBeVisible()
+  await expect(notes.getByLabel('Notes and backstory')).toBeVisible()
+  await expect(notes.getByRole('textbox', { name: 'Spells', exact: true })).toHaveCount(0)
+  await dialog
+    .getByRole('navigation', { name: 'Sheet sections' })
+    .getByRole('button', { name: 'Spells' })
+    .click()
+  await expect(dialog.getByRole('heading', { name: 'Spells' })).toBeFocused()
+})
+
+test('coins are added and spent', async ({ page }) => {
+  const { dialog, state } = await openSheet(page)
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+
+  await coins.getByLabel(/Gold/).fill('10')
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByText('Added 10 gp and 5 sp.')).toBeVisible()
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('10 gp')
+  await expect(dialog.locator('[data-coin="sp"]')).toContainText('5 sp')
+  await expect(dialog.getByText('Worth 10 gp and 5 sp in all')).toBeVisible()
+  await expect(coins.getByLabel(/Gold/)).toHaveValue('')
+  expect(state.sheets[0]).toMatchObject({ gp: 10, sp: 5, cp: 0 })
+
+  await coins.getByLabel(/Gold/).fill('3')
+  await coins.getByLabel(/Silver/).fill('2')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 3 gp and 2 sp.')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 7, sp: 3, cp: 0 })
+})
+
+test('spending more than the purse is worth shows the copy and keeps the balances', async ({
+  page,
+}) => {
+  // 5 gp and 1 sp are worth 510 cp.
+  const { dialog, state } = await openSheet(page, { sheet: { gp: 5, sp: 1 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  await coins.getByLabel(/Gold/).fill('5')
+  await coins.getByLabel(/Silver/).fill('4')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "You don't have enough coins for that. Nothing was spent.",
+  )
+  expect(state.sheets[0]).toMatchObject({ gp: 5, sp: 1, cp: 0 })
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('5 gp')
+  // What was typed stays, so the player can adjust it.
+  await expect(coins.getByLabel(/Silver/)).toHaveValue('4')
+
+  await coins.getByLabel(/Silver/).fill('1')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(dialog.getByText('Spent 5 gp and 1 sp.')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 0, sp: 0, cp: 0 })
+})
+
+test('spending a coin you do not have makes change from a larger one', async ({ page }) => {
+  const { dialog, state } = await openSheet(page, { sheet: { gp: 3 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+
+  // No silver, but gold: pay 1 gp and take 5 sp back.
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 5 sp (made change from 1 gp).')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  expect(state.sheets[0]).toMatchObject({ gp: 2, sp: 5, cp: 0 })
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('2 gp')
+  await expect(dialog.locator('[data-coin="sp"]')).toContainText('5 sp')
+  // The value never changes: 3 gp = 2 gp + 5 sp + 5 sp spent.
+  await expect(dialog.getByText('Worth 2 gp and 5 sp in all')).toBeVisible()
+
+  // Copper from the silver it has left, then from a gold piece.
+  await coins.getByLabel(/Copper/).fill('7')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 7 cp (made change from 1 sp).')).toBeVisible()
+  expect(state.sheets[0]).toMatchObject({ gp: 2, sp: 4, cp: 3 })
+})
+
+test('recent transactions open on demand and show the arithmetic of each change', async ({
+  page,
+}) => {
+  const { dialog, state, mock } = await openSheet(page, { sheet: { gp: 3 } })
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  const log = dialog.locator('.coin-log')
+
+  // Collapsed at first, and nothing is requested for it.
+  await expect(log.getByText('Recent transactions')).toBeVisible()
+  await expect(log).not.toHaveAttribute('open', '')
+  await expect(log.getByText('No transactions yet.')).toHaveCount(0)
+
+  await log.getByText('Recent transactions').click()
+  await expect(log.getByText('No transactions yet.')).toBeVisible()
+
+  await coins.getByLabel(/Silver/).fill('5')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByText('Spent 5 sp (made change from 1 gp).')).toBeVisible()
+  const list = log.getByRole('list', { name: 'Recent transactions' })
+  await expect(list.getByText('Spent 5 sp (made change)')).toBeVisible()
+  await expect(list).toContainText('3 → 2 gp (−1)')
+  await expect(list).toContainText('0 → 5 sp (+5)')
+  await expect(list).toContainText('Purse after: 2 gp and 5 sp')
+
+  await coins.getByLabel(/Gold/).fill('4')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  const entries = list.locator(':scope > li')
+  await expect(entries).toHaveCount(2)
+  await expect(entries.first()).toContainText('Added 4 gp')
+  await expect(entries.first()).toContainText('2 → 6 gp (+4)')
+  await expect(entries.nth(1)).toContainText('Spent 5 sp (made change)')
+  expect(state.coinLog).toHaveLength(2)
+
+  // A refused spend is not a transaction.
+  await coins.getByLabel(/Gold/).fill('99')
+  await coins.getByRole('button', { name: 'Spend coins' }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(entries).toHaveCount(2)
+  expect(mock.calls.filter((call) => call.includes('adjust_character_currency'))).toHaveLength(3)
+
+  // Collapsing hides it again.
+  await log.getByText('Recent transactions').click()
+  await expect(list).toBeHidden()
+})
+
+test('recent transactions of a shared sheet are readable and read-only', async ({ page }) => {
+  const state = partyCharacters()
+  const sorrel = state.characters[1]
+  state.coinLog = [
+    {
+      id: '00000000-0000-4000-8000-000000009001',
+      seq: 1,
+      character_id: sorrel.id,
+      created_at: new Date(Date.UTC(2026, 10, 14, 9, 0, 0)).toISOString(),
+      cp_delta: 0,
+      sp_delta: 0,
+      gp_delta: 25,
+      cp_after: 0,
+      sp_after: 0,
+      gp_after: 25,
+    },
+  ]
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+  await dialog.locator('.coin-log').getByText('Recent transactions').click()
+  await expect(dialog.locator('.coin-log')).toContainText('Added 25 gp')
+  await expect(dialog.getByRole('form', { name: 'Add or spend coins' })).toHaveCount(0)
+})
+
+test('the three coin fields line up, and each coin wears the colour of its metal', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { dialog } = await openSheet(page, { sheet: { gp: 12, sp: 7, cp: 3 } })
+  const tops = await dialog
+    .locator('.coin-form .journal-input')
+    .evaluateAll((inputs) => inputs.map((input) => Math.round(input.getBoundingClientRect().top)))
+  expect(tops).toHaveLength(3)
+  expect(new Set(tops).size).toBe(1)
+
+  const tint = (coin: string) =>
+    dialog
+      .locator(`.coin-purse__coin[data-coin="${coin}"]`)
+      .evaluate((tile) => getComputedStyle(tile).backgroundColor)
+  const [gold, silver, copper] = [await tint('gp'), await tint('sp'), await tint('cp')]
+  expect(new Set([gold, silver, copper]).size).toBe(3)
+})
+
+test('coin fields explain what is wrong before anything is sent', async ({ page }) => {
+  const { dialog, mock } = await openSheet(page)
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(coins.getByRole('alert')).toHaveText('Enter an amount for at least one coin.')
+  await coins.getByLabel(/Silver/).fill('1.5')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(coins.getByLabel(/Silver/)).toBeFocused()
+  await expect(coins.getByLabel(/Silver/)).toHaveAccessibleDescription(
+    'Enter a whole number up to 9,999,999.',
+  )
+  expect(mock.calls).toEqual([])
+})
+
+test('items can be added, edited, equipped, attuned, counted, and removed', async ({ page }) => {
+  const { dialog, state } = await openSheet(page)
+
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeFocused()
+  await dialog.getByLabel('Name', { exact: true }).fill('Healing potion')
+  await dialog.getByLabel('Quantity').fill('4')
+  await dialog.getByLabel(/Weight/).fill('0.5')
+  await dialog.getByLabel(/Description/).fill('Restores 2d4 + 2 hit points.')
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByText('Added Healing potion.')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toBeFocused()
+  const potion = dialog.locator('.inventory-item', { hasText: 'Healing potion' })
+  await expect(potion).toContainText('Quantity 4')
+  await expect(potion).toContainText('0.5 lb each')
+  await potion.getByText('Description').click()
+  await expect(potion.getByText('Restores 2d4 + 2 hit points.')).toBeVisible()
+  expect(state.items).toHaveLength(1)
+
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 3')
+  await potion.getByRole('button', { name: 'Add one Healing potion' }).click()
+  await potion.getByRole('button', { name: 'Add one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 5')
+  expect(state.items![0].quantity).toBe(5)
+
+  await potion.getByRole('button', { name: 'Equip Healing potion' }).click()
+  await expect(potion.getByText('Equipped', { exact: true })).toBeVisible()
+  await potion.getByRole('button', { name: 'Attune Healing potion' }).click()
+  await expect(potion.getByText('Attuned', { exact: true })).toBeVisible()
+  expect(state.items![0]).toMatchObject({ equipped: true, attuned: true })
+  await potion.getByRole('button', { name: 'Unequip Healing potion' }).click()
+  await expect(potion.getByText('Equipped', { exact: true })).toHaveCount(0)
+
+  await potion.getByRole('button', { name: 'Edit Healing potion' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Greater healing potion')
+  await dialog.getByRole('button', { name: 'Save item' }).click()
+  await expect(dialog.getByText('Saved Greater healing potion.')).toBeVisible()
+  await expect(dialog.getByText('Greater healing potion', { exact: true })).toBeVisible()
+  expect(state.items![0].name).toBe('Greater healing potion')
+
+  // A reload keeps the stored items, coins, and everything else.
+  await page.reload()
+  await tentEntry(page).click()
+  await page.getByRole('button', { name: 'Open Brand' }).click()
+  await expect(page.getByText('Greater healing potion', { exact: true })).toBeVisible()
+  await expect(page.getByText('Quantity 5')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Remove Greater healing potion' }).click()
+  const confirm = page.getByRole('group', { name: 'Confirm removing Greater healing potion' })
+  await expect(confirm).toContainText('Remove Greater healing potion from Brand’s inventory?')
+  await expect(page.getByRole('button', { name: 'Yes, remove item' })).toBeFocused()
+  await page.getByRole('button', { name: 'Keep item' }).click()
+  await expect(page.getByRole('button', { name: 'Remove Greater healing potion' })).toBeFocused()
+  expect(state.items).toHaveLength(1)
+
+  await page.getByRole('button', { name: 'Remove Greater healing potion' }).click()
+  await page.getByRole('button', { name: 'Yes, remove item' }).click()
+  await expect(page.getByText('Removed Greater healing potion.')).toBeVisible()
+  await expect(page.getByText('No items yet.')).toBeVisible()
+  expect(state.items).toHaveLength(0)
+})
+
+test('the list shows carried weight, equipped items first, and the attunement warning', async ({
+  page,
+}) => {
+  const { dialog } = await openSheet(page, { items: sampleItems })
+  const names = dialog.locator('.inventory-item__name')
+  await expect(names).toHaveText(['Longsword', 'Healing potion', 'Rope'])
+  // 3 + 4 × 0.5 + 10 = 15 lb, against Strength 10 × 15 = 150 lb.
+  await expect(dialog.getByText('Carrying 15 lb of 150 lb')).toBeVisible()
+  await expect(dialog.getByText('3 items')).toBeVisible()
+
+  for (const name of ['Rope', 'Longsword', 'Healing potion']) {
+    await dialog.getByRole('button', { name: `Attune ${name}` }).click()
+    await expect(dialog.getByRole('button', { name: `End attunement to ${name}` })).toBeVisible()
+  }
+  await expect(dialog.getByText('Attuned 3 of 3')).toBeVisible()
+  await expect(dialog.getByText('More than 3 attuned items')).toHaveCount(0)
+
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Ring of Protection')
+  await dialog.getByLabel('Attuned').check()
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await expect(dialog.getByText('More than 3 attuned items')).toBeVisible()
+})
+
+test('an item changed on another device shows the latest version after a conflict', async ({
+  page,
+}) => {
+  const { dialog, state } = await openSheet(page, { items: sampleItems })
+  const rope = dialog.locator('.inventory-item', { hasText: 'Rope' })
+  await rope.getByRole('button', { name: 'Edit Rope' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('My rope')
+
+  // Another device renames it first; the stamp moves on.
+  const stored = state.items!.find((row) => row.name === 'Rope')!
+  stored.name = 'Their rope'
+  stored.updated_at = new Date().toISOString()
+
+  await dialog.getByRole('button', { name: 'Save item' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    'This item changed on another device. The latest version is shown.',
+  )
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Their rope')
+  expect(stored.name).toBe('Their rope')
+})
+
+test('an item removed on another device reports it and refreshes the list', async ({ page }) => {
+  const { dialog, state } = await openSheet(page, { items: sampleItems })
+  state.items!.splice(
+    state.items!.findIndex((row) => row.name === 'Rope'),
+    1,
+  )
+  await dialog.getByRole('button', { name: 'Equip Rope' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText('This item is no longer available.')
+  await expect(dialog.getByText('Rope', { exact: true })).toHaveCount(0)
+})
+
+test('server failures show safe copy and retry works for coins and items', async ({ page }) => {
+  let failing: 'list' | 'coins' | 'item' | null = 'list'
+  const { dialog, state } = await openSheet(page, {
+    items: sampleItems,
+    fail: (target) => {
+      const broken =
+        (target === 'character_items' && failing === 'list') ||
+        (target === 'adjust_character_currency' && failing === 'coins') ||
+        (target === 'adjust_character_item_quantity' && failing === 'item')
+      return broken ? { status: 500, message: 'boom' } : null
+    },
+  })
+  await expect(dialog.getByRole('alert')).toContainText('The inventory could not be loaded.')
+  failing = null
+  await dialog.getByRole('button', { name: 'Try again' }).click()
+  await expect(dialog.getByText('Healing potion', { exact: true })).toBeVisible()
+
+  const coins = dialog.getByRole('form', { name: 'Add or spend coins' })
+  failing = 'coins'
+  await coins.getByLabel(/Gold/).fill('1')
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't update the coins. Check your connection and try again.",
+  )
+  expect(state.sheets[0].gp).toBe(0)
+  await expect(coins.getByLabel(/Gold/)).toHaveValue('1')
+  failing = null
+  await coins.getByRole('button', { name: 'Add coins' }).click()
+  await expect(dialog.getByText('Added 1 gp.')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+  const potion = dialog.locator('.inventory-item', { hasText: 'Healing potion' })
+  failing = 'item'
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(
+    "We couldn't update this item. Check your connection and try again.",
+  )
+  await expect(potion).toContainText('Quantity 4')
+  failing = null
+  await potion.getByRole('button', { name: 'Use one Healing potion' }).click()
+  await expect(potion).toContainText('Quantity 3')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+})
+
+test('the tent stays open while a coin or item change is pending', async ({ page }) => {
+  await mockCampaignApi(page, [redHand])
+  const character = mockCharacter()
+  const state: CharacterState = {
+    characters: [character],
+    sheets: [mockSheet(character.id)],
+    items: sampleItems(character.id),
+  }
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await mockCharacters(page, state, { hold: () => held })
+  await openCamp(page)
+  await tentEntry(page).click()
+  const dialog = page.getByRole('dialog', { name: 'My characters' })
+  await dialog.getByRole('button', { name: 'Open Brand' }).click()
+
+  await dialog.getByRole('button', { name: 'Equip Rope' }).click()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  // Only that item waits; the others stay usable.
+  await expect(dialog.getByRole('button', { name: 'Equip Rope' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Equip Healing potion' })).toBeEnabled()
+
+  release()
+  await expect(dialog.getByRole('button', { name: 'Unequip Rope' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to camp' })).toBeEnabled()
+})
+
+test('an open item form with changes is guarded when leaving', async ({ page }) => {
+  const { dialog } = await openSheet(page)
+  await dialog.getByRole('button', { name: 'Add item' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill('Lantern')
+  // The save bar is not involved: the item has its own button.
+  await expect(dialog.getByText('All changes saved')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  const prompt = page.getByRole('alertdialog', { name: 'Leave without saving?' })
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Lantern')
+
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Back to camp' }).click()
+  await expect(prompt).toBeHidden()
+  await expect(dialog).toBeHidden()
+})
+
+test('a shared sheet shows coins and items read-only in the Party panel', async ({ page }) => {
+  const state = partyCharacters()
+  const sorrel = state.characters[1]
+  state.sheets[1].gp = 42
+  state.items = [
+    mockItem(sorrel.id, { name: 'Wand of Sparks', quantity: 1, equipped: true }),
+    mockItem(sorrel.id, { name: 'Spell components', quantity: 12 }),
+  ]
+  const dialog = await openParty(page, state)
+  await dialog.getByRole('button', { name: "View Sorrel's sheet" }).click()
+
+  await expect(dialog.getByRole('heading', { name: 'Coins' })).toBeVisible()
+  await expect(dialog.locator('[data-coin="gp"]')).toContainText('42 gp')
+  await expect(dialog.getByText('Wand of Sparks')).toBeVisible()
+  await expect(dialog.getByText('Quantity 12')).toBeVisible()
+  await expect(dialog.getByRole('form', { name: 'Add or spend coins' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Add item' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^(Use|Add) one / })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: /^(Equip|Remove|Edit) / })).toHaveCount(0)
+  // Viewers get the two view tabs, not the owner's section jumps.
+  const tabs = dialog.getByRole('navigation', { name: 'Sheet sections' }).getByRole('button')
+  await expect(tabs).toHaveText(['Sheet', 'Export and history'])
+  expect(await dialogFits(page)).toBe(true)
+})
+
+test('an unshared sheet shows no coins or items to anyone else', async ({ page }) => {
+  const state = partyCharacters()
+  const dray = state.characters[2]
+  state.items = [mockItem(dray.id, { name: 'Secret dagger' })]
+  const dialog = await openParty(page, state)
+  await expect(dialog.getByRole('button', { name: /View Dray/ })).toHaveCount(0)
+  await expect(dialog.getByText('Secret dagger')).toHaveCount(0)
+})
+
+for (const [label, width, height] of [
+  ['phone', 390, 844],
+  ['tablet', 820, 1180],
+  ['desktop', 1440, 900],
+] as const) {
+  test(`coins and inventory fit a ${label} without horizontal scrolling`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const { dialog } = await openSheet(page, {
+      character: { name: 'The Unfathomably Long-Named Wanderer of the Shattered Coast' },
+      sheet: { gp: 9_999_999, sp: 9_999_999, cp: 9_999_999 },
+      items: (characterId) => [
+        ...sampleItems(characterId),
+        mockItem(characterId, {
+          name: 'A Remarkably Over-Described Ceremonial Staff of Many Unpronounceable Virtues',
+          description: 'x'.repeat(300),
+          weight: 99999.99,
+          quantity: 9999,
+        }),
+      ],
+    })
+    await dialog.getByRole('button', { name: 'Coins', exact: true }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Inventory', exact: true }).click()
+    expect(await dialogFits(page)).toBe(true)
+
+    await dialog.getByRole('button', { name: 'Add item' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await dialog.getByRole('button', { name: 'Remove Rope' }).click()
+    expect(await dialogFits(page)).toBe(true)
+    await dialog.getByRole('button', { name: 'Keep item' }).click()
+
+    // Touch targets for the quantity buttons are at least 44 px.
+    const box = await dialog.getByRole('button', { name: 'Use one Rope' }).boundingBox()
+    expect(box!.width).toBeGreaterThanOrEqual(44)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+  })
+}

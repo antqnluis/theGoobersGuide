@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { readErrorMessage } from './rpcErrors'
 
 type IncomingInvitation = {
   id: string
@@ -75,13 +76,4 @@ export function isInvitationUnavailable(error: unknown) {
 export function campaignInvitationError(error: unknown, fallback: string) {
   const message = readErrorMessage(error)
   return Object.hasOwn(invitationErrors, message) ? invitationErrors[message] : fallback
-}
-
-function readErrorMessage(error: unknown) {
-  return error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof error.message === 'string'
-    ? error.message
-    : ''
 }

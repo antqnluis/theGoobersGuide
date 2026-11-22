@@ -3,7 +3,16 @@
 
 import { adventurerAppearance, type AdventurerAppearance } from './adventurerAppearance'
 import { adventurerSize } from './adventurerSprites'
-import { bedrollSeats, firePit, seatParty, wagon, bedrolls, type RosterMember } from './campLayout'
+import {
+  bedrollSeats,
+  bedrolls,
+  firePit,
+  seatParty,
+  tent,
+  wagon,
+  type CampLocationId,
+  type RosterMember,
+} from './campLayout'
 
 export type PartyFigure = {
   /** Profile id, the stable key for the figure and its label. */
@@ -46,10 +55,15 @@ export function spriteIdFor(look: AdventurerAppearance) {
 }
 
 /** Up to ten real members around the fire, plus how many did not get a seat. */
-export function partyFigures(roster: readonly RosterMember[]) {
-  const { seated, overflow } = seatParty(roster)
+export function partyFigures(
+  roster: readonly RosterMember[],
+  characterNames?: ReadonlyMap<string, string>,
+  /** Looks players saved for this campaign; anyone without one keeps their default. */
+  appearances?: ReadonlyMap<string, AdventurerAppearance>,
+) {
+  const { seated, overflow } = seatParty(roster, characterNames)
   const figures: PartyFigure[] = seated.map(({ member, seat, label }, index) => {
-    const look = adventurerAppearance(member.profile_id)
+    const look = appearances?.get(member.profile_id) ?? adventurerAppearance(member.profile_id)
     return {
       id: member.profile_id,
       spriteId: spriteIdFor(look),
@@ -77,10 +91,11 @@ export const minNameUnit = 2
 
 /** Image ids of the objects that make up a destination, for its outline. */
 export function outlineTargets(
-  location: 'overview' | 'party' | 'settings' | null,
+  location: CampLocationId | null,
   figures: readonly PartyFigure[],
 ): Set<string> {
   if (location === 'overview') return new Set([firePit.id])
+  if (location === 'characters') return new Set([tent.id])
   if (location === 'settings') return new Set([wagon.id])
   if (location === 'party') {
     return new Set([...bedrolls.map(({ id }) => id), ...figures.map(({ spriteId }) => spriteId)])

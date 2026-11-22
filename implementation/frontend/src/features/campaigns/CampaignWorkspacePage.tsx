@@ -1,15 +1,41 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { campaignCharactersOptions } from '../characters/characterQueries'
+import { CharacterTent, type TentView } from '../characters/CharacterTent'
+import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
+import { useCharacterActions } from '../characters/useCharacterActions'
+import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
+import {
+  adventuresKey,
+  adventuresOptions,
+  invitationsKey,
+  requestCountKey,
+  requestCountOptions,
+} from '../adventures/adventureQueries'
+import { sharedThreadCount } from '../adventures/adventureRules'
+import { useAdventureActions } from '../adventures/useAdventureActions'
+import { CampNotes, type NoteScreen } from '../notes/CampNotes'
+import { notesKey } from '../notes/noteQueries'
+import { useNoteActions } from '../notes/useNoteActions'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
+import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
+import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
+import { CampPanel } from './camp/CampPanel'
+import { AppearanceDrawer } from './camp/AppearanceDrawer'
+import { adventurerAppearance } from './camp/adventurerAppearance'
+import { campaignAppearancesOptions } from './camp/campAppearance'
+import { useCampaignAppearance } from './useCampaignAppearance'
+import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
 import { planetAppearance } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignManagement } from './useCampaignManagement'
+import { useCampaignMembership, type MembershipConfirmation } from './useCampaignMembership'
 
 export function CampaignWorkspacePage() {
   const { campaignId = '' } = useParams()
@@ -43,6 +69,31 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     routeState?.campaignCreated ? 'Campaign created.' : null,
   )
   const management = useCampaignManagement(campaignId, userId)
+  const membership = useCampaignMembership(campaignId, userId)
+  const characterActions = useCharacterActions(campaignId, userId)
+  const noteActions = useNoteActions(campaignId, userId)
+  const adventureActions = useAdventureActions(campaignId, userId)
+  const queryClient = useQueryClient()
+  const appearanceActions = useCampaignAppearance(campaignId, userId)
+  const [tentView, setTentView] = useState<TentView>({ type: 'list' })
+  const [characterDirty, setCharacterDirty] = useState(false)
+  const [noteScreen, setNoteScreen] = useState<NoteScreen>({ type: 'list' })
+  const [noteDirty, setNoteDirty] = useState(false)
+  // The notes load when the Notes destination is first opened, and refresh each time after.
+  const [notesOpened, setNotesOpened] = useState(false)
+  const [adventureScreen, setAdventureScreen] = useState<AdventureScreen>({ type: 'list' })
+  const [adventureDirty, setAdventureDirty] = useState(false)
+  // The adventures load when the Adventures destination is first opened, and refresh each time after.
+  const [adventuresOpened, setAdventuresOpened] = useState(false)
+  // A shared sheet opened read-only from the Party panel.
+  const [partySheetId, setPartySheetId] = useState<string | null>(null)
+  const toasts = useCampToasts()
+  const [characterConfirmation, setCharacterConfirmation] = useState<CharacterConfirmation | null>(
+    null,
+  )
+  const [confirmation, setConfirmation] = useState<MembershipConfirmation | null>(null)
+  // Which action the current membership error belongs to, so it shows beside its own control.
+  const [membershipErrorFor, setMembershipErrorFor] = useState<'party' | 'settings'>('party')
 
   const campaignQuery = useQuery({
     queryKey: ['campaigns', 'detail', campaignId, userId],
@@ -54,6 +105,37 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     queryFn: () => getCampaignRoster(campaignId),
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
+  const charactersQuery = useQuery({
+    ...campaignCharactersOptions(campaignId, userId),
+    enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+  })
+  // Without Realtime (M7), the Places entry shows how many adventure requests wait for the
+  // player: read when the camp opens and on focus. A failed read shows no count.
+  // Read only when the Adventures list is already cached: leaving names the shared ones (D9).
+  const adventuresList = useQuery(adventuresOptions(campaignId, userId, false))
+  const requestCount = useQuery(
+    requestCountOptions(
+      campaignId,
+      userId,
+      Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+    ),
+  )
+  const charactersData = charactersQuery.data
+  // The camp names each seat for its player's active character, when they have one.
+  const characterNames = useMemo(
+    () =>
+      new Map(
+        (charactersData ?? [])
+          .filter((character) => character.status === 'active')
+          .map((character) => [character.owner_id, character.name]),
+      ),
+    [charactersData],
+  )
+  const appearancesQuery = useQuery({
+    ...campaignAppearancesOptions(campaignId, userId),
+    enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+  })
+  const appearances = appearancesQuery.data
   const campaign = campaignQuery.data
   const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
   const [background, setBackground] = useCampBackground(campaignId)
@@ -97,6 +179,36 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const remove = async () => {
     if (await management.remove()) {
       navigate('/app/campaigns', { state: { campaignNotice: 'deleted' } })
+    }
+  }
+
+  const changeConfirmation = (next: MembershipConfirmation | null) => {
+    membership.clearError()
+    setConfirmation(next)
+  }
+
+  const leaveCampaign = async () => {
+    setMembershipErrorFor('party')
+    if (await membership.leave()) {
+      navigate('/app/campaigns', { state: { campaignNotice: 'left' } })
+    }
+  }
+
+  const removeMember = async (profileId: string, name: string) => {
+    setMembershipErrorFor('party')
+    setNotice(null)
+    if (await membership.remove(profileId)) {
+      setConfirmation(null)
+      setNotice(`${name} was removed.`)
+    }
+  }
+
+  const transferOwnership = async (profileId: string, name: string) => {
+    setMembershipErrorFor('settings')
+    setNotice(null)
+    if (await membership.transfer(profileId)) {
+      setConfirmation(null)
+      setNotice(`Ownership transferred to ${name}.`)
     }
   }
 
@@ -168,13 +280,60 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
 
   return (
     <CampaignCamp
+      characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
+      partyFolio={partySheetId !== null}
+      unsavedChanges={{
+        characters: characterDirty,
+        notes: noteDirty,
+        adventures: adventureDirty,
+      }}
+      waiting={{ adventures: requestCount.data ?? 0 }}
+      onDestinationChange={(id) => {
+        if (id === 'adventures') {
+          if (adventuresOpened) {
+            for (const queryKey of [
+              adventuresKey(campaignId, userId),
+              invitationsKey(campaignId, userId),
+              requestCountKey(campaignId, userId),
+            ]) {
+              void queryClient.invalidateQueries({ queryKey })
+            }
+          } else setAdventuresOpened(true)
+          return
+        }
+        if (id !== 'notes') return
+        if (notesOpened)
+          void queryClient.invalidateQueries({ queryKey: notesKey(campaignId, userId) })
+        else setNotesOpened(true)
+      }}
+      onDismissToast={toasts.dismiss}
+      toasts={toasts.toasts}
       cancelDelete={() => {
         if (isConfirmingDelete) {
           management.clearError()
           setIsConfirmingDelete(false)
         }
+        membership.clearError()
+        setConfirmation(null)
+        characterActions.clearError()
+        setCharacterConfirmation(null)
+        setTentView({ type: 'list' })
+        setCharacterDirty(false)
+        noteActions.clearError()
+        setNoteScreen({ type: 'list' })
+        setNoteDirty(false)
+        adventureActions.clearError()
+        setAdventureScreen({ type: 'list' })
+        setAdventureDirty(false)
+        setPartySheetId(null)
       }}
-      isDeleting={management.isDeleting}
+      isDeleting={
+        management.isDeleting ||
+        membership.pendingAction !== null ||
+        characterActions.pendingAction !== null ||
+        noteActions.pendingAction !== null ||
+        adventureActions.pendingAction !== null
+      }
       isOwner={isOwner}
       notice={notice}
       landfallKey={arrivedFromGalaxy ? location.key : null}
@@ -184,6 +343,27 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       onHueChange={setHue}
       onLeave={() => navigate('/app/campaigns')}
       roster={roster}
+      characterNames={characterNames}
+      appearances={appearances}
+      partyDrawer={
+        <AppearanceDrawer
+          defaultLook={adventurerAppearance(userId)}
+          error={appearanceActions.error}
+          onClearError={appearanceActions.clearError}
+          onReset={async () => {
+            const done = await appearanceActions.reset()
+            if (done) toasts.push('Your look is back to the default.')
+            return done
+          }}
+          onSave={async (look) => {
+            const done = await appearanceActions.save(look)
+            if (done) toasts.push('Your look was saved.')
+            return done
+          }}
+          pending={appearanceActions.pendingAction}
+          saved={appearances?.get(userId) ?? null}
+        />
+      }
       world={world}
       title={
         <ViewTransition
@@ -197,8 +377,12 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         </ViewTransition>
       }
       overview={
-        <>
-          <h2 id="camp-overview-heading">{campaign.name}</h2>
+        <CampPanel
+          headingId="camp-overview-heading"
+          icon="flag"
+          place="Campfire"
+          title={campaign.name}
+        >
           <p className="camp-ledger__description">
             {campaign.description || 'No description has been added.'}
           </p>
@@ -212,45 +396,33 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               <dd>{ownerUsername}</dd>
             </div>
           </dl>
-        </>
+        </CampPanel>
       }
       party={
-        <>
-          <h2 id="camp-party-heading">People in this campaign</h2>
-          {rosterQuery.isPending && (
-            <p className="campaign-loading" role="status">
-              Loading campaign members…
-            </p>
-          )}
-          {rosterQuery.isError && (
-            <div className="campaign-inline-error" role="alert">
-              <p>Campaign members could not be loaded.</p>
-              <button
-                className="campaign-text-button"
-                onClick={() => rosterQuery.refetch()}
-                type="button"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {rosterQuery.isSuccess && roster.length === 0 && (
-            <p className="campaign-members__empty">No member information is available.</p>
-          )}
-          {rosterQuery.isSuccess && roster.length > 0 && (
-            <ul className="campaign-member-list">
-              {roster.map((member) => (
-                <li key={member.profile_id}>
-                  <span>
-                    {member.username || (member.role === 'owner' ? 'Campaign owner' : 'Player')}
-                  </span>
-                  <span className="campaign-member-list__role">
-                    {member.role === 'owner' ? 'Owner' : 'Member'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <CampaignPartyMembers
+          campaignName={campaign.name}
+          characters={charactersQuery.data ?? []}
+          charactersStatus={
+            charactersQuery.isError ? 'error' : charactersQuery.isSuccess ? 'success' : 'pending'
+          }
+          confirmation={confirmation}
+          error={membershipErrorFor === 'party' ? membership.error : null}
+          onSheetChange={setPartySheetId}
+          sheetCharacterId={partySheetId}
+          userId={userId}
+          isOwner={isOwner}
+          onConfirmationChange={changeConfirmation}
+          onLeaveCampaign={leaveCampaign}
+          sharedAdventureCount={
+            adventuresList.data ? sharedThreadCount(adventuresList.data, userId) : undefined
+          }
+          onRemoveMember={removeMember}
+          onRetry={() => rosterQuery.refetch()}
+          pendingAction={membership.pendingAction}
+          pendingProfileId={membership.pendingProfileId}
+          roster={roster}
+          status={rosterQuery.isError ? 'error' : rosterQuery.isSuccess ? 'success' : 'pending'}
+        >
           {isOwner && (
             <CampaignOutgoingInvitations
               campaignId={campaign.id}
@@ -258,11 +430,64 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               userId={userId}
             />
           )}
-        </>
+        </CampaignPartyMembers>
+      }
+      characters={
+        <CharacterTent
+          actions={characterActions}
+          campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
+          confirmation={characterConfirmation}
+          onConfirmationChange={(next) => {
+            characterActions.clearError()
+            setCharacterConfirmation(next)
+          }}
+          onDirtyChange={setCharacterDirty}
+          onNotice={toasts.push}
+          onRetry={() => charactersQuery.refetch()}
+          onViewChange={setTentView}
+          status={
+            charactersQuery.isError ? 'error' : charactersQuery.isSuccess ? 'success' : 'pending'
+          }
+          userId={userId}
+          view={tentView}
+        />
+      }
+      adventures={
+        <CampAdventures
+          actions={adventureActions}
+          campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
+          enabled={adventuresOpened}
+          onDirtyChange={setAdventureDirty}
+          onNotice={toasts.push}
+          onScreenChange={setAdventureScreen}
+          roster={roster}
+          screen={adventureScreen}
+          userId={userId}
+        />
+      }
+      notes={
+        <CampNotes
+          actions={noteActions}
+          campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
+          enabled={notesOpened}
+          onDirtyChange={setNoteDirty}
+          onNotice={toasts.push}
+          onScreenChange={setNoteScreen}
+          roster={roster}
+          screen={noteScreen}
+          userId={userId}
+        />
       }
       settings={
-        <>
-          <h2 id="camp-settings-heading">Campaign settings</h2>
+        <CampPanel
+          headingId="camp-settings-heading"
+          icon="book"
+          place="Steward’s wagon"
+          title="Campaign settings"
+        >
           {management.error && (
             <p className="campaign-form__feedback" role="alert">
               {management.error}
@@ -286,6 +511,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
                 className="auth-button auth-button--secondary"
                 onClick={() => {
                   management.clearError()
+                  changeConfirmation(null)
                   setIsEditing(true)
                 }}
                 type="button"
@@ -297,6 +523,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
                 ref={deleteTriggerRef}
                 onClick={() => {
                   management.clearError()
+                  changeConfirmation(null)
                   setIsConfirmingDelete(true)
                 }}
                 type="button"
@@ -306,6 +533,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
             </div>
           ) : null}
 
+          {!isEditing && !isConfirmingDelete && (
+            <CampaignOwnershipTransfer
+              campaignName={campaign.name}
+              confirmation={confirmation}
+              error={membershipErrorFor === 'settings' ? membership.error : null}
+              onConfirmationChange={changeConfirmation}
+              onRetry={() => rosterQuery.refetch()}
+              onTransfer={transferOwnership}
+              pendingAction={membership.pendingAction}
+              roster={roster}
+              status={rosterQuery.isError ? 'error' : rosterQuery.isSuccess ? 'success' : 'pending'}
+            />
+          )}
+
           {isConfirmingDelete && (
             <div
               aria-label="Confirm campaign deletion"
@@ -313,8 +554,9 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               role="group"
             >
               <p>
-                Delete <strong>{campaign.name}</strong>? Its campaign details and member list will
-                be removed.
+                Delete <strong>{campaign.name}</strong> permanently? Its details, member list,
+                notes, adventures, and every player's characters, character sheets, and inventories
+                will be removed. This can't be undone.
               </p>
               <div className="campaign-settings__actions">
                 <button
@@ -340,7 +582,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
               </div>
             </div>
           )}
-        </>
+        </CampPanel>
       }
     />
   )
