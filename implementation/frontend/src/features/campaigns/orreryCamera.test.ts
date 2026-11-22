@@ -21,7 +21,7 @@ import {
   type Point,
   type SceneBounds,
 } from './orreryCamera'
-import { orbitPosition, orreryLayout, ringRadius } from './orreryLayout'
+import { galaxyLayout, orbitPosition, ringRadius } from './orreryLayout'
 
 const viewHeight = 960
 const desktop = { left: 336, top: 76, width: 1068, height: 800 }
@@ -37,16 +37,14 @@ function ringPoints(radius: number): Point[] {
 
 describe('the chart', () => {
   it.each([
-    ['one world on a desktop', 1, desktop, 960],
+    ['six planets, the smallest galaxy, on a desktop', 6, desktop, 960],
     ['eight rings on a desktop', 8, desktop, 960],
     ['thirty-two worlds in a short phone scene', 32, phone, 568],
     ['eight rings in a tall phone scene', 8, portrait, 800],
   ] satisfies [string, number, SceneBounds, number][])(
     'fits %s inside the clear part of the scene',
     (_, campaigns, bounds, height) => {
-      const { extent } = orreryLayout(
-        Array.from({ length: campaigns }, (_, index) => `id-${index}`),
-      )
+      const { extent } = galaxyLayout(campaigns)
       const view = cameraView(chartPose(extent, bounds, height), height)
       const points = ringPoints(extent).map((point) => view.project(point))
 
@@ -64,7 +62,7 @@ describe('the chart', () => {
   )
 
   it('fills the scene along its tighter axis instead of floating small', () => {
-    const { extent } = orreryLayout(Array.from({ length: 8 }, (_, index) => `id-${index}`))
+    const { extent } = galaxyLayout(8)
     const edge = ringPoints(extent + 0.9)
 
     const wide = cameraView(chartPose(extent, desktop, viewHeight), viewHeight)

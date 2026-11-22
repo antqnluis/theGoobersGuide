@@ -12,12 +12,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation, useMatch, useNavigate } from 'react-router'
 import { campaignListOptions } from './campaignQueries'
 import { getCampaignMemberCount } from './campaignService'
+import { buildGalaxy, type GalaxyPlanet } from './galaxyModel'
+import { galaxyPlanetsOptions } from './galaxyPlanets'
 import type { SceneBounds } from './orreryCamera'
-import { getOrbitTarget, stepCampaign } from './orreryLayout'
-import { orderPlanets } from './planetModel'
+import { catalogueNumeral, planetKey, stepCampaign } from './orreryLayout'
 import { GalaxyBackdrop } from './GalaxyBackdrop'
+import { UnchartedAnnotation } from './UnchartedAnnotation'
 import { WorldAnnotation } from './WorldAnnotation'
-import { WorldLedger, compactViewport } from './WorldLedger'
+import { WorldLedger, compactViewport, type ClaimedPlanet } from './WorldLedger'
 import { useArrival } from '../arrival/useArrival'
 import { useAuth } from '../auth/useAuth'
 import './galaxy.css'
@@ -64,8 +66,8 @@ function CampaignSelector({ userId }: { userId: string }) {
     },
     [reportGalaxy],
   )
-  const [selection, setSelection] = useState<{ id: string; direction?: -1 | 1 } | null>(null)
-  const selectedId = selection?.id ?? null
+  // A selection is a planet, whether or not a campaign sits on it.
+  const [selection, setSelection] = useState<{ slot: number; direction?: -1 | 1 } | null>(null)
   const locationState = location.state as { campaignNotice?: string } | null
   const [notice] = useState(() =>
     locationState?.campaignNotice === 'deleted'
@@ -78,6 +80,12 @@ function CampaignSelector({ userId }: { userId: string }) {
     ...campaignListOptions(userId),
     enabled: Boolean(userId) && !isCreating,
   })
+  // Assignments only place campaigns. While they load, or if they fail, campaigns take
+  // oldest-first planets, and the ledger never depends on them.
+  const planetsQuery = useQuery({
+    ...galaxyPlanetsOptions(userId),
+    enabled: Boolean(userId) && !isCreating,
+  })
 
   useEffect(() => {
     if (locationState?.campaignNotice) {
@@ -85,8 +93,17 @@ function CampaignSelector({ userId }: { userId: string }) {
     }
   }, [location.pathname, locationState?.campaignNotice, navigate])
 
-  const selectedCampaign = campaignsQuery.data?.find((campaign) => campaign.id === selectedId)
-  const detailsOpen = Boolean(selectedCampaign)
+  const galaxy = useMemo(
+    () => buildGalaxy(campaignsQuery.data, planetsQuery.data),
+    [campaignsQuery.data, planetsQuery.data],
+  )
+  const claimedPlanets = useMemo(
+    () => galaxy.filter((planet): planet is ClaimedPlanet => planet.campaign !== null),
+    [galaxy],
+  )
+  const selectedPlanet: GalaxyPlanet | undefined = selection ? galaxy[selection.slot] : undefined
+  const selectedCampaign = selectedPlanet?.campaign ?? null
+  const detailsOpen = Boolean(selectedPlanet)
 
   useLayoutEffect(() => {
     const scene = sceneRef.current
@@ -116,10 +133,12 @@ function CampaignSelector({ userId }: { userId: string }) {
     }
   }, [isCreating, detailsOpen, expanded])
 
-  const planets = useMemo(() => orderPlanets(campaignsQuery.data), [campaignsQuery.data])
-  const orbitIds = useMemo(() => planets.map(({ id }) => id), [planets])
-  const orbitTarget = getOrbitTarget(orbitIds, selectedId)
-  const overviewCampaign = detailsOpen ? null : planets[0]
+  const orbitKeys = useMemo(() => galaxy.map(({ slot }) => planetKey(slot)), [galaxy])
+  // The overview centres on the first campaign, or on planet I while there are none. Its
+  // action waits for the campaign list, so it never offers a planet that is about to be claimed.
+  const overviewFocus = claimedPlanets[0] ?? galaxy[0]
+  const focalSlot = selectedPlanet?.slot ?? overviewFocus.slot
+  const overviewPlanet = detailsOpen || campaignsQuery.data === undefined ? null : overviewFocus
 
   useLayoutEffect(() => {
     if (!openedFromOverviewAction.current || isCreating) return
@@ -139,10 +158,10 @@ function CampaignSelector({ userId }: { userId: string }) {
   })
   const memberCount = memberCountQuery.data
 
-  const selectCampaign = useCallback(
-    (id: string, direction?: -1 | 1) => {
+  const selectPlanet = useCallback(
+    (slot: number, direction?: -1 | 1) => {
       openedFromOverviewAction.current = false
-      setSelection({ id, direction })
+      setSelection({ slot, direction })
       if (window.matchMedia?.(compactViewport).matches) {
         if (expanded && !direction) disclosureRef.current?.focus()
         setExpanded(false)
@@ -152,8 +171,8 @@ function CampaignSelector({ userId }: { userId: string }) {
   )
 
   function step(direction: -1 | 1) {
-    const id = stepCampaign(orbitIds, selectedId, direction)
-    if (id) selectCampaign(id, direction)
+    const key = stepCampaign(orbitKeys, planetKey(focalSlot), direction)
+    if (key) selectPlanet(orbitKeys.indexOf(key), direction)
   }
 
   function returnToOverview() {
@@ -171,11 +190,11 @@ function CampaignSelector({ userId }: { userId: string }) {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
     const target = event.target as HTMLElement | null
     if (target?.closest('input, textarea, select, dialog, [contenteditable="true"]')) return
-    if (event.key === 'Escape' && selectedCampaign) {
+    if (event.key === 'Escape' && selectedPlanet) {
       event.preventDefault()
       returnToOverview()
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      if (orbitIds.length < 2) return
+      if (orbitKeys.length < 2) return
       event.preventDefault()
       step(event.key === 'ArrowLeft' ? -1 : 1)
     }
@@ -186,23 +205,24 @@ function CampaignSelector({ userId }: { userId: string }) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  if (campaignsQuery.isSuccess && selectedId && !selectedCampaign) {
+  // The galaxy only shrinks when its outermost planet is released, which can strand a selection.
+  if (selection && !selectedPlanet) {
     setSelection(null)
   }
 
   return (
     <>
       <GalaxyBackdrop
-        planets={planets}
+        planets={galaxy}
         orbitBounds={orbitBounds}
-        targetId={orbitTarget}
+        targetSlot={focalSlot}
         interactive={!isCreating && !arriving}
         motionReduced={prefersReducedMotion}
         paused={paused}
         arrival={flight}
         onAvailabilityChange={changeAvailability}
-        onSelect={selectCampaign}
-        selectedId={selectedCampaign?.id ?? null}
+        onSelect={selectPlanet}
+        selectedSlot={selectedPlanet?.slot ?? null}
         memberCount={memberCount}
       />
       {isCreating ? (
@@ -213,7 +233,7 @@ function CampaignSelector({ userId }: { userId: string }) {
         <section
           aria-labelledby="campaigns-heading"
           className="galaxy-controls"
-          data-details-open={Boolean(selectedCampaign)}
+          data-details-open={detailsOpen}
         >
           <WorldLedger
             canPause={canPause}
@@ -222,12 +242,12 @@ function CampaignSelector({ userId }: { userId: string }) {
             notice={notice}
             onExpandedChange={setExpanded}
             onRetry={() => void campaignsQuery.refetch()}
-            onSelect={selectCampaign}
+            onSelect={selectPlanet}
             onTogglePause={() => setPaused((value) => !value)}
             paused={paused}
-            planets={planets}
+            planets={claimedPlanets}
             selectedButtonRef={selectedButtonRef}
-            selectedId={selectedId}
+            selectedSlot={selectedPlanet?.slot ?? null}
             userId={userId}
             status={
               campaignsQuery.isPending ? 'pending' : campaignsQuery.isError ? 'error' : 'ready'
@@ -237,30 +257,34 @@ function CampaignSelector({ userId }: { userId: string }) {
           <div aria-hidden="true" className="galaxy-orbit-space" ref={sceneRef} />
 
           <div className="galaxy-orbit-controls">
-            {overviewCampaign && <p className="galaxy-prompt">Choose a world to approach</p>}
-            {overviewCampaign && (
+            {overviewPlanet && <p className="galaxy-prompt">Choose a world to approach</p>}
+            {overviewPlanet && (
               <button
                 className="galaxy-action galaxy-action--primary galaxy-view-campaign"
                 onClick={() => {
-                  selectCampaign(overviewCampaign.id)
+                  selectPlanet(overviewPlanet.slot)
                   openedFromOverviewAction.current = true
                 }}
                 ref={viewCampaignRef}
                 type="button"
               >
-                <span>View {overviewCampaign.name}</span>
+                <span>
+                  View{' '}
+                  {overviewPlanet.campaign?.name ??
+                    `Uncharted World ${catalogueNumeral(overviewPlanet.slot)}`}
+                </span>
               </button>
             )}
-            {planets.length > 1 && (
-              <nav aria-label="Campaign orbit" className="galaxy-orbit-nav">
+            {galaxy.length > 1 && (
+              <nav aria-label="World orbit" className="galaxy-orbit-nav">
                 <button className="galaxy-action" onClick={() => step(-1)} type="button">
                   <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
                     <path d="m10 4-4 4 4 4" stroke="currentColor" strokeWidth="1.5" />
                   </svg>
-                  Previous campaign
+                  Previous world
                 </button>
                 <button className="galaxy-action" onClick={() => step(1)} type="button">
-                  Next campaign
+                  Next world
                   <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none">
                     <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" />
                   </svg>
@@ -271,13 +295,24 @@ function CampaignSelector({ userId }: { userId: string }) {
 
           <div className="galaxy-details-slot">
             <p aria-live="polite" className="visually-hidden">
-              {selectedCampaign ? `Selected campaign: ${selectedCampaign.name}` : 'Galaxy overview'}
+              {selectedCampaign
+                ? `Selected campaign: ${selectedCampaign.name}`
+                : selectedPlanet
+                  ? `Selected world: Uncharted World ${catalogueNumeral(selectedPlanet.slot)}`
+                  : 'Galaxy overview'}
             </p>
-            {selectedCampaign && (
+            {selectedPlanet && !selectedCampaign && (
+              <UnchartedAnnotation
+                headingRef={detailsHeadingRef}
+                onReturn={returnToOverview}
+                slot={selectedPlanet.slot}
+              />
+            )}
+            {selectedPlanet && selectedCampaign && (
               <WorldAnnotation
                 campaign={selectedCampaign}
                 headingRef={detailsHeadingRef}
-                index={planets.indexOf(selectedCampaign)}
+                slot={selectedPlanet.slot}
                 memberCount={memberCount}
                 memberCountFailed={memberCountQuery.isError}
                 onRetryMemberCount={() => void memberCountQuery.refetch()}

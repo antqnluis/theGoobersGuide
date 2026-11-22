@@ -22,6 +22,8 @@ None.
 | [M01 — Authentication](completed/M01-Authentication.md) | Phases 1–3 done. |
 | [M02 — Campaign Management](completed/M02-Campaign-Management.md) | Phases 1–3 done. |
 | [M02 — Landfall Camp](completed/M02-Landfall-Camp.md) | Phases 0–7 done. Firefox, VoiceOver, and real-device checks were not run. |
+| [M02 — Persistent Galaxy and Campaign Planet Assignment](completed/M02-Persistent-Galaxy-Planet-Assignment-Plan.md) | Implemented (Phases 0–6, D1–D4 as approved): every player has six permanent planets, and each campaign occupies one, stored per player in `galaxy_planets`. Uncharted planets, create from a planet, and the camp following the planet's look. The full mocked browser suite and the camp-scene specs were not run; the galaxy specs, the camp-colour specs and the local-stack suite pass. |
+| [M02 — Persistent Galaxy Implementation Log](completed/M02-Persistent-Galaxy-Planet-Assignment-Implementation-Log.md) | Per-phase record of the M02 persistent-galaxy work. |
 | [M03 — Campaign Functionality Audit and Roadmap](completed/M03-Campaign-Functionality-Audit.md) | Completed 2026-11-22. Architecture and roadmap for M1–M8; all eight are done. Lists what was still open at close-out (unrun mocked browser specs, the Party-to-tent empty-state link, finding 7's minor issues). |
 | [M03.1 — Membership Lifecycle](completed/M03.1-Membership-Lifecycle.md) | Phases 0–7 done. |
 | [M03.2 — Characters and Party](completed/M03.2-Characters-and-Party.md) | Phases 0–6 done. The full browser suite was last run after Phase 5; Phase 6 re-ran only lint, format, build, unit, and local-stack tests. |

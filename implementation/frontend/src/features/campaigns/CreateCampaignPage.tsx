@@ -1,13 +1,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { CampaignForm } from './CampaignForm'
 import { createCampaign } from './campaignService'
+import { moveGalaxyPlanet, parsePlanetParam } from './galaxyPlanets'
 import { toCampaignInput } from './campaignValidation'
 
 export function CreateCampaignPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Creating from an uncharted planet (`?planet=<slot>`) asks for that planet.
+  const [searchParams] = useSearchParams()
+  const planet = parsePlanetParam(searchParams.get('planet'))
   const [error, setError] = useState<string | null>(null)
   const createMutation = useMutation({
     mutationFn: createCampaign,
@@ -17,6 +21,11 @@ export function CreateCampaignPage() {
     setError(null)
     try {
       const campaign = await createMutation.mutateAsync(toCampaignInput(name, description))
+      if (planet !== null) {
+        // Best effort, after the campaign exists. If the planet is taken or the call fails,
+        // the campaign simply stays on the first free planet it was given.
+        await moveGalaxyPlanet(campaign.id, planet).catch(() => undefined)
+      }
       await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       navigate(`/app/campaigns/${campaign.id}`, { state: { campaignCreated: true } })
     } catch {

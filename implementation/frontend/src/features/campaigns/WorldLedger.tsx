@@ -1,7 +1,7 @@
 import { useCallback, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { CampaignInvitationInbox } from './CampaignInvitationInbox'
-import type { CampaignListItem } from './campaignTypes'
+import type { GalaxyPlanet } from './galaxyModel'
 import { catalogueNumeral } from './orreryLayout'
 
 export const compactViewport = '(max-width: 680px)'
@@ -11,17 +11,20 @@ export const filterThreshold = 8
 
 export type LedgerStatus = 'pending' | 'error' | 'ready'
 
+/** A planet with a campaign on it. */
+export type ClaimedPlanet = GalaxyPlanet & { campaign: NonNullable<GalaxyPlanet['campaign']> }
+
 type WorldLedgerProps = {
-  /** Campaigns oldest first, the same order as the orbits. */
-  planets: readonly CampaignListItem[]
+  /** The planets that hold a campaign, by slot: the same order as the orbits. */
+  planets: readonly ClaimedPlanet[]
   userId: string
   status: LedgerStatus
   onRetry: () => void
   notice: string | null
   expanded: boolean
   onExpandedChange: (expanded: boolean) => void
-  selectedId: string | null
-  onSelect: (id: string) => void
+  selectedSlot: number | null
+  onSelect: (slot: number) => void
   canPause: boolean
   paused: boolean
   onTogglePause: () => void
@@ -43,7 +46,7 @@ export function WorldLedger({
   notice,
   expanded,
   onExpandedChange,
-  selectedId,
+  selectedSlot,
   onSelect,
   canPause,
   paused,
@@ -65,9 +68,9 @@ export function WorldLedger({
 
   const showFilter = planets.length > filterThreshold
   const terms = showFilter ? filter.trim().toLocaleLowerCase() : ''
-  const rows = planets
-    .map((campaign, index) => ({ campaign, index }))
-    .filter(({ campaign }) => !terms || campaign.name.toLocaleLowerCase().includes(terms))
+  const rows = planets.filter(
+    ({ campaign }) => !terms || campaign.name.toLocaleLowerCase().includes(terms),
+  )
 
   return (
     <div
@@ -153,17 +156,17 @@ export function WorldLedger({
           )}
           {planets.length > 0 && (
             <ul aria-label="Campaign list" className="galaxy-list">
-              {rows.map(({ campaign, index }) => (
+              {rows.map(({ campaign, slot }) => (
                 <li key={campaign.id}>
                   <button
-                    aria-pressed={selectedId === campaign.id}
+                    aria-pressed={selectedSlot === slot}
                     className="galaxy-list-button"
-                    onClick={() => onSelect(campaign.id)}
-                    ref={selectedId === campaign.id ? selectedButtonRef : undefined}
+                    onClick={() => onSelect(slot)}
+                    ref={selectedSlot === slot ? selectedButtonRef : undefined}
                     type="button"
                   >
                     <span aria-hidden="true" className="galaxy-list-button__numeral">
-                      {catalogueNumeral(index)}
+                      {catalogueNumeral(slot)}
                     </span>
                     <span className="galaxy-list-button__name">{campaign.name}</span>
                     {campaign.role === 'owner' && (

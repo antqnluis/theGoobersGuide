@@ -892,6 +892,49 @@ export type Database = {
           },
         ]
       }
+      galaxy_planets: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          profile_id: string
+          released_at: string | null
+          slot: number
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          profile_id: string
+          released_at?: string | null
+          slot: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          profile_id?: string
+          released_at?: string | null
+          slot?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'galaxy_planets_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'galaxy_planets_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       notes: {
         Row: {
           author_id: string
@@ -1116,6 +1159,7 @@ export type Database = {
           inviter_username: string
         }[]
       }
+      move_galaxy_planet: { Args: { p_campaign_id: string; p_slot: number }; Returns: number }
       propose_adventure_participant: {
         Args: { p_adventure_id: string; p_character_id: string }
         Returns: string

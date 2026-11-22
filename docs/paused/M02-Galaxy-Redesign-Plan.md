@@ -2,7 +2,7 @@
 
 ## Status
 
-**Paused (2026-11-14).** Implementation steps 1–4 shipped (shared logic, orrery model, scene, and ledger/annotation DOM layer). Steps 5–8 (create/edit/delete and the formation sequence in the galaxy, responsive sheets, motion polish, and docs) are not built.
+**Paused (2026-11-14).** Two of this plan's points were later superseded by the [Persistent Galaxy and Campaign Planet Assignment](../completed/M02-Persistent-Galaxy-Planet-Assignment-Plan.md) work: the galaxy now stores per-player planet assignments (so there are backend changes), and `planetModel.ts` gained slot-keyed looks. Implementation steps 1–4 shipped (shared logic, orrery model, scene, and ledger/annotation DOM layer). Steps 5–8 (create/edit/delete and the formation sequence in the galaxy, responsive sheets, motion polish, and docs) are not built.
 
 ## Context
 

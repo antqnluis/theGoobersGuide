@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { campaignListOptions } from '../campaigns/campaignQueries'
+import { galaxyPlanetsOptions } from '../campaigns/galaxyPlanets'
 import { loadGalaxyCanvas } from '../campaigns/loadGalaxyCanvas'
 import { useAuth } from '../auth/useAuth'
 import { ArrivalContext, type ArrivalStage, type LoginSnapshot } from './arrivalContext'
@@ -17,7 +18,10 @@ export function ArrivalProvider({ children }: { children: ReactNode }) {
     createArrivalController({
       onStage: setStage,
       onSnapshot: setSnapshot,
-      prefetch: (userId) => void queryClient.prefetchQuery(campaignListOptions(userId)),
+      prefetch: (userId) => {
+        void queryClient.prefetchQuery(campaignListOptions(userId))
+        void queryClient.prefetchQuery(galaxyPlanetsOptions(userId))
+      },
     }),
   )
 

@@ -15,7 +15,7 @@ import { HearthStar } from './HearthStar'
 import { OrbitRings, type RingHighlight } from './OrbitRings'
 import { OrreryWorlds } from './OrreryWorlds'
 import { cameraFov, type SpaceMotion } from './orreryCamera'
-import { catalogueNumeral, orreryLayout } from './orreryLayout'
+import { catalogueNumeral, galaxyLayout, planetKey } from './orreryLayout'
 
 // The rig places the camera before the first frame is drawn.
 const cameraOptions = { position: [0, 12, 30] as const, fov: cameraFov, near: 0.1, far: 400 }
@@ -52,20 +52,28 @@ function subscribeToVisibility(onChange: () => void) {
 export default function GalaxyCanvas({
   planets,
   orbitBounds,
-  targetId,
+  targetSlot,
   interactive,
   motionReduced,
   paused,
   onAvailabilityChange,
   onSelect,
-  selectedId,
+  selectedSlot,
   memberCount,
   arrival,
 }: GalaxyProps) {
   const labels = useRef<HTMLDivElement>(null)
   const spaceMotion = useRef<SpaceMotion>({ offset: 0, streak: 0, radial: 0 })
   const highlight = useRef<RingHighlight>({ focus: -1, hover: -1 })
-  const layout = useMemo(() => orreryLayout(planets.map(({ id }) => id)), [planets])
+  // The layout depends only on how many planets there are, so claiming one never moves or
+  // remounts any of them.
+  const layout = useMemo(() => galaxyLayout(planets.length), [planets.length])
+  const claimed = useMemo(() => planets.map(({ campaign }) => campaign !== null), [planets])
+  const claimedRings = useMemo(() => {
+    const rings = layout.rings.map(() => false)
+    for (const { ring, index } of layout.worlds) rings[ring] ||= claimed[index] ?? false
+    return rings
+  }, [layout, claimed])
 
   const [contextLost, setContextLost] = useState(false)
   const handleContextLost = useCallback(() => {
@@ -94,11 +102,17 @@ export default function GalaxyCanvas({
           spaceMotion={spaceMotion}
           onContextLost={handleContextLost}
         />
-        <OrbitRings arrival={arrival} highlight={highlight} rings={layout.rings} />
+        <OrbitRings
+          arrival={arrival}
+          claimedRings={claimedRings}
+          highlight={highlight}
+          rings={layout.rings}
+        />
         <OrreryWorlds
           animate={animate}
           arrival={arrival}
           bounds={orbitBounds}
+          claimed={claimed}
           extent={layout.extent}
           highlight={highlight}
           interactive={interactive}
@@ -106,24 +120,26 @@ export default function GalaxyCanvas({
           moonCount={memberCount}
           motionReduced={motionReduced}
           onSelect={onSelect}
-          selectedId={selectedId}
+          selectedSlot={selectedSlot}
           spaceMotion={spaceMotion}
           visible={isVisible}
           worlds={layout.worlds}
         />
       </Canvas>
       <div className="galaxy-planet-labels" ref={labels}>
-        {planets.map(({ id, name }, index) => (
+        {planets.map(({ slot, campaign }) => (
           <span
             className="galaxy-planet-label"
-            data-campaign-id={id}
-            data-catalogue={catalogueNumeral(index)}
-            data-focal={id === targetId}
-            data-selected={id === selectedId}
-            key={id}
+            data-campaign-id={campaign?.id}
+            data-catalogue={catalogueNumeral(slot)}
+            data-claimed={campaign !== null}
+            data-focal={slot === targetSlot}
+            data-planet-key={planetKey(slot)}
+            data-selected={slot === selectedSlot}
+            key={slot}
             style={orbitBounds ? { maxWidth: `min(12rem, ${orbitBounds.width}px)` } : undefined}
           >
-            {name}
+            {campaign ? campaign.name : 'Uncharted'}
           </span>
         ))}
       </div>

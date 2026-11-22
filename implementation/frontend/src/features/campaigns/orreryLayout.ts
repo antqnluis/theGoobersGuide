@@ -1,5 +1,5 @@
-// World-space layout of the orrery: the hearth star sits at the origin and every
-// campaign is a world on a ring in the XZ plane. Pure geometry, no rendering.
+// World-space layout of the orrery: the hearth star sits at the origin and every planet
+// of the galaxy is a world on a ring in the XZ plane. Pure geometry, no rendering.
 
 export const maxRings = 8
 
@@ -21,7 +21,7 @@ export type OrreryRing = {
 
 export type OrreryWorld = {
   id: string
-  /** Position in the oldest-first order: the catalogue number, starting at 0. */
+  /** The planet slot: the catalogue number, starting at 0. */
   index: number
   ring: number
   radius: number
@@ -45,14 +45,14 @@ function ringPeriod(ring: number) {
   return (innerPeriod * ringRadius(ring)) / innerRadius
 }
 
-// A world's place on its ring comes from its own UUID, so it stays put when
-// other campaigns are renamed, created, or removed.
-function phaseFromId(id: string) {
+// A world's place on its ring comes from a stable key (its planet slot), so it stays put
+// when other planets are claimed, released, or added.
+function phaseFromKey(key: string) {
   let hash = 2166136261
-  for (const character of `campaign-orbit-v1:${id}`) {
+  for (const character of key) {
     hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
   }
-  // Finish with an avalanche step so near-identical ids land far apart.
+  // Finish with an avalanche step so near-identical keys land far apart.
   hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b)
   hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35)
   hash ^= hash >>> 16
@@ -60,7 +60,7 @@ function phaseFromId(id: string) {
 }
 
 /**
- * How many worlds each ring carries. Up to `maxRings` campaigns get a ring
+ * How many worlds each ring carries. Up to `maxRings` planets get a ring
  * each. Beyond that, each extra world joins the ring that stays least crowded
  * per unit of arc once it arrives, so longer outer rings fill first and no
  * ring ever carries more than the ring outside it.
@@ -68,43 +68,65 @@ function phaseFromId(id: string) {
 export function ringCounts(total: number) {
   const counts = Array.from({ length: Math.min(Math.max(total, 0), maxRings) }, () => 1)
   for (let placed = counts.length; placed < total; placed++) {
-    let roomiest = counts.length - 1
-    for (let ring = roomiest - 1; ring >= 0; ring--) {
-      const crowding = (counts[ring] + 1) / ringRadius(ring)
-      if (crowding < (counts[roomiest] + 1) / ringRadius(roomiest)) roomiest = ring
-    }
-    counts[roomiest]++
+    counts[roomiestRing(counts)]++
   }
   return counts
 }
 
+/** The ring the next world beyond `maxRings` joins, given how many each ring carries now. */
+function roomiestRing(counts: readonly number[]) {
+  let roomiest = counts.length - 1
+  for (let ring = roomiest - 1; ring >= 0; ring--) {
+    const crowding = (counts[ring] + 1) / ringRadius(ring)
+    if (crowding < (counts[roomiest] + 1) / ringRadius(roomiest)) roomiest = ring
+  }
+  return roomiest
+}
+
+/** Scene key of a planet slot, in the place a campaign id takes in `orreryLayout`. */
+export function planetKey(slot: number) {
+  return `planet-${slot}`
+}
+
+// Later planets on a shared ring sit a golden angle from the previous one, so no seat
+// depends on how many planets the ring ends up carrying.
+const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+
 /**
- * Lays out campaigns given oldest first: the oldest orbits closest to the
- * hearth and newer ones sit farther out, so ring order and list order agree.
- * Worlds sharing a ring are spaced evenly around it.
+ * Lays out a galaxy of `count` planets by slot. Slots 0 to `maxRings - 1` each get their
+ * own ring, innermost first. Later slots join rings by the same crowding rule as
+ * `ringCounts`, which looks only at the planets before them, and take their place on the
+ * ring from their slot rather than from how many share it. Adding a planet therefore never
+ * moves an existing one: the galaxy only grows or shrinks at its outer edge.
  */
-export function orreryLayout(ids: readonly string[]): OrreryLayout {
-  const rings = ringCounts(ids.length).map((count, ring) => ({
+export function galaxyLayout(count: number): OrreryLayout {
+  const total = Math.max(Math.floor(count), 0)
+  const counts: number[] = []
+  const firstSlot: number[] = []
+  const worlds: OrreryWorld[] = []
+  for (let slot = 0; slot < total; slot++) {
+    const ring = slot < maxRings ? slot : roomiestRing(counts)
+    if (ring === counts.length) {
+      counts.push(0)
+      firstSlot.push(slot)
+    }
+    const seat = counts[ring]++
+    worlds.push({
+      id: planetKey(slot),
+      index: slot,
+      ring,
+      radius: ringRadius(ring),
+      phase:
+        (phaseFromKey(`galaxy-orbit-v1:slot-${firstSlot[ring]}`) + seat * goldenAngle) %
+        (Math.PI * 2),
+      period: ringPeriod(ring),
+    })
+  }
+  const rings = counts.map((ringCount, ring) => ({
     radius: ringRadius(ring),
     period: ringPeriod(ring),
-    count,
+    count: ringCount,
   }))
-  const worlds: OrreryWorld[] = []
-  for (const [ring, { radius, period, count }] of rings.entries()) {
-    const first = worlds.length
-    const base = phaseFromId(ids[first])
-    for (let seat = 0; seat < count; seat++) {
-      const index = first + seat
-      worlds.push({
-        id: ids[index],
-        index,
-        ring,
-        radius,
-        phase: (base + (seat * Math.PI * 2) / count) % (Math.PI * 2),
-        period,
-      })
-    }
-  }
   return { worlds, rings, extent: rings.at(-1)?.radius ?? 0 }
 }
 

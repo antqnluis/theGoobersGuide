@@ -14,6 +14,7 @@ import {
 } from '../characters/characterQueries'
 import { adventuresPrefix } from '../adventures/adventureQueries'
 import { notesPrefix } from '../notes/noteQueries'
+import { galaxyPlanetsOptions } from './galaxyPlanets'
 import { readErrorMessage } from './rpcErrors'
 
 export type MembershipAction = 'leave' | 'remove' | 'transfer'
@@ -54,6 +55,8 @@ export function useCampaignMembership(campaignId: string, userId: string) {
   const rosterKey = ['campaigns', 'roster', campaignId, userId]
   const outgoingKey = ['campaigns', 'invitations', 'outgoing', campaignId, userId]
   const listKey = ['campaigns', 'list', userId]
+  // Leaving releases the leaver's planet, so their galaxy changes with their list.
+  const planetsKey = galaxyPlanetsOptions(userId).queryKey
   // Characters leave the party (and, for the leaver, become unreadable) on departure.
   const charactersKey = campaignCharactersKey(campaignId, userId)
 
@@ -76,6 +79,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       rosterKey,
       outgoingKey,
       listKey,
+      planetsKey,
       charactersKey,
       characterItemsPrefix,
       coinLogPrefix,

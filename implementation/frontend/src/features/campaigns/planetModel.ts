@@ -65,9 +65,11 @@ const worlds = [
   },
 ] as const
 
-export function planetAppearance(id: string) {
+type ForcedLook = { type: number; palette: number }
+
+function appearanceFromSeed(key: string, forced?: ForcedLook) {
   let seed = 2166136261
-  for (const character of `campaign-planet-v1:${id}`) {
+  for (const character of key) {
     seed = Math.imul(seed ^ character.charCodeAt(0), 16777619)
   }
 
@@ -76,9 +78,13 @@ export function planetAppearance(id: string) {
     return seed / 4294967296
   }
 
-  const type = Math.floor(next() * worlds.length)
+  // The draws always happen in the same order, so forcing a kind and palette leaves the
+  // rest of a planet's look (size jitter, tilt, ring, texture seed, spin) as it would be.
+  const drawnType = Math.floor(next() * worlds.length)
+  const type = forced?.type ?? drawnType
   const world = worlds[type]
-  const palette = world.palettes[Math.floor(next() * world.palettes.length)]
+  const drawnPalette = Math.floor(next() * world.palettes.length)
+  const palette = world.palettes[forced?.palette ?? drawnPalette]
   const size = world.size * (0.85 + next() * 0.15)
   const tilt = (next() - 0.5) * 1.45
   const ring = next() < (world.kind === 'gas' ? 0.72 : 0.19)
@@ -96,6 +102,22 @@ export function planetAppearance(id: string) {
     seed: [next() * 58, next() * 58, next() * 58],
     spin: 0.06 + next() * 0.1,
   }
+}
+
+export function planetAppearance(id: string) {
+  return appearanceFromSeed(`campaign-planet-v1:${id}`)
+}
+
+/** The six starter planets, one of each kind, so a galaxy never opens with two alike. */
+const starterWorlds: readonly ForcedLook[] = worlds.map((_, type) => ({ type, palette: 0 }))
+
+/**
+ * A planet's look comes from its slot, not from the campaign on it, so it never changes
+ * when a campaign claims or leaves it. Slots 0 to 5 are authored (one of each kind);
+ * later slots are seeded, kind included.
+ */
+export function planetAppearanceForSlot(slot: number) {
+  return appearanceFromSeed(`galaxy-planet-v1:slot-${slot}`, starterWorlds[slot])
 }
 
 export function orderPlanets(campaigns: CampaignListItem[] | undefined) {

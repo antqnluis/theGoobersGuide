@@ -51,7 +51,10 @@ const ringFragment = /* glsl */ `
   }
 `
 
-function engrave(rings: readonly OrreryRing[]) {
+// An uncharted orbit is drawn as dashes, fainter than a claimed one.
+const unclaimedWeight = 0.55
+
+function engrave(rings: readonly OrreryRing[], claimed: readonly boolean[]) {
   const perRing = (arcSegments + ticks) * 2
   const positions = new Float32Array(rings.length * perRing * 3)
   const ringIndex = new Float32Array(rings.length * perRing)
@@ -67,15 +70,19 @@ function engrave(rings: readonly OrreryRing[]) {
   }
 
   rings.forEach(({ radius }, ring) => {
+    const weight = claimed[ring] ? 1 : unclaimedWeight
     for (let i = 0; i < arcSegments; i++) {
-      point(ring, radius, (i / arcSegments) * Math.PI * 2, 1)
-      point(ring, radius, ((i + 1) / arcSegments) * Math.PI * 2, 1)
+      // The vertex count stays fixed. A dash's gap collapses its segment to a point.
+      const gap = !claimed[ring] && Math.floor(i / 2) % 2 === 1
+      const start = (i / arcSegments) * Math.PI * 2
+      point(ring, radius, start, weight)
+      point(ring, radius, gap ? start : ((i + 1) / arcSegments) * Math.PI * 2, weight)
     }
     for (let i = 0; i < ticks; i++) {
       const angle = (i / ticks) * Math.PI * 2
       const half = (i % 5 ? tickLength : longTickLength) / 2
-      point(ring, radius - half, angle, 0.8)
-      point(ring, radius + half, angle, 0.8)
+      point(ring, radius - half, angle, 0.8 * weight)
+      point(ring, radius + half, angle, 0.8 * weight)
     }
   })
 
@@ -93,14 +100,17 @@ function engrave(rings: readonly OrreryRing[]) {
  */
 export function OrbitRings({
   rings,
+  claimedRings,
   highlight: highlightRef,
   arrival,
 }: {
   rings: readonly OrreryRing[]
+  /** Per ring, whether any campaign sits on it. */
+  claimedRings: readonly boolean[]
   highlight: RefObject<RingHighlight>
   arrival: RefObject<ArrivalFlight>
 }) {
-  const geometry = useMemo(() => engrave(rings), [rings])
+  const geometry = useMemo(() => engrave(rings, claimedRings), [rings, claimedRings])
   const uniforms = useMemo(
     () => ({ uFocus: { value: -1 }, uHover: { value: -1 }, uReach: { value: 1e4 } }),
     [],

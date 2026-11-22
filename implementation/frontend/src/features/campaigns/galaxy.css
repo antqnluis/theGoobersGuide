@@ -852,6 +852,26 @@
   color: var(--galaxy-accent);
 }
 
+/* An uncharted planet reads "Uncharted · III": italic small caps, the numeral after the word. */
+.galaxy-planet-label[data-claimed='false'] {
+  font-style: italic;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.galaxy-planet-label[data-claimed='false']::before {
+  content: none;
+}
+
+.galaxy-planet-label[data-claimed='false']::after {
+  margin-inline-start: 0.5em;
+  color: var(--galaxy-accent);
+  content: '· ' attr(data-catalogue);
+  font-size: 0.6875rem;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
 .galaxy-backdrop canvas[data-planet-hover] {
   cursor: pointer;
 }

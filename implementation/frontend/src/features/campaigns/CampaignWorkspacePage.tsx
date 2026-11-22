@@ -33,7 +33,8 @@ import { useCampaignAppearance } from './useCampaignAppearance'
 import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
-import { planetAppearance } from './planetModel'
+import { galaxyPlanetsOptions } from './galaxyPlanets'
+import { planetAppearance, planetAppearanceForSlot } from './planetModel'
 import { getCampaign, getCampaignRoster } from './campaignService'
 import { useCampaignLive } from './useCampaignLive'
 import { useCampaignManagement } from './useCampaignManagement'
@@ -141,7 +142,19 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const campaign = campaignQuery.data
   // Sheets, notes, and adventures update live once the campaign has loaded.
   useCampaignLive(campaignId, userId, Boolean(campaign))
-  const planet = useMemo(() => (campaign ? planetAppearance(campaign.id) : null), [campaign])
+  // The camp wears the look of the planet this player's campaign sits on. It is read from
+  // the planets query, usually already cached by the galaxy. While that loads the camp waits
+  // (it already copes with no planet), and if it fails the camp falls back to the look the
+  // campaign's own id gives.
+  const planetsQuery = useQuery({ ...galaxyPlanetsOptions(userId), enabled: Boolean(userId) })
+  const planetSlot = planetsQuery.data?.find((row) => row.campaign_id === campaignId)?.slot
+  const planetSettled = planetsQuery.isError || planetsQuery.isSuccess
+  const planet = useMemo(() => {
+    if (!campaign || !planetSettled) return null
+    return planetSlot === undefined
+      ? planetAppearance(campaign.id)
+      : planetAppearanceForSlot(planetSlot)
+  }, [campaign, planetSettled, planetSlot])
   const [background, setBackground] = useCampBackground(campaignId)
   const [hue, setHue] = useCampHue(campaignId)
   // The player's pick wears the planet's colours; by default the camp is the planet's own.

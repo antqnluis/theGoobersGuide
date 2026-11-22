@@ -83,9 +83,31 @@ export async function mockCampaignApi(
     shouldFailList?: () => boolean
     hideFromList?: () => boolean
     memberCount?: (campaignId: string) => Promise<number | null>
+    /** Planets by campaign id. Campaigns without one take the first free planet, oldest first. */
+    planets?: Record<string, number>
+    shouldFailPlanets?: () => boolean
+    /** Called with the arguments of every move_galaxy_planet request. */
+    onMovePlanet?: (campaignId: string, slot: number) => void
   } = {},
 ) {
   const campaigns = initialCampaigns.map((campaign) => ({ ...campaign }))
+  // The server keeps each player's planets. Like the database, it gives a campaign the first
+  // free planet when it appears, oldest first, and a move onto a taken planet changes nothing.
+  const planets = new Map(Object.entries(options.planets ?? {}))
+  const firstFree = () => {
+    const taken = new Set(planets.values())
+    let slot = 0
+    while (taken.has(slot)) slot++
+    return slot
+  }
+  const assignPlanets = () => {
+    const ordered = campaigns.toSorted(
+      (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id.localeCompare(b.id),
+    )
+    for (const campaign of ordered) {
+      if (!planets.has(campaign.id)) planets.set(campaign.id, firstFree())
+    }
+  }
   await page.route('**/rest/v1/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -119,6 +141,43 @@ export async function mockCampaignApi(
           ? []
           : campaigns
       await route.fulfill({ status: 200, headers: corsHeaders(), json: result })
+      return
+    }
+
+    if (path.endsWith('/rest/v1/galaxy_planets') && method === 'GET') {
+      if (options.shouldFailPlanets?.()) {
+        await route.fulfill({
+          status: 400,
+          headers: corsHeaders(),
+          json: { message: 'temporary test failure' },
+        })
+        return
+      }
+      assignPlanets()
+      const rows = options.hideFromList?.()
+        ? []
+        : campaigns.map(({ id }) => ({ campaign_id: id, slot: planets.get(id)! }))
+      await route.fulfill({ status: 200, headers: corsHeaders(), json: rows })
+      return
+    }
+
+    if (path.endsWith('/rest/v1/rpc/move_galaxy_planet') && method === 'POST') {
+      const { p_campaign_id: campaignId, p_slot: slot } = request.postDataJSON() as {
+        p_campaign_id: string
+        p_slot: number
+      }
+      options.onMovePlanet?.(campaignId, slot)
+      assignPlanets()
+      if (!planets.has(campaignId)) {
+        await route.fulfill({
+          status: 400,
+          headers: corsHeaders(),
+          json: { code: 'P0001', message: 'galaxy_planet_campaign_unavailable' },
+        })
+        return
+      }
+      if (![...planets.values()].includes(slot)) planets.set(campaignId, slot)
+      await route.fulfill({ status: 200, headers: corsHeaders(), json: planets.get(campaignId) })
       return
     }
 
@@ -206,6 +265,7 @@ export async function mockCampaignApi(
         updated_at: now,
       }
       campaigns.unshift(campaign)
+      planets.set(campaign.id, firstFree())
       await route.fulfill({ status: 201, headers: corsHeaders(), json: { id: campaign.id } })
       return
     }
@@ -228,6 +288,7 @@ export async function mockCampaignApi(
         (item) => item.id === idFilter && item.owner_id === accountId,
       )
       const deleted = index < 0 ? [] : [{ id: campaigns.splice(index, 1)[0].id }]
+      if (idFilter) planets.delete(idFilter)
       await route.fulfill({ status: 200, headers: corsHeaders(), json: deleted })
       return
     }

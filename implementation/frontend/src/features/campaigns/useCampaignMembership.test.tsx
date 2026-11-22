@@ -20,6 +20,7 @@ const campaignId = '00000000-0000-4000-8000-000000000011'
 const userId = '00000000-0000-4000-8000-000000000001'
 const playerId = '00000000-0000-4000-8000-000000000002'
 const listKey = ['campaigns', 'list', userId]
+const planetsKey = ['campaigns', 'planets', userId]
 const detailKey = ['campaigns', 'detail', campaignId, userId]
 const rosterKey = ['campaigns', 'roster', campaignId, userId]
 const outgoingKey = ['campaigns', 'invitations', 'outgoing', campaignId, userId]
@@ -60,6 +61,7 @@ function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   for (const key of [
     listKey,
+    planetsKey,
     detailKey,
     rosterKey,
     outgoingKey,
@@ -105,6 +107,7 @@ describe('useCampaignMembership', () => {
     expect(leaveCampaign).toHaveBeenCalledWith(campaignId)
     for (const key of [
       listKey,
+      planetsKey,
       detailKey,
       rosterKey,
       outgoingKey,
@@ -177,6 +180,8 @@ describe('useCampaignMembership', () => {
     expect(removeCampaignMember).toHaveBeenCalledWith(campaignId, playerId)
     expect(stale(queryClient, rosterKey)).toBe(true)
     expect(stale(queryClient, listKey)).toBe(true)
+    // Removal releases the removed player's planet, not the owner's.
+    expect(stale(queryClient, planetsKey)).toBe(false)
     expect(stale(queryClient, charactersKey)).toBe(true)
     expect(stale(queryClient, itemsKey)).toBe(true)
     expect(stale(queryClient, coinLogKey)).toBe(true)

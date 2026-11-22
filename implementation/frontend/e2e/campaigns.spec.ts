@@ -4,7 +4,7 @@ import { cameraToFrame, restCameraX } from '../src/features/campaigns/camp/campC
 import { seatParty } from '../src/features/campaigns/camp/campLayout.ts'
 import { campRamps } from '../src/features/campaigns/camp/campPalette.ts'
 import { masterBiome, masterFixed } from '../src/features/campaigns/camp/masterPalette.ts'
-import { planetAppearance } from '../src/features/campaigns/planetModel.ts'
+import { planetAppearanceForSlot } from '../src/features/campaigns/planetModel.ts'
 import type { RosterMember } from '../src/features/campaigns/camp/campLayout.ts'
 import {
   accountId,
@@ -42,7 +42,8 @@ test('selects by keyboard, opens the workspace explicitly, and returns to the ov
   const details = page.getByRole('region', { name: 'Campaign details' })
   const openWorkspace = page.getByRole('link', { name: 'Enter campaign' })
   await expect(openWorkspace).toHaveCount(0)
-  await expect(page.getByRole('navigation', { name: 'Campaign orbit' })).toHaveCount(0)
+  // Every galaxy has six planets, so the orbit controls are always there.
+  await expect(page.getByRole('navigation', { name: 'World orbit' })).toBeVisible()
   await campaign.focus()
   await campaign.press('Enter')
   await expect(campaign).toHaveAttribute('aria-pressed', 'true')
@@ -210,7 +211,9 @@ test('shows a campaign list error and recovers', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
 })
 
-test('clears selection when a refresh removes access to the campaign', async ({ page }) => {
+test('keeps the planet selected when a refresh removes its campaign, and shows it as uncharted', async ({
+  page,
+}) => {
   let hideCampaign = false
   await mockCampaignApi(page, [redHand], { hideFromList: () => hideCampaign })
   await signIn(page)
@@ -218,21 +221,30 @@ test('clears selection when a refresh removes access to the campaign', async ({ 
   const campaign = page.getByRole('button', { name: 'The Red Hand', exact: true })
   const create = page.getByRole('link', { name: 'Create campaign', exact: true })
   const back = page.getByRole('link', { name: 'Back to campaigns' })
+  const uncharted = page.getByRole('region', { name: 'Uncharted world details' })
   await campaign.click()
   await create.click()
   await back.click()
   await expect(campaign).toHaveAttribute('aria-pressed', 'true')
 
+  // Access goes away: the planet stays selected, so the camera does not reset, but the
+  // panel no longer offers a campaign that is not there.
   await create.click()
   hideCampaign = true
   await back.click()
   await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
+  await expect(uncharted).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Enter campaign' })).toHaveCount(0)
+  await expect(
+    page.locator('.galaxy-planet-label[data-planet-key="planet-0"][data-selected="true"]'),
+  ).toHaveAttribute('data-claimed', 'false')
 
   await create.click()
   hideCampaign = false
   await back.click()
-  await expect(campaign).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.getByRole('link', { name: 'Enter campaign' })).toHaveCount(0)
+  await expect(campaign).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('link', { name: 'Enter campaign' })).toBeVisible()
+  await expect(uncharted).toHaveCount(0)
 })
 
 test('shows a loading state while campaigns are fetched', async ({ page }) => {
@@ -458,27 +470,30 @@ test('draws the camp scene crisp and keeps destinations usable across viewports'
 })
 
 test('shows the camp in the colours of its planet for every world type', async ({ page }) => {
-  const kinds = ['terrestrial', 'desert', 'volcanic', 'frozen', 'rocky', 'gas'] as const
+  // The camp wears the planet the campaign sits on, so six campaigns on slots 0 to 5 cover
+  // every kind. The look comes from the slot, whatever the campaign's id is.
+  const kinds = ['terrestrial', 'desert', 'volcanic', 'gas', 'frozen', 'rocky'] as const
   const found = new Map<string, Campaign>()
-  for (let index = 1; found.size < kinds.length && index < 4000; index += 1) {
-    const id = `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`
-    const kind = planetAppearance(id).kind
-    if (!found.has(kind)) found.set(kind, { ...redHand, id, name: `World ${kind}` })
+  const planets: Record<string, number> = {}
+  for (const [slot, kind] of kinds.entries()) {
+    expect(planetAppearanceForSlot(slot).kind).toBe(kind)
+    const id = `00000000-0000-4000-8000-${String(slot + 1).padStart(12, '0')}`
+    found.set(kind, { ...redHand, id, name: `World ${kind}` })
+    planets[id] = slot
   }
-  expect(found.size).toBe(kinds.length)
   const fixed = new Set(Object.values(masterFixed).flat())
   const master = new Set(Object.values(masterBiome).flat())
 
-  await mockCampaignApi(page, [...found.values()])
+  await mockCampaignApi(page, [...found.values()], { planets })
   await signIn(page)
-  for (const kind of kinds) {
+  for (const [slot, kind] of kinds.entries()) {
     const campaign = found.get(kind)!
     await page.goto(`/app/campaigns/${campaign.id}`)
     const camp = page.locator('.camp')
     await expect(camp).toHaveAttribute('data-camp-ready', 'true')
     await expect(camp).toHaveAttribute('data-camp-world', kind)
 
-    const ramps = campRamps(planetAppearance(campaign.id))
+    const ramps = campRamps(planetAppearanceForSlot(slot))
     const biome = new Set(Object.values(ramps).flat())
     const colours = await page
       .locator('[data-camp-canvas]')
@@ -1186,7 +1201,8 @@ test('lets the player pick a camp background, remembered per campaign on this de
   await page.goto(`/app/campaigns/${other.id}`)
   await expect(camp).toHaveAttribute('data-camp-ready', 'true')
   const otherOwn = await camp.getAttribute('data-camp-world')
-  expect(otherOwn).toBe(planetAppearance(other.id).kind)
+  // Both campaigns are on planets by order: the second one is planet II, a desert.
+  expect(otherOwn).toBe(planetAppearanceForSlot(1).kind)
   await page.goto(`/app/campaigns/${redHand.id}`)
   await expect(camp).toHaveAttribute('data-camp-world', 'volcanic')
   await gear.click()
@@ -1374,7 +1390,7 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   expect(await canvas.evaluate((element, original) => element === original, originalCanvas)).toBe(
     true,
   )
-  await page.getByRole('button', { name: 'Next campaign' }).press('Enter')
+  await page.getByRole('button', { name: 'Next world' }).press('Enter')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await canvas.evaluate((element: HTMLCanvasElement) => {
     const extension = element.getContext('webgl2')?.getExtension('WEBGL_lose_context')
@@ -1385,7 +1401,7 @@ test('keeps one full-screen WebGL canvas across overlays and falls back after co
   await expect(backdrop).toBeVisible()
   await expect(page.getByRole('button', { name: 'Pause ambient motion' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
-  await page.getByRole('button', { name: 'Previous campaign' }).press('Space')
+  await page.getByRole('button', { name: 'Previous world' }).press('Space')
   await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByRole('heading', { name: 'The Red Hand' })).toBeVisible()
   await expect(backdrop).toHaveCount(0)
@@ -1451,7 +1467,7 @@ test('keeps the selector usable when WebGL cannot start', async ({ page }) => {
   await expect(page).toHaveURL(/\/app\/campaigns$/)
   await details.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
   await expect(preview).toBeFocused()
-  await page.getByRole('button', { name: 'Next campaign' }).click()
+  await page.getByRole('button', { name: 'Next world' }).click()
   await expect(details.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
   await page.getByRole('link', { name: 'Enter campaign' }).click()
   await expect(page.getByRole('heading', { name: 'Far Shore' })).toBeVisible()
@@ -1470,8 +1486,11 @@ test('selects a specific planet when campaign names match and refreshes labels b
   const records = await mockCampaignApi(page, [duplicate, redHand])
   await signIn(page)
 
+  // Two campaigns sit on planets I and II. The other four planets are uncharted.
   const planetLabels = page.locator('.galaxy-planet-label')
-  await expect(planetLabels).toHaveCount(2)
+  const claimedLabels = page.locator('.galaxy-planet-label[data-claimed="true"]')
+  await expect(planetLabels).toHaveCount(6)
+  await expect(claimedLabels).toHaveCount(2)
   const label = page.locator(`.galaxy-planet-label[data-campaign-id="${duplicate.id}"]`)
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 })
@@ -1509,7 +1528,8 @@ test('selects a specific planet when campaign names match and refreshes labels b
     name: 'The New Expedition',
   })
   await page.reload()
-  await expect(planetLabels).toHaveCount(3)
+  await expect(planetLabels).toHaveCount(6)
+  await expect(claimedLabels).toHaveCount(3)
   await expect(planetLabels.first()).toHaveText(redHand.name)
   await expect(label).toHaveText(longName)
   await expect(page.getByRole('button', { name: longName, exact: true })).toBeVisible()
@@ -1525,21 +1545,30 @@ test('renders all six planet materials in the galaxy without WebGL shader errors
       shaderErrors.push(message.text())
     }
   })
+  // A planet's kind comes from its slot, so six campaigns on slots 0 to 5 show all six kinds.
   const worlds = [
-    [3, 'Greenwater'],
-    [12, 'The Amber Dunes'],
-    [11, 'Emberfall'],
+    [1, 'Greenwater'],
+    [2, 'The Amber Dunes'],
+    [3, 'Emberfall'],
     [4, 'The Violet Tempest'],
-    [2, 'Pale Meridian'],
-    [9, 'The Broken Moon'],
+    [5, 'Pale Meridian'],
+    [6, 'The Broken Moon'],
   ] as const
   await mockCampaignApi(
     page,
-    worlds.map(([seed, name]) => ({
+    worlds.map(([index, name]) => ({
       ...redHand,
-      id: `00000000-0000-4000-8000-${String(seed).padStart(12, '0')}`,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
       name,
     })),
+    {
+      planets: Object.fromEntries(
+        worlds.map(([index], slot) => [
+          `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+          slot,
+        ]),
+      ),
+    },
   )
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1440, height: 960 })
@@ -1558,7 +1587,7 @@ test('renders all six planet materials in the galaxy without WebGL shader errors
       )
     }
     await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
-    const next = page.getByRole('button', { name: 'Next campaign' })
+    const next = page.getByRole('button', { name: 'Next world' })
     const seen = new Set<string>()
     for (let index = 0; index < worlds.length; index++) {
       await next.press('Enter')
@@ -1594,8 +1623,8 @@ test('keeps the focused world clear of controls and navigable with the keyboard'
   await signIn(page)
 
   const details = page.getByRole('region', { name: 'Campaign details' })
-  const previous = page.getByRole('button', { name: 'Previous campaign' })
-  const next = page.getByRole('button', { name: 'Next campaign' })
+  const previous = page.getByRole('button', { name: 'Previous world' })
+  const next = page.getByRole('button', { name: 'Next world' })
   const focal = page.locator('.galaxy-planet-label[data-focal="true"]')
 
   for (const [width, height] of [
@@ -1619,8 +1648,10 @@ test('keeps the focused world clear of controls and navigable with the keyboard'
       }
     }
     await page.screenshot({ path: testInfo.outputPath(`orbital-overview-${width}.png`) })
-    await previous.press('Enter')
-    await expect(previous).toBeFocused()
+    // Two steps outward from planet I reach the third campaign.
+    await next.press('Enter')
+    await next.press('Enter')
+    await expect(next).toBeFocused()
     await expect(focal).toHaveText(third.name)
     await expect(details.getByRole('heading', { name: third.name })).toBeVisible()
 
@@ -1653,7 +1684,7 @@ test('keeps the focused world clear of controls and navigable with the keyboard'
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     const scene = (await page.locator('.galaxy-orbit-space').boundingBox())!
     const panel = (await details.boundingBox())!
-    const orbitNav = (await page.getByRole('navigation', { name: 'Campaign orbit' }).boundingBox())!
+    const orbitNav = (await page.getByRole('navigation', { name: 'World orbit' }).boundingBox())!
     if (width >= 960) {
       expect(panel.x).toBeGreaterThan(scene.x + scene.width)
       expect(Math.abs(panel.y + panel.height / 2 - (scene.y + scene.height / 2))).toBeLessThan(1)
@@ -1666,8 +1697,9 @@ test('keeps the focused world clear of controls and navigable with the keyboard'
     ).toBeInViewport()
     await page.screenshot({ path: testInfo.outputPath(`orbital-${width}.png`) })
 
-    await next.press('Space')
-    await expect(next).toBeFocused()
+    await previous.press('Space')
+    await previous.press('Space')
+    await expect(previous).toBeFocused()
     await expect(focal).toHaveText(redHand.name)
     await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
     if (width > 375) {
@@ -1727,7 +1759,7 @@ test('guides each selection source to the same planet framing', async ({ page })
   await expectSameFraming()
 
   await overview()
-  const next = page.getByRole('button', { name: 'Next campaign' })
+  const next = page.getByRole('button', { name: 'Next world' })
   await next.press('Enter')
   await expectSameFraming()
 })
@@ -1754,8 +1786,8 @@ test('turns the sky as the camera swings between worlds and restores it on the w
   // Sample the sky above the details panel. With ambient motion paused, nothing moves but the camera.
   const sky = { clip: { x: 1050, y: 100, width: 360, height: 175 } }
   const atFirst = await page.screenshot(sky)
-  const next = page.getByRole('button', { name: 'Next campaign' })
-  const previous = page.getByRole('button', { name: 'Previous campaign' })
+  const next = page.getByRole('button', { name: 'Next world' })
+  const previous = page.getByRole('button', { name: 'Previous world' })
 
   async function settle() {
     await page.clock.runFor(1200)
@@ -1775,11 +1807,11 @@ test('turns the sky as the camera swings between worlds and restores it on the w
   expect(atSecond.equals(during)).toBe(false)
 
   // Each world has its own place in the system, so coming back to it brings back its sky.
-  await next.press('Enter')
+  await previous.press('Enter')
   await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
   expect((await settle()).equals(atFirst)).toBe(true)
 
-  await previous.press('Enter')
+  await next.press('Enter')
   await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   expect((await settle()).equals(atSecond)).toBe(true)
 
@@ -1808,7 +1840,6 @@ test('keeps travelling labels inside the scene and lands each world clear of the
   await signIn(page)
   const canvas = page.locator('.galaxy-backdrop canvas')
   const details = page.getByRole('region', { name: 'Campaign details' })
-  const next = page.getByRole('button', { name: 'Next campaign' })
 
   for (const [width, height] of [
     [1440, 960],
@@ -1869,7 +1900,8 @@ test('keeps travelling labels inside the scene and lands each world clear of the
         }),
       { from: first.id, to: last.id },
     )
-    await page.getByRole('button', { name: 'Previous campaign' }).press('Enter')
+    // The fourth campaign sits on planet IV, three planets out. The list is open, so use it.
+    await page.getByRole('button', { name: last.name, exact: true }).press('Enter')
     await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
     await page.screenshot({ path: testInfo.outputPath(`travel-${width}-moving.png`) })
     const frames = await samples
@@ -1913,7 +1945,9 @@ test('keeps travelling labels inside the scene and lands each world clear of the
   }
 
   await page.setViewportSize({ width: 1000, height: 720 })
-  await next.press('Enter')
+  const ledger = page.getByRole('button', { name: 'Your campaigns' })
+  if ((await ledger.getAttribute('aria-expanded')) === 'false') await ledger.press('Enter')
+  await page.getByRole('button', { name: first.name, exact: true }).press('Enter')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await page.setViewportSize({ width: 920, height: 720 })
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
@@ -1944,7 +1978,7 @@ test('retargets and returns immediately while ambient motion is paused', async (
   const canvas = page.locator('.galaxy-backdrop canvas')
   const pause = page.getByRole('button', { name: 'Pause ambient motion' })
   const details = page.getByRole('region', { name: 'Campaign details' })
-  const next = page.getByRole('button', { name: 'Next campaign' })
+  const next = page.getByRole('button', { name: 'Next world' })
   await pause.press('Space')
   await expect(pause).toHaveAttribute('aria-pressed', 'true')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'idle')
@@ -1957,7 +1991,7 @@ test('retargets and returns immediately while ambient motion is paused', async (
   await next.press('Enter')
   await expect(details.getByRole('heading', { name: third.name })).toBeVisible()
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
-  await page.getByRole('button', { name: 'Previous campaign' }).press('Enter')
+  await page.getByRole('button', { name: 'Previous world' }).press('Enter')
   await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await details.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
@@ -1976,20 +2010,22 @@ test('retargets and returns immediately while ambient motion is paused', async (
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await expect(pause).toHaveAttribute('aria-pressed', 'true')
 
-  await next.press('Enter')
+  // Retarget twice in mid-flight, the second time while the tab is hidden.
+  const previous = page.getByRole('button', { name: 'Previous world' })
+  await previous.press('Enter')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: true })
     document.dispatchEvent(new Event('visibilitychange'))
   })
   await next.press('Enter')
-  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await expect(details.getByRole('heading', { name: second.name })).toBeVisible()
   await page.evaluate(() => {
     Reflect.deleteProperty(document, 'hidden')
     document.dispatchEvent(new Event('visibilitychange'))
   })
   const resumedFocal = page.locator('.galaxy-planet-label[data-focal="true"]')
-  await expect(resumedFocal).toHaveText(redHand.name)
+  await expect(resumedFocal).toHaveText(second.name)
   await expect(resumedFocal).toBeVisible()
   await expect
     .poll(() =>
@@ -2006,7 +2042,7 @@ test('retargets and returns immediately while ambient motion is paused', async (
   await next.press('Enter')
   await expect(canvas).toHaveAttribute('data-galaxy-travel', 'moving')
   await details.getByRole('link', { name: 'Enter campaign' }).press('Enter')
-  await expect(page.getByRole('heading', { name: second.name })).toBeVisible()
+  await expect(page.getByRole('heading', { name: third.name })).toBeVisible()
   await expect(canvas).toHaveCount(0)
   expect(duplicateTitles).toEqual([])
 })
@@ -4361,3 +4397,168 @@ for (const [label, width, height] of [
     expect(box!.height).toBeGreaterThanOrEqual(44)
   })
 }
+
+// The persistent galaxy: six planets for everyone, with campaigns sitting on some of them.
+
+async function planetPoint(page: Page, slot: number) {
+  const label = page.locator(`.galaxy-planet-label[data-planet-key="planet-${slot}"]`)
+  await expect(label).toHaveAttribute('data-planet-y', /\d/)
+  return label.evaluate(({ dataset }) => [Number(dataset.planetX), Number(dataset.planetY)])
+}
+
+test('an account without campaigns still has six uncharted planets, and each offers a campaign', async ({
+  page,
+}, testInfo) => {
+  await mockCampaignApi(page, [])
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await signIn(page)
+  await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
+
+  const labels = page.locator('.galaxy-planet-label')
+  await expect(labels).toHaveCount(6)
+  for (const label of await labels.all()) {
+    await expect(label).toHaveAttribute('data-claimed', 'false')
+    await expect(label).toHaveText('Uncharted')
+  }
+  // The ledger lists campaigns only, so with none there is the invitation to start one.
+  await expect(page.getByRole('heading', { name: 'Your next story starts here.' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Campaign list' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'View Uncharted World I' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Uncharted world details' })).toHaveCount(0)
+
+  for (const [width, height] of [
+    [1440, 960],
+    [768, 1024],
+    [375, 812],
+  ]) {
+    await page.setViewportSize({ width, height })
+    await page.reload()
+    await expect(labels).toHaveCount(6)
+    await page.screenshot({ path: testInfo.outputPath(`uncharted-overview-${width}.png`) })
+    await page.getByRole('button', { name: 'View Uncharted World I' }).click()
+    const panel = page.getByRole('region', { name: 'Uncharted world details' })
+    await expect(panel.getByRole('heading', { name: 'Uncharted World' })).toBeVisible()
+    await expect(panel.getByText('An unexplored world awaiting its first adventure.')).toBeVisible()
+    await expect(
+      panel.getByRole('link', { name: 'Create campaign on Uncharted World I' }),
+    ).toBeInViewport()
+    await expect(panel.getByRole('button', { name: 'Return to galaxy overview' })).toBeInViewport()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`uncharted-selected-${width}.png`) })
+  }
+
+  // Pointing at a planet and choosing it opens its panel, whose link names the planet.
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.reload()
+  await page.getByRole('button', { name: 'Next world' }).press('Enter')
+  await page.getByRole('button', { name: 'Return to galaxy overview' }).press('Enter')
+  const [x, y] = await planetPoint(page, 2)
+  await page.mouse.click(x, y)
+  const panel = page.getByRole('region', { name: 'Uncharted world details' })
+  const create = panel.getByRole('link', { name: 'Create campaign on Uncharted World III' })
+  await expect(create).toHaveAttribute('href', '/app/campaigns/new?planet=2')
+  await create.click()
+  await expect(page).toHaveURL(/\/app\/campaigns\/new\?planet=2$/)
+  await expect(page.getByRole('heading', { name: 'Create a campaign' })).toBeVisible()
+})
+
+test('claimed and uncharted planets share the galaxy, and the keys and the ledger cross both', async ({
+  page,
+}) => {
+  const campaigns = [
+    redHand,
+    { ...redHand, id: '00000000-0000-4000-8000-000000000012', name: 'Far Shore' },
+    { ...redHand, id: '00000000-0000-4000-8000-000000000013', name: 'Meridian' },
+  ]
+  await mockCampaignApi(page, campaigns)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await signIn(page)
+  await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
+
+  await expect(page.locator('.galaxy-planet-label')).toHaveCount(6)
+  await expect(page.locator('.galaxy-planet-label[data-claimed="true"]')).toHaveCount(3)
+  await expect(page.locator('.galaxy-planet-label[data-claimed="false"]')).toHaveCount(3)
+
+  // The ledger lists the campaigns only, each with its planet's numeral.
+  const rows = page.getByRole('list', { name: 'Campaign list' }).getByRole('button')
+  await expect(rows).toHaveCount(3)
+  for (const [index, { name }] of campaigns.entries()) {
+    await expect(rows.nth(index)).toHaveAccessibleName(name)
+  }
+
+  // Choosing a campaign's planet never opens it.
+  const details = page.getByRole('region', { name: 'Campaign details' })
+  const uncharted = page.getByRole('region', { name: 'Uncharted world details' })
+  await rows.nth(2).press('Enter')
+  await expect(details.getByRole('heading', { name: 'Meridian' })).toBeVisible()
+  await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+  // The arrow keys step on through the uncharted planets, and wrap back to the first world.
+  await page.keyboard.press('ArrowRight')
+  await expect(uncharted.getByRole('heading', { name: 'Uncharted World' })).toBeVisible()
+  await expect(uncharted.getByText('Chart entry IV')).toBeVisible()
+  await expect(details).toHaveCount(0)
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await expect(uncharted.getByText('Chart entry VI')).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await expect(details.getByRole('heading', { name: redHand.name })).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await expect(uncharted.getByText('Chart entry VI')).toBeVisible()
+
+  // Escape pulls back to the overview, which centres on the first campaign.
+  await page.keyboard.press('Escape')
+  await expect(uncharted).toHaveCount(0)
+  await expect(details).toHaveCount(0)
+  await expect(page.locator('.galaxy-planet-label[data-focal="true"]')).toHaveText(redHand.name)
+  await expect(page.getByRole('button', { name: 'View The Red Hand', exact: true })).toBeVisible()
+})
+
+test('a seventh campaign gives the galaxy a seventh planet', async ({ page }) => {
+  const campaigns = Array.from({ length: 7 }, (_, index) => ({
+    ...redHand,
+    id: `00000000-0000-4000-8000-${String(index + 21).padStart(12, '0')}`,
+    name: `World ${index + 1}`,
+  }))
+  await mockCampaignApi(page, campaigns)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await signIn(page)
+  await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
+
+  await expect(page.locator('.galaxy-planet-label')).toHaveCount(7)
+  await expect(page.locator('.galaxy-planet-label[data-claimed="true"]')).toHaveCount(7)
+  await expect(page.locator('.galaxy-planet-label[data-claimed="false"]')).toHaveCount(0)
+  await expect(page.getByRole('list', { name: 'Campaign list' }).getByRole('button')).toHaveCount(7)
+})
+
+test('a campaign created from an uncharted planet asks for that planet and lands on it', async ({
+  page,
+}) => {
+  const moves: [string, number][] = []
+  await mockCampaignApi(page, [redHand], { onMovePlanet: (id, slot) => moves.push([id, slot]) })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await signIn(page)
+  await expect(page.locator('canvas[data-galaxy-ready]')).toBeVisible()
+
+  const next = page.getByRole('button', { name: 'Next world' })
+  await next.press('Enter')
+  await next.press('Enter')
+  await page.getByRole('link', { name: 'Create campaign on Uncharted World III' }).click()
+  await expect(page).toHaveURL(/\/app\/campaigns\/new\?planet=2$/)
+  await page.getByLabel('Campaign name').fill('Third world')
+  await page.getByRole('button', { name: 'Create campaign', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/campaigns\/00000000-0000-4000-8000-000000000099$/)
+  expect(moves).toEqual([['00000000-0000-4000-8000-000000000099', 2]])
+
+  // Back on the chart the new campaign sits on the planet it was created from.
+  await page.goto('/app/campaigns')
+  const label = page.locator(
+    '.galaxy-planet-label[data-campaign-id="00000000-0000-4000-8000-000000000099"]',
+  )
+  await expect(label).toHaveAttribute('data-planet-key', 'planet-2')
+  await expect(label).toHaveAttribute('data-claimed', 'true')
+  await expect(page.locator('.galaxy-planet-label[data-claimed="true"]')).toHaveCount(2)
+})

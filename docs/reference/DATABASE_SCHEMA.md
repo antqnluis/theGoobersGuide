@@ -391,4 +391,26 @@ The `supabase_realtime` publication holds `dice_rolls` and, since M03.7 Phase 6,
 - RLS is enabled. Current members read the looks of current members (a departed player's look is hidden until they rejoin). `authenticated` can select and delete (to return to the default); there is no insert or update grant.
 - `set_campaign_appearance(p_campaign_id, p_cloak, p_skin, p_headwear, p_pack)` is the only write path: `SECURITY DEFINER`, executable by `authenticated` only, upserting the caller's own row after locking the campaign `FOR SHARE` as a current member. Errors: `appearance_required` and `appearance_invalid` (`22023`), `appearance_campaign_unavailable` (`P0001`, the same for unknown, inaccessible and departed), `appearance_sign_in_required` (`42501`).
 
+## Galaxy planets
+
+`public.galaxy_planets` stores which of a player's planets ("slots" 0, 1, 2, …) each of their campaigns occupies. The app derives a planet's position and look from its slot, so only the assignment is stored. It is per player (the same campaign can sit on different planets for different players) and cosmetic: it never grants access.
+
+- Key `(profile_id, campaign_id)`, both `ON DELETE CASCADE` (never `campaign_members`), so a player has at most one row per campaign. `slot` is a `smallint >= 0`.
+- `released_at` is null while the campaign occupies the planet. Leaving sets it and keeps the row as the rejoin preference. A partial unique index on `(profile_id, slot) where released_at is null` allows one campaign per planet, and released rows never reserve a slot.
+- RLS is enabled. `authenticated` can only `select`, and the policy shows a player their own active rows for campaigns they still belong to. Released rows are never visible. There are no insert, update or delete grants.
+
+### Triggers and RPC
+
+- `campaign_members_assign_galaxy_planet` (AFTER INSERT) calls `private.assign_galaxy_planet`, so creation (through the owner trigger), an accepted invitation and any future membership path claim a planet in the same transaction. A rolled-back create or accept claims nothing.
+- `campaign_members_release_galaxy_planet` (AFTER DELETE) sets `released_at`. It sits next to the departure hook: leave, remove and administrative deletes all release. Rows removed by a campaign or account cascade are skipped (they go with the foreign keys).
+- `private.assign_galaxy_planet(profile_id, campaign_id, preferred)` is idempotent and returns the slot. For a new claim it takes the first free slot of: the preferred one, the slot remembered from an earlier membership, then the lowest unused. Nothing is ever displaced. Executable by `postgres` only.
+- `move_galaxy_planet(p_campaign_id, p_slot)` moves the caller's campaign onto a free planet and returns the final slot (unchanged when the target is taken). `SECURITY DEFINER`, executable by `authenticated` only. Errors: `galaxy_planet_required` and `galaxy_planet_invalid` (`22023`, the slot must be within the six starters or the outermost planet in use), `galaxy_planet_campaign_unavailable` (`P0001`, the same for unknown, inaccessible and departed campaigns), `galaxy_planet_sign_in_required` (`42501`).
+- Every write for one player holds `pg_advisory_xact_lock` on that player. Membership RPCs already hold the campaign lock when the triggers fire, and `move_galaxy_planet` takes only the advisory lock, so locks are always taken campaign first, then player.
+
+### Lifecycle
+
+- **Existing players** were backfilled in the migration, oldest campaign first, so their ring order is unchanged.
+- **Rejoining** restores the old planet when it is free and otherwise takes the first free one.
+- **Deleting a campaign or an account** deletes the affected rows and no one else's.
+
 Apply schema changes to an existing local stack from `implementation/backend` with `npm run db:migrate`.

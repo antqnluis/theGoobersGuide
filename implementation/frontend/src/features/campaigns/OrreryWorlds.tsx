@@ -14,6 +14,7 @@ import {
   type Group,
   type InstancedMesh,
   type Mesh,
+  type ShaderMaterial,
 } from 'three'
 import type { RingHighlight } from './OrbitRings'
 import {
@@ -26,8 +27,8 @@ import {
   type SpaceMotion,
 } from './orreryCamera'
 import { labelGap, placeLabels, type Box, type LabelAnchor } from './orreryLabels'
-import { hearthRadius, orbitPosition, type OrreryWorld } from './orreryLayout'
-import { planetAppearance } from './planetModel'
+import { hearthRadius, orbitPosition, planetKey, type OrreryWorld } from './orreryLayout'
+import { planetAppearanceForSlot } from './planetModel'
 import {
   atmosphereScale,
   moonSurface,
@@ -62,7 +63,7 @@ const tilt = new Quaternion()
 const lean = new Quaternion()
 const euler = new Euler()
 
-type Appearance = ReturnType<typeof planetAppearance>
+type Appearance = ReturnType<typeof planetAppearanceForSlot>
 type Label = {
   element: HTMLElement
   width: number
@@ -128,6 +129,8 @@ function surfaceUniforms({ type, palette, air, haze, seed }: Appearance) {
     uSeed: { value: new Vector3(...seed) },
     uImpacts: { value: impacts },
     uSunPosition: sunPosition,
+    // 1 once a campaign sits on the planet: faint settlement lights on its night side.
+    uClaimed: { value: 0 },
   }
 }
 
@@ -184,6 +187,8 @@ function PlanetaryRing({ appearance }: { appearance: Appearance }) {
 
 function World({
   id,
+  slot,
+  claimed,
   appearance,
   registerWorld,
   animate,
@@ -191,18 +196,27 @@ function World({
   onHover,
 }: {
   id: string
+  slot: number
+  claimed: boolean
   appearance: Appearance
   registerWorld: (id: string, group: Group | null) => void
   animate: boolean
-  onSelect: ((id: string) => void) | undefined
+  onSelect: ((slot: number) => void) | undefined
   onHover: (id: string | null) => void
 }) {
   const globe = useRef<Mesh>(null)
+  const surface = useRef<ShaderMaterial>(null)
   const register = useCallback(
     (group: Group | null) => registerWorld(id, group),
     [registerWorld, id],
   )
   const uniforms = useMemo(() => surfaceUniforms(appearance), [appearance])
+
+  // Claiming or releasing a planet changes only this uniform: the material, the mesh and
+  // every other planet stay as they were.
+  useLayoutEffect(() => {
+    if (surface.current) surface.current.uniforms.uClaimed.value = claimed ? 1 : 0
+  }, [claimed])
 
   useFrame((_, delta) => {
     if (animate && globe.current) globe.current.rotation.y += Math.min(delta, 0.1) * appearance.spin
@@ -216,7 +230,7 @@ function World({
         onSelect &&
         ((event) => {
           event.stopPropagation()
-          onSelect(id)
+          onSelect(slot)
         })
       }
       onPointerOver={
@@ -231,6 +245,7 @@ function World({
       <group rotation={[0, 0, appearance.tilt]}>
         <mesh geometry={globeGeometry} ref={globe}>
           <shaderMaterial
+            ref={surface}
             uniforms={uniforms}
             vertexShader={planetVertex}
             fragmentShader={planetSurface}
@@ -285,13 +300,14 @@ export function OrreryWorlds({
   worlds,
   extent,
   bounds,
+  claimed,
   labels,
   highlight: highlightRef,
   animate,
   interactive,
   visible,
   motionReduced,
-  selectedId,
+  selectedSlot,
   moonCount,
   spaceMotion: spaceMotionRef,
   arrival: arrivalRef,
@@ -300,23 +316,26 @@ export function OrreryWorlds({
   worlds: readonly OrreryWorld[]
   extent: number
   bounds: SceneBounds | null
+  /** Per slot, whether a campaign sits on the planet. */
+  claimed: readonly boolean[]
   labels: RefObject<HTMLDivElement | null>
   highlight: RefObject<RingHighlight>
   animate: boolean
   interactive: boolean
   visible: boolean
   motionReduced: boolean
-  selectedId: string | null
+  selectedSlot: number | null
   /** Members of the selected campaign, once known. Each one is a moon. */
   moonCount: number | undefined
   spaceMotion: RefObject<SpaceMotion>
   arrival: RefObject<ArrivalFlight>
-  onSelect: (id: string) => void
+  onSelect: (slot: number) => void
 }) {
   const invalidate = useThree((state) => state.invalidate)
   const canvas = useThree((state) => state.gl.domElement)
+  const selectedId = selectedSlot === null ? null : planetKey(selectedSlot)
   const appearances = useMemo(
-    () => new Map(worlds.map(({ id }) => [id, planetAppearance(id)])),
+    () => new Map(worlds.map(({ id, index }) => [id, planetAppearanceForSlot(index)])),
     [worlds],
   )
   const moonPaths = useMemo(() => {
@@ -365,7 +384,7 @@ export function OrreryWorlds({
     const resize = new ResizeObserver((entries) => {
       for (const { target, borderBoxSize } of entries) {
         const element = target as HTMLElement
-        const label = sizes.get(element.dataset.campaignId!)
+        const label = sizes.get(element.dataset.planetKey!)
         if (!label || label.element !== element) continue
         label.width = borderBoxSize[0]?.inlineSize ?? element.offsetWidth
         label.height = borderBoxSize[0]?.blockSize ?? element.offsetHeight
@@ -383,7 +402,7 @@ export function OrreryWorlds({
       }
       for (const child of children) {
         const element = child as HTMLElement
-        const id = element.dataset.campaignId!
+        const id = element.dataset.planetKey!
         if (sizes.has(id)) continue
         sizes.set(id, {
           element,
@@ -530,10 +549,12 @@ export function OrreryWorlds({
 
   return (
     <>
-      {worlds.map(({ id }) => (
+      {worlds.map(({ id, index }) => (
         <World
           key={id}
           id={id}
+          slot={index}
+          claimed={claimed[index] ?? false}
           appearance={appearances.get(id)!}
           registerWorld={registerWorld}
           animate={animate}

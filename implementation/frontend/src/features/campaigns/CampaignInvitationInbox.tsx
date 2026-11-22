@@ -7,6 +7,7 @@ import {
   respondToCampaignInvitation,
 } from './campaignInvitations'
 import { campaignListOptions } from './campaignQueries'
+import { galaxyPlanetsOptions } from './galaxyPlanets'
 
 type CampaignInvitationInboxProps = {
   userId: string
@@ -36,6 +37,8 @@ export function CampaignInvitationInbox({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: options.queryKey }),
         accept && queryClient.invalidateQueries({ queryKey: campaignListOptions(userId).queryKey }),
+        accept &&
+          queryClient.invalidateQueries({ queryKey: galaxyPlanetsOptions(userId).queryKey }),
       ])
     },
   })

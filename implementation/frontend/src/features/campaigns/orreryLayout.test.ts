@@ -1,42 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   catalogueNumeral,
+  galaxyLayout,
   getOrbitTarget,
   maxRings,
   orbitAngle,
   orbitPosition,
-  orreryLayout,
+  planetKey,
   ringCounts,
   ringRadius,
   stepCampaign,
 } from './orreryLayout'
 
-function campaignIds(count: number) {
-  return Array.from(
-    { length: count },
-    (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
-  )
-}
-
 const turn = Math.PI * 2
 
-describe('orrery layout', () => {
-  it('lays out nothing for an account without campaigns', () => {
-    expect(orreryLayout([])).toEqual({ worlds: [], rings: [], extent: 0 })
-  })
-
-  it('gives each of the first eight campaigns its own ring, oldest closest to the hearth', () => {
-    const ids = campaignIds(maxRings)
-    const { worlds, rings, extent } = orreryLayout(ids)
-
-    expect(worlds.map(({ id }) => id)).toEqual(ids)
-    expect(worlds.map(({ index }) => index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
-    expect(worlds.map(({ ring }) => ring)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
-    expect(rings.map(({ count }) => count)).toEqual([1, 1, 1, 1, 1, 1, 1, 1])
-    expect(extent).toBe(rings[7].radius)
-    for (const world of worlds) expect(world.radius).toBe(rings[world.ring].radius)
-  })
-
+describe('orrery rings', () => {
   it('grows ring radii outward with tightening gaps that still clear a ringed world', () => {
     const radii = Array.from({ length: maxRings }, (_, ring) => ringRadius(ring))
     const gaps = radii.slice(1).map((radius, ring) => radius - radii[ring])
@@ -49,45 +27,12 @@ describe('orrery layout', () => {
   })
 
   it('turns outer rings more slowly, with periods measured in minutes', () => {
-    const { rings } = orreryLayout(campaignIds(maxRings))
+    const { rings } = galaxyLayout(maxRings)
 
     expect(rings[0].period).toBeGreaterThanOrEqual(180)
     for (const [ring, { period }] of rings.entries()) {
       if (ring > 0) expect(period).toBeGreaterThan(rings[ring - 1].period)
     }
-  })
-
-  it('keeps a world at the same place on its ring when other campaigns change', () => {
-    const ids = campaignIds(5)
-    const before = orreryLayout(ids).worlds[1]
-    const afterNewest = orreryLayout([...ids, 'a-new-campaign']).worlds[1]
-    const afterRemoval = orreryLayout(ids.filter((_, index) => index !== 0)).worlds[0]
-
-    expect(afterNewest).toEqual(before)
-    expect(afterRemoval.id).toBe(before.id)
-    expect(afterRemoval.phase).toBe(before.phase)
-    expect(afterRemoval.ring).toBe(before.ring - 1)
-  })
-
-  it('spreads phases across the ring instead of lining worlds up', () => {
-    const phases = orreryLayout(campaignIds(maxRings)).worlds.map(({ phase }) => phase)
-
-    for (const phase of phases) {
-      expect(phase).toBeGreaterThanOrEqual(0)
-      expect(phase).toBeLessThan(turn)
-    }
-    expect(new Set(phases.map((phase) => Math.floor((phase / turn) * 4))).size).toBeGreaterThan(2)
-  })
-
-  it('places the ninth campaign on the outermost ring without moving the older worlds', () => {
-    const ids = campaignIds(9)
-    const eight = orreryLayout(ids.slice(0, 8)).worlds
-    const { worlds, rings } = orreryLayout(ids)
-
-    expect(rings).toHaveLength(maxRings)
-    expect(worlds.slice(0, 8)).toEqual(eight)
-    expect(worlds[8].ring).toBe(7)
-    expect(Math.abs(worlds[8].phase - worlds[7].phase)).toBeCloseTo(Math.PI, 10)
   })
 
   it('never crowds an inner ring more than the ring outside it', () => {
@@ -102,34 +47,18 @@ describe('orrery layout', () => {
     }
   })
 
-  it('keeps 32 campaigns in oldest-first ring order with even spacing on shared rings', () => {
-    const ids = campaignIds(32)
-    const { worlds, rings } = orreryLayout(ids)
+  it('spreads phases across the ring instead of lining worlds up', () => {
+    const phases = galaxyLayout(maxRings).worlds.map(({ phase }) => phase)
 
-    expect(worlds.map(({ id }) => id)).toEqual(ids)
-    expect(rings).toHaveLength(maxRings)
-    expect(rings.map(({ count }) => count)).toEqual([1, 2, 3, 4, 4, 5, 6, 7])
-    for (let index = 1; index < worlds.length; index++) {
-      expect(worlds[index].ring).toBeGreaterThanOrEqual(worlds[index - 1].ring)
+    for (const phase of phases) {
+      expect(phase).toBeGreaterThanOrEqual(0)
+      expect(phase).toBeLessThan(turn)
     }
-
-    for (const [ring, { count, radius }] of rings.entries()) {
-      const phases = worlds
-        .filter((world) => world.ring === ring)
-        .map(({ phase }) => phase)
-        .sort((first, second) => first - second)
-      expect(phases).toHaveLength(count)
-      const separations = phases.map(
-        (phase, seat) => (phases[(seat + 1) % count] - phase + turn) % turn || turn,
-      )
-      for (const separation of separations) expect(separation).toBeCloseTo(turn / count, 10)
-      // Neighbours on a ring stay several world-widths apart along the arc.
-      expect((turn / count) * radius).toBeGreaterThan(6)
-    }
+    expect(new Set(phases.map((phase) => Math.floor((phase / turn) * 4))).size).toBeGreaterThan(2)
   })
 
   it('positions worlds on the orbital plane and advances them along the ring over time', () => {
-    const [world] = orreryLayout(campaignIds(1)).worlds
+    const [world] = galaxyLayout(1).worlds
     const [x, y, z] = orbitPosition(world)
 
     expect(y).toBe(0)
@@ -140,6 +69,64 @@ describe('orrery layout', () => {
     const [laterX, , laterZ] = orbitPosition(world, world.period)
     expect(laterX).toBeCloseTo(x, 10)
     expect(laterZ).toBeCloseTo(z, 10)
+  })
+})
+
+describe('galaxy layout by slot', () => {
+  it('lays out nothing for no planets and keys worlds by slot', () => {
+    expect(galaxyLayout(0)).toEqual({ worlds: [], rings: [], extent: 0 })
+    expect(galaxyLayout(-3)).toEqual({ worlds: [], rings: [], extent: 0 })
+    expect(galaxyLayout(3).worlds.map(({ id, index }) => [id, index])).toEqual([
+      [planetKey(0), 0],
+      [planetKey(1), 1],
+      [planetKey(2), 2],
+    ])
+  })
+
+  it('is deterministic', () => {
+    expect(galaxyLayout(14)).toEqual(galaxyLayout(14))
+  })
+
+  it('gives each of the first eight slots its own ring, innermost first', () => {
+    const { worlds, rings, extent } = galaxyLayout(maxRings)
+
+    expect(worlds.map(({ ring }) => ring)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    expect(rings.map(({ count }) => count)).toEqual([1, 1, 1, 1, 1, 1, 1, 1])
+    expect(extent).toBe(rings[7].radius)
+    for (const world of worlds) {
+      expect(world.radius).toBe(ringRadius(world.ring))
+      expect(world.phase).toBeGreaterThanOrEqual(0)
+      expect(world.phase).toBeLessThan(turn)
+    }
+  })
+
+  it('fills rings the way ringCounts does once the first eight are taken', () => {
+    for (let total = 0; total <= 40; total++) {
+      expect(galaxyLayout(total).rings.map(({ count }) => count)).toEqual(ringCounts(total))
+    }
+  })
+
+  it('never moves an existing planet when another is added, up to 40 planets', () => {
+    let previous = galaxyLayout(0).worlds
+    for (let total = 1; total <= 40; total++) {
+      const { worlds } = galaxyLayout(total)
+      expect(worlds.slice(0, total - 1), `adding planet ${total}`).toEqual(previous)
+      previous = worlds
+    }
+  })
+
+  it('places later planets on a shared ring apart from each other', () => {
+    const { worlds, rings } = galaxyLayout(32)
+    for (const [ring, { count }] of rings.entries()) {
+      const phases = worlds.filter((world) => world.ring === ring).map(({ phase }) => phase)
+      expect(phases).toHaveLength(count)
+      for (const [first, phase] of phases.entries()) {
+        for (const other of phases.slice(first + 1)) {
+          const separation = Math.abs(phase - other) % turn
+          expect(Math.min(separation, turn - separation)).toBeGreaterThan(0.2)
+        }
+      }
+    }
   })
 })
 

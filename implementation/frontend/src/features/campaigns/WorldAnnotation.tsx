@@ -1,13 +1,13 @@
 import { ViewTransition, useEffect, useRef, type RefObject } from 'react'
 import { Link } from 'react-router'
 import type { CampaignListItem } from './campaignTypes'
-import { catalogueNumeral } from './orreryLayout'
+import { catalogueNumeral, planetKey } from './orreryLayout'
 import { leaderSegment } from './orreryLeader'
 
 type WorldAnnotationProps = {
   campaign: CampaignListItem
-  /** Position in the orbit order, for the catalogue numeral. */
-  index: number
+  /** The campaign's planet, for the catalogue numeral and the leader line. */
+  slot: number
   /** Members of the campaign, or undefined while the count loads. */
   memberCount: number | undefined
   memberCountFailed: boolean
@@ -28,7 +28,7 @@ function memberText(count: number | undefined, failed: boolean) {
  */
 export function WorldAnnotation({
   campaign,
-  index,
+  slot,
   memberCount,
   memberCountFailed,
   onRetryMemberCount,
@@ -39,7 +39,7 @@ export function WorldAnnotation({
 
   return (
     <>
-      <LeaderLine campaignId={campaign.id} plateRef={plateRef} />
+      <LeaderLine plateRef={plateRef} slot={slot} />
       <section aria-label="Campaign details" className="galaxy-details galaxy-plate" ref={plateRef}>
         <div className="galaxy-details__copy" tabIndex={0}>
           <ViewTransition
@@ -56,7 +56,7 @@ export function WorldAnnotation({
             <p className="galaxy-role">
               Your role: <strong>{campaign.role === 'owner' ? 'Owner' : 'Member'}</strong>
             </p>
-            <p className="galaxy-catalogue">Chart entry {catalogueNumeral(index)}</p>
+            <p className="galaxy-catalogue">Chart entry {catalogueNumeral(slot)}</p>
             <div className="galaxy-details__members">
               <p role="status">{memberText(memberCount, memberCountFailed)}</p>
               {memberCountFailed && (
@@ -90,13 +90,14 @@ export function WorldAnnotation({
  * world's projected position onto its label, so the line follows the world in
  * the same frames the labels do without the scene knowing about it.
  */
-function LeaderLine({
-  campaignId,
+export function LeaderLine({
+  slot,
   plateRef,
 }: {
-  campaignId: string
+  slot: number
   plateRef: RefObject<HTMLElement | null>
 }) {
+  const key = planetKey(slot)
   const lineRef = useRef<SVGLineElement>(null)
   const dotRef = useRef<SVGCircleElement>(null)
 
@@ -104,14 +105,14 @@ function LeaderLine({
     let frame = 0
     let label: Element | null = null
     let shown = false
-    let key = ''
+    let drawn = ''
 
     function hide() {
       if (!shown) return
       lineRef.current?.setAttribute('visibility', 'hidden')
       dotRef.current?.setAttribute('visibility', 'hidden')
       shown = false
-      key = ''
+      drawn = ''
     }
 
     function tick() {
@@ -121,7 +122,7 @@ function LeaderLine({
       const plate = plateRef.current
       if (!line || !dot || !plate) return
       if (!label?.isConnected) {
-        label = document.querySelector(`.galaxy-planet-label[data-campaign-id="${campaignId}"]`)
+        label = document.querySelector(`.galaxy-planet-label[data-planet-key="${key}"]`)
       }
       const { planetX, planetY, planetExtent } = (label as HTMLElement | null)?.dataset ?? {}
       if (planetX === undefined || planetY === undefined || planetExtent === undefined) {
@@ -140,8 +141,8 @@ function LeaderLine({
       const next = [segment.x1, segment.y1, segment.x2, segment.y2]
         .map((value) => value.toFixed(1))
         .join(' ')
-      if (key === next) return
-      key = next
+      if (drawn === next) return
+      drawn = next
       line.setAttribute('x1', segment.x1.toFixed(1))
       line.setAttribute('y1', segment.y1.toFixed(1))
       line.setAttribute('x2', segment.x2.toFixed(1))
@@ -157,10 +158,10 @@ function LeaderLine({
 
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [campaignId, plateRef])
+  }, [key, plateRef])
 
   return (
-    <svg aria-hidden="true" className="galaxy-leader" key={campaignId}>
+    <svg aria-hidden="true" className="galaxy-leader" key={key}>
       <line pathLength={1} ref={lineRef} visibility="hidden" />
       <circle r="2.5" ref={dotRef} visibility="hidden" />
     </svg>

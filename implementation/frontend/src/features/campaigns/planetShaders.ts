@@ -36,6 +36,7 @@ export const planetSurface = /* glsl */ `
   uniform float uHaze;
   uniform vec3 uSeed;
   uniform vec4 uImpacts[16];
+  uniform float uClaimed;
 
   ${sun}
 
@@ -182,6 +183,12 @@ export const planetSurface = /* glsl */ `
     float rim = pow(1.0 - facing, 3.4) * smoothstep(-0.30, 0.55, solarAngle);
     vec3 lit = base * (nightTint + diffuse * sunColor);
     lit += specular * sunColor + uAir * uHaze * rim * mix(sunTint, duskTint, dusk * 0.6) + emission;
+
+    // A claimed world shows a few warm settlements on its night side. Gas giants have none.
+    float night = 1.0 - smoothstep(-0.22, 0.02, solarAngle);
+    float settled = smoothstep(0.64, 0.8, noise(sphere * 7.0 + uSeed))
+      * step(0.8, noise(sphere * 38.0 + uSeed.zxy));
+    lit += vec3(1.0, 0.72, 0.38) * settled * night * facing * uClaimed * (uType == 3 ? 0.0 : 0.6);
 
     gl_FragColor = vec4(lit, 1.0);
     #include <tonemapping_fragment>
