@@ -20,7 +20,7 @@ An authenticated user can read their own profile and update `display_name` and `
 
 ## Access rules
 
-Row Level Security is enabled on every `public` table, including profiles, campaigns, campaign members, campaign invitations, characters, character sheets, notes, adventures, adventure invitation approvals, and dice rolls. Anonymous clients have no table access.
+Row Level Security is enabled on every `public` table, including profiles, campaigns, campaign members, campaign invitations, characters, character sheets, notes, adventures, adventure invitation approvals, adventure handoffs, and dice rolls. Anonymous clients have no table access.
 
 | Data | Authenticated access |
 | --- | --- |
@@ -262,8 +262,8 @@ The app saves with an `updated_at` filter (optimistic concurrency): a stale save
 - `adventures`: `id`, `campaign_id` (`ON DELETE CASCADE`), `created_by` (`ON DELETE CASCADE`, default `auth.uid()`), `type` (`main`, `side`, `personal`), `visibility` (`participants`, `party`, or `campaign`; a check ties it to the type, so main is always `campaign`, and `party` is for personal and side adventures only; it is derived, never written by a client), `status` (`pending` default, `in_progress`, `on_hold`, `completed`), `title` (1–120, one line), `description` (0–4,000; newlines and tabs allowed), `next_step` and `reference` (0–280, one line), `updated_by`, `status_changed_at` and `status_changed_by` (`ON DELETE SET NULL`), `archived_at`, `created_at` and `updated_at`. `(id, campaign_id)` is unique so children can pin themselves to the adventure's campaign.
 - `adventure_participants`: the character that takes part, with `profile_id` its owner. Composite foreign keys to `characters (id, campaign_id)` and `characters (id, owner_id)` (both `ON DELETE CASCADE`) guarantee the character belongs to the same campaign and the owner is that character's owner. `status` is `proposed`, `invited`, `accepted`, `declined`, or `left`. `invited_by` (`ON DELETE SET NULL`), `share_consent` and `share_consent_at` (a check ties them together, and consent needs `accepted`), `responded_at` and `updated_at`. One row per `(adventure_id, character_id)`, and a partial unique index `adventure_participants_one_live_per_player_idx` allows **one live row (`proposed`, `invited`, or `accepted`) per player per adventure**.
 - `adventure_invite_approvals`: `(participant_id, approver_id)` is the primary key, with `approved_at`; both keys cascade. A proposal becomes `invited` when every current accepted participant has an approval.
-- `adventure_objectives`: `title` (1–200), `done`, `created_by`, `completed_by` and `completed_at` (`ON DELETE SET NULL`). `done` must agree with `completed_at`.
-- `adventure_updates`: an append-only log. `author_id` (`ON DELETE CASCADE`), `body` (1–2,000; newlines and tabs allowed).
+- `adventure_objectives`: `title` (1–200), `done`, `created_by`, `completed_by` and `completed_at` (`ON DELETE SET NULL`). `done` must agree with `completed_at`. `handoff_id` (nullable, `ON DELETE SET NULL`) links a row created by a handoff to its source (M03.9).
+- `adventure_updates`: an append-only log. `author_id` (`ON DELETE CASCADE`), `body` (1–2,000; newlines and tabs allowed). `handoff_id` (nullable, `ON DELETE SET NULL`) links an update created by a handoff to its source (M03.9).
 
 ### Integrity
 
@@ -311,6 +311,38 @@ The app saves details with an `updated_at` filter (optimistic concurrency), as n
 - **Deleting a character** deletes its participations. A shared thread with other accepted participants stays and is reconciled; a thread only it was in is deleted, with its objectives and updates. The app's delete confirmation gives both counts.
 - **Deleting a campaign** deletes every adventure in it. **Deleting a member's account** deletes the adventures they created (main ones included) and the updates they wrote, and clears the other attributions.
 
+## Adventure handoffs
+
+`public.adventure_handoffs` keeps the DM recap a player brought into an adventure, verbatim, with a record of what it applied (M03.9, [plan](../completed/M03.9-DM-Handoffs.md)). Nothing parses it: the app builds a prompt around the text, the player gives it to an outside writing assistant, and pastes back a JSON proposal that they review before anything is saved. A handoff never changes type, visibility, participants, consent, invitations, archive state, characters, sheets, or notes.
+
+### Table
+
+- `adventure_handoffs`: `id`, `adventure_id` and `campaign_id` (a composite foreign key to `adventures (id, campaign_id)`, `ON DELETE CASCADE`), `imported_by` (`ON DELETE CASCADE`, default `auth.uid()`), `kind` (`new` or `attach`), `source_label` (1–120, one line, null when empty), `source_text` (1–65,536 bytes, with a non-space character; newlines and tabs allowed, other control characters not), `applied` (a JSON object: `fields`, `objectives_added`, `objectives_changed`, `update`), `change_count` (0 or more) and `imported_at`. Indexed by `(adventure_id, imported_at desc)` and by `imported_by`. A source created by a change that was later deleted keeps its row; deleting the source clears `handoff_id` on the objectives and updates it created and keeps their content.
+
+### Integrity
+
+| Rule | Enforced by |
+| --- | --- |
+| At most 50 sources per adventure, under concurrency | `private.guard_adventure_handoff_insert` (advisory lock; `handoff_limit_reached`) |
+| Clients cannot write a source or a `handoff_id` | No insert or update grant on the table, and no column grant on the link columns. Only `private.record_adventure_handoff` writes them |
+| A source tags only rows its importer created in the same transaction | `private.record_adventure_handoff` (`created_by` or `author_id = auth.uid()` and `created_at = now()`) |
+| A handoff changes only title, status, next step, reference, description, objectives (add, rename, complete, reopen), and one update | `private.handoff_changes_are_valid` allows only those keys at every level, so any other key is refused (`handoff_invalid`) |
+| A stale review never overwrites | `attach_adventure_handoff` compares `adventures.updated_at` and each targeted objective's `updated_at` under the locks (`handoff_conflict`) |
+
+### Access
+
+`authenticated` has select and delete on the table; `anon`, `service_role` and `public` have nothing. **Read:** anyone who can read the adventure (`private.visible_adventure_ids()`), so party members read the sources of a shared adventure while it is shared. **Delete:** the importer only, while the adventure is editable (`private.editable_adventure_ids()`), so never while archived. **Attach or start:** anyone who can edit the adventure, through the two RPCs below. The campaign owner has no override on private threads.
+
+| Action | How |
+| --- | --- |
+| Attach | `attach_adventure_handoff(p_adventure_id, p_expected, p_changes, p_source_text, p_source_label default null)`: `SECURITY INVOKER`, executable by `authenticated` only. `private.lock_handoff_target` locks the campaign `FOR SHARE`, then the adventure `FOR UPDATE`, and refuses an adventure the caller cannot edit. Every write then runs as the caller, so every existing policy, guard, check, and cap applies. An empty `p_changes` keeps the source only and ignores `p_expected` |
+| Start | `create_adventure_from_handoff(p_campaign_id, p_type, p_character_id, p_changes, p_source_text, p_source_label default null)`: `SECURITY INVOKER`. It calls `create_adventure` (so a personal or side adventure starts private to the creator's character), then applies status and reference, adds the objectives and the update, and records the source |
+| Errors | `handoff_invalid`, `handoff_values_invalid`, `handoff_source_invalid` (`22023`); `handoff_conflict`, `handoff_limit_reached` (`P0001`). The adventure's own errors (`adventure_unavailable`, `adventure_archived`, `adventure_objective_limit_reached`, `adventure_limit_reached`, and the rest) pass through unchanged |
+
+### Lifecycle
+
+A source stays when its importer leaves the campaign, and access follows the adventure like updates do. Deleting an adventure or a campaign deletes its sources. Deleting the importer's account deletes the sources they brought in, and clears `handoff_id` on what they created.
+
 ## Dice rolls
 
 `public.dice_rolls` is the shared roll log. **The server alone chooses the faces:** clients can read rolls and call `roll_dice`, and nothing else. A roll is visible to every current member (`campaign`) or only to its roller (`self`).
@@ -344,7 +376,7 @@ Two foreign keys, `(character_id, campaign_id)` to `characters (id, campaign_id)
 
 ### Realtime
 
-The `supabase_realtime` publication holds `dice_rolls` and, since M03.7 Phase 6, `character_sheets`, `notes`, `adventures`, `adventure_participants`, `adventure_objectives` and `adventure_updates`, all with default replica identity. Postgres-changes delivery checks each subscriber's select policy against the changed row, so a private roll, a private sheet, a private note, an adventure the subscriber is not in, and another campaign's rows never reach that client. The app listens for inserts and updates only: a delete event carries no row the policy has checked, so removals (and rows that stop being readable, such as a note made private) still arrive through the queries' refetch on focus. `character_sheets`, `adventure_objectives` and `adventure_updates` have no campaign column, so their events cannot be filtered by campaign; the client refetches only reads it already holds.
+The `supabase_realtime` publication holds `dice_rolls` and, since M03.7 Phase 6, `character_sheets`, `notes`, `adventures`, `adventure_participants`, `adventure_objectives`, `adventure_updates` and (M03.9) `adventure_handoffs`, all with default replica identity. Postgres-changes delivery checks each subscriber's select policy against the changed row, so a private roll, a private sheet, a private note, an adventure the subscriber is not in, and another campaign's rows never reach that client. The app listens for inserts and updates only: a delete event carries no row the policy has checked, so removals (and rows that stop being readable, such as a note made private) still arrive through the queries' refetch on focus. `character_sheets`, `adventure_objectives` and `adventure_updates` have no campaign column, so their events cannot be filtered by campaign; the client refetches only reads it already holds.
 
 ### Lifecycle
 

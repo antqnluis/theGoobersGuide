@@ -153,6 +153,15 @@ function ChangeRow({
   const current = display(change, change.current)
   const proposed = display(change, change.proposed)
   const locked = change.state !== 'ok'
+  // The visible label starts the accessible name, which also says the proposed value.
+  const visibleLabel =
+    change.objectiveTitle && change.kind !== 'objective-rename'
+      ? `${change.label}: ${change.objectiveTitle}`
+      : change.label
+  const accessibleName =
+    change.kind === 'objective-rename' || change.kind === 'objective-add' || change.field
+      ? `${change.label}: ${proposed}`
+      : visibleLabel
   const note =
     change.state === 'invalid'
       ? change.problem
@@ -166,26 +175,14 @@ function ChangeRow({
     <li className="handoff-review__change" data-state={change.state}>
       <input
         aria-describedby={note ? noteId : `${id}-values`}
+        aria-label={accessibleName}
         checked={checked && !locked}
         disabled={disabled || locked}
         id={id}
         onChange={onToggle}
         type="checkbox"
       />
-      <label htmlFor={id}>
-        {change.objectiveTitle && change.kind !== 'objective-rename' ? (
-          <>
-            {change.label}: {change.objectiveTitle}
-          </>
-        ) : (
-          change.label
-        )}
-        <span className="handoff-review__sr">
-          {change.kind === 'objective-rename' || change.kind === 'objective-add' || change.field
-            ? `: ${proposed}`
-            : ''}
-        </span>
-      </label>
+      <label htmlFor={id}>{visibleLabel}</label>
       <p className="handoff-review__values" id={`${id}-values`}>
         {current !== null && change.kind !== 'objective-add' && change.kind !== 'update' && (
           <>

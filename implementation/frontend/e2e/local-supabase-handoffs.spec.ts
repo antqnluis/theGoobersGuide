@@ -5,6 +5,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   rpcError,
   rpcOk,
   type Player,
@@ -1404,4 +1405,141 @@ test.describe('create_adventure_from_handoff', () => {
       await cleanup(scene.players, scene.ids)
     }
   })
+})
+
+// --- The real UI against the real stack ---------------------------------------------------------
+
+test('a player imports a handoff into an adventure and starts another from one, and the labels survive a refresh', async ({
+  browser,
+}) => {
+  test.setTimeout(150_000)
+  const scene = await newScene()
+  const { a } = scene.players
+  const adventureId = await personal(scene, 'a', 'The Drowned Bell')
+  await addObjective(a, adventureId, 'Find the bell')
+
+  const source = '# Session 4\n\nThe party reached Saltmere.\nThe <b>bell</b> was stolen.'
+  const attachDocument = JSON.stringify({
+    format: 'the-goobers-guide-adventure-handoff',
+    version: 1,
+    proposal: {
+      next_step: 'Talk to Maren',
+      objectives: [{ op: 'add', title: 'Recover the clapper' }],
+      update: 'We reached Saltmere.',
+    },
+  })
+  const startDocument = JSON.stringify({
+    format: 'the-goobers-guide-adventure-handoff',
+    version: 1,
+    proposal: {
+      title: 'The Salt Road',
+      status: 'in_progress',
+      objectives: [{ op: 'add', title: 'Cross the marsh' }],
+    },
+  })
+
+  // Light on resources: one context, reduced motion, no screenshots or video.
+  const context = await browser.newContext({ reducedMotion: 'reduce' })
+  try {
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByLabel('Username or email').fill(`${a.username}@example.com`)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL(/\/app\/campaigns$/)
+
+    const openBoard = async () => {
+      await page.goto(`/app/campaigns/${scene.campaignId}`)
+      await page
+        .getByRole('list', { name: 'Camp places' })
+        .getByRole('button', { name: /^Adventures/ })
+        .click()
+      const dialog = page.getByRole('dialog', { name: 'Adventures' })
+      await expect(dialog).toBeVisible()
+      return dialog
+    }
+
+    // Attach: paste the handoff and the assistant's answer, choose two changes, apply.
+    let board = await openBoard()
+    await board
+      .getByRole('button', { name: /The Drowned Bell/ })
+      .first()
+      .click()
+    await expect(board.getByRole('heading', { level: 3, name: 'The Drowned Bell' })).toBeVisible()
+    await expect(board.getByText('No handoffs yet.')).toBeVisible()
+
+    await board.getByRole('button', { name: 'Import handoff' }).click()
+    const importer = page.getByRole('dialog', { name: 'Import handoff' })
+    await importer.getByLabel('1. The handoff text').fill(source)
+    await importer.getByLabel(/Source label/).fill('session-4.md')
+    await importer.getByText('2. Copy the prompt').click()
+    await expect(importer.getByLabel('Handoff prompt')).toHaveValue(/The Drowned Bell/)
+    await importer.getByLabel('3. The assistant’s answer (JSON)').fill(attachDocument)
+    await expect(importer.getByRole('region', { name: 'Review' })).toBeVisible()
+    await importer.getByRole('checkbox', { name: 'New objective: Recover the clapper' }).check()
+    await importer.getByRole('checkbox', { name: 'Progress update' }).check()
+    await importer.getByRole('button', { name: 'Apply 2 changes' }).click()
+    await expect(importer).toBeHidden()
+    await expect(board.getByText('Handoff saved — 2 changes applied.')).toBeVisible()
+
+    // The next step was not chosen, so it stays; the two chosen changes are in.
+    await expect
+      .poll(() =>
+        localDatabaseQuery(
+          `select (select next_step from public.adventures where id = '${adventureId}')
+             || '|' || (select count(*) from public.adventure_handoffs where adventure_id = '${adventureId}')
+             || '|' || (select count(*) from public.adventure_objectives
+                        where adventure_id = '${adventureId}' and handoff_id is not null)
+             || '|' || (select count(*) from public.adventure_updates
+                        where adventure_id = '${adventureId}' and handoff_id is not null);`,
+          {},
+        ),
+      )
+      .toBe('|1|1|1')
+
+    // After a refresh the source and the labels are still there, and the source is plain text.
+    board = await openBoard()
+    await board
+      .getByRole('button', { name: /The Drowned Bell/ })
+      .first()
+      .click()
+    const sources = board.getByRole('region', { name: 'Sources' })
+    await expect(sources).toContainText('session-4.md')
+    await expect(sources).toContainText('1 objective added. 1 progress update posted.')
+    await expect(board.getByText('From handoff: session-4.md')).toHaveCount(2)
+    await sources.getByRole('button', { name: 'Show source' }).click()
+    const text = sources.getByRole('region', { name: 'Source text: session-4.md' })
+    await expect(text).toContainText('The <b>bell</b> was stolen.')
+    await expect(text.locator('b')).toHaveCount(0)
+
+    // Start from a handoff: a new personal adventure with its own source and labels.
+    await board.getByRole('button', { name: 'Back to adventures' }).click()
+    await board.getByRole('button', { name: 'Start from a handoff' }).click()
+    const starter = page.getByRole('dialog', { name: 'Start from a handoff' })
+    await starter.getByLabel('1. The handoff text').fill('Recap of the salt road.')
+    await starter.getByLabel(/Source label/).fill('road.md')
+    await starter.getByLabel('3. The assistant’s answer (JSON)').fill(startDocument)
+    await expect(starter.getByLabel('Status of the new adventure')).toHaveValue('pending')
+    await starter.getByLabel('Status of the new adventure').selectOption('in_progress')
+    await starter.getByRole('button', { name: 'Create adventure with 3 changes' }).click()
+    await expect(starter).toBeHidden()
+    await expect(board.getByRole('heading', { level: 3, name: 'The Salt Road' })).toBeVisible()
+    await expect(board.getByText('From handoff: road.md')).toBeVisible()
+    await expect(board.getByRole('region', { name: 'Sources' })).toContainText('road.md')
+
+    expect(
+      localDatabaseQuery(
+        `select a.type || '|' || a.visibility || '|' || a.status || '|'
+                || (select count(*) from public.adventure_participants p where p.adventure_id = a.id)
+                || '|' || (select kind from public.adventure_handoffs h where h.adventure_id = a.id)
+           from public.adventures a
+          where a.campaign_id = '${scene.campaignId}' and a.title = 'The Salt Road';`,
+        {},
+      ),
+    ).toBe('personal|participants|in_progress|1|new')
+  } finally {
+    // A failure while closing must not leave the campaign behind for other specs to trip over.
+    await context.close().catch(() => undefined)
+    await cleanup(scene.players, scene.ids)
+  }
 })

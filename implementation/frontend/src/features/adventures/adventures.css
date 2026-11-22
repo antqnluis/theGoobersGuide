@@ -569,7 +569,7 @@
   overflow-wrap: anywhere;
 }
 
-.handoff-dialog {
+.journal-prompt.handoff-dialog {
   width: min(46rem, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   overflow-y: auto;

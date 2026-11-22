@@ -15,9 +15,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 | Doc | Status |
 | --- | --- |
-| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M6 are done; M8 character imports are implemented; M7 (dice everywhere, plus live sheets, notes, and adventures) is built. |
-| [M03.9 — DM Handoffs](in-progress/M03.9-DM-Handoffs.md) | Approved plan for the second half of M8 (reviewed DM handoffs into adventures, with kept sources). Phase 0 (baseline) is done; Phase 1 is next. |
-| [M03.9 — Implementation Log](in-progress/M03.9-Implementation-Log.md) | Per-phase record of the M03.9 work. |
+| [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. All eight are done: M1–M6, M7 (dice everywhere, plus live sheets, notes, and adventures), and M8 (character imports and DM handoffs). |
 
 ## Completed
 
@@ -41,6 +39,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | [M03.7 — Implementation Log](completed/M03.7-Implementation-Log.md) | Per-phase record of the M03.7 work. |
 | [M03.8 — Character Imports](completed/M03.8-Character-Imports.md) | Implemented (Phases 0–5): attack ids, `character_imports`, `import_character` and `apply_character_update`, the version-3 and update-2 formats, copyable prompts, import as new and import updates with review, Markdown export, and import history. |
 | [M03.8 — Implementation Log](completed/M03.8-Implementation-Log.md) | Per-phase record of the M03.8 work. |
+| [M03.9 — DM Handoffs](completed/M03.9-DM-Handoffs.md) | Implemented (Phases 0–5, H1–H14 as written): `adventure_handoffs` with kept sources, `handoff_id` labels on imported objectives and updates, `attach_adventure_handoff` and `create_adventure_from_handoff`, the version-1 handoff format and prompt, the import dialog with selective review, Sources on the adventure, start from a handoff, and live sources. The mocked browser specs are not written. |
+| [M03.9 — Implementation Log](completed/M03.9-Implementation-Log.md) | Per-phase record of the M03.9 work. |
 
 ## Paused
 
