@@ -317,6 +317,12 @@ Brief notes from the bottom of the journal: leather-deep fill, brass 2px border,
 
 A vertical leather tab with a lantern icon sits on the Party journal's outer edge and opens a parchment panel beside it (19rem wide at most). It previews the adventurer sprite (hard-edged pixels, a two-frame breath unless motion is reduced) and offers cloak swatches and headwear, pack, and skin choices as labeled radio options. Below 900px it becomes a pill at the bottom with a sheet above it.
 
+### Dice dock and tray
+
+One object in every room, so it carries its own `--dice-*` tokens (the journal's values, scoped to `.dice-dock` in `dice.css`) instead of borrowing a room's. A leather key (brass 2px rim, pressed-key shadow, d20 icon and the word "Dice", 48px) sits bottom right on the galaxy, the camp, and every journal. While a journal is open the dock renders inside that modal dialog, because everything outside a modal dialog is inert; it sits above the pinned save bar. A lantern count on the key marks rolls others made while the tray was shut. After a roll made with the tray shut, a leather **peek** (title and total in the serif) shows for six seconds, held while hovered or focused, and opens the tray. A failed roll shows its notice with Retry instead.
+
+The tray is a parchment plate with a leather header (title, a live-state line with an icon: "Live with the table", "Live updates paused", or "On this device only — not saved") and a brass rule. Top to bottom: the latest roll on a double-ruled plate (title, who, face tiles, the total at 3rem serif), the roll field with a primary Roll key, quick dice d4 to d100, a three-way Normal / Advantage / Disadvantage group for a d20, "Only I can see my rolls" and Roll again, then the table's log grouped by minute. Faces are 36px tiles in the serif: a dropped die is dashed and struck through, a natural 20 gets a brass inner rule, a natural 1 oxblood text, and each is also named in words ("Natural 20", "Natural 1") and to screen readers. "Only you" and "Not saved" chips pair a lock or device icon with words. While a server roll is in flight the tiles rest with no numbers; on arrival they settle left to right (the one motion, off under reduced motion). On phones the tray is a bottom sheet (up to 82dvh) and the key hides while it is open. Escape closes the tray and not the journal behind it; `R` toggles it outside text fields.
+
 ### Empty states
 
 The empty tent is a dashed parchment plate with a drawn tent, flame, and lantern, a serif title, and one short line pointing to the next action.

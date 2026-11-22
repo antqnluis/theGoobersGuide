@@ -16,7 +16,7 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M6 are done; M8 character imports are implemented; M7 is not started. |
-| [M03.7 — Session Utilities: Dice Everywhere](in-progress/M03.7-Session-Utilities.md) | Plan approved (D1–D12 as written). Phases 0–2 done; see the [implementation log](in-progress/M03.7-Implementation-Log.md). |
+| [M03.7 — Session Utilities: Dice Everywhere](in-progress/M03.7-Session-Utilities.md) | Plan approved (D1–D12 as written). Phases 0–3 done; see the [implementation log](in-progress/M03.7-Implementation-Log.md). |
 
 ## Completed
 

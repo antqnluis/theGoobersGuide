@@ -37,6 +37,7 @@ import type { RigFrame } from './camp/campRig'
 import { useCampRig } from './camp/useCampRig'
 import { useCampView, type CampMeasure } from './camp/useCampView'
 import { useDestinationDialog } from './camp/useDestinationDialog'
+import { useDiceHost } from '../dice/useDice'
 import { CampSettings } from './camp/CampSettings'
 import type { CampBackground } from './camp/campBackground'
 import { ToastRegion } from './camp/CampToasts'
@@ -188,6 +189,8 @@ export function CampaignCamp({
   useEffect(() => {
     destinationRef.current?.(activeId)
   }, [activeId])
+  // The dice stay reachable over an open journal: the dock moves into the modal dialog.
+  useDiceHost(Boolean(active), dialogRef)
   const available = availableLocations(isOwner)
   const panelSide = active ? panelSideForWorldX(active.world.x) : 'right'
   // Every destination wears the leather journal (the folio, wider, for a sheet). The

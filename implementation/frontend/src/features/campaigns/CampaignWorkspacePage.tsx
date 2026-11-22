@@ -16,6 +16,7 @@ import {
 } from '../adventures/adventureQueries'
 import { sharedThreadCount } from '../adventures/adventureRules'
 import { useAdventureActions } from '../adventures/useAdventureActions'
+import { useDiceScope } from '../dice/useDice'
 import { CampNotes, type NoteScreen } from '../notes/CampNotes'
 import { notesKey } from '../notes/noteQueries'
 import { useNoteActions } from '../notes/useNoteActions'
@@ -148,6 +149,28 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const isOwner = Boolean(campaign && campaign.owner_id === session?.user.id)
   const rosterData = rosterQuery.data
   const roster = useMemo(() => rosterData ?? [], [rosterData])
+  // The dice roll at this table: the server makes and shares the rolls, and the log names players
+  // and their characters from what this member can read.
+  const diceScope = useMemo(
+    () =>
+      campaign && userId
+        ? {
+            campaignId,
+            userId,
+            memberNames: new Map(
+              roster.map((member) => [
+                member.profile_id,
+                member.display_name || member.username || 'A player',
+              ]),
+            ),
+            characterNames: new Map(
+              (charactersData ?? []).map((character) => [character.id, character.name]),
+            ),
+          }
+        : null,
+    [campaign, campaignId, charactersData, roster, userId],
+  )
+  useDiceScope(diceScope)
   const currentRole = isOwner
     ? 'Owner'
     : roster.find((member) => member.profile_id === session?.user.id)?.role === 'owner'

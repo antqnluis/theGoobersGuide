@@ -1,0 +1,840 @@
+/* The dice dock: a leather button, a brief peek at your latest roll, and a parchment tray.
+   One object in every room (galaxy, camp, journal), so it carries its own tokens, the journal's
+   values. Follows DESIGN.md: 44px targets, double-ruled plates, 3px corners, words beside colour. */
+
+.dice-dock {
+  --dice-leather: #3a2420;
+  --dice-leather-deep: #221310;
+  --dice-leather-light: #5b3b31;
+  --dice-brass: #dab98a;
+  --dice-brass-deep: #8f6b34;
+  --dice-page: #f3e8cf;
+  --dice-page-shade: #e7d8b5;
+  --dice-page-edge: #c9b48a;
+  --dice-field: #fbf5e4;
+  --dice-ink: #2a1c13;
+  --dice-ink-soft: #5a4535;
+  --dice-rule: #b79f74;
+  --dice-line: #6f5a45;
+  --dice-oxblood: #7a2932;
+  --dice-oxblood-deep: #571a22;
+  --dice-forest: #2d5a41;
+  --dice-lantern: #f2b04a;
+  --dice-cream: #fff0d7;
+  --dice-focus: #1b5f8c;
+  --dice-focus-dark: #ffe7ac;
+  --dice-radius: 3px;
+  --dice-touch: 44px;
+
+  position: fixed;
+  z-index: 40;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  width: min(24rem, calc(100vw - 32px));
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  color: var(--dice-ink);
+  font: 400 1rem / 1.5 var(--font-body);
+  pointer-events: none;
+}
+
+.dice-dock > * {
+  pointer-events: auto;
+}
+
+/* Inside an open journal the dock sits on the sheet, above the toasts' layer and the save bar. */
+.dice-dock[data-host='journal'] {
+  position: absolute;
+  z-index: 7;
+  right: 16px;
+  bottom: 16px;
+  width: min(24rem, calc(100% - 32px));
+}
+
+.camp-ledger:has(.folio-dock) .dice-dock[data-host='journal'] {
+  bottom: 92px;
+}
+
+.dice-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dice-icon {
+  flex: none;
+}
+
+.dice-dock :is(button, input, textarea, a):focus-visible {
+  outline: 3px solid var(--dice-focus);
+  outline-offset: 3px;
+}
+
+/* --- The button -------------------------------------------------------------------------- */
+
+.dice-dock__button {
+  position: relative;
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  border: 2px solid var(--dice-brass);
+  border-radius: var(--dice-radius);
+  padding: 8px 16px 8px 13px;
+  color: var(--dice-cream);
+  background: var(--dice-leather);
+  box-shadow:
+    0 3px 0 var(--dice-leather-deep),
+    0 8px 20px rgb(11 9 18 / 0.45);
+  font: 700 0.9rem / 1.25 var(--font-body);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.dice-dock__button:hover {
+  background: var(--dice-leather-light);
+}
+
+.dice-dock__button:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 var(--dice-leather-deep),
+    0 4px 12px rgb(11 9 18 / 0.45);
+}
+
+.dice-dock__button:focus-visible,
+.dice-peek:focus-visible,
+.dice-tray__close:focus-visible,
+.dice-tray__bar :focus-visible {
+  outline-color: var(--dice-focus-dark);
+}
+
+.dice-dock__badge {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: var(--dice-radius);
+  padding: 0 6px;
+  color: var(--dice-ink);
+  background: var(--dice-lantern);
+  font: 700 0.78rem / 1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The peek at your latest roll ------------------------------------------------------------- */
+
+.dice-peek {
+  display: flex;
+  min-height: var(--dice-touch);
+  max-width: 100%;
+  align-items: center;
+  gap: 12px;
+  border: 2px solid var(--dice-brass);
+  border-radius: var(--dice-radius);
+  padding: 4px 14px;
+  color: var(--dice-cream);
+  background: var(--dice-leather-deep);
+  box-shadow: 0 6px 18px rgb(11 9 18 / 0.5);
+  font: 600 0.92rem / 1.35 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  animation: dice-rise 180ms ease-out;
+}
+
+.dice-peek__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dice-peek__total {
+  font: 600 1.6rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-peek--failure {
+  width: 100%;
+  border: 2px solid var(--dice-brass-deep);
+  padding: 0;
+  background: var(--dice-page);
+  box-shadow: 0 6px 18px rgb(11 9 18 / 0.5);
+  cursor: default;
+}
+
+/* --- The tray --------------------------------------------------------------------------------- */
+
+.dice-tray {
+  display: flex;
+  width: 100%;
+  max-height: min(44rem, calc(100dvh - 7.5rem));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--dice-radius);
+  background: var(--dice-page);
+  box-shadow:
+    0 0 0 2px var(--dice-brass-deep),
+    0 18px 50px rgb(11 9 18 / 0.55);
+  animation: dice-rise 180ms ease-out;
+}
+
+.dice-tray:focus {
+  outline: none;
+}
+
+.dice-tray:focus-visible {
+  outline: 3px solid var(--dice-focus-dark);
+  outline-offset: -3px;
+}
+
+.dice-tray__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid var(--dice-brass);
+  padding: 8px 8px 8px 16px;
+  color: var(--dice-cream);
+  background: var(--dice-leather);
+}
+
+.dice-tray__title {
+  margin: 0;
+  font: 600 1.4rem / 1.15 var(--font-display);
+}
+
+.dice-tray__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--dice-brass);
+  font: 700 0.8rem / 1.3 var(--font-body);
+}
+
+.dice-tray__status[data-live='paused'] {
+  color: var(--dice-lantern);
+}
+
+.dice-tray__close {
+  min-width: var(--dice-touch);
+  min-height: var(--dice-touch);
+  border: 2px solid transparent;
+  border-radius: var(--dice-radius);
+  padding: 0 12px;
+  color: var(--dice-cream);
+  background: transparent;
+  font: 700 0.9rem / 1.25 var(--font-body);
+  cursor: pointer;
+}
+
+.dice-tray__close:hover {
+  background: var(--dice-leather-light);
+}
+
+.dice-tray__scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--dice-rule) var(--dice-page);
+}
+
+.dice-tray__body {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.dice-tray__log {
+  border-top: 2px solid var(--dice-rule);
+  padding: 14px 16px 18px;
+}
+
+.dice-tray__log-title {
+  margin: 0 0 8px;
+  color: var(--dice-ink-soft);
+  font: 700 0.9rem / 1.2 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- The latest roll ------------------------------------------------------------------------- */
+
+.dice-result {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--dice-line);
+  border-radius: var(--dice-radius);
+  padding: 14px;
+  background: color-mix(in srgb, var(--dice-field) 70%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--dice-page),
+    inset 0 0 0 4px var(--dice-rule);
+}
+
+.dice-result__title {
+  margin: 0;
+  font: 600 1.2rem / 1.2 var(--font-display);
+  overflow-wrap: anywhere;
+}
+
+.dice-result__who,
+.dice-result__note {
+  margin: 0;
+  color: var(--dice-ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.dice-result__body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dice-result__total {
+  margin: 0;
+  font: 600 3rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-result__marks,
+.dice-entry__marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dice-result__marks:empty,
+.dice-entry__marks:empty {
+  display: none;
+}
+
+.dice-result__resting {
+  display: flex;
+  gap: 6px;
+}
+
+/* --- Faces -------------------------------------------------------------------------------------- */
+
+.dice-breakdown,
+.dice-faces {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dice-term {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dice-term__operator {
+  color: var(--dice-ink-soft);
+  font: 700 1rem / 1 var(--font-body);
+}
+
+.dice-term__constant {
+  min-width: 1.4rem;
+  text-align: center;
+  font: 600 1.15rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-face {
+  display: grid;
+  min-width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 2px solid var(--dice-line);
+  border-radius: var(--dice-radius);
+  padding: 0 4px;
+  background: var(--dice-field);
+  font: 600 1.15rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-face[data-dropped] {
+  border-style: dashed;
+  color: var(--dice-ink-soft);
+  background: var(--dice-page-shade);
+  text-decoration: line-through;
+}
+
+.dice-face[data-mark='max'] {
+  border-color: var(--dice-brass-deep);
+  box-shadow: inset 0 0 0 1px var(--dice-brass);
+  font-weight: 700;
+}
+
+.dice-face[data-mark='min'] {
+  border-color: var(--dice-oxblood-deep);
+  color: var(--dice-oxblood-deep);
+}
+
+.dice-face--resting {
+  background: var(--dice-page-shade);
+  animation: dice-rest 700ms ease-in-out infinite alternate;
+}
+
+.dice-face--resting:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.dice-face--resting:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+/* The one authored moment: the faces settle onto the plate, left to right. */
+.dice-result[data-state='rolled'] .dice-face {
+  animation: dice-settle 220ms ease-out backwards;
+  animation-delay: calc(var(--dice-i, 0) * 45ms);
+}
+
+.dice-result[data-state='rolled'] .dice-result__total {
+  animation: dice-rise 240ms ease-out 80ms backwards;
+}
+
+/* --- Chips -------------------------------------------------------------------------------------- */
+
+.dice-chip {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--dice-rule);
+  border-radius: var(--dice-radius);
+  padding: 0 8px 0 6px;
+  color: var(--dice-ink-soft);
+  background: var(--dice-page-shade);
+  font: 700 0.75rem / 1 var(--font-body);
+}
+
+.dice-chip[data-tone='high'] {
+  border-color: var(--dice-forest);
+  color: var(--dice-forest);
+}
+
+.dice-chip[data-tone='low'] {
+  border-color: var(--dice-oxblood-deep);
+  color: var(--dice-oxblood-deep);
+}
+
+/* --- Form, quick dice, modes ------------------------------------------------------------------ */
+
+.dice-form__label,
+.dice-modes legend {
+  display: block;
+  margin: 0 0 4px;
+  padding: 0;
+  color: var(--dice-ink-soft);
+  font: 700 0.8rem / 1.3 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dice-form__row {
+  display: flex;
+  gap: 8px;
+}
+
+.dice-input {
+  min-width: 0;
+  min-height: var(--dice-touch);
+  flex: 1;
+  border: 2px solid var(--dice-line);
+  border-radius: var(--dice-radius);
+  padding: 8px 10px;
+  color: var(--dice-ink);
+  background: var(--dice-field);
+  box-shadow: inset 0 2px 0 rgb(42 28 19 / 0.08);
+  font: 400 1rem / 1.3 var(--font-body);
+  caret-color: var(--dice-oxblood);
+}
+
+.dice-input::placeholder {
+  color: #6b5a4a;
+}
+
+.dice-input[aria-invalid='true'] {
+  border-color: var(--dice-oxblood);
+}
+
+.dice-form__error {
+  margin: 6px 0 0;
+  color: var(--dice-oxblood-deep);
+  font: 600 0.88rem / 1.4 var(--font-body);
+}
+
+.dice-button,
+.dice-button-secondary,
+.dice-button-ghost {
+  display: inline-flex;
+  min-height: var(--dice-touch);
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 2px solid var(--dice-oxblood-deep);
+  border-radius: var(--dice-radius);
+  padding: 8px 18px;
+  font: 700 0.9rem / 1.25 var(--font-body);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.dice-button {
+  color: var(--dice-cream);
+  background: var(--dice-oxblood);
+  box-shadow: 0 3px 0 var(--dice-oxblood-deep);
+}
+
+.dice-button:hover:not(:disabled) {
+  background: var(--dice-oxblood-deep);
+}
+
+.dice-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--dice-oxblood-deep);
+}
+
+.dice-button-secondary {
+  border-color: var(--dice-line);
+  color: var(--dice-ink);
+  background: var(--dice-page-shade);
+}
+
+.dice-button-secondary:hover:not(:disabled) {
+  background: var(--dice-page-edge);
+}
+
+.dice-button-ghost {
+  border-color: transparent;
+  color: var(--dice-ink-soft);
+  background: transparent;
+}
+
+.dice-button-ghost:hover {
+  text-decoration: underline;
+}
+
+.dice-dock :is(.dice-button, .dice-button-secondary, .dice-button-ghost):disabled {
+  border-color: var(--dice-rule);
+  color: var(--dice-ink-soft);
+  background: var(--dice-page-shade);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.dice-dock :is(.dice-button, .dice-button-secondary)[aria-busy='true'] {
+  cursor: progress;
+}
+
+.dice-quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3.4rem, 1fr));
+  gap: 8px;
+}
+
+.dice-quick__die {
+  padding: 8px 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.dice-modes legend {
+  grid-column: 1 / -1;
+}
+
+.dice-mode {
+  position: relative;
+  display: grid;
+  min-height: var(--dice-touch);
+  place-items: center;
+  border: 2px solid var(--dice-line);
+  border-radius: var(--dice-radius);
+  padding: 4px 6px;
+  background: var(--dice-field);
+  font: 700 0.82rem / 1.2 var(--font-body);
+  text-align: center;
+  cursor: pointer;
+}
+
+.dice-mode input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dice-mode:has(input:checked) {
+  border-color: var(--dice-oxblood-deep);
+  color: var(--dice-cream);
+  background: var(--dice-oxblood);
+}
+
+.dice-mode:has(input:focus-visible) {
+  outline: 3px solid var(--dice-focus);
+  outline-offset: 3px;
+}
+
+.dice-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dice-options__note {
+  margin: 0;
+  max-width: 14rem;
+  color: var(--dice-ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.dice-check {
+  display: flex;
+  min-height: var(--dice-touch);
+  align-items: center;
+  gap: 8px;
+  font: 600 0.9rem / 1.3 var(--font-body);
+  cursor: pointer;
+}
+
+.dice-check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--dice-oxblood);
+}
+
+/* --- Failure ------------------------------------------------------------------------------------ */
+
+.dice-failure {
+  display: grid;
+  gap: 10px;
+  border: 2px dashed var(--dice-oxblood);
+  border-radius: var(--dice-radius);
+  padding: 12px;
+  color: var(--dice-oxblood-deep);
+  background: color-mix(in srgb, var(--dice-oxblood) 7%, var(--dice-page));
+}
+
+.dice-failure__message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font: 600 0.9rem / 1.4 var(--font-body);
+}
+
+.dice-failure__message .dice-icon {
+  margin-top: 2px;
+}
+
+.dice-failure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --- The log ------------------------------------------------------------------------------------ */
+
+.dice-log {
+  display: grid;
+  gap: 12px;
+}
+
+.dice-log__state {
+  margin: 0;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  border: 2px dashed var(--dice-rule);
+  border-radius: var(--dice-radius);
+  padding: 14px;
+  color: var(--dice-ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.dice-log__state p {
+  margin: 0;
+}
+
+.dice-log__group {
+  display: grid;
+  gap: 6px;
+}
+
+.dice-log__time {
+  margin: 0;
+  color: var(--dice-ink-soft);
+  font: 700 0.75rem / 1.2 var(--font-body);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-log__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dice-entry {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--dice-rule);
+  padding: 10px 0;
+}
+
+.dice-entry:first-child {
+  border-top: 0;
+}
+
+.dice-entry__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dice-entry__who {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.dice-entry__total {
+  margin: 0;
+  font: 600 1.5rem / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-entry__expression {
+  margin: 0;
+  color: var(--dice-ink-soft);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-entry .dice-face {
+  min-width: 28px;
+  height: 28px;
+  font-size: 0.95rem;
+}
+
+/* --- Motion ------------------------------------------------------------------------------------- */
+
+@keyframes dice-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes dice-settle {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) rotate(-8deg);
+  }
+}
+
+@keyframes dice-rest {
+  from {
+    opacity: 0.55;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dice-dock *,
+  .dice-dock *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* --- Phones: the tray becomes a bottom sheet -------------------------------------------------- */
+
+@media (max-width: 639px) {
+  .dice-dock {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
+
+  .dice-dock[data-host='journal'] {
+    right: 0;
+    left: 0;
+    width: auto;
+  }
+
+  .dice-dock[data-open] {
+    padding: 0;
+  }
+
+  .dice-dock[data-open] .dice-dock__button {
+    display: none;
+  }
+
+  .dice-dock[data-open] .dice-tray {
+    max-height: min(82dvh, 40rem);
+    border-radius: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .camp-ledger:has(.folio-dock) .dice-dock[data-host='journal'] {
+    bottom: 176px;
+  }
+
+  .camp-ledger:has(.folio-dock) .dice-dock[data-host='journal'][data-open] {
+    bottom: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .dice-dock__button,
+  .dice-peek,
+  .dice-tray,
+  .dice-face,
+  .dice-mode {
+    border: 2px solid CanvasText;
+  }
+}
