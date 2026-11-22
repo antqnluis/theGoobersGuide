@@ -16,6 +16,8 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 | Doc | Status |
 | --- | --- |
 | [M03 — Campaign Functionality Audit and Roadmap](in-progress/M03-Campaign-Functionality-Audit.md) | Roadmap for M1–M8. M1–M6 are done; M8 character imports are implemented; M7 (dice everywhere, plus live sheets, notes, and adventures) is built. |
+| [M03.9 — DM Handoffs](in-progress/M03.9-DM-Handoffs.md) | Approved plan for the second half of M8 (reviewed DM handoffs into adventures, with kept sources). Phase 0 (baseline) is done; Phase 1 is next. |
+| [M03.9 — Implementation Log](in-progress/M03.9-Implementation-Log.md) | Per-phase record of the M03.9 work. |
 
 ## Completed
 

@@ -98,7 +98,7 @@ test.describe('catalog', () => {
         {},
       ),
     ).toBe(
-      'adventure_objectives,adventure_participants,adventure_updates,adventures,character_sheets,dice_rolls,notes',
+      'adventure_handoffs,adventure_objectives,adventure_participants,adventure_updates,adventures,character_sheets,dice_rolls,notes',
     )
     expect(
       localDatabaseQuery(

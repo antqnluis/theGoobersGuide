@@ -3,6 +3,61 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      adventure_handoffs: {
+        Row: {
+          adventure_id: string
+          applied: NonNullable<Json>
+          campaign_id: string
+          change_count: number
+          id: string
+          imported_at: string
+          imported_by: string
+          kind: string
+          source_label: string | null
+          source_text: string
+        }
+        ComputedFields: never
+        Insert: {
+          adventure_id: string
+          applied?: NonNullable<Json>
+          campaign_id: string
+          change_count: number
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          kind: string
+          source_label?: string | null
+          source_text: string
+        }
+        Update: {
+          adventure_id?: string
+          applied?: NonNullable<Json>
+          campaign_id?: string
+          change_count?: number
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          kind?: string
+          source_label?: string | null
+          source_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_handoffs_adventure_fkey'
+            columns: ['adventure_id', 'campaign_id']
+            isOneToOne: false
+            referencedRelation: 'adventures'
+            referencedColumns: ['id', 'campaign_id']
+          },
+          {
+            foreignKeyName: 'adventure_handoffs_imported_by_fkey'
+            columns: ['imported_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       adventure_invite_approvals: {
         Row: {
           approved_at: string
@@ -45,6 +100,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           done: boolean
+          handoff_id: string | null
           id: string
           title: string
           updated_at: string
@@ -57,6 +113,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           done?: boolean
+          handoff_id?: string | null
           id?: string
           title: string
           updated_at?: string
@@ -68,6 +125,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           done?: boolean
+          handoff_id?: string | null
           id?: string
           title?: string
           updated_at?: string
@@ -92,6 +150,13 @@ export type Database = {
             columns: ['created_by']
             isOneToOne: false
             referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_objectives_handoff_id_fkey'
+            columns: ['handoff_id']
+            isOneToOne: false
+            referencedRelation: 'adventure_handoffs'
             referencedColumns: ['id']
           },
         ]
@@ -177,6 +242,7 @@ export type Database = {
           author_id: string
           body: string
           created_at: string
+          handoff_id: string | null
           id: string
         }
         ComputedFields: never
@@ -185,6 +251,7 @@ export type Database = {
           author_id?: string
           body: string
           created_at?: string
+          handoff_id?: string | null
           id?: string
         }
         Update: {
@@ -192,6 +259,7 @@ export type Database = {
           author_id?: string
           body?: string
           created_at?: string
+          handoff_id?: string | null
           id?: string
         }
         Relationships: [
@@ -207,6 +275,13 @@ export type Database = {
             columns: ['author_id']
             isOneToOne: false
             referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'adventure_updates_handoff_id_fkey'
+            columns: ['handoff_id']
+            isOneToOne: false
+            referencedRelation: 'adventure_handoffs'
             referencedColumns: ['id']
           },
         ]
@@ -933,10 +1008,25 @@ export type Database = {
         Returns: number
       }
       apply_character_update: {
-        Args: { p_changes: Json; p_character_id: string; p_expected: Json; p_source_label?: string }
+        Args: {
+          p_changes: Json
+          p_character_id: string
+          p_expected: Json
+          p_source_label?: string
+        }
         Returns: string
       }
       approve_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
+      attach_adventure_handoff: {
+        Args: {
+          p_adventure_id: string
+          p_changes: Json
+          p_expected: Json
+          p_source_label?: string
+          p_source_text: string
+        }
+        Returns: string
+      }
       cancel_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
       count_my_adventure_requests: { Args: { p_campaign_id: string }; Returns: number }
@@ -947,6 +1037,17 @@ export type Database = {
           p_description?: string
           p_next_step?: string
           p_title: string
+          p_type: string
+        }
+        Returns: string
+      }
+      create_adventure_from_handoff: {
+        Args: {
+          p_campaign_id: string
+          p_changes: Json
+          p_character_id: string
+          p_source_label?: string
+          p_source_text: string
           p_type: string
         }
         Returns: string

@@ -5,10 +5,12 @@ export const maxDocumentBytes = 1_000_000
 export const documentFormats = {
   character: 'the-goobers-guide-character',
   update: 'the-goobers-guide-character-update',
+  handoff: 'the-goobers-guide-adventure-handoff',
 } as const
 
 export const characterDocumentVersion = 3
 export const updateDocumentVersion = 2
+export const handoffDocumentVersion = 1
 
 export type JsonRead = { ok: true; value: unknown } | { ok: false; message: string }
 
@@ -45,24 +47,53 @@ export const regenerateCharacterMessage =
   'This document uses a different format version. Copy the current conversion prompt and generate the character document again.'
 export const regenerateUpdateMessage =
   'This document uses a different format version. Copy the current update prompt and generate the update again.'
+export const regenerateHandoffMessage =
+  'This document uses a different format version. Copy the current handoff prompt and generate the proposal again.'
 
 /**
- * Checks the envelope shared by both formats. Returns a message when the document must be
+ * What to say when a document is a known Goobers Guide format, but not the one being read:
+ * expected format -> found format -> message. A format that is not listed gets the generic
+ * "isn't a Goobers Guide document" refusal.
+ */
+export type WrongFormatMessages = Readonly<Record<string, Readonly<Record<string, string>>>>
+
+export const wrongFormatMessages: WrongFormatMessages = {
+  [documentFormats.character]: {
+    [documentFormats.update]:
+      'This is an update document. Open the character and use Import updates.',
+    [documentFormats.handoff]:
+      'This is an adventure handoff. Open the adventure and use Import handoff, or start one from the map table.',
+  },
+  [documentFormats.update]: {
+    [documentFormats.character]:
+      'This is a character document. Use Import character from the tent to create a new character.',
+    [documentFormats.handoff]:
+      'This is an adventure handoff. Open the adventure and use Import handoff, or start one from the map table.',
+  },
+  [documentFormats.handoff]: {
+    [documentFormats.character]:
+      'This is a character document. Use Import character from the tent to create a new character.',
+    [documentFormats.update]:
+      'This is a character update. Open the character and use Import updates.',
+  },
+}
+
+/**
+ * Checks the envelope shared by every format. Returns a message when the document must be
  * refused, or null when `format` and `version` match.
  */
 export function checkEnvelope(
   value: unknown,
   expected: { format: string; version: number },
   regenerate: string,
+  wrongFormat: WrongFormatMessages = wrongFormatMessages,
 ): string | null {
   if (!isRecord(value)) return 'That isn’t a Goobers Guide document.'
-  if (value.format === documentFormats.update && expected.format === documentFormats.character) {
-    return 'This is an update document. Open the character and use Import updates.'
+  if (value.format !== expected.format) {
+    const known =
+      typeof value.format === 'string' ? wrongFormat[expected.format]?.[value.format] : undefined
+    return known ?? 'That isn’t a Goobers Guide document.'
   }
-  if (value.format === documentFormats.character && expected.format === documentFormats.update) {
-    return 'This is a character document. Use Import character from the tent to create a new character.'
-  }
-  if (value.format !== expected.format) return 'That isn’t a Goobers Guide document.'
   if (value.version !== expected.version) return regenerate
   return null
 }
