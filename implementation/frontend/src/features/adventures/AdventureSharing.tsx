@@ -174,7 +174,8 @@ export function AdventureSharing({
                 Share <strong>{adventure.title}</strong> with the party?{' '}
                 {sole
                   ? 'Party members will see everything here, read-only.'
-                  : 'Everyone in this adventure must agree. Party members will see everything here, read-only.'}
+                  : 'Everyone in this adventure must agree. Party members will see everything here, read-only.'}{' '}
+                Sharing includes this adventure’s handoff sources.
               </>
             ) : (
               <>

@@ -1,3 +1,4 @@
+import type { HandoffRecord } from './handoffService'
 import { blankTarget, type HandoffTarget } from './handoffDocument'
 
 export const OBJ_OPEN = '00000000-0000-4000-8000-0000000000a1'
@@ -33,4 +34,25 @@ export function handoffJson(
     proposal,
     ...extra,
   })
+}
+
+/** One kept source, as the sources list reads it. */
+export function handoffRecord(overrides: Partial<HandoffRecord> = {}): HandoffRecord {
+  return {
+    id: 'h1',
+    adventure_id: 'a1',
+    kind: 'attach',
+    source_label: 'session-4.md',
+    source_text: '# Session 4\n\n<b>The party</b> reached Saltmere.',
+    applied: {
+      fields: ['status', 'next_step'],
+      objectives_added: 2,
+      objectives_changed: 1,
+      update: true,
+    },
+    change_count: 6,
+    imported_by: '00000000-0000-4000-8000-000000000001',
+    imported_at: '2026-11-22T10:00:00+00:00',
+    ...overrides,
+  }
 }

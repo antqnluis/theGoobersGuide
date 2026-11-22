@@ -4,6 +4,7 @@ import { PixelIcon } from '../characters/PixelIcon'
 import { DiceText } from '../dice/TextWithDice'
 import { updateAuthorLabel } from './adventureRules'
 import type { AdventureUpdate } from './adventureTypes'
+import { handoffTag, noHandoffLabels } from './handoffLabels'
 import {
   adventureLimits,
   charactersLeft,
@@ -27,6 +28,7 @@ export function AdventureUpdates({
   roster,
   updates,
   userId,
+  handoffLabels = noHandoffLabels,
 }: {
   /** What the updates belong to (the adventure's title), for the dice log. */
   context?: string
@@ -38,6 +40,8 @@ export function AdventureUpdates({
   roster: readonly Pick<CampaignRosterMember, 'profile_id' | 'username' | 'display_name'>[]
   updates: readonly AdventureUpdate[]
   userId: string
+  /** Source labels by handoff id, for "From handoff" on the updates a handoff created. */
+  handoffLabels?: ReadonlyMap<string, string | null>
 }) {
   const base = useId()
   const [draft, setDraft] = useState('')
@@ -127,6 +131,9 @@ export function AdventureUpdates({
               <p className="update-row__body">
                 <DiceText context={context} text={update.body} />
               </p>
+              {update.handoff_id && (
+                <p className="handoff-tag">{handoffTag(update.handoff_id, handoffLabels)}</p>
+              )}
               {editable && update.author_id === userId && (
                 <button
                   aria-busy={

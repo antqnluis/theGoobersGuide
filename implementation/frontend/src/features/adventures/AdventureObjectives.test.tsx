@@ -39,6 +39,21 @@ function setup(props: Partial<React.ComponentProps<typeof AdventureObjectives>> 
 }
 
 describe('AdventureObjectives', () => {
+  it('labels objectives a handoff created, and only those', () => {
+    setup({
+      objectives: [objective({ id: 'o3', title: 'Recover the clapper', handoff_id: 'h1' }), cellar],
+      handoffLabels: new Map([['h1', 'session-4.md']]),
+    })
+    const items = screen.getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('From handoff: session-4.md')
+    expect(items[1]).not.toHaveTextContent('From handoff')
+  })
+
+  it('says only "From handoff" when the source has no label or is not known', () => {
+    setup({ objectives: [objective({ id: 'o3', title: 'Recover', handoff_id: 'h9' })] })
+    expect(screen.getByText('From handoff')).toBeVisible()
+  })
+
   it('lists objectives in order with progress and who ticked one', () => {
     setup()
     expect(screen.getByRole('heading', { name: /Objectives/ })).toHaveTextContent('1 of 2 done')

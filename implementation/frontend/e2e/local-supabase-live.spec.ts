@@ -286,4 +286,63 @@ test.describe('adventures', () => {
       await cleanup(players, [campaignId])
     }
   })
+
+  test('a handoff source is heard by the people who can read its adventure, and no one else', async () => {
+    const { players, campaignId, owner, member, outsider } = await table()
+    const inboxes: Inbox[] = []
+    try {
+      const brand = await character(member, campaignId, 'Brand')
+      const watch = [{ table: 'adventure_handoffs', filter: `campaign_id=eq.${campaignId}` }]
+      const ownerInbox = await listen(owner.client, 'owner', watch)
+      const memberInbox = await listen(member.client, 'member', watch)
+      const outsiderInbox = await listen(outsider.client, 'outsider', watch)
+      inboxes.push(ownerInbox, memberInbox, outsiderInbox)
+
+      // A private thread: only its participant hears the source.
+      const personal = await member.client.rpc('create_adventure', {
+        p_campaign_id: campaignId,
+        p_type: 'personal',
+        p_title: 'Find the heir',
+        p_character_id: brand,
+      })
+      expect(personal.error?.message ?? null).toBeNull()
+      const personalId = personal.data as string
+      await rpcOk(
+        member.client.rpc('attach_adventure_handoff', {
+          p_adventure_id: personalId,
+          p_expected: {},
+          p_changes: {},
+          p_source_text: 'A private recap',
+        }),
+      )
+      await waitFor(() =>
+        idsOf(memberInbox, 'adventure_handoffs', 'adventure_id').includes(personalId),
+      )
+      await settle()
+      expect(ownerInbox.events).toEqual([])
+      expect(outsiderInbox.events).toEqual([])
+
+      // A new adventure started from a handoff, and a main one, reach the table as they should.
+      const started = await member.client.rpc('create_adventure_from_handoff', {
+        p_campaign_id: campaignId,
+        p_type: 'main',
+        p_character_id: null as unknown as string,
+        p_changes: { details: { title: 'The road north' } },
+        p_source_text: 'The first recap',
+      })
+      expect(started.error?.message ?? null).toBeNull()
+      const mainId = started.data as string
+      await waitFor(
+        () =>
+          idsOf(ownerInbox, 'adventure_handoffs', 'adventure_id').includes(mainId) &&
+          idsOf(memberInbox, 'adventure_handoffs', 'adventure_id').includes(mainId),
+      )
+      expect(idsOf(ownerInbox, 'adventure_handoffs', 'adventure_id')).not.toContain(personalId)
+      await settle()
+      expect(outsiderInbox.events).toEqual([])
+    } finally {
+      for (const inbox of inboxes) await inbox.close()
+      await cleanup(players, [campaignId])
+    }
+  })
 })

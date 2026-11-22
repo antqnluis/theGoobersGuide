@@ -5,6 +5,7 @@ import {
   adventureKey,
   adventuresKey,
   adventuresPrefix,
+  handoffsKey,
   invitationsKey,
   requestCountKey,
 } from '../adventures/adventureQueries'
@@ -125,6 +126,18 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
     ),
     ...watch('adventure_updates', ['INSERT'], (change) =>
       adventureChanged(text(change.new, 'adventure_id'), false),
+    ),
+    // A handoff's source arrives with the objectives and update it labels (M03.9 H13). Its
+    // table has a campaign column, so the filter keeps other campaigns' events out.
+    ...watch(
+      'adventure_handoffs',
+      ['INSERT'],
+      (change) => {
+        const id = text(change.new, 'adventure_id')
+        if (id) invalidateSoon(handoffsKey(id, userId))
+        adventureChanged(id, false)
+      },
+      campaignFilter,
     ),
   ]
 

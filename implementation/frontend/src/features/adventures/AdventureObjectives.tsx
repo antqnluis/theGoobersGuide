@@ -3,6 +3,7 @@ import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { objectiveDoneLabel, objectiveProgress } from './adventureRules'
 import type { AdventureObjective } from './adventureTypes'
+import { handoffTag, noHandoffLabels } from './handoffLabels'
 import { validateObjectiveTitle } from './adventureValidation'
 import type { AdventureAction, AdventureResult } from './useAdventureActions'
 
@@ -22,6 +23,7 @@ export function AdventureObjectives({
   pendingId,
   roster,
   userId,
+  handoffLabels = noHandoffLabels,
 }: {
   editable: boolean
   objectives: readonly AdventureObjective[]
@@ -35,6 +37,8 @@ export function AdventureObjectives({
   pendingId: string | null
   roster: readonly Pick<CampaignRosterMember, 'profile_id' | 'username' | 'display_name'>[]
   userId: string
+  /** Source labels by handoff id, for "From handoff" on the rows a handoff created. */
+  handoffLabels?: ReadonlyMap<string, string | null>
 }) {
   const base = useId()
   const [draft, setDraft] = useState('')
@@ -121,6 +125,7 @@ export function AdventureObjectives({
           {objectives.map((objective) => {
             const rowBusy = busy && pendingId === objective.id
             const doneBy = objectiveDoneLabel(objective, userId, roster, now)
+            const tag = handoffTag(objective.handoff_id, handoffLabels)
             return (
               <li
                 className="objective-row"
@@ -138,6 +143,7 @@ export function AdventureObjectives({
                       </span>
                     </p>
                     {doneBy && <p className="objective-row__meta">{doneBy}</p>}
+                    {tag && <p className="handoff-tag">{tag}</p>}
                   </>
                 ) : editingId === objective.id ? (
                   <form
@@ -210,6 +216,7 @@ export function AdventureObjectives({
                       <label htmlFor={`${base}-${objective.id}`}>{objective.title}</label>
                     </div>
                     {doneBy && <p className="objective-row__meta">{doneBy}</p>}
+                    {tag && <p className="handoff-tag">{tag}</p>}
                     {editable && (
                       <div className="objective-row__tools">
                         <button

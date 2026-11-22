@@ -20,6 +20,7 @@ import {
   userId,
 } from './adventureTestData'
 import type { AdventureDetail } from './adventureTypes'
+import { createAdventureFromHandoff, listHandoffs } from './handoffService'
 
 vi.mock('./adventureService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./adventureService')>()),
@@ -27,11 +28,17 @@ vi.mock('./adventureService', async (importOriginal) => ({
   getAdventure: vi.fn(),
   listInvitations: vi.fn(),
 }))
+vi.mock('./handoffService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./handoffService')>()),
+  createAdventureFromHandoff: vi.fn(),
+  listHandoffs: vi.fn(),
+}))
 
 afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(listInvitations).mockResolvedValue([])
+  vi.mocked(listHandoffs).mockResolvedValue([])
 })
 
 const ok = { ok: true as const, value: undefined }
@@ -221,6 +228,63 @@ describe('the adventures list', () => {
     vi.mocked(listAdventures).mockResolvedValue([])
     setup({ actions: makeActions({ error: 'This adventure is no longer available.' }) })
     expect(await screen.findByRole('alert')).toHaveTextContent('no longer available')
+  })
+})
+
+describe('starting from a handoff', () => {
+  const source = '# Session 1\n\nThe party reached Saltmere.'
+  const document = JSON.stringify({
+    format: 'the-goobers-guide-adventure-handoff',
+    version: 1,
+    proposal: { title: 'Brand new', objectives: [{ op: 'add', title: 'First goal' }] },
+  })
+
+  it('opens the dialog beside New adventure, with the player’s characters', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([])
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Start from a handoff' }))
+    expect(screen.getByRole('dialog', { name: 'Start from a handoff' })).toBeVisible()
+    expect(screen.getByLabelText('For which character')).toHaveValue(characterId)
+  })
+
+  it('creates the adventure, says so, and opens it', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([])
+    const created: AdventureDetail = adventure({ id: 'new', title: 'Brand new' })
+    vi.mocked(getAdventure).mockResolvedValue(created)
+    vi.mocked(createAdventureFromHandoff).mockResolvedValue(created)
+    const { onNotice, user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Start from a handoff' }))
+    await user.click(screen.getByLabelText('1. The handoff text'))
+    await user.paste(source)
+    await user.click(screen.getByLabelText('3. The assistant’s answer (JSON)'))
+    await user.paste(document)
+    await user.click(screen.getByRole('button', { name: /^Create adventure with 2 changes/ }))
+
+    await waitFor(() =>
+      expect(onNotice).toHaveBeenCalledWith(
+        'Adventure created from a handoff — 2 changes applied.',
+      ),
+    )
+    expect(createAdventureFromHandoff).toHaveBeenCalledWith(
+      campaignId,
+      'personal',
+      characterId,
+      { details: { title: 'Brand new' }, objectives: { add: ['First goal'] } },
+      source,
+      null,
+    )
+    expect(await screen.findByRole('heading', { level: 3, name: 'Brand new' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Start from a handoff' })).not.toBeInTheDocument()
+  })
+
+  it('returns focus to the button when the dialog is cancelled', async () => {
+    vi.mocked(listAdventures).mockResolvedValue([])
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Start from a handoff' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start from a handoff' })).toHaveFocus(),
+    )
   })
 })
 

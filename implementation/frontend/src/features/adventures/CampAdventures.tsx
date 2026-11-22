@@ -9,6 +9,7 @@ import { AdventureCreateForm } from './AdventureCreateForm'
 import { AdventureEditor } from './AdventureEditor'
 import { AdventureInvitationCard } from './AdventureInvitationCard'
 import { AdventureView } from './AdventureView'
+import { HandoffDialog } from './HandoffDialog'
 import { adventureOptions, adventuresOptions, invitationsOptions } from './adventureQueries'
 import {
   adventureCharacterName,
@@ -69,6 +70,8 @@ export function CampAdventures({
   const [filter, setFilter] = useState('')
   const [dirty, setDirty] = useState(false)
   const [pendingNav, setPendingNav] = useState<AdventureScreen | null>(null)
+  const [startingFromHandoff, setStartingFromHandoff] = useState(false)
+  const handoffRef = useRef<HTMLButtonElement>(null)
   // The adventure an open editor started from, kept even if it disappears elsewhere meanwhile.
   const [editing, setEditing] = useState<AdventureDetail | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -186,7 +189,9 @@ export function CampAdventures({
             }
             newRef={newRef}
             onFilterChange={setFilter}
+            newFromHandoffRef={handoffRef}
             onNew={() => go({ type: 'new' })}
+            onNewFromHandoff={() => setStartingFromHandoff(true)}
             onOpen={(id) => go({ type: 'adventure', id })}
             onRespond={async (invitation, accept, keepShared) => {
               const result = await actions.respond(invitation, accept, keepShared)
@@ -306,6 +311,7 @@ export function CampAdventures({
               }
               return result.ok
             }}
+            onNotice={onNotice}
             onPostUpdate={(body) => actions.postUpdate(adventure.id, body)}
             onPropose={async (characterId) => {
               const result = await actions.propose(adventure.id, characterId)
@@ -390,6 +396,30 @@ export function CampAdventures({
           />
         </div>
       )}
+
+      {startingFromHandoff && (
+        <HandoffDialog
+          create={{
+            campaignId,
+            characters: mine,
+            defaultCharacterId: defaultCharacterId(mine, userId),
+          }}
+          onClose={() => {
+            setStartingFromHandoff(false)
+            window.setTimeout(() => handoffRef.current?.focus(), 0)
+          }}
+          onCreated={(created, count) => {
+            setStartingFromHandoff(false)
+            onNotice(
+              count > 0
+                ? `Adventure created from a handoff — ${count} ${count === 1 ? 'change' : 'changes'} applied.`
+                : 'Adventure created from a handoff.',
+            )
+            go({ type: 'adventure', id: created.id }, { force: true })
+          }}
+          userId={userId}
+        />
+      )}
     </CampPanel>
   )
 }
@@ -402,8 +432,10 @@ function AdventureList({
   invitations,
   invitationsStatus,
   newRef,
+  newFromHandoffRef,
   onFilterChange,
   onNew,
+  onNewFromHandoff,
   onOpen,
   onRespond,
   onRetry,
@@ -421,8 +453,10 @@ function AdventureList({
   invitations: AdventureInvitation[] | undefined
   invitationsStatus: 'pending' | 'error' | 'success'
   newRef: React.Ref<HTMLButtonElement>
+  newFromHandoffRef: React.Ref<HTMLButtonElement>
   onFilterChange: (value: string) => void
   onNew: () => void
+  onNewFromHandoff: () => void
   onOpen: (id: string) => void
   onRespond: (
     invitation: AdventureInvitation,
@@ -533,6 +567,14 @@ function AdventureList({
             <button className="journal-button" onClick={onNew} ref={newRef} type="button">
               <PixelIcon name="flag" />
               New adventure
+            </button>
+            <button
+              className="journal-button journal-button--secondary"
+              onClick={onNewFromHandoff}
+              ref={newFromHandoffRef}
+              type="button"
+            >
+              Start from a handoff
             </button>
             {all.length > 0 && (
               <div className="journal-field adventure-toolbar__filter">

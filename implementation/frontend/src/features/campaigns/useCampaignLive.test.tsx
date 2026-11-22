@@ -75,6 +75,7 @@ describe('what it subscribes to', () => {
     expect(options.scope).toBe(`${campaignId}:${userId}`)
     const seen = options.subscriptions.map((entry) => `${entry.table}:${entry.event}`).sort()
     expect(seen).toEqual([
+      'adventure_handoffs:INSERT',
       'adventure_objectives:INSERT',
       'adventure_objectives:UPDATE',
       'adventure_participants:INSERT',
@@ -88,7 +89,11 @@ describe('what it subscribes to', () => {
     ])
     expect(options.subscriptions.some((entry) => entry.event === '*')).toBe(false)
     for (const entry of options.subscriptions) {
-      if (['notes', 'adventures', 'adventure_participants'].includes(entry.table)) {
+      if (
+        ['notes', 'adventures', 'adventure_participants', 'adventure_handoffs'].includes(
+          entry.table,
+        )
+      ) {
         expect(entry.filter).toBe(`campaign_id=eq.${campaignId}`)
       }
     }
@@ -146,6 +151,21 @@ describe('refreshing what changed', () => {
     expect(keysOf(spy).sort()).toEqual(
       [adventureDetail, adventuresList].map((key) => JSON.stringify(key)).sort(),
     )
+  })
+
+  it('refetches the adventure and its sources when a handoff source arrives', () => {
+    const spy = setup()
+    emit('adventure_handoffs', 'INSERT', { adventure_id: adventureId })
+    settle()
+    expect(keysOf(spy).sort()).toEqual(
+      [adventureDetail, ['campaigns', 'adventures', 'handoffs', adventureId, userId]]
+        .map((key) => JSON.stringify(key))
+        .sort(),
+    )
+    spy.mockClear()
+    emit('adventure_handoffs', 'INSERT', {})
+    settle()
+    expect(spy).not.toHaveBeenCalled()
   })
 
   it('does not refetch the list for another campaign’s objective', () => {
