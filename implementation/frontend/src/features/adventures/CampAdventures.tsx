@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CampPanel } from '../campaigns/camp/CampPanel'
 import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import type { CharacterSummary } from '../characters/characterTypes'
-import { PixelIcon } from '../characters/PixelIcon'
+import { PixelIcon, type PixelIconName } from '../characters/PixelIcon'
 import { UnsavedChangesDialog } from '../characters/UnsavedChangesDialog'
 import { AdventureCreateForm } from './AdventureCreateForm'
 import { AdventureEditor } from './AdventureEditor'
@@ -25,6 +25,7 @@ import {
   shareRequestLabel,
   waitingReasons,
 } from './adventureRules'
+import { statusIcons, typeIcons } from './adventureIcons'
 import { isAdventureUnavailable } from './adventureService'
 import type { AdventureDetail, AdventureInvitation, AdventureSummary } from './adventureTypes'
 import type { AdventureAction, AdventureResult, useAdventureActions } from './useAdventureActions'
@@ -36,6 +37,36 @@ export type AdventureScreen =
   | { type: 'new' }
   | { type: 'adventure'; id: string }
   | { type: 'edit'; id: string }
+
+/** A group's title with how many it holds, kept outside the heading so its name stays plain. */
+function GroupHead({
+  children,
+  count,
+  icon,
+  id,
+  noun,
+}: {
+  children: ReactNode
+  count: number
+  icon: PixelIconName
+  id: string
+  noun: string
+}) {
+  return (
+    <div className="adventure-group__head">
+      <h3 className="journal-section-title" id={id}>
+        <PixelIcon name={icon} />
+        {children}
+      </h3>
+      {count > 0 && (
+        <span className="adventure-group__count">
+          {count} {noun}
+          {count === 1 ? '' : 's'}
+        </span>
+      )}
+    </div>
+  )
+}
 
 /** The "Adventures" destination at the map table: list, read, write, track, and archive. */
 export function CampAdventures({
@@ -488,51 +519,74 @@ function AdventureList({
             : shareRequestLabel(item, userId, roster),
         )
       : []
+    const waiting = reasons.length > 0
     return (
-      <li className="adventure-row" key={item.id}>
-        <button
-          className="adventure-row__open"
-          data-adventure-id={item.id}
-          onClick={() => onOpen(item.id)}
-          type="button"
-        >
-          {item.title}
-        </button>
-        <div className="adventure-row__facts">
-          <ul aria-label="About this adventure" className="journal-chips adventure-row__chips">
-            <li className="journal-chip">
-              <PixelIcon name="flag" />
-              <span>{adventureTypeLabels[item.type]}</span>
-            </li>
-            <li className="journal-chip">{adventureStatusLabels[item.status]}</li>
-          </ul>
-          <p className="adventure-row__meta">
-            {names.length > 0 && <span>{names.join(', ')}</span>}
-            {groups.shared.includes(item) && <span>Read-only</span>}
-            {progress.total > 0 && (
-              <span>
-                {progress.done} of {progress.total} objectives
-              </span>
-            )}
-          </p>
+      <li
+        className="adventure-row"
+        data-status={item.status}
+        data-type={item.type}
+        data-waiting={waiting || undefined}
+        key={item.id}
+      >
+        <span aria-hidden="true" className="adventure-row__spine">
+          <PixelIcon name={typeIcons[item.type]} scale={3} />
+        </span>
+        <div className="adventure-row__body">
+          <button
+            className="adventure-row__open"
+            data-adventure-id={item.id}
+            onClick={() => onOpen(item.id)}
+            type="button"
+          >
+            {item.title}
+          </button>
+          {item.next_step && (
+            <p className="adventure-row__next">
+              <span className="adventure-row__label">Next:</span> {item.next_step}
+            </p>
+          )}
+          {reasons.map((reason) => (
+            <p className="adventure-row__waiting" key={reason}>
+              <PixelIcon name="flame" />
+              {reason}
+            </p>
+          ))}
+          <div className="adventure-row__facts">
+            <ul aria-label="About this adventure" className="journal-chips adventure-row__chips">
+              <li className="journal-chip">
+                <PixelIcon name={typeIcons[item.type]} />
+                <span>{adventureTypeLabels[item.type]}</span>
+              </li>
+              <li className={`journal-chip journal-chip--status-${item.status}`}>
+                <PixelIcon name={statusIcons[item.status]} />
+                <span>{adventureStatusLabels[item.status]}</span>
+              </li>
+            </ul>
+            <p className="adventure-row__meta">
+              {names.length > 0 && <span>{names.join(', ')}</span>}
+              {groups.shared.includes(item) && <span>Read-only</span>}
+              {progress.total > 0 && (
+                <span className="adventure-row__progress">
+                  <span aria-hidden="true" className="adventure-row__bar">
+                    <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+                  </span>
+                  <span>
+                    {progress.done} of {progress.total} objectives
+                  </span>
+                </span>
+              )}
+            </p>
+          </div>
         </div>
-        {reasons.map((reason) => (
-          <p className="adventure-row__waiting" key={reason}>
-            <PixelIcon name="flame" />
-            {reason}
-          </p>
-        ))}
-        {item.next_step && <p className="adventure-row__next">Next: {item.next_step}</p>}
       </li>
     )
   }
 
   const group = (id: string, heading: string, rows: AdventureSummary[], emptyText: string) => (
     <section aria-labelledby={id} className="adventure-group">
-      <h3 className="journal-section-title" id={id}>
-        <PixelIcon name="flag" />
+      <GroupHead count={rows.length} id={id} noun="adventure" icon="flag">
         {heading}
-      </h3>
+      </GroupHead>
       {rows.length === 0 ? (
         <p className="adventure-group__empty">{emptyText}</p>
       ) : (
@@ -604,10 +658,14 @@ function AdventureList({
             <>
               {(waitingCount > 0 || invitationsStatus === 'error') && (
                 <section aria-labelledby="adventures-waiting-heading" className="adventure-group">
-                  <h3 className="journal-section-title" id="adventures-waiting-heading">
-                    <PixelIcon name="flame" />
+                  <GroupHead
+                    count={waitingCount}
+                    icon="flame"
+                    id="adventures-waiting-heading"
+                    noun="item"
+                  >
                     Waiting for you
-                  </h3>
+                  </GroupHead>
                   {invitationsStatus === 'error' && (
                     <div className="journal-status journal-status--error" role="alert">
                       <p>Your invitations could not be loaded.</p>

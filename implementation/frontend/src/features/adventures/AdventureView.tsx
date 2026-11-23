@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CampaignRosterMember } from '../campaigns/campaignTypes'
 import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
+import { typeIcons } from './adventureIcons'
 import { AdventureObjectives } from './AdventureObjectives'
 import { AdventureSources } from './AdventureSources'
 import { handoffsOptions } from './adventureQueries'
@@ -152,7 +153,7 @@ export function AdventureView({
         </h3>
         <ul aria-label="About this adventure" className="journal-chips">
           <li className="journal-chip">
-            <PixelIcon name="flag" />
+            <PixelIcon name={typeIcons[adventure.type]} />
             <span>{adventureTypeLabels[adventure.type]}</span>
           </li>
           <li
