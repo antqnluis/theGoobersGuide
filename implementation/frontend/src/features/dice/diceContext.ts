@@ -75,6 +75,11 @@ export type DiceContextValue = {
   resultSeq: number
   /** When the latest roll arrived (ms since epoch), so the tray can tell a fresh throw from a stale one. */
   resultAt: number
+  /**
+   * The newest roll anyone at the table made that this player can see (their own included), so the
+   * tray and its peek update when another player rolls. `seq` counts them; `at` is when it arrived.
+   */
+  latest: { roll: DiceRollRecord; at: number; seq: number } | null
   /** Set while the latest roll is a natural 20 on an attack that has damage to double. */
   critical: { label: string } | null
   rollCritical: () => Promise<RollOutcome>
@@ -130,6 +135,7 @@ export const unavailableDice: DiceContextValue = {
   result: null,
   resultSeq: 0,
   resultAt: 0,
+  latest: null,
   critical: null,
   rollCritical: unavailable,
   failure: null,

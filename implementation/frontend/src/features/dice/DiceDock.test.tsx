@@ -407,6 +407,36 @@ describe('the log', () => {
     expect(within(log).getByText('Mira')).toBeInTheDocument()
   })
 
+  it('puts another player’s roll on the plate, with their name, as it arrives', async () => {
+    renderDock()
+    const { tray } = await openTray()
+    await within(tray).findByText(/The table is quiet/)
+    expect(within(tray).getByText('Nothing rolled yet')).toBeInTheDocument()
+    await act(async () =>
+      channel.onInsert?.({
+        new: stored({ roller_id: mira, total: 17, label: 'Perception check' }),
+      }),
+    )
+    const plate = tray.querySelector('.dice-result')!
+    expect(within(plate as HTMLElement).getByText('Perception check')).toBeInTheDocument()
+    expect(plate.querySelector('.dice-result__who')).toHaveTextContent('Mira')
+    expect(plate.querySelector('.dice-result__total')).toHaveTextContent('17')
+  })
+
+  it('peeks at another player’s roll while the tray is shut, and opens from it', async () => {
+    renderDock()
+    const user = userEvent.setup()
+    await waitFor(() => expect(channel.onInsert).not.toBeNull())
+    await act(async () =>
+      channel.onInsert?.({ new: stored({ roller_id: mira, total: 14, label: 'Insight' }) }),
+    )
+    const peek = await screen.findByRole('button', { name: /Mira · Insight/ })
+    expect(peek).toHaveTextContent('14')
+    await user.click(peek)
+    const tray = screen.getByRole('region', { name: 'Dice tray' })
+    expect(tray.querySelector('.dice-result__who')).toHaveTextContent('Mira')
+  })
+
   it('shows when live updates pause and come back', async () => {
     renderDock()
     const { tray } = await openTray()

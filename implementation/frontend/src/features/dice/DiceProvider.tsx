@@ -65,6 +65,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const [announcement, setAnnouncement] = useState('')
   const [resultSeq, setResultSeq] = useState(0)
   const [resultAt, setResultAt] = useState(0)
+  const [latest, setLatest] = useState<DiceContextValue['latest']>(null)
   const [canRepeat, setCanRepeat] = useState(false)
   const [offer, setOffer] = useState<CriticalOffer | null>(null)
   const [host, setHost] = useState<HTMLElement | null>(null)
@@ -93,10 +94,15 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       setCanRepeat(false)
       setOffer(null)
       setResult(null)
+      setLatest(null)
       setFailure(null)
       setUnseen(0)
       setAnnouncement('')
     }
+  }, [])
+
+  const showLatest = useCallback((roll: DiceRollRecord) => {
+    setLatest((current) => ({ roll, at: Date.now(), seq: (current?.seq ?? 0) + 1 }))
   }, [])
 
   const names = scope?.memberNames
@@ -116,15 +122,19 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     [characters],
   )
 
-  const onRemoteRoll = useCallback((roll: DiceRollRecord) => {
-    if (!openRef.current) {
-      setUnseen((count) => count + 1)
-      return
-    }
-    // Others' rolls are announced only while the tray is open, so a reader isn't flooded.
-    const who = scopeRef.current?.memberNames.get(roll.roller_id) ?? 'Former member'
-    setAnnouncement(announce(who, roll))
-  }, [])
+  const onRemoteRoll = useCallback(
+    (roll: DiceRollRecord) => {
+      showLatest(roll)
+      if (!openRef.current) {
+        setUnseen((count) => count + 1)
+        return
+      }
+      // Others' rolls are announced only while the tray is open, so a reader isn't flooded.
+      const who = scopeRef.current?.memberNames.get(roll.roller_id) ?? 'Former member'
+      setAnnouncement(announce(who, roll))
+    },
+    [showLatest],
+  )
 
   const serverLog = useDiceLog({
     campaignId: scope?.campaignId ?? '',
@@ -132,20 +142,27 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     onRemoteRoll,
   })
 
-  const rollHere = useCallback((roll: PreparedRoll): DiceRollRecord => {
-    const record = localRollRecord(rollSpec(roll.spec), { label: roll.label, source: roll.source })
-    setLocalRolls((rolls) => [record, ...rolls].slice(0, localLogLimit))
-    setResult(record)
-    setResultSeq((seq) => seq + 1)
-    setResultAt(Date.now())
-    setAnnouncement(announce('You', record))
-    setOffer(
-      roll.critical
-        ? { rollId: record.id, ...roll.critical, visibility: 'self', characterId: null }
-        : null,
-    )
-    return record
-  }, [])
+  const rollHere = useCallback(
+    (roll: PreparedRoll): DiceRollRecord => {
+      const record = localRollRecord(rollSpec(roll.spec), {
+        label: roll.label,
+        source: roll.source,
+      })
+      setLocalRolls((rolls) => [record, ...rolls].slice(0, localLogLimit))
+      setResult(record)
+      setResultSeq((seq) => seq + 1)
+      setResultAt(Date.now())
+      showLatest(record)
+      setAnnouncement(announce('You', record))
+      setOffer(
+        roll.critical
+          ? { rollId: record.id, ...roll.critical, visibility: 'self', characterId: null }
+          : null,
+      )
+      return record
+    },
+    [showLatest],
+  )
 
   const execute = useCallback(
     async (roll: PreparedRoll): Promise<RollOutcome> => {
@@ -183,6 +200,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         setResult(record)
         setResultSeq((seq) => seq + 1)
         setResultAt(Date.now())
+        showLatest(record)
         setAnnouncement(announce('You', record))
         setOffer(
           roll.critical
@@ -200,7 +218,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         setPending(null)
       }
     },
-    [queryClient, rollHere],
+    [queryClient, rollHere, showLatest],
   )
 
   const roll = useCallback(
@@ -301,6 +319,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       result,
       resultSeq,
       resultAt,
+      latest,
       critical,
       rollCritical,
       failure,
@@ -334,6 +353,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       result,
       resultSeq,
       resultAt,
+      latest,
       retry,
       rollCritical,
       roll,

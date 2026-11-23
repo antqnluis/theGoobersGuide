@@ -24,7 +24,9 @@ function isTypingTarget(target: EventTarget | null) {
  */
 export function DiceDock() {
   const dice = useDice()
-  const { open, setOpen, result, resultSeq, failure } = dice
+  const { open, setOpen, latest, failure } = dice
+  const shown = latest?.roll ?? null
+  const shownSeq = latest?.seq ?? 0
   const buttonRef = useRef<HTMLButtonElement>(null)
   const trayRef = useRef<HTMLElement>(null)
   const restoredPin = useRef(false)
@@ -43,10 +45,10 @@ export function DiceDock() {
   // Closing the tray by hand also unpins it, so a pin never outlives the tray it kept open.
   const closeTray = useCallback(() => {
     restoreFocus.current = true
-    setSeenSeq(resultSeq)
+    setSeenSeq(shownSeq)
     setPinned(false)
     setOpen(false)
-  }, [resultSeq, setOpen, setPinned])
+  }, [setOpen, setPinned, shownSeq])
 
   // Escape leaves a pinned tray open and hands focus back to the button.
   const escapeTray = useCallback(() => {
@@ -85,12 +87,12 @@ export function DiceDock() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [closeTray, open, openTray, pinned])
 
-  const peeking = !open && Boolean(result) && resultSeq > seenSeq
+  const peeking = !open && Boolean(shown) && shownSeq > seenSeq
   useEffect(() => {
     if (!peeking || held) return
-    const timer = window.setTimeout(() => setSeenSeq(resultSeq), peekMs)
+    const timer = window.setTimeout(() => setSeenSeq(shownSeq), peekMs)
     return () => window.clearTimeout(timer)
-  }, [held, peeking, resultSeq])
+  }, [held, peeking, shownSeq])
 
   const target = dice.host ?? document.body
 
@@ -117,7 +119,7 @@ export function DiceDock() {
         </div>
       )}
 
-      {peeking && result && !failure && (
+      {peeking && shown && !failure && (
         <div
           className="dice-peek"
           onBlur={() => setHeld(false)}
@@ -126,15 +128,23 @@ export function DiceDock() {
           onPointerLeave={() => setHeld(false)}
         >
           <button className="dice-peek__open" onClick={openTray} type="button">
-            <span className="dice-peek__title">{rollTitle(result)}</span>
-            <CountingTotal className="dice-peek__total" key={resultSeq} value={result.total} />
-            <NaturalChip roll={result} />
+            <span className="dice-peek__title">
+              {shown.id !== dice.result?.id && (
+                <>
+                  <span className="dice-peek__who">{dice.rollerName(shown)}</span>
+                  {' · '}
+                </>
+              )}
+              {rollTitle(shown)}
+            </span>
+            <CountingTotal className="dice-peek__total" key={shownSeq} value={shown.total} />
+            <NaturalChip roll={shown} />
           </button>
-          {dice.critical && (
+          {dice.critical && shown.id === dice.result?.id && (
             <button
               className="dice-peek__critical"
               onClick={() => {
-                setSeenSeq(resultSeq)
+                setSeenSeq(shownSeq)
                 void dice.rollCritical()
               }}
               type="button"

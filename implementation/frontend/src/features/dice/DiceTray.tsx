@@ -94,7 +94,8 @@ export function DiceTray({
     arrangement.startMove(event)
   }
 
-  const result = dice.result
+  // The plate follows the table: whoever rolled last, you included.
+  const shown = dice.latest?.roll ?? dice.result
   return (
     <section
       aria-label="Dice tray"
@@ -180,12 +181,17 @@ export function DiceTray({
       <div className="dice-tray__scroll">
         <div className="dice-tray__body">
           <DiceResult
-            characterName={result ? dice.characterName(result) : null}
-            onCritical={dice.critical ? () => void dice.rollCritical() : undefined}
+            characterName={shown ? dice.characterName(shown) : null}
+            // Critical damage is yours to roll, and only for the roll that earned it.
+            onCritical={
+              dice.critical && shown?.id === dice.result?.id
+                ? () => void dice.rollCritical()
+                : undefined
+            }
             pendingTitle={dice.pending?.title ?? null}
-            resultAt={dice.resultAt}
-            roll={result}
-            rollerName={result ? dice.rollerName(result) : ''}
+            resultAt={dice.latest?.at ?? dice.resultAt}
+            roll={shown}
+            rollerName={shown ? dice.rollerName(shown) : ''}
           />
 
           {dice.failure && (
