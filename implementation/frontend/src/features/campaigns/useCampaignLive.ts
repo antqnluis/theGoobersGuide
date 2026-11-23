@@ -11,6 +11,7 @@ import {
 } from '../adventures/adventureQueries'
 import { characterSheetKey } from '../characters/characterQueries'
 import { noteKey, notesKey, notesPrefix } from '../notes/noteQueries'
+import { overviewKey } from './overview/overviewQueries'
 
 const settleMs = 250
 /** A query fetched this recently already holds what the join would refetch. */
@@ -85,6 +86,13 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
     invalidateSoon(requestCountKey(campaignId, userId), invitationsKey(campaignId, userId))
 
   const subscriptions: ChangeSubscription[] = [
+    // The owner's overview: a new location or announcement reaches every member at once.
+    ...watch(
+      'campaign_overviews',
+      ['INSERT', 'UPDATE'],
+      () => invalidateSoon(overviewKey(campaignId, userId)),
+      campaignFilter,
+    ),
     // Vitals and sheet edits: the sheet has no campaign column to filter on, so every sheet this
     // player may read arrives, and only a cached one is refetched.
     ...watch('character_sheets', ['UPDATE'], (change) => {

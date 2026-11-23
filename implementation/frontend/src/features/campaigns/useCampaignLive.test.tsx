@@ -83,6 +83,8 @@ describe('what it subscribes to', () => {
       'adventure_updates:INSERT',
       'adventures:INSERT',
       'adventures:UPDATE',
+      'campaign_overviews:INSERT',
+      'campaign_overviews:UPDATE',
       'character_sheets:UPDATE',
       'notes:INSERT',
       'notes:UPDATE',
@@ -90,9 +92,13 @@ describe('what it subscribes to', () => {
     expect(options.subscriptions.some((entry) => entry.event === '*')).toBe(false)
     for (const entry of options.subscriptions) {
       if (
-        ['notes', 'adventures', 'adventure_participants', 'adventure_handoffs'].includes(
-          entry.table,
-        )
+        [
+          'notes',
+          'adventures',
+          'adventure_participants',
+          'adventure_handoffs',
+          'campaign_overviews',
+        ].includes(entry.table)
       ) {
         expect(entry.filter).toBe(`campaign_id=eq.${campaignId}`)
       }
@@ -111,6 +117,13 @@ describe('refreshing what changed', () => {
     emit('character_sheets', 'UPDATE', { character_id: 'c1' })
     settle()
     expect(keysOf(spy)).toEqual([JSON.stringify(sheet('c1'))])
+  })
+
+  it('refetches the overview when the owner changes it', () => {
+    const spy = setup()
+    emit('campaign_overviews', 'UPDATE', { campaign_id: campaignId })
+    settle()
+    expect(keysOf(spy)).toEqual([JSON.stringify(['campaigns', 'overview', campaignId, userId])])
   })
 
   it('refetches the notes list and the note', () => {

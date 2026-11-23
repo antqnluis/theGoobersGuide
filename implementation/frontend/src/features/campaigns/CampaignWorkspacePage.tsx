@@ -26,6 +26,9 @@ import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
 import { CampaignPartyMembers } from './CampaignPartyMembers'
 import { CampaignCamp } from './CampaignCamp'
 import { CampPanel } from './camp/CampPanel'
+import { CampaignOverview } from './overview/CampaignOverview'
+import { overviewOptions } from './overview/overviewQueries'
+import { useOverviewActions } from './overview/useOverviewActions'
 import { AppearanceDrawer } from './camp/AppearanceDrawer'
 import { adventurerAppearance } from './camp/adventurerAppearance'
 import { campaignAppearancesOptions } from './camp/campAppearance'
@@ -76,8 +79,11 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const characterActions = useCharacterActions(campaignId, userId)
   const noteActions = useNoteActions(campaignId, userId)
   const adventureActions = useAdventureActions(campaignId, userId)
+  const overviewActions = useOverviewActions(campaignId, userId)
   const queryClient = useQueryClient()
   const appearanceActions = useCampaignAppearance(campaignId, userId)
+  const [overviewEditing, setOverviewEditing] = useState(false)
+  const [overviewDirty, setOverviewDirty] = useState(false)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
   const [characterDirty, setCharacterDirty] = useState(false)
   const [noteScreen, setNoteScreen] = useState<NoteScreen>({ type: 'list' })
@@ -118,6 +124,13 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const adventuresList = useQuery(adventuresOptions(campaignId, userId, false))
   const requestCount = useQuery(
     requestCountOptions(
+      campaignId,
+      userId,
+      Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+    ),
+  )
+  const overviewQuery = useQuery(
+    overviewOptions(
       campaignId,
       userId,
       Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
@@ -322,6 +335,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       characterFolio={tentView.type === 'character' || tentView.type === 'edit'}
       partyFolio={partySheetId !== null}
       unsavedChanges={{
+        overview: overviewDirty,
         characters: characterDirty,
         notes: noteDirty,
         adventures: adventureDirty,
@@ -365,9 +379,13 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         setAdventureScreen({ type: 'list' })
         setAdventureDirty(false)
         setPartySheetId(null)
+        overviewActions.clearError()
+        setOverviewEditing(false)
+        setOverviewDirty(false)
       }}
       isDeleting={
         management.isDeleting ||
+        overviewActions.isSaving ||
         membership.pendingAction !== null ||
         characterActions.pendingAction !== null ||
         noteActions.pendingAction !== null ||
@@ -416,26 +434,21 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         </ViewTransition>
       }
       overview={
-        <CampPanel
-          headingId="camp-overview-heading"
-          icon="flag"
-          place="Campfire"
-          title={campaign.name}
-        >
-          <p className="camp-ledger__description">
-            {campaign.description || 'No description has been added.'}
-          </p>
-          <dl className="camp-ledger__facts">
-            <div>
-              <dt>Your role</dt>
-              <dd>{currentRole}</dd>
-            </div>
-            <div>
-              <dt>Campaign owner</dt>
-              <dd>{ownerUsername}</dd>
-            </div>
-          </dl>
-        </CampPanel>
+        <CampaignOverview
+          actions={overviewActions}
+          campaign={campaign}
+          editing={overviewEditing}
+          isOwner={isOwner}
+          onDirtyChange={setOverviewDirty}
+          onEditingChange={setOverviewEditing}
+          onNotice={toasts.push}
+          onRetry={() => overviewQuery.refetch()}
+          overview={overviewQuery.data}
+          ownerUsername={ownerUsername}
+          partySize={roster.length}
+          role={currentRole}
+          status={overviewQuery.isError ? 'error' : overviewQuery.isSuccess ? 'success' : 'pending'}
+        />
       }
       party={
         <CampaignPartyMembers
