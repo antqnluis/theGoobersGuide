@@ -1,1 +1,1 @@
-{"scale": 0.2637, "key": "#ff00ff", "materials": ["ground", "foliage", "canvas", "ink"], "layer": {"tile": "mirror", "anchor": {"edge": "top", "y": 168}, "mirrorDown": true}, "parallax": 1, "provenance": "ChatGPT, comp A style; meadow, mirrored"}
+{"scale": 0.2637, "key": "#ff00ff", "materials": ["ground", "foliage", "canvas", "ink"], "layer": {"tile": "mirror", "anchor": {"edge": "top", "y": 168}, "mirrorDown": true, "mirrorTrim": 10, "mirrorShift": 173}, "parallax": 1, "provenance": "ChatGPT, comp A style; meadow, mirrored"}

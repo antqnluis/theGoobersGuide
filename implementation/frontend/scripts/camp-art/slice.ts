@@ -96,6 +96,16 @@ export type LayerPlacement = {
   /** Repeat the image downwards, flipped, to fill the canvas. */
   mirrorDown?: boolean
   /**
+   * With `mirrorDown`: painted rows at the bottom to leave out before reflecting,
+   * for a source whose lower edge is darkened or dashed and would show as a seam.
+   */
+  mirrorTrim?: number
+  /**
+   * With `mirrorDown`: shifts the reflected copies sideways by this many pixels,
+   * so props are not mirrored into obvious pairs across the axis.
+   */
+  mirrorShift?: number
+  /**
    * Fills below each painted column down to this row (exclusive) with the layer's
    * most common bottom-edge colour, so a distant ridge never leaves sky showing
    * below it where the nearer layers are sparse.
@@ -110,7 +120,15 @@ const bounce = (value: number, size: number) => {
 }
 
 export function composeLayer(image: Quantized, placement: LayerPlacement): Quantized {
-  const { width, height, tile, anchor, mirrorDown = false } = placement
+  const {
+    width,
+    height,
+    tile,
+    anchor,
+    mirrorDown = false,
+    mirrorTrim = 0,
+    mirrorShift = 0,
+  } = placement
   const indices = new Int16Array(width * height).fill(-1)
 
   const rowIsClear = (row: number) =>
@@ -119,6 +137,7 @@ export function composeLayer(image: Quantized, placement: LayerPlacement): Quant
   let lastRow = image.height - 1
   while (firstRow < image.height && rowIsClear(firstRow)) firstRow += 1
   while (lastRow > firstRow && rowIsClear(lastRow)) lastRow -= 1
+  if (mirrorDown) lastRow = Math.max(firstRow, lastRow - mirrorTrim)
 
   // Mirroring downwards reflects about the last painted row, not the image edge.
   const offsetY = anchor
@@ -130,14 +149,17 @@ export function composeLayer(image: Quantized, placement: LayerPlacement): Quant
   for (let y = 0; y < height; y += 1) {
     const sourceRow = y - offsetY
     let row = sourceRow
+    let shift = 0
     if (mirrorDown) {
       if (sourceRow < firstRow) continue
-      row = firstRow + bounce(sourceRow - firstRow, lastRow - firstRow + 1)
+      const size = lastRow - firstRow + 1
+      row = firstRow + bounce(sourceRow - firstRow, size)
+      if (sourceRow - firstRow >= size) shift = mirrorShift
     }
     if (row < 0 || row >= image.height) continue
     for (let x = 0; x < width; x += 1) {
       let column: number
-      if (tile === 'mirror') column = bounce(x, image.width)
+      if (tile === 'mirror') column = bounce(x + shift, image.width)
       else if (tile === 'edges') {
         const half = image.width / 2
         if (x < width / 2) column = x < half ? x : -1
