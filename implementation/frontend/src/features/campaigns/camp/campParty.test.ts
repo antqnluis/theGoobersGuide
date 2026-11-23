@@ -3,6 +3,8 @@ import {
   bedrollSeats,
   bedrolls,
   firePit,
+  journalCrates,
+  mapTable,
   partySeats,
   tent,
   wagon,
@@ -116,6 +118,8 @@ describe('outlineTargets', () => {
     expect(outlineTargets('overview', figures)).toEqual(new Set([firePit.id]))
     expect(outlineTargets('characters', figures)).toEqual(new Set([tent.id]))
     expect(outlineTargets('settings', figures)).toEqual(new Set([wagon.id]))
+    expect(outlineTargets('adventures', figures)).toEqual(new Set([mapTable.id]))
+    expect(outlineTargets('notes', figures)).toEqual(new Set([journalCrates.id]))
     expect(outlineTargets(null, figures).size).toBe(0)
   })
 
