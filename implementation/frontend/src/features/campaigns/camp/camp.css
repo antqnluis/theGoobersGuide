@@ -41,8 +41,12 @@
   padding: 0 var(--camp-gutter);
   gap: 12px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--camp-brass-soft) 22%, transparent);
-  background: var(--camp-surface);
+  /* No bar: the sky shows through, with only enough shade behind the controls to read them. */
+  background: linear-gradient(
+    color-mix(in srgb, var(--camp-night) 78%, transparent),
+    color-mix(in srgb, var(--camp-night) 0%, transparent)
+  );
+  text-shadow: 0 1px 10px color-mix(in srgb, var(--camp-shadow) 80%, transparent);
 }
 
 .workspace-page--camp .workspace-header__primary {

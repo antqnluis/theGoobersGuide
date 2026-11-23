@@ -380,7 +380,7 @@ The campfire is the scene's light. Two overlay canvases sit above the art: a **l
 Camp chrome (header, Places, name plates, the settings popover) is dark and warm, defined as `--camp-*` tokens in `camp.css`:
 
 - **Night** `#181628`: the page behind the scene, and the shadow base.
-- **Surface** `#1d192d` and **Hover** `#353142`: the header, popover, and hovered rows.
+- **Surface** `#1d192d` and **Hover** `#353142`: the popover and hovered rows. The header has no surface: it is transparent over the scene, with a shade of Night fading from 78% to nothing behind its controls and a soft text shadow.
 - **Cream** `#fff0d7`: text and the title, over the scene with a soft shadow.
 - **Brass** `#dab98a` and **Brass soft** `#e1c6a4`: hover accents, headings, and secondary text.
 - **Edge** `#b99969`: hairline borders on floating controls and plates.

@@ -163,7 +163,8 @@ describe('auth routes and forms', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Your campaigns' })).toBeVisible(),
     )
-    expect(window.location.pathname).toBe('/app/campaigns')
+    // The address follows the render by a tick under load, so wait for it too.
+    await waitFor(() => expect(window.location.pathname).toBe('/app/campaigns'))
   })
 
   it('signs out and returns to the public account page', async () => {
