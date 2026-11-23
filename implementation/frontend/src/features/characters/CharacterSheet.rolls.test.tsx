@@ -349,6 +349,39 @@ describe('where roll buttons do not appear', () => {
     expect(screen.getByText('Greataxe')).toBeInTheDocument()
   })
 
+  it('turns no dice text into a roll chip on another player’s sheet, but does on your own', async () => {
+    useFakeDice()
+    const withDice = sheet({
+      sheet: {
+        ...defaultSheetBody(),
+        features: 'Sneak attack adds 3d6.',
+        spells: 'Cantrips: Fire Bolt (1d10 fire)',
+        attacks: [
+          {
+            id: '3f1c9a52-8d4e-4b7a-9c61-0a2b5d7e9f10',
+            name: 'Dagger',
+            bonus: '',
+            damage: '',
+            notes: 'Poisoned for 1d4 extra.',
+          },
+        ],
+      },
+    })
+    vi.mocked(getCharacterSheet).mockResolvedValue(withDice)
+    renderSheet({ owner: '00000000-0000-4000-8000-000000000002' })
+    await ready()
+    expect(screen.getByText(/Sneak attack adds 3d6\./)).toBeInTheDocument()
+    expect(screen.getByText(/Poisoned for 1d4 extra\./)).toBeInTheDocument()
+    expect(document.querySelector('.roll-button')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Roll / })).toBeNull()
+    cleanup()
+
+    renderSheet()
+    await ready()
+    expect(screen.getByRole('button', { name: /^Roll 3d6/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Roll 1d4/ })).toBeInTheDocument()
+  })
+
   it('is absent from the edit view', async () => {
     useFakeDice()
     renderSheet({ readOnly: false })

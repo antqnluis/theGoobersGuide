@@ -24,6 +24,9 @@ import {
 } from './camp/campLayout'
 import type { AdventurerAppearance } from './camp/adventurerAppearance'
 import { figureSize, minNameUnit, overflowMarker, partyFigures } from './camp/campParty'
+import { sharedSheetMarkers, type SheetMarker } from './camp/campSheets'
+import { CampSheetMarkers } from './camp/CampSheetMarkers'
+import type { CharacterSummary } from '../characters/characterTypes'
 import {
   cameraToFrame,
   cameraToPlace,
@@ -95,6 +98,8 @@ export function CampaignCamp({
   roster,
   characterNames,
   appearances,
+  partyCharacters,
+  onOpenSheet,
   landfallKey,
   isOwner,
   isDeleting,
@@ -132,6 +137,13 @@ export function CampaignCamp({
   characterNames?: ReadonlyMap<string, string>
   /** Looks players saved for this campaign, by profile id; others keep the default look. */
   appearances?: ReadonlyMap<string, AdventurerAppearance>
+  /**
+   * Every character this member may see (already limited by row-level security). A seated
+   * player whose party character has shared their sheet wears a "Sheet" tag on their bedroll.
+   */
+  partyCharacters?: readonly CharacterSummary[]
+  /** Opens a shared sheet in the Party journal; called just before the journal opens. */
+  onOpenSheet?: (characterId: string) => void
   /**
    * Set only for a fresh arrival from the galaxy: the history entry's key, so the
    * landfall descent plays once for that arrival and never again.
@@ -244,6 +256,10 @@ export function CampaignCamp({
     () => partyFigures(roster, characterNames, appearances),
     [roster, characterNames, appearances],
   )
+  const sheetMarkers = useMemo(
+    () => sharedSheetMarkers(figures, partyCharacters ?? []),
+    [figures, partyCharacters],
+  )
   const highlight = hovered ?? focused ?? active?.id ?? null
   const onReady = useCallback(() => setReady(true), [])
   const onFail = useCallback(() => setArtFailed(true), [])
@@ -292,6 +308,19 @@ export function CampaignCamp({
       const foot = projectToDevice({ x, y }, view)
       plate.style.left = `${foot.x / current.dpr}px`
       plate.style.top = `${(foot.y - figureSize.height * view.scale) / current.dpr}px`
+    }
+    for (const tag of scene.querySelectorAll<HTMLElement>('[data-camp-sheet-at]')) {
+      const [x, y] = (tag.dataset.campSheetAt ?? '').split(',').map(Number)
+      const foot = projectToDevice({ x, y }, view)
+      const left = foot.x / current.dpr
+      const top = foot.y / current.dpr
+      tag.style.left = `${left}px`
+      tag.style.top = `${top}px`
+      // A tag whose bedroll is off-frame leaves the tab order and the click targets.
+      tag.style.visibility =
+        left >= 0 && left <= viewport.width && top >= 0 && top <= viewport.height
+          ? 'visible'
+          : 'hidden'
     }
   }, [])
 
@@ -517,6 +546,19 @@ export function CampaignCamp({
     )
   }
 
+  /** Opens the Party journal on a shared sheet from its tag on the bedroll. */
+  function openSheet(marker: SheetMarker, opener: HTMLButtonElement) {
+    const party = campLocations.find(({ id }) => id === 'party')
+    if (!party) return
+    onOpenSheet?.(marker.characterId)
+    open(party, opener)
+  }
+
+  /** Tags need the same room as the name plates: at a smaller scale they would overlap. */
+  function sheetsVisible() {
+    return measure !== null && measure.view.scale / measure.dpr >= minNameUnit
+  }
+
   /** Name plates above each seated adventurer; decoration, since Party lists everyone. */
   function names() {
     if (!measure) return null
@@ -588,6 +630,13 @@ export function CampaignCamp({
           </SceneBoundary>
         )}
         {!artFailed && ready && names()}
+        {!artFailed && ready && sheetsVisible() && (
+          <CampSheetMarkers
+            attention={attention('party')}
+            markers={sheetMarkers}
+            onOpen={openSheet}
+          />
+        )}
         {!artFailed && ready && available.map(sign)}
         {/* A pointer shortcut only: "Back to campaigns" in the header is the accessible route. */}
         {!artFailed && ready && (

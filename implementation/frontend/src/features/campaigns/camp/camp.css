@@ -279,6 +279,47 @@
   transform: translate(-50%, calc(-100% - 2px));
 }
 
+/* Sheet tags on the bedrolls of shared character sheets. Real buttons, so the hit area is 44px. */
+.camp-sheets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.camp-sheet {
+  position: absolute;
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  transform: translate(-50%, -6px);
+}
+
+.camp-sheet__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--camp-edge);
+  border-radius: 0;
+  padding: 1px 5px;
+  color: var(--camp-cream);
+  background: var(--camp-plate);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.camp-sheet:is(:hover, :focus-visible) .camp-sheet__tag {
+  border-color: var(--camp-plate-hot-edge);
+  background: var(--camp-plate-hot);
+}
+
 .camp-sign {
   position: absolute;
   cursor: pointer;
@@ -412,6 +453,7 @@
     .camp-exit,
     .workspace-account button,
     .camp-sign,
+    .camp-sheet,
     .camp-places__destination,
     .camp-state button,
     .camp-state a

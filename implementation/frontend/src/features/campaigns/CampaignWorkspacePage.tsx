@@ -401,6 +401,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       onLeave={() => navigate('/app/campaigns')}
       roster={roster}
       characterNames={characterNames}
+      partyCharacters={charactersData}
+      onOpenSheet={setPartySheetId}
       appearances={appearances}
       partyDrawer={
         <AppearanceDrawer

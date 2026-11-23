@@ -263,7 +263,7 @@ function InventoryRow({
         <details className="inventory-item__details">
           <summary>Description</summary>
           <p className="sheet-text">
-            <DiceText context={item.name} text={item.description} />
+            <DiceText context={item.name} rollable={Boolean(actions)} text={item.description} />
           </p>
         </details>
       )}

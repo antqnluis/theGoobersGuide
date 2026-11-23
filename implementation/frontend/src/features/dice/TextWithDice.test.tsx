@@ -96,6 +96,19 @@ describe('dice in the spell list', () => {
     expect(screen.getByRole('button', { name: 'Roll 1d8 + 3 for Cure Wounds' })).toBeVisible()
   })
 
+  it('leaves dice as plain words when the text is not rollable', () => {
+    render(
+      <>
+        <DiceText rollable={false} text="Deals 2d6 fire." />
+        <SpellList rollable={false} text="Cantrips: Fire Bolt (1d10)" />
+        <SpellList rollable={false} text="Wild surge: roll 1d100." />
+      </>,
+    )
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText('Deals 2d6 fire.')).toBeVisible()
+    expect(screen.getByText(/Wild surge: roll 1d100\./)).toBeVisible()
+  })
+
   it('also reads dice in text it could not place', () => {
     render(<SpellList text="Wild surge on a natural 1: roll 1d100." />)
     expect(screen.getByRole('button', { name: 'Roll 1d100' })).toBeVisible()

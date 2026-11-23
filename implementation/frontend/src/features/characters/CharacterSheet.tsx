@@ -733,6 +733,7 @@ function SheetContent({
                           {body[name] ? (
                             <DiceText
                               characterId={canRoll ? character.id : null}
+                              rollable={canRoll}
                               text={body[name]}
                             />
                           ) : (
@@ -821,6 +822,7 @@ function SheetContent({
                             <DiceText
                               characterId={canRoll ? character.id : null}
                               context={attack.name || undefined}
+                              rollable={canRoll}
                               text={attack.notes}
                             />
                           </small>
@@ -891,7 +893,11 @@ function SheetContent({
                 Spells
               </h3>
               {readOnly ? (
-                <SpellList characterId={canRoll ? character.id : null} text={body.spells} />
+                <SpellList
+                  characterId={canRoll ? character.id : null}
+                  rollable={canRoll}
+                  text={body.spells}
+                />
               ) : (
                 <div className="journal-field">
                   <label className="visually-hidden" htmlFor={`sheet-spells-${character.id}`}>

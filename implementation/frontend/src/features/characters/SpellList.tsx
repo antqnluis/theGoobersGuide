@@ -5,7 +5,16 @@ import { parseSpells } from './spellFormat'
  * The spells field laid out as a spell book: a card per group (cantrips, each spell level)
  * with its slots, and a list of spells. Text it cannot place is shown as written.
  */
-export function SpellList({ text, characterId }: { text: string; characterId?: string | null }) {
+export function SpellList({
+  text,
+  characterId,
+  rollable = true,
+}: {
+  text: string
+  characterId?: string | null
+  /** False on another player's sheet: dice notation stays plain text. */
+  rollable?: boolean
+}) {
   const blocks = parseSpells(text)
   if (blocks.length === 0) return <p className="sheet-text">Nothing recorded.</p>
 
@@ -14,7 +23,7 @@ export function SpellList({ text, characterId }: { text: string; characterId?: s
       {blocks.map((block, index) =>
         block.kind === 'text' ? (
           <p className="sheet-text spell-book__text" key={index}>
-            <DiceText characterId={characterId} text={block.text} />
+            <DiceText characterId={characterId} rollable={rollable} text={block.text} />
           </p>
         ) : (
           <section
@@ -44,6 +53,7 @@ export function SpellList({ text, characterId }: { text: string; characterId?: s
                       <DiceText
                         characterId={characterId}
                         context={spell.name}
+                        rollable={rollable}
                         text={spell.detail}
                       />
                     </span>

@@ -170,12 +170,19 @@ describe('CharacterInventory list', () => {
     expect(screen.getByText('Longsword')).toBeInTheDocument()
   })
 
-  it('turns dice in a description into roll chips, leaving the words as written', async () => {
-    renderInventory({ owner: false })
+  it('turns dice in your own descriptions into roll chips, leaving the words as written', async () => {
+    renderInventory()
     await screen.findByText('Rope')
     const chip = screen.getByRole('button', { name: 'Roll 2d4 + 2 for Healing potion' })
     expect(chip).toHaveTextContent('2d4 + 2')
     expect(chip.closest('p')).toHaveTextContent(/Restores 2d4 \+ 2 hit points\./)
+  })
+
+  it('leaves dice as plain words in another player’s inventory', async () => {
+    renderInventory({ owner: false })
+    await screen.findByText('Rope')
+    expect(screen.queryByRole('button', { name: /^Roll / })).toBeNull()
+    expect(screen.getByText(/Restores 2d4 \+ 2 hit points\./)).toBeInTheDocument()
   })
 })
 

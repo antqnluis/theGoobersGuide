@@ -10,12 +10,16 @@ export function DiceText({
   text,
   context,
   characterId,
+  rollable = true,
 }: {
   text: string
   context?: string
   characterId?: string | null
+  /** False on text you may read but not roll from (another player's sheet): plain words. */
+  rollable?: boolean
 }) {
   const segments = useMemo(() => splitDice(text), [text])
+  if (!rollable) return <>{text}</>
   return (
     <>
       {segments.map((segment, index) =>

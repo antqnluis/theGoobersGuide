@@ -7,6 +7,7 @@ import { CampPanel } from './camp/CampPanel'
 import { CharacterSheet } from '../characters/CharacterSheet'
 import { describeCharacter } from '../characters/characterDisplay'
 import type { CharacterSummary } from '../characters/characterTypes'
+import { partyCharacterOf } from './camp/campSheets'
 
 type CampaignPartyMembersProps = {
   campaignName: string
@@ -37,14 +38,6 @@ type CampaignPartyMembersProps = {
   /** The character whose shared sheet is open in place of the list, if any. */
   sheetCharacterId?: string | null
   onSheetChange?: (characterId: string | null) => void
-}
-
-/** The character a member brings to the party: active and opted in (at most one). */
-function partyCharacterOf(characters: readonly CharacterSummary[], profileId: string) {
-  return characters.find(
-    (character) =>
-      character.owner_id === profileId && character.status === 'active' && character.in_party,
-  )
 }
 
 /**
