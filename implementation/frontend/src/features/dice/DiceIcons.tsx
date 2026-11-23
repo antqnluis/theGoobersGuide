@@ -78,3 +78,33 @@ export function RepeatIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/** A pushpin: keeps the tray where it is and open. */
+export function PinIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 3.5h6l-1 6 3 3.5H7l3-3.5Z" />
+      <path d="M12 13v7.5" />
+    </Icon>
+  )
+}
+
+/** Four arrows: drag to move. */
+export function MoveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v18M3 12h18" />
+      <path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
+    </Icon>
+  )
+}
+
+/** A corner with a diagonal: drag to resize. */
+export function ResizeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 10V4h6" />
+      <path d="M4 4l7 7M4 8.5 8.5 4" />
+    </Icon>
+  )
+}

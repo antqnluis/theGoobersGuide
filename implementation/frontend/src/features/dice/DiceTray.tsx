@@ -1,8 +1,9 @@
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useId, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from 'react'
 import { DiceFailureNotice, DiceResult } from './DiceResult'
 import { DiceLog } from './DiceLog'
-import { DeviceIcon, RepeatIcon, WarnIcon } from './DiceIcons'
+import { DeviceIcon, MoveIcon, PinIcon, RepeatIcon, ResizeIcon, WarnIcon } from './DiceIcons'
 import { useDice } from './useDice'
+import type { DiceArrangement } from './useDiceLayout'
 import type { RollMode } from './diceTypes'
 
 const quickDice = [4, 6, 8, 10, 12, 20, 100] as const
@@ -26,8 +27,19 @@ function liveStatus(inCampaign: boolean, live: string) {
  * The tray: the latest roll, a way to roll anything, and the table's log. Every roll goes through
  * `useDice().roll`, so the sheet's buttons and the text chips share its result and its log.
  */
-export function DiceTray({ onClose }: { onClose: () => void }) {
+export function DiceTray({
+  arrangement,
+  onClose,
+  onEscape,
+}: {
+  arrangement: DiceArrangement
+  /** Shuts the tray, and unpins it. */
+  onClose: () => void
+  /** Escape: shuts the tray unless it is pinned. */
+  onEscape: () => void
+}) {
   const dice = useDice()
+  const arrangeHelpId = useId()
   const [inputError, setInputError] = useState<string | null>(null)
   const inputId = useId()
   const errorId = useId()
@@ -63,7 +75,13 @@ export function DiceTray({ onClose }: { onClose: () => void }) {
     // The journal is a modal dialog; Escape here closes the tray, not the journal behind it.
     event.preventDefault()
     event.stopPropagation()
-    onClose()
+    onEscape()
+  }
+
+  function onBarPointerDown(event: PointerEvent<HTMLElement>) {
+    // The whole bar drags the tray, except its buttons.
+    if ((event.target as HTMLElement).closest('button')) return
+    arrangement.startMove(event)
   }
 
   const result = dice.result
@@ -73,19 +91,80 @@ export function DiceTray({ onClose }: { onClose: () => void }) {
       className="dice-tray"
       id="dice-tray"
       onKeyDown={onKeyDown}
+      ref={arrangement.trayRef}
+      style={arrangement.trayStyle}
       tabIndex={-1}
     >
-      <header className="dice-tray__bar">
-        <div>
+      {arrangement.arrangeable && (
+        <>
+          <button
+            aria-describedby={arrangeHelpId}
+            aria-label="Resize dice tray"
+            className="dice-tray__resize"
+            onKeyDown={arrangement.resizeByKey}
+            onPointerDown={arrangement.startResize}
+            title="Drag to resize"
+            type="button"
+          >
+            <ResizeIcon size={18} />
+          </button>
+          <p className="dice-sr" id={arrangeHelpId}>
+            Drag, or use the arrow keys. Hold Shift for bigger steps. Home puts it back.
+          </p>
+        </>
+      )}
+      <header
+        className="dice-tray__bar"
+        data-arrangeable={arrangement.arrangeable ? '' : undefined}
+        onPointerDown={onBarPointerDown}
+      >
+        <div className="dice-tray__heading">
           <h2 className="dice-tray__title">Dice</h2>
           <p className="dice-tray__status" data-live={dice.log.live}>
             {status.icon}
             {status.text}
           </p>
         </div>
-        <button className="dice-tray__close" onClick={onClose} type="button">
-          Close
-        </button>
+        <div className="dice-tray__actions">
+          {arrangement.arrangeable && (
+            <>
+              {arrangement.arranged && (
+                <button
+                  className="dice-tray__tool"
+                  onClick={arrangement.reset}
+                  title="Put the tray back in its corner at its usual size"
+                  type="button"
+                >
+                  Reset
+                </button>
+              )}
+              <button
+                aria-describedby={arrangeHelpId}
+                className="dice-tray__tool"
+                onKeyDown={arrangement.moveByKey}
+                onPointerDown={arrangement.startMove}
+                title="Drag to move"
+                type="button"
+              >
+                <MoveIcon size={16} />
+                Move
+              </button>
+              <button
+                aria-pressed={arrangement.pinned}
+                className="dice-tray__tool"
+                onClick={() => arrangement.setPinned(!arrangement.pinned)}
+                title="Keep the tray open"
+                type="button"
+              >
+                <PinIcon size={16} />
+                {arrangement.pinned ? 'Pinned' : 'Pin'}
+              </button>
+            </>
+          )}
+          <button className="dice-tray__close" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
       </header>
 
       <div className="dice-tray__scroll">

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiceScope } from './diceContext'
 import { DiceDock } from './DiceDock'
 import { DiceProvider } from './DiceProvider'
+import { loadLayout, saveLayout } from './diceLayout'
 import type { DiceRollRecord } from './diceRules'
 import { listRolls, rollInCampaign } from './diceService'
 import { useDice, useDiceScope } from './useDice'
@@ -172,7 +173,10 @@ beforeEach(() => {
   vi.mocked(listRolls).mockResolvedValue([])
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+})
 
 describe('outside a campaign', () => {
   it('rolls on this device and says it is not saved', async () => {
@@ -635,5 +639,227 @@ describe('critical damage', () => {
     const tray = (await openTray(user)).tray
     expect(within(tray).getAllByText('Greataxe damage (critical)').length).toBeGreaterThan(0)
     expect(rollInCampaign).not.toHaveBeenCalled()
+  })
+})
+
+describe('arranging the tray', () => {
+  const host = { width: 1000, height: 800 }
+
+  /**
+   * Gives the tray a place in a 1000 x 800 window: 400 x 426, 16px from the right and sitting 74px
+   * up, above the button, until it is moved. It follows its own inline arrangement afterwards.
+   */
+  function placeTray() {
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      configurable: true,
+      value: host.width,
+    })
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      configurable: true,
+      value: host.height,
+    })
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const tray = this.closest<HTMLElement>('.dice-tray')
+      const width = parseFloat(tray?.style.width ?? '') || 400
+      const height = parseFloat(tray?.style.height ?? '') || 426
+      const right = host.width - (parseFloat(tray?.style.right ?? '') || 16)
+      const bottom = host.height - (parseFloat(tray?.style.bottom ?? '') || 74)
+      return {
+        left: right - width,
+        top: bottom - height,
+        right,
+        bottom,
+        width,
+        height,
+        x: right - width,
+        y: bottom - height,
+        toJSON: () => ({}),
+      }
+    })
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    Reflect.deleteProperty(document.documentElement, 'clientWidth')
+    Reflect.deleteProperty(document.documentElement, 'clientHeight')
+  })
+
+  const dockOf = (tray: HTMLElement) => tray.closest<HTMLElement>('.dice-dock')!
+
+  function pointer(target: Element | Window, type: string, x: number, y: number) {
+    fireEvent(target, new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y }))
+  }
+
+  it('pins the tray open: Escape keeps it, and Close unpins and closes it', async () => {
+    renderDock()
+    const { user, tray } = await openTray()
+    const pin = within(tray).getByRole('button', { name: 'Pin' })
+    expect(pin).toHaveAttribute('aria-pressed', 'false')
+    await user.click(pin)
+    expect(within(tray).getByRole('button', { name: 'Pinned' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(loadLayout().pinned).toBe(true)
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('region', { name: 'Dice tray' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Dice/ })).toHaveFocus()
+
+    // R brings you back to a pinned tray instead of closing it.
+    await user.keyboard('r')
+    expect(screen.getByRole('region', { name: 'Dice tray' })).toHaveFocus()
+
+    await user.click(within(tray).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('region', { name: 'Dice tray' })).not.toBeInTheDocument()
+    expect(loadLayout().pinned).toBe(false)
+  })
+
+  it('opens a pinned tray when the page loads', async () => {
+    saveLayout({ pinned: true, position: null, size: null })
+    renderDock()
+    expect(await screen.findByRole('region', { name: 'Dice tray' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+  })
+
+  it('moves by dragging the bar anywhere on screen, and the Dice button stays put', async () => {
+    placeTray()
+    renderDock()
+    const { tray } = await openTray()
+    const bar = tray.querySelector('.dice-tray__bar')!
+
+    pointer(bar, 'pointerdown', 500, 500)
+    pointer(window, 'pointermove', 450, 480)
+    expect(tray.style.position).toBe('fixed')
+    expect(tray.style.right).toBe('66px')
+    expect(tray.style.bottom).toBe('94px')
+
+    // Edges of the screen, all four ways.
+    pointer(window, 'pointermove', 5000, 5000)
+    expect(tray.style.right).toBe('0px')
+    expect(tray.style.bottom).toBe('0px')
+    pointer(window, 'pointermove', -5000, -5000)
+    expect(tray.style.right).toBe('600px')
+    expect(tray.style.bottom).toBe('374px')
+
+    pointer(window, 'pointermove', 450, 480)
+    pointer(window, 'pointerup', 450, 480)
+    pointer(window, 'pointermove', 0, 0)
+    expect(tray.style.right).toBe('66px')
+    expect(loadLayout().position).toEqual({ right: 66, bottom: 94 })
+
+    expect(dockOf(tray).getAttribute('style')).toBeNull()
+    expect(within(dockOf(tray)).getByRole('button', { name: /^Dice/ })).toBeInTheDocument()
+  })
+
+  it('does not start a drag from a button on the bar', async () => {
+    placeTray()
+    renderDock()
+    const { tray } = await openTray()
+    pointer(within(tray).getByRole('button', { name: 'Pin' }), 'pointerdown', 500, 500)
+    pointer(window, 'pointermove', 400, 400)
+    expect(tray.style.right).toBe('')
+  })
+
+  it('moves with the arrow keys and puts itself back with Home or Reset', async () => {
+    placeTray()
+    renderDock()
+    const { user, tray } = await openTray()
+    expect(within(tray).queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+
+    const move = within(tray).getByRole('button', { name: 'Move' })
+    move.focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(tray.style.right).toBe('32px')
+    await user.keyboard('{Shift>}{ArrowUp}{/Shift}')
+    expect(tray.style.bottom).toBe('138px')
+
+    await user.click(within(tray).getByRole('button', { name: 'Reset' }))
+    expect(tray.style.right).toBe('')
+    expect(tray.style.position).toBe('')
+    expect(loadLayout().position).toBeNull()
+
+    move.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(tray.style.right).toBe('0px')
+    await user.keyboard('{Home}')
+    expect(tray.style.right).toBe('')
+  })
+
+  it('resizes from its top-left corner, by drag or arrow keys, within limits', async () => {
+    placeTray()
+    renderDock()
+    const { user, tray } = await openTray()
+    const handle = within(tray).getByRole('button', { name: 'Resize dice tray' })
+
+    handle.focus()
+    await user.keyboard('{ArrowLeft}{ArrowUp}')
+    expect(tray.style.width).toBe('416px')
+    expect(tray.style.height).toBe('442px')
+    // Resizing alone leaves the tray above the button.
+    expect(tray.style.position).toBe('')
+
+    await user.keyboard('{ArrowRight}{ArrowRight}')
+    expect(tray.style.width).toBe('384px')
+
+    pointer(handle, 'pointerdown', 600, 300)
+    pointer(window, 'pointermove', 500, 250)
+    expect(tray.style.width).toBe('484px')
+    expect(tray.style.height).toBe('492px')
+    pointer(window, 'pointermove', 5000, 5000)
+    expect(tray.style.width).toBe('300px')
+    expect(tray.style.height).toBe('320px')
+    pointer(window, 'pointermove', -5000, -5000)
+    expect(tray.style.width).toBe('984px')
+    pointer(window, 'pointerup', 0, 0)
+    expect(loadLayout().size).toEqual({ width: 984, height: 726 })
+  })
+
+  it('comes back where it was left', async () => {
+    placeTray()
+    saveLayout({
+      pinned: false,
+      position: { right: 120, bottom: 90 },
+      size: { width: 450, height: 400 },
+    })
+    renderDock()
+    const { tray } = await openTray()
+    expect(tray).toHaveStyle({
+      position: 'fixed',
+      right: '120px',
+      bottom: '90px',
+      width: '450px',
+      height: '400px',
+    })
+    expect(dockOf(tray).getAttribute('style')).toBeNull()
+  })
+
+  it('leaves the tray a plain bottom sheet on a phone', async () => {
+    saveLayout({
+      pinned: true,
+      position: { right: 120, bottom: 90 },
+      size: { width: 450, height: 400 },
+    })
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    )
+    renderDock()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /^Dice/ }))
+    const tray = screen.getByRole('region', { name: 'Dice tray' })
+    expect(within(tray).queryByRole('button', { name: /^Pin/ })).not.toBeInTheDocument()
+    expect(within(tray).queryByRole('button', { name: 'Move' })).not.toBeInTheDocument()
+    expect(within(tray).queryByRole('button', { name: 'Resize dice tray' })).toBeNull()
+    expect(tray.getAttribute('style')).toBeNull()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('region', { name: 'Dice tray' })).not.toBeInTheDocument()
   })
 })

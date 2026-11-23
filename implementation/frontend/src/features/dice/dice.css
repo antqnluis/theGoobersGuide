@@ -44,13 +44,13 @@
   pointer-events: auto;
 }
 
-/* Inside an open journal the dock sits on the sheet, above the toasts' layer and the save bar. */
+/* Inside an open journal the dock lives in the modal dialog (everything outside it is inert), above
+   the toasts' layer and the save bar. It is still positioned against the screen, not the journal's
+   panel, so it can be moved anywhere and keeps its place from room to room. */
 .dice-dock[data-host='journal'] {
-  position: absolute;
   z-index: 7;
   right: 16px;
   bottom: 16px;
-  width: min(24rem, calc(100% - 32px));
 }
 
 .camp-ledger:has(.folio-dock) .dice-dock[data-host='journal'] {
@@ -194,6 +194,7 @@
 /* --- The tray --------------------------------------------------------------------------------- */
 
 .dice-tray {
+  position: relative;
   display: flex;
   width: 100%;
   max-height: min(44rem, calc(100dvh - 7.5rem));
@@ -228,6 +229,31 @@
   background: var(--dice-leather);
 }
 
+/* The bar is the tray's handle once it can be arranged: drag it to move the tray. */
+.dice-tray__bar[data-arrangeable] {
+  padding-left: 44px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dice-dock[data-dragging],
+.dice-dock[data-dragging] * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.dice-tray__heading {
+  min-width: 0;
+}
+
+.dice-tray__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
 .dice-tray__title {
   margin: 0;
   font: 600 1.4rem / 1.15 var(--font-display);
@@ -258,8 +284,63 @@
   cursor: pointer;
 }
 
-.dice-tray__close:hover {
+.dice-tray__close:hover,
+.dice-tray__tool:hover {
   background: var(--dice-leather-light);
+}
+
+.dice-tray__tool {
+  display: inline-flex;
+  min-width: var(--dice-touch);
+  min-height: var(--dice-touch);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px solid transparent;
+  border-radius: var(--dice-radius);
+  padding: 0 10px;
+  color: var(--dice-cream);
+  background: transparent;
+  font: 700 0.9rem / 1.25 var(--font-body);
+  cursor: pointer;
+}
+
+.dice-tray__tool[aria-pressed='true'] {
+  border-color: var(--dice-brass);
+  color: var(--dice-lantern);
+  background: var(--dice-leather-deep);
+}
+
+.dice-tray__tool:focus-visible {
+  outline-color: var(--dice-focus-dark);
+}
+
+/* The corner that resizes the tray; it grows up and to the left from the dock's corner. */
+.dice-tray__resize {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: var(--dice-touch);
+  height: var(--dice-touch);
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--dice-brass);
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.dice-tray__resize:hover {
+  color: var(--dice-lantern);
+}
+
+.dice-tray__resize:focus-visible {
+  outline-color: var(--dice-focus-dark);
+  outline-offset: -4px;
 }
 
 .dice-tray__scroll {
@@ -837,6 +918,7 @@
   }
 
   .dice-dock[data-open] .dice-tray {
+    height: auto;
     max-height: min(82dvh, 40rem);
     border-radius: 0;
     padding-bottom: env(safe-area-inset-bottom);
@@ -852,6 +934,10 @@
 }
 
 @media (forced-colors: active) {
+  .dice-tray__tool[aria-pressed='true'] {
+    border-color: CanvasText;
+  }
+
   .dice-dock__button,
   .dice-peek,
   .dice-tray,

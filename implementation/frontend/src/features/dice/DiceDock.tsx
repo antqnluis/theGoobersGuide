@@ -5,6 +5,7 @@ import { DiceTray } from './DiceTray'
 import { DiceTrayButton } from './DiceTrayButton'
 import { rollTitle } from './diceRules'
 import { useDice } from './useDice'
+import { useDiceLayout } from './useDiceLayout'
 import './dice.css'
 
 const peekMs = 6000
@@ -25,21 +26,39 @@ export function DiceDock() {
   const dice = useDice()
   const { open, setOpen, result, resultSeq, failure } = dice
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const restoredPin = useRef(false)
   const restoreFocus = useRef(false)
   const focusPanel = useRef(false)
   const [seenSeq, setSeenSeq] = useState(0)
   const [held, setHeld] = useState(false)
+  const arrangement = useDiceLayout({ open, host: dice.host })
+  const { pinned, setPinned } = arrangement
 
   const openTray = useCallback(() => {
     focusPanel.current = true
     setOpen(true)
   }, [setOpen])
 
+  // Closing the tray by hand also unpins it, so a pin never outlives the tray it kept open.
   const closeTray = useCallback(() => {
     restoreFocus.current = true
     setSeenSeq(resultSeq)
+    setPinned(false)
     setOpen(false)
-  }, [resultSeq, setOpen])
+  }, [resultSeq, setOpen, setPinned])
+
+  // Escape leaves a pinned tray open and hands focus back to the button.
+  const escapeTray = useCallback(() => {
+    if (pinned) buttonRef.current?.focus()
+    else closeTray()
+  }, [closeTray, pinned])
+
+  // A pinned tray is open again when the page loads.
+  useEffect(() => {
+    if (!pinned || restoredPin.current) return
+    restoredPin.current = true
+    setOpen(true)
+  }, [pinned, setOpen])
 
   useEffect(() => {
     if (open && focusPanel.current) {
@@ -57,12 +76,13 @@ export function DiceDock() {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key.toLowerCase() !== 'r' || isTypingTarget(event.target)) return
       event.preventDefault()
-      if (open) closeTray()
+      if (open && pinned) document.getElementById('dice-tray')?.focus({ preventScroll: true })
+      else if (open) closeTray()
       else openTray()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closeTray, open, openTray])
+  }, [closeTray, open, openTray, pinned])
 
   const peeking = !open && Boolean(result) && resultSeq > seenSeq
   useEffect(() => {
@@ -76,6 +96,7 @@ export function DiceDock() {
   return createPortal(
     <div
       className="dice-dock"
+      data-dragging={arrangement.dragging ? '' : undefined}
       data-host={dice.host ? 'journal' : 'page'}
       data-open={open ? '' : undefined}
     >
@@ -123,7 +144,7 @@ export function DiceDock() {
         </div>
       )}
 
-      {open && <DiceTray onClose={closeTray} />}
+      {open && <DiceTray arrangement={arrangement} onClose={closeTray} onEscape={escapeTray} />}
 
       <DiceTrayButton
         onClick={open ? closeTray : openTray}
