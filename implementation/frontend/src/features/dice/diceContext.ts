@@ -73,6 +73,8 @@ export type DiceContextValue = {
   result: DiceRollRecord | null
   /** Counts rolls made by this player, so the dock can tell a new result from an old one. */
   resultSeq: number
+  /** When the latest roll arrived (ms since epoch), so the tray can tell a fresh throw from a stale one. */
+  resultAt: number
   /** Set while the latest roll is a natural 20 on an attack that has damage to double. */
   critical: { label: string } | null
   rollCritical: () => Promise<RollOutcome>
@@ -127,6 +129,7 @@ export const unavailableDice: DiceContextValue = {
   pending: null,
   result: null,
   resultSeq: 0,
+  resultAt: 0,
   critical: null,
   rollCritical: unavailable,
   failure: null,

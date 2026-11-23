@@ -490,27 +490,177 @@
   color: var(--dice-oxblood-deep);
 }
 
-.dice-face--resting {
-  background: var(--dice-page-shade);
-  animation: dice-rest 700ms ease-in-out infinite alternate;
+/* --- The throw ---------------------------------------------------------------------------------
+   A fresh roll is thrown onto the plate by diceMotion.ts: each tile becomes the die it stands for,
+   tumbles with a cycling number, and locks onto its true value. The real number stays in the DOM;
+   what tumbles is pseudo-element content fed from data-spin, silent to assistive technology. */
+
+.dice-result .dice-face {
+  position: relative;
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    color 200ms ease-out;
 }
 
-.dice-face--resting:nth-child(2) {
-  animation-delay: 120ms;
+.dice-face__die {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  opacity: 0;
+  transform: scale(0.72);
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+  filter: drop-shadow(0 3px 2px rgb(42 28 19 / 0.32));
+  pointer-events: none;
 }
 
-.dice-face--resting:nth-child(3) {
-  animation-delay: 240ms;
+.dice-die__body {
+  fill: var(--dice-field);
+  stroke: var(--dice-line);
+  stroke-width: 2;
+  stroke-linejoin: round;
 }
 
-/* The one authored moment: the faces settle onto the plate, left to right. */
-.dice-result[data-state='rolled'] .dice-face {
-  animation: dice-settle 220ms ease-out backwards;
-  animation-delay: calc(var(--dice-i, 0) * 45ms);
+.dice-die__facets {
+  fill: none;
+  stroke: var(--dice-rule);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.dice-result[data-state='rolled'] .dice-result__total {
-  animation: dice-rise 240ms ease-out 80ms backwards;
+.dice-face[data-rolling] {
+  border-color: transparent;
+  color: transparent;
+  background: transparent;
+  box-shadow: none;
+  text-decoration-color: transparent;
+  transition: none;
+  will-change: transform, opacity;
+}
+
+.dice-face[data-rolling] .dice-face__die {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.dice-face[data-rolling]::after {
+  content: attr(data-spin);
+  content: attr(data-spin) / '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--dice-ink);
+  text-decoration: none;
+}
+
+/* A die being shaken in the hand while the server decides. */
+.dice-result__resting {
+  align-items: center;
+  min-height: 44px;
+}
+
+.dice-rattle {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 2px 1px rgb(42 28 19 / 0.28));
+  animation: dice-rattle 240ms linear infinite;
+}
+
+.dice-rattle:nth-child(2) {
+  animation-delay: -80ms;
+  animation-direction: reverse;
+}
+
+.dice-rattle:nth-child(3) {
+  animation-delay: -160ms;
+}
+
+/* The total counts up as the last die settles. */
+.dice-result__total,
+.dice-peek__total {
+  position: relative;
+  transform-origin: 100% 100%;
+}
+
+.dice-result__total {
+  --dice-spin-color: var(--dice-ink);
+}
+
+.dice-peek__total {
+  --dice-spin-color: var(--dice-cream);
+}
+
+.dice-result__total[data-spin],
+.dice-peek__total[data-spin] {
+  color: transparent;
+}
+
+.dice-result__total[data-spin]::after,
+.dice-peek__total[data-spin]::after {
+  content: attr(data-spin);
+  content: attr(data-spin) / '';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  color: var(--dice-spin-color);
+}
+
+/* The plate holds its verdict until the total has settled. */
+.dice-result {
+  position: relative;
+}
+
+.dice-result__marks,
+.dice-result > .dice-button-secondary {
+  transition: opacity 260ms ease-out;
+}
+
+.dice-result[data-rolling] .dice-result__marks,
+.dice-result[data-rolling] > .dice-button-secondary {
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
+}
+
+/* A natural 20: a glint crosses the plate and its rule glows. A natural 1: the plate takes a thud. */
+.dice-result[data-landed][data-natural='natural-20'] {
+  animation: dice-nat20 1100ms ease-out;
+}
+
+.dice-result[data-landed][data-natural='natural-20']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 36%,
+    rgb(255 226 150 / 0.5) 47%,
+    rgb(255 246 214 / 0.75) 50%,
+    rgb(255 226 150 / 0.5) 53%,
+    transparent 64%
+  );
+  background-size: 260% 100%;
+  animation: dice-glint 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+
+.dice-result[data-landed][data-natural='natural-20'] .dice-result__total {
+  animation: dice-glow 1100ms ease-out;
+}
+
+.dice-result[data-landed][data-natural='natural-1'] {
+  animation: dice-thud 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
 /* --- Chips -------------------------------------------------------------------------------------- */
@@ -865,21 +1015,76 @@
   }
 }
 
-@keyframes dice-settle {
-  from {
-    opacity: 0;
-    transform: translateY(-10px) rotate(-8deg);
+@keyframes dice-rattle {
+  0% {
+    transform: translate(-2px, 1px) rotate(-9deg);
+  }
+  25% {
+    transform: translate(2px, -2px) rotate(7deg);
+  }
+  50% {
+    transform: translate(-1px, -1px) rotate(-5deg);
+  }
+  75% {
+    transform: translate(2px, 2px) rotate(10deg);
+  }
+  100% {
+    transform: translate(-2px, 1px) rotate(-9deg);
   }
 }
 
-@keyframes dice-rest {
+@keyframes dice-glint {
   from {
-    opacity: 0.55;
-    transform: translateY(0);
+    background-position: 130% 0;
   }
   to {
-    opacity: 1;
-    transform: translateY(-3px);
+    background-position: -30% 0;
+  }
+}
+
+@keyframes dice-nat20 {
+  from,
+  to {
+    box-shadow:
+      inset 0 0 0 3px var(--dice-page),
+      inset 0 0 0 4px var(--dice-rule),
+      inset 0 0 0 0 rgb(242 176 74 / 0);
+  }
+  28% {
+    box-shadow:
+      inset 0 0 0 3px var(--dice-page),
+      inset 0 0 0 4px var(--dice-brass-deep),
+      inset 0 0 34px 2px rgb(242 176 74 / 0.55);
+  }
+}
+
+@keyframes dice-glow {
+  from,
+  to {
+    text-shadow: 0 0 0 rgb(242 176 74 / 0);
+  }
+  35% {
+    text-shadow: 0 0 18px rgb(242 176 74 / 0.85);
+  }
+}
+
+@keyframes dice-thud {
+  10%,
+  90% {
+    transform: translate(-1px, 1px);
+  }
+  20%,
+  80% {
+    transform: translate(3px, 0);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translate(-5px, 1px);
+  }
+  40%,
+  60% {
+    transform: translate(5px, -1px);
   }
 }
 
@@ -944,6 +1149,12 @@
   .dice-face,
   .dice-mode {
     border: 2px solid CanvasText;
+  }
+
+  .dice-die__body,
+  .dice-die__facets {
+    stroke: CanvasText;
+    fill: Canvas;
   }
 }
 

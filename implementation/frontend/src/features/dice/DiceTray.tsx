@@ -183,6 +183,7 @@ export function DiceTray({
             characterName={result ? dice.characterName(result) : null}
             onCritical={dice.critical ? () => void dice.rollCritical() : undefined}
             pendingTitle={dice.pending?.title ?? null}
+            resultAt={dice.resultAt}
             roll={result}
             rollerName={result ? dice.rollerName(result) : ''}
           />

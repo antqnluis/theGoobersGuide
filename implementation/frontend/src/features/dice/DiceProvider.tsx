@@ -64,6 +64,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const [unseen, setUnseen] = useState(0)
   const [announcement, setAnnouncement] = useState('')
   const [resultSeq, setResultSeq] = useState(0)
+  const [resultAt, setResultAt] = useState(0)
   const [canRepeat, setCanRepeat] = useState(false)
   const [offer, setOffer] = useState<CriticalOffer | null>(null)
   const [host, setHost] = useState<HTMLElement | null>(null)
@@ -136,6 +137,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     setLocalRolls((rolls) => [record, ...rolls].slice(0, localLogLimit))
     setResult(record)
     setResultSeq((seq) => seq + 1)
+    setResultAt(Date.now())
     setAnnouncement(announce('You', record))
     setOffer(
       roll.critical
@@ -180,6 +182,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         )
         setResult(record)
         setResultSeq((seq) => seq + 1)
+        setResultAt(Date.now())
         setAnnouncement(announce('You', record))
         setOffer(
           roll.critical
@@ -297,6 +300,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       pending,
       result,
       resultSeq,
+      resultAt,
       critical,
       rollCritical,
       failure,
@@ -329,6 +333,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
       repeat,
       result,
       resultSeq,
+      resultAt,
       retry,
       rollCritical,
       roll,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { DiceFailureNotice, NaturalChip } from './DiceResult'
+import { CountingTotal, DiceFailureNotice, NaturalChip } from './DiceResult'
 import { DiceTray } from './DiceTray'
 import { DiceTrayButton } from './DiceTrayButton'
 import { rollTitle } from './diceRules'
@@ -127,7 +127,7 @@ export function DiceDock() {
         >
           <button className="dice-peek__open" onClick={openTray} type="button">
             <span className="dice-peek__title">{rollTitle(result)}</span>
-            <span className="dice-peek__total">{result.total}</span>
+            <CountingTotal className="dice-peek__total" key={resultSeq} value={result.total} />
             <NaturalChip roll={result} />
           </button>
           {dice.critical && (
