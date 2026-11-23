@@ -655,6 +655,7 @@ export type Database = {
           id: string
           name: string
           quantity: number
+          rarity: string
           updated_at: string
           weight: number | null
         }
@@ -668,6 +669,7 @@ export type Database = {
           id?: string
           name: string
           quantity?: number
+          rarity?: string
           updated_at?: string
           weight?: number | null
         }
@@ -680,6 +682,7 @@ export type Database = {
           id?: string
           name?: string
           quantity?: number
+          rarity?: string
           updated_at?: string
           weight?: number | null
         }

@@ -1466,6 +1466,195 @@
   border-left-width: 4px;
 }
 
+/* Rarity. Each step above common is inked in its colour (the chip names it in words) and the
+   frame grows with it: a 1px edge, a stepped pixel frame, then a foil glint from very rare up.
+   The frame is a border plus four hard offset rings, so its corners are notched like pixel art. */
+.journal-chip--rarity {
+  --chip-bg: var(--rarity-wash);
+  --chip-ink: var(--rarity-ink);
+  --chip-edge: var(--rarity-edge);
+}
+
+:is(.inventory-item, .journal-chip--rarity)[data-rarity='uncommon'] {
+  --rarity-edge: var(--rarity-uncommon-edge);
+  --rarity-wash: var(--rarity-uncommon-wash);
+  --rarity-ink: var(--rarity-uncommon-ink);
+}
+
+:is(.inventory-item, .journal-chip--rarity)[data-rarity='rare'] {
+  --rarity-edge: var(--rarity-rare-edge);
+  --rarity-wash: var(--rarity-rare-wash);
+  --rarity-ink: var(--rarity-rare-ink);
+}
+
+:is(.inventory-item, .journal-chip--rarity)[data-rarity='very_rare'] {
+  --rarity-edge: var(--rarity-very-rare-edge);
+  --rarity-wash: var(--rarity-very-rare-wash);
+  --rarity-ink: var(--rarity-very-rare-ink);
+}
+
+:is(.inventory-item, .journal-chip--rarity)[data-rarity='legendary'] {
+  --rarity-edge: var(--rarity-legendary-edge);
+  --rarity-wash: var(--rarity-legendary-wash);
+  --rarity-ink: var(--rarity-legendary-ink);
+}
+
+:is(.inventory-item, .journal-chip--rarity)[data-rarity='artifact'] {
+  --rarity-edge: var(--rarity-artifact-edge);
+  --rarity-wash: var(--rarity-artifact-wash);
+  --rarity-ink: var(--rarity-artifact-ink);
+}
+
+.inventory-item[data-rarity] {
+  --rarity-ring:
+    0 -2px 0 var(--rarity-edge), 0 2px 0 var(--rarity-edge), -2px 0 0 var(--rarity-edge),
+    2px 0 0 var(--rarity-edge);
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  border-color: var(--rarity-edge);
+  background: color-mix(in srgb, var(--rarity-wash) 55%, transparent);
+}
+
+/* The equipped mark keeps its own brass edge, whatever the rarity. */
+.inventory-item[data-rarity][data-equipped] {
+  border-left-color: var(--journal-brass-deep);
+}
+
+/* Rare and up: the stepped frame, and a four-point pixel sparkle on the chip's top right corner. */
+.inventory-item:is(
+  [data-rarity='rare'],
+  [data-rarity='very_rare'],
+  [data-rarity='legendary'],
+  [data-rarity='artifact']
+) {
+  box-shadow: var(--rarity-ring);
+}
+
+.journal-chip--rarity:is(
+  [data-rarity='rare'],
+  [data-rarity='very_rare'],
+  [data-rarity='legendary'],
+  [data-rarity='artifact']
+) {
+  position: relative;
+}
+
+.journal-chip--rarity:is(
+    [data-rarity='rare'],
+    [data-rarity='very_rare'],
+    [data-rarity='legendary'],
+    [data-rarity='artifact']
+  )::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 2px;
+  height: 2px;
+  background: var(--rarity-edge);
+  box-shadow:
+    -2px 0 0 var(--rarity-edge),
+    2px 0 0 var(--rarity-edge),
+    0 -2px 0 var(--rarity-edge),
+    0 2px 0 var(--rarity-edge);
+  content: '';
+}
+
+/* Legendary and artifact: an inner frame too, so the row reads as set in a mount. */
+.inventory-item:is([data-rarity='legendary'], [data-rarity='artifact']) {
+  box-shadow:
+    var(--rarity-ring),
+    inset 0 0 0 2px var(--rarity-wash),
+    inset 0 0 0 3px var(--rarity-edge);
+}
+
+/* Very rare and up: foil. Two hard stripes cross the row on a slow, stepped loop, behind the text. */
+.inventory-item:is(
+    [data-rarity='very_rare'],
+    [data-rarity='legendary'],
+    [data-rarity='artifact']
+  )::before {
+  --foil: color-mix(in srgb, var(--rarity-edge) 15%, transparent);
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    105deg,
+    transparent 0 38%,
+    var(--foil) 38% 46%,
+    transparent 46% 50%,
+    var(--foil) 50% 53%,
+    transparent 53%
+  );
+  content: '';
+  pointer-events: none;
+}
+
+.inventory-item[data-rarity='legendary']::before {
+  --foil: color-mix(in srgb, var(--journal-lantern) 34%, transparent);
+}
+
+.inventory-item[data-rarity='artifact']::before {
+  --foil: color-mix(in srgb, var(--journal-lantern) 28%, transparent);
+}
+
+.inventory-item[data-rarity] > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .inventory-item:is(
+      [data-rarity='very_rare'],
+      [data-rarity='legendary'],
+      [data-rarity='artifact']
+    )::before {
+    width: 240%;
+    inset: 0 auto 0 0;
+    animation: item-foil 7s steps(18, end) infinite;
+  }
+
+  .inventory-item[data-rarity='legendary']::before {
+    animation-duration: 6s;
+  }
+
+  .inventory-item[data-rarity='artifact']::before {
+    animation-duration: 5s;
+  }
+
+  /* An artifact's frame breathes between its two metals. */
+  .inventory-item[data-rarity='artifact'] {
+    animation: item-artifact-frame 4s steps(1, end) infinite;
+  }
+
+  @keyframes item-foil {
+    0% {
+      transform: translateX(-70%);
+    }
+    35%,
+    100% {
+      transform: translateX(45%);
+    }
+  }
+
+  @keyframes item-artifact-frame {
+    0%,
+    100% {
+      --rarity-edge: var(--rarity-artifact-edge);
+    }
+    50% {
+      --rarity-edge: var(--rarity-legendary-edge);
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .inventory-item[data-rarity]::before {
+    display: none;
+  }
+}
+
 .inventory-item__head {
   display: flex;
   flex-wrap: wrap;

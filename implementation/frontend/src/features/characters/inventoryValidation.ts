@@ -72,6 +72,7 @@ export function normalizeItemInput(input: CharacterItemInput): CharacterItemValu
     quantity: input.quantity,
     weight: parseWeight(input.weight) ?? null,
     description: input.description.trim() || null,
+    rarity: input.rarity,
     equipped: input.equipped,
     attuned: input.attuned,
   }

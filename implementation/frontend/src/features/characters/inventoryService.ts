@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase'
 import type { Database } from '../../types/database'
 import { readErrorMessage } from '../campaigns/rpcErrors'
 import { characterError } from './characterService'
+import { toRarity } from './itemRarity'
 import type {
   CharacterItem,
   CharacterItemValues,
@@ -12,13 +13,20 @@ import type {
 type Functions = Database['public']['Functions']
 
 const itemFields =
-  'id,character_id,name,quantity,weight,description,equipped,attuned,created_at,updated_at'
+  'id,character_id,name,quantity,weight,description,rarity,equipped,attuned,created_at,updated_at'
 
-type ItemRow = Omit<CharacterItem, 'weight'> & { weight: number | string | null }
+type ItemRow = Omit<CharacterItem, 'weight' | 'rarity'> & {
+  weight: number | string | null
+  rarity: string
+}
 
 /** PostgREST returns numeric as a number at this size; coerce in case it arrives as text. */
 function toItem(row: ItemRow): CharacterItem {
-  return { ...row, weight: row.weight === null ? null : Number(row.weight) }
+  return {
+    ...row,
+    weight: row.weight === null ? null : Number(row.weight),
+    rarity: toRarity(row.rarity),
+  }
 }
 
 function denied(code: string) {

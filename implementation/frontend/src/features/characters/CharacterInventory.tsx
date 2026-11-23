@@ -12,6 +12,8 @@ import {
 import { ItemForm } from './ItemForm'
 import type { useCharacterActions } from './useCharacterActions'
 import { DiceText } from '../dice/TextWithDice'
+import { PixelIcon } from './PixelIcon'
+import { isNotable, rarityLabels } from './itemRarity'
 
 export type InventoryActions = Pick<
   ReturnType<typeof useCharacterActions>,
@@ -247,10 +249,20 @@ function InventoryRow({
   }
 
   return (
-    <li className="inventory-item" data-equipped={item.equipped || undefined}>
+    <li
+      className="inventory-item"
+      data-equipped={item.equipped || undefined}
+      data-rarity={isNotable(item.rarity) ? item.rarity : undefined}
+    >
       <div className="inventory-item__head">
         <strong className="inventory-item__name">{item.name}</strong>
         <ul className="journal-chips inventory-item__badges">
+          {isNotable(item.rarity) && (
+            <li className="journal-chip journal-chip--rarity" data-rarity={item.rarity}>
+              <PixelIcon name="gem" scale={1} />
+              {rarityLabels[item.rarity]}
+            </li>
+          )}
           {item.equipped && <li className="journal-chip journal-chip--active">Equipped</li>}
           {item.attuned && <li className="journal-chip journal-chip--party">Attuned</li>}
         </ul>

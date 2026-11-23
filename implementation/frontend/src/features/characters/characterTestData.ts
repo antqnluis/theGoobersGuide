@@ -51,6 +51,7 @@ export function item(overrides: Partial<CharacterItem> = {}): CharacterItem {
     quantity: 1,
     weight: null,
     description: null,
+    rarity: 'common',
     equipped: false,
     attuned: false,
     created_at: '2026-11-14T10:00:00+00:00',

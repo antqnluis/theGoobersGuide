@@ -49,6 +49,7 @@ const row = {
   quantity: 1,
   weight: null,
   description: null,
+  rarity: 'common',
   equipped: false,
   attuned: false,
   created_at: '2026-11-14T10:00:00+00:00',
@@ -82,6 +83,18 @@ describe('listCharacterItems', () => {
     expect(calls).toContainEqual(['eq', ['character_id', characterId]])
     expect(calls).toContainEqual(['order', ['created_at', { ascending: true }]])
     expect(items.map((item) => item.weight)).toEqual([2.5, null])
+  })
+
+  it('reads each item’s rarity, and treats an unknown one as common', async () => {
+    builder({
+      data: [
+        { ...row, rarity: 'legendary' },
+        { ...row, id: 'b', rarity: 'mythic' },
+      ],
+      error: null,
+    })
+    const items = await listCharacterItems(characterId)
+    expect(items.map((entry) => entry.rarity)).toEqual(['legendary', 'common'])
   })
 
   it('returns an empty list for no rows and throws on an error', async () => {

@@ -68,6 +68,11 @@ describe('validateItemInput', () => {
 })
 
 describe('normalizeItemInput', () => {
+  it('passes the rarity through, and leaves it out when an import has none', () => {
+    expect(normalizeItemInput({ ...valid, rarity: 'rare' }).rarity).toBe('rare')
+    expect(normalizeItemInput(valid).rarity).toBeUndefined()
+  })
+
   it('trims text and stores empty weight and description as null', () => {
     expect(
       normalizeItemInput({ ...valid, name: '  Rope  ', weight: ' ', description: '  \n ' }),

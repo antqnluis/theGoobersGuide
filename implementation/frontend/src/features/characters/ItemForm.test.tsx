@@ -45,9 +45,38 @@ describe('ItemForm', () => {
       quantity: 3,
       weight: 1.5,
       description: 'Hempen',
+      rarity: 'common',
       equipped: true,
       attuned: false,
     })
+  })
+
+  it('saves the rarity chosen, listing every step by name', async () => {
+    const { onSubmit, user } = setup()
+    const select = screen.getByLabelText('Rarity')
+    expect(select).toHaveValue('common')
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Common',
+      'Uncommon',
+      'Rare',
+      'Very rare',
+      'Legendary',
+      'Artifact',
+    ])
+    await user.type(screen.getByLabelText('Name'), 'Vorpal sword')
+    await user.selectOptions(select, 'very_rare')
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ rarity: 'very_rare' }))
+  })
+
+  it('starts on the item’s rarity when editing, and counts a change as unsaved', async () => {
+    const { onDirtyChange, user } = setup({
+      initial: item({ rarity: 'legendary' }),
+      mode: 'edit',
+    })
+    expect(screen.getByLabelText('Rarity')).toHaveValue('legendary')
+    await user.selectOptions(screen.getByLabelText('Rarity'), 'rare')
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
   })
 
   it('stores an empty weight and description as null', async () => {

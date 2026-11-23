@@ -28,6 +28,22 @@
   --journal-lantern-wash: #fbe6b8;
   --journal-focus: #1b5f8c;
   --journal-focus-dark: #ffe7ac;
+  /* Item rarity: an edge, a wash, and an ink for each step above common (always with its name). */
+  --rarity-uncommon-edge: #2d6a45;
+  --rarity-uncommon-wash: #dcebd2;
+  --rarity-uncommon-ink: #1d4630;
+  --rarity-rare-edge: #2a5f9e;
+  --rarity-rare-wash: #d6e4f3;
+  --rarity-rare-ink: #173f6b;
+  --rarity-very-rare-edge: #6b3fa0;
+  --rarity-very-rare-wash: #e6dcf2;
+  --rarity-very-rare-ink: #43236b;
+  --rarity-legendary-edge: #b4650f;
+  --rarity-legendary-wash: #fbe3c0;
+  --rarity-legendary-ink: #5a3000;
+  --rarity-artifact-edge: #a32a2a;
+  --rarity-artifact-wash: #f4d5cf;
+  --rarity-artifact-ink: #5c1313;
   /* Type: serif for titles and numerals, the system sans for dense labels and fields. */
   --journal-font-display: var(--font-display);
   --journal-font-ui: var(--font-body);

@@ -5,6 +5,16 @@ type Tables = Database['public']['Tables']
 export type CharacterStatus = 'active' | 'retired' | 'deceased'
 export type SheetVisibility = 'private' | 'campaign'
 
+export const itemRarities = [
+  'common',
+  'uncommon',
+  'rare',
+  'very_rare',
+  'legendary',
+  'artifact',
+] as const
+export type ItemRarity = (typeof itemRarities)[number]
+
 export const characterStatuses: readonly CharacterStatus[] = ['active', 'retired', 'deceased']
 
 /** The summary row every current member can read. */
@@ -86,7 +96,9 @@ export type CharacterSheet = CharacterVitals &
 export type CoinTransaction = Database['public']['Tables']['character_currency_log']['Row']
 
 /** One inventory row (weight arrives as a number or null). */
-export type CharacterItem = Tables['character_items']['Row']
+export type CharacterItem = Omit<Tables['character_items']['Row'], 'rarity'> & {
+  rarity: ItemRarity
+}
 
 /** An item as typed into the form. Weight and description stay text until normalized. */
 export type CharacterItemInput = {
@@ -94,6 +106,8 @@ export type CharacterItemInput = {
   quantity: number
   weight: string
   description: string
+  /** Left out by imports, which then keep the item's rarity (or the default for a new one). */
+  rarity?: ItemRarity
   equipped: boolean
   attuned: boolean
 }
@@ -104,6 +118,7 @@ export type CharacterItemValues = {
   quantity: number
   weight: number | null
   description: string | null
+  rarity?: ItemRarity
   equipped: boolean
   attuned: boolean
 }

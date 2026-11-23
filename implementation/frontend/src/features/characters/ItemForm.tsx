@@ -1,5 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import type { CharacterItem, CharacterItemInput, CharacterItemValues } from './characterTypes'
+import {
+  itemRarities,
+  type CharacterItem,
+  type CharacterItemInput,
+  type CharacterItemValues,
+  type ItemRarity,
+} from './characterTypes'
+import { rarityLabels } from './itemRarity'
 import { normalizeItemInput, validateItemInput, type ItemErrors } from './inventoryValidation'
 
 type Fields = {
@@ -7,6 +14,7 @@ type Fields = {
   quantity: string
   weight: string
   description: string
+  rarity: ItemRarity
   equipped: boolean
   attuned: boolean
 }
@@ -17,6 +25,7 @@ function toFields(item?: CharacterItem): Fields {
     quantity: String(item?.quantity ?? 1),
     weight: item?.weight == null ? '' : String(item.weight),
     description: item?.description ?? '',
+    rarity: item?.rarity ?? 'common',
     equipped: item?.equipped ?? false,
     attuned: item?.attuned ?? false,
   }
@@ -154,6 +163,22 @@ export function ItemForm({
           value={values.weight}
         />
         {error('weight')}
+      </div>
+      <div className="journal-field">
+        <label htmlFor={id('rarity')}>Rarity</label>
+        <select
+          className="journal-select"
+          disabled={isPending}
+          id={id('rarity')}
+          onChange={(event) => change('rarity', event.target.value as ItemRarity)}
+          value={values.rarity}
+        >
+          {itemRarities.map((rarity) => (
+            <option key={rarity} value={rarity}>
+              {rarityLabels[rarity]}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="journal-field item-form__description">
         <label htmlFor={id('description')}>

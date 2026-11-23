@@ -170,6 +170,30 @@ describe('CharacterInventory list', () => {
     expect(screen.getByText('Longsword')).toBeInTheDocument()
   })
 
+  it('names a rarity above common with a coloured chip, and says nothing for common', async () => {
+    renderInventory({
+      items: [
+        rope,
+        item({ id: 'ring', name: 'Ring of Warmth', rarity: 'rare' }),
+        item({ id: 'blade', name: 'Vorpal sword', rarity: 'very_rare' }),
+      ],
+    })
+    await screen.findByText('Rope')
+    const rowFor = (name: string) => screen.getByText(name).closest<HTMLElement>('.inventory-item')!
+    const [plain, ring, blade] = ['Rope', 'Ring of Warmth', 'Vorpal sword'].map(rowFor)
+    expect(plain).not.toHaveAttribute('data-rarity')
+    expect(within(plain).queryByText(/common|rare|legendary|artifact/i)).toBeNull()
+    expect(ring).toHaveAttribute('data-rarity', 'rare')
+    expect(within(ring).getByText('Rare')).toHaveClass('journal-chip--rarity')
+    expect(blade).toHaveAttribute('data-rarity', 'very_rare')
+    expect(within(blade).getByText('Very rare')).toBeInTheDocument()
+  })
+
+  it('shows another player’s item rarity as well', async () => {
+    renderInventory({ owner: false, items: [item({ name: 'Crown', rarity: 'artifact' })] })
+    expect(await screen.findByText('Artifact')).toBeInTheDocument()
+  })
+
   it('turns dice in your own descriptions into roll chips, leaving the words as written', async () => {
     renderInventory()
     await screen.findByText('Rope')
