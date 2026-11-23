@@ -10,6 +10,7 @@ import {
   wagon,
   type RosterMember,
 } from './campLayout'
+import { encodeSprite } from './customSprite'
 import { figureSize, outlineTargets, partyFigures, spriteIdFor } from './campParty'
 
 const member = (index: number, role = 'member', username: string | null = `player_${index}`) =>
@@ -51,6 +52,28 @@ describe('partyFigures', () => {
       'player_2',
       'Player',
     ])
+  })
+
+  it('draws an uploaded sprite for that player only, and ignores one it cannot read', () => {
+    const roster = [member(1, 'owner', 'game_master'), member(2), member(3)]
+    const sprite = encodeSprite(new Uint8ClampedArray(16 * 16 * 4).fill(255))!
+    const { figures } = partyFigures(
+      roster,
+      undefined,
+      undefined,
+      new Map([
+        [roster[1].profile_id, sprite],
+        [roster[2].profile_id, 'not a sprite'],
+      ]),
+    )
+    const defaults = partyFigures(roster).figures
+    expect(figures[0].custom).toBeNull()
+    expect(figures[0].spriteId).toBe(defaults[0].spriteId)
+    expect(figures[1].custom).toBe(sprite)
+    expect(figures[1].spriteId).toMatch(/^custom-/)
+    expect(figures[1].spriteId).not.toBe(defaults[1].spriteId)
+    expect(figures[2].custom).toBeNull()
+    expect(figures[2].spriteId).toBe(defaults[2].spriteId)
   })
 
   it('draws a saved look in place of the default for that player only', () => {

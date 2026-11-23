@@ -32,7 +32,9 @@ import { useOverviewActions } from './overview/useOverviewActions'
 import { AppearanceDrawer } from './camp/AppearanceDrawer'
 import { adventurerAppearance } from './camp/adventurerAppearance'
 import { campaignAppearancesOptions } from './camp/campAppearance'
+import { campaignCustomSpritesOptions } from './camp/campCustomSprites'
 import { useCampaignAppearance } from './useCampaignAppearance'
+import { useCampaignCustomSprite } from './useCampaignCustomSprite'
 import { useCampToasts } from './camp/useCampToasts'
 import { worldFor } from './camp/campBackground'
 import { useCampBackground, useCampHue } from './camp/useCampBackground'
@@ -82,6 +84,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const overviewActions = useOverviewActions(campaignId, userId)
   const queryClient = useQueryClient()
   const appearanceActions = useCampaignAppearance(campaignId, userId)
+  const spriteActions = useCampaignCustomSprite(campaignId, userId)
   const [overviewEditing, setOverviewEditing] = useState(false)
   const [overviewDirty, setOverviewDirty] = useState(false)
   const [tentView, setTentView] = useState<TentView>({ type: 'list' })
@@ -152,6 +155,12 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
     enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
   })
   const appearances = appearancesQuery.data
+  const customSpritesQuery = useQuery({
+    ...campaignCustomSpritesOptions(campaignId, userId),
+    enabled: Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
+  })
+  const customSprites = customSpritesQuery.data
+  const customSpriteOwners = useMemo(() => new Set(customSprites?.keys()), [customSprites])
   const campaign = campaignQuery.data
   // Sheets, notes, and adventures update live once the campaign has loaded.
   useCampaignLive(campaignId, userId, Boolean(campaign))
@@ -404,6 +413,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       partyCharacters={charactersData}
       onOpenSheet={setPartySheetId}
       appearances={appearances}
+      customSprites={customSprites}
       partyDrawer={
         <AppearanceDrawer
           defaultLook={adventurerAppearance(userId)}
@@ -421,6 +431,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           }}
           pending={appearanceActions.pendingAction}
           saved={appearances?.get(userId) ?? null}
+          customSprite={customSprites?.get(userId) ?? null}
+          onClearSpriteError={spriteActions.clearError}
+          onRemoveSprite={async () => {
+            const done = await spriteActions.remove(userId)
+            if (done) toasts.push('Your sprite was removed.')
+            return done
+          }}
+          onUploadSprite={async (file) => {
+            const done = await spriteActions.upload(file)
+            if (done) toasts.push('Your sprite is at the fire.')
+            return done
+          }}
+          spriteError={spriteActions.error}
+          spritePending={spriteActions.pendingAction}
         />
       }
       world={world}
@@ -464,6 +488,10 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           onSheetChange={setPartySheetId}
           sheetCharacterId={partySheetId}
           userId={userId}
+          customSpriteOwners={customSpriteOwners}
+          onRemoveSprite={async (profileId, name) => {
+            if (await spriteActions.remove(profileId)) toasts.push(`${name}'s sprite was reset.`)
+          }}
           isOwner={isOwner}
           onConfirmationChange={changeConfirmation}
           onLeaveCampaign={leaveCampaign}

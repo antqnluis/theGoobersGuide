@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   adventurerImage,
+  customSpriteImage,
   loadCampImages,
   outlineImage,
   silhouetteImage,
+  type CampImage,
   type CampImages,
 } from './campAssets'
 import { planScene, type DrawOp } from './campDrawPlan'
@@ -142,9 +144,13 @@ export default function CampLandscape({
   const all = useMemo(() => {
     if (!images) return null
     const merged: CampImages = { ...images }
-    for (const { spriteId, look } of figures) {
-      merged[spriteId] ??= adventurerImage(spriteId, look, 0)
-      merged[frameSpriteId(spriteId, 1)] ??= adventurerImage(spriteId, look, 1)
+    for (const { spriteId, look, custom } of figures) {
+      for (const frame of [0, 1] as const) {
+        const id = frameSpriteId(spriteId, frame)
+        merged[id] ??=
+          (custom && customSpriteImage(spriteId, custom, frame)) ||
+          adventurerImage(spriteId, look, frame)
+      }
     }
     return merged
   }, [images, figures])
@@ -191,9 +197,12 @@ export default function CampLandscape({
       outlineContext.clearRect(0, 0, outline.width, outline.height)
       if (!drawn) return
       const targets = outlineTargets(highlightRef.current, figures)
+      const parts: { op: DrawOp; image: CampImage }[] = []
       for (const op of drawn.ops) {
         const image = targets.has(baseSpriteId(op.id)) ? all[op.id] : undefined
-        if (!image) continue
+        if (image) parts.push({ op, image })
+      }
+      for (const { op, image } of parts) {
         const ring = outlineImage(image)
         drawOp(outlineContext, ring.source, {
           ...op,
@@ -204,6 +213,13 @@ export default function CampLandscape({
           dw: op.dw + 2 * scale,
           dh: op.dh + 2 * scale,
         })
+      }
+      // Objects that touch (a figure on its bedroll) share one outline: each ring is cut
+      // away wherever another highlighted object sits, leaving only the edge of the whole.
+      if (parts.length > 1) {
+        outlineContext.globalCompositeOperation = 'destination-out'
+        for (const { op, image } of parts) drawOp(outlineContext, image.source, op)
+        outlineContext.globalCompositeOperation = 'source-over'
       }
     }
     redrawOutline.current = drawOutline

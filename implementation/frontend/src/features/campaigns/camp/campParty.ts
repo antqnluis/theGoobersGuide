@@ -3,6 +3,7 @@
 
 import { adventurerAppearance, type AdventurerAppearance } from './adventurerAppearance'
 import { adventurerSize } from './adventurerSprites'
+import { decodeSprite, spriteFootprint, spriteTag } from './customSprite'
 import {
   bedrollSeats,
   bedrolls,
@@ -22,6 +23,10 @@ export type PartyFigure = {
   /** Image id of the finished sprite; members who look alike share one. */
   spriteId: string
   look: AdventurerAppearance
+  /** The player's own sprite (base64 RGBA), which replaces `look` when drawing. */
+  custom: string | null
+  /** How many art pixels the figure stands tall and wide: 16, or 24 for a 32x32 sprite. */
+  size: number
   /** Where the figure sits, bottom centre, in panorama pixels. */
   x: number
   y: number
@@ -62,14 +67,22 @@ export function partyFigures(
   characterNames?: ReadonlyMap<string, string>,
   /** Looks players saved for this campaign; anyone without one keeps their default. */
   appearances?: ReadonlyMap<string, AdventurerAppearance>,
+  /** Sprites players uploaded for this campaign, by profile id. */
+  customSprites?: ReadonlyMap<string, string>,
 ) {
   const { seated, overflow } = seatParty(roster, characterNames)
   const figures: PartyFigure[] = seated.map(({ member, seat, label }, index) => {
     const look = appearances?.get(member.profile_id) ?? adventurerAppearance(member.profile_id)
+    const stored = customSprites?.get(member.profile_id)
+    // A stored sprite this build cannot decode falls back to the look.
+    const decoded = stored ? decodeSprite(stored) : null
+    const custom = stored && decoded ? stored : null
     return {
       id: member.profile_id,
-      spriteId: spriteIdFor(look),
+      spriteId: custom ? `custom-${member.profile_id}-${spriteTag(custom)}` : spriteIdFor(look),
       look,
+      custom,
+      size: decoded ? spriteFootprint(decoded.size) : figureSize.width,
       phase: phaseFor(member.profile_id),
       x: seat.x,
       y: seat.y,

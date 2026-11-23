@@ -176,7 +176,9 @@ export function planScene(
   }
   for (const figure of figures) {
     const id = frameSpriteId(figure.spriteId, (bobFrame + figure.phase) % 2)
-    stand(id, figure, figureSize, figure.depth, figure.flip)
+    // A custom sprite may be drawn from more pixels than it stands tall in the camp.
+    const source = sizes[id] ?? figureSize
+    stand(id, figure, source, figure.depth, figure.flip, figure.size / source.width)
   }
   ops.push(...standing.toSorted((a, b) => a.depth - b.depth).map(({ op }) => op))
   ops.push(...pinnedForeground(view))

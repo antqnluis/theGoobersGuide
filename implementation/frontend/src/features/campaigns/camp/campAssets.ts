@@ -4,6 +4,7 @@
 
 import type { AdventurerAppearance } from './adventurerAppearance'
 import { adventurerSize, renderAdventurer } from './adventurerSprites'
+import { decodeSprite, exhaleSprite } from './customSprite'
 import { assetIdsFor, artUrl } from './campArt'
 import { frameSpriteId } from './campParty'
 import {
@@ -95,28 +96,53 @@ export function loadCampImages(world: CampWorld): Promise<CampImages> {
 const sprites = new Map<string, CampImage>()
 const keptSprites = 128
 
+function spriteCanvas(
+  pixels: Uint32Array<ArrayBuffer>,
+  size: number = adventurerSize.width,
+): CampImage {
+  const width = size
+  const height = size
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas is not available')
+  context.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), width, height), 0, 0)
+  return { source: canvas, width, height }
+}
+
+function cacheSprite(cacheKey: string, make: () => Uint32Array, size?: number): CampImage {
+  let image = sprites.get(cacheKey)
+  if (!image) {
+    image = spriteCanvas(Uint32Array.from(make()), size)
+    sprites.set(cacheKey, image)
+    while (sprites.size > keptSprites) sprites.delete(sprites.keys().next().value!)
+  }
+  return image
+}
+
 /** A party member's finished sprite on its own canvas, cached by look. */
 export function adventurerImage(
   spriteId: string,
   look: AdventurerAppearance,
   frame: 0 | 1 = 0,
 ): CampImage {
-  const cacheKey = frameSpriteId(spriteId, frame)
-  let image = sprites.get(cacheKey)
-  if (!image) {
-    const { width, height } = adventurerSize
-    const pixels = Uint32Array.from(renderAdventurer(look, frame))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Canvas is not available')
-    context.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), width, height), 0, 0)
-    image = { source: canvas, width, height }
-    sprites.set(cacheKey, image)
-    while (sprites.size > keptSprites) sprites.delete(sprites.keys().next().value!)
-  }
-  return image
+  return cacheSprite(frameSpriteId(spriteId, frame), () => renderAdventurer(look, frame))
+}
+
+/** A player's uploaded sprite, with its exhale frame made by sinking all but the feet. */
+export function customSpriteImage(
+  spriteId: string,
+  encoded: string,
+  frame: 0 | 1 = 0,
+): CampImage | null {
+  const sprite = decodeSprite(encoded)
+  if (!sprite) return null
+  return cacheSprite(
+    frameSpriteId(spriteId, frame),
+    () => (frame === 0 ? sprite.pixels : exhaleSprite(sprite)),
+    sprite.size,
+  )
 }
 
 /** The warm outline drawn around hovered, focused, or open objects. */

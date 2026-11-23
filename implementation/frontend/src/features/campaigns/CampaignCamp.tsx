@@ -98,6 +98,7 @@ export function CampaignCamp({
   roster,
   characterNames,
   appearances,
+  customSprites,
   partyCharacters,
   onOpenSheet,
   landfallKey,
@@ -137,6 +138,8 @@ export function CampaignCamp({
   characterNames?: ReadonlyMap<string, string>
   /** Looks players saved for this campaign, by profile id; others keep the default look. */
   appearances?: ReadonlyMap<string, AdventurerAppearance>
+  /** Sprites players uploaded, by profile id; they replace the look at the fire. */
+  customSprites?: ReadonlyMap<string, string>
   /**
    * Every character this member may see (already limited by row-level security). A seated
    * player whose party character has shared their sheet wears a "Sheet" tag on their bedroll.
@@ -253,8 +256,8 @@ export function CampaignCamp({
   }
   const ramps = useMemo(() => campRamps(world), [world])
   const { figures, overflow } = useMemo(
-    () => partyFigures(roster, characterNames, appearances),
-    [roster, characterNames, appearances],
+    () => partyFigures(roster, characterNames, appearances, customSprites),
+    [roster, characterNames, appearances, customSprites],
   )
   const sheetMarkers = useMemo(
     () => sharedSheetMarkers(figures, partyCharacters ?? []),
@@ -304,10 +307,12 @@ export function CampaignCamp({
     scene.style.setProperty('--camp-tent-x', `${tentFoot.x / current.dpr}px`)
     scene.style.setProperty('--camp-tent-y', `${(tentFoot.y - 20 * view.scale) / current.dpr}px`)
     for (const plate of scene.querySelectorAll<HTMLElement>('[data-camp-name-at]')) {
-      const [x, y] = (plate.dataset.campNameAt ?? '').split(',').map(Number)
+      const [x, y, height = figureSize.height] = (plate.dataset.campNameAt ?? '')
+        .split(',')
+        .map(Number)
       const foot = projectToDevice({ x, y }, view)
       plate.style.left = `${foot.x / current.dpr}px`
-      plate.style.top = `${(foot.y - figureSize.height * view.scale) / current.dpr}px`
+      plate.style.top = `${(foot.y - height * view.scale) / current.dpr}px`
     }
     for (const tag of scene.querySelectorAll<HTMLElement>('[data-camp-sheet-at]')) {
       const [x, y] = (tag.dataset.campSheetAt ?? '').split(',').map(Number)
@@ -566,11 +571,17 @@ export function CampaignCamp({
     // Too small to read or keep apart: the Party panel still names everyone.
     const unit = view.scale / dpr
     if (unit < minNameUnit) return null
-    const plate = (key: string, point: { x: number; y: number }, text: string, extra?: string) => (
+    const plate = (
+      key: string,
+      point: { x: number; y: number },
+      text: string,
+      extra?: string,
+      height: number = figureSize.height,
+    ) => (
       <span
         className="camp-name"
         data-camp-name={extra}
-        data-camp-name-at={`${point.x},${point.y}`}
+        data-camp-name-at={`${point.x},${point.y},${height}`}
         key={key}
       >
         {text}
@@ -582,7 +593,7 @@ export function CampaignCamp({
         className="camp-names"
         style={{ '--camp-unit': `${unit}px` } as CSSProperties}
       >
-        {figures.map((figure) => plate(figure.id, figure, figure.label))}
+        {figures.map((figure) => plate(figure.id, figure, figure.label, undefined, figure.size))}
         {overflow > 0 && plate('overflow', overflowMarker, `+${overflow}`, 'overflow')}
       </div>
     )

@@ -422,6 +422,46 @@ export type Database = {
           },
         ]
       }
+      campaign_custom_sprites: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          pixels: string
+          profile_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          pixels: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          pixels?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'campaign_custom_sprites_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'campaign_custom_sprites_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       campaign_invitations: {
         Row: {
           campaign_id: string
@@ -1225,6 +1265,13 @@ export type Database = {
           p_headwear: string
           p_pack: string
           p_skin: number
+        }
+        Returns: undefined
+      }
+      set_campaign_custom_sprite: {
+        Args: {
+          p_campaign_id: string
+          p_pixels: string
         }
         Returns: undefined
       }

@@ -38,6 +38,9 @@ type CampaignPartyMembersProps = {
   /** The character whose shared sheet is open in place of the list, if any. */
   sheetCharacterId?: string | null
   onSheetChange?: (characterId: string | null) => void
+  /** Profile ids that have uploaded a camp sprite; the owner may remove those of others. */
+  customSpriteOwners?: ReadonlySet<string>
+  onRemoveSprite?: (profileId: string, name: string) => void
 }
 
 /**
@@ -64,6 +67,8 @@ export function CampaignPartyMembers({
   userId = '',
   sheetCharacterId = null,
   onSheetChange = () => {},
+  customSpriteOwners,
+  onRemoveSprite,
 }: CampaignPartyMembersProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -257,6 +262,20 @@ export function CampaignPartyMembers({
                       View sheet
                     </button>
                   )}
+                  {isOwner &&
+                    onRemoveSprite &&
+                    member.profile_id !== userId &&
+                    customSpriteOwners?.has(member.profile_id) && (
+                      <button
+                        aria-label={`Remove ${name}'s camp sprite`}
+                        className="campaign-text-button"
+                        disabled={busy}
+                        onClick={() => onRemoveSprite(member.profile_id, name)}
+                        type="button"
+                      >
+                        Reset sprite
+                      </button>
+                    )}
                   <span className="campaign-member-list__role">
                     {member.role === 'owner' ? 'Owner' : 'Member'}
                   </span>

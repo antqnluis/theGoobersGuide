@@ -277,3 +277,41 @@ describe('CampaignPartyMembers', () => {
     expect(loading.onRetry).not.toHaveBeenCalled()
   })
 })
+
+describe('CampaignPartyMembers sprites', () => {
+  function renderWith(isOwner: boolean, onRemoveSprite = vi.fn()) {
+    render(
+      <CampaignPartyMembers
+        campaignName="The Red Hand"
+        confirmation={null}
+        customSpriteOwners={new Set(['owner', 'ally'])}
+        error={null}
+        isOwner={isOwner}
+        onConfirmationChange={vi.fn()}
+        onLeaveCampaign={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onRemoveSprite={onRemoveSprite}
+        onRetry={vi.fn()}
+        pendingAction={null}
+        pendingProfileId={null}
+        roster={roster}
+        status="success"
+        userId="owner"
+      />,
+    )
+    return onRemoveSprite
+  }
+
+  it("lets the owner reset another member's sprite, but only members who have one", async () => {
+    const onRemoveSprite = renderWith(true)
+    const buttons = screen.getAllByRole('button', { name: /camp sprite$/ })
+    expect(buttons).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: "Remove player_two's camp sprite" }))
+    expect(onRemoveSprite).toHaveBeenCalledWith('ally', 'player_two')
+  })
+
+  it('offers no sprite reset to members', () => {
+    renderWith(false)
+    expect(screen.queryByRole('button', { name: /camp sprite$/ })).toBeNull()
+  })
+})

@@ -1,3 +1,4 @@
+import { encodeSprite } from './customSprite'
 import { describe, expect, it } from 'vitest'
 import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
@@ -204,6 +205,30 @@ describe('planScene with a party', () => {
       for (const value of [op.dx, op.dy]) expect(Number.isInteger(value)).toBe(true)
       expect(op.flipX).toBe(figure.flip)
     }
+  })
+
+  it('draws a 32 x 32 custom sprite 24 art pixels across, on the same seat', () => {
+    const custom = encodeSprite(new Uint8ClampedArray(32 * 32 * 4).fill(255))!
+    const { figures: withCustom } = partyFigures(
+      roster,
+      undefined,
+      undefined,
+      new Map([[roster[1].profile_id, custom]]),
+    )
+    const figure = withCustom[1]
+    expect(figure.size).toBe(24)
+    const id = frameSpriteId(figure.spriteId, figure.phase % 2)
+    const customOps = planScene(
+      view,
+      'terrestrial',
+      { ...sizes, [id]: { width: 32, height: 32 } },
+      withCustom,
+    )
+    const op = customOps.find((candidate) => candidate.id === id)!
+    expect([op.sw, op.sh]).toEqual([32, 32])
+    expect([op.dw, op.dh]).toEqual([24 * view.scale, 24 * view.scale])
+    const plain = ops.find(({ id: plainId }) => plainId === opId(figures[1]))!
+    expect(op.dy + op.dh).toBe(plain.dy + plain.dh)
   })
 
   it('draws a figure on a bedroll after it, and the back seats before the fire pit', () => {
