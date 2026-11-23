@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type RefObject,
 } from 'react'
 import {
   arrangeMinWidth,
@@ -89,8 +90,10 @@ const moveSteps: Record<string, [number, number]> = {
  * so `arrangeable` is false and no inline styles are applied. The arrangement is kept in this
  * browser (see `diceLayout.ts`).
  */
-export function useDiceLayout(watch: { open: boolean; host: HTMLElement | null }) {
-  const trayRef = useRef<HTMLElement>(null)
+export function useDiceLayout(
+  trayRef: RefObject<HTMLElement | null>,
+  watch: { open: boolean; host: HTMLElement | null },
+) {
   const arrangeable = useArrangeable()
   const [layout, setLayout] = useState<DiceLayout>(loadLayout)
   const [dragging, setDragging] = useState(false)
@@ -266,7 +269,6 @@ export function useDiceLayout(watch: { open: boolean; host: HTMLElement | null }
     arrangeable,
     arranged,
     dragging,
-    trayRef,
     trayStyle,
     pinned: arrangeable && layout.pinned,
     setPinned,

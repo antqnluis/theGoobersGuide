@@ -31,7 +31,7 @@ describe('clampPosition', () => {
   })
 
   it('pins a tray bigger than the screen to the corner', () => {
-    expect(clampPosition({ right: 50, bottom: 50 }, { width: 300, height: 200 }, dock)).toEqual({
+    expect(clampPosition({ right: 50, bottom: 50 }, { width: 300, height: 200 }, tray)).toEqual({
       right: 0,
       bottom: 0,
     })

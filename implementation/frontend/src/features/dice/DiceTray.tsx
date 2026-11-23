@@ -1,4 +1,11 @@
-import { useId, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from 'react'
+import {
+  useId,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  type RefObject,
+} from 'react'
 import { DiceFailureNotice, DiceResult } from './DiceResult'
 import { DiceLog } from './DiceLog'
 import { DeviceIcon, MoveIcon, PinIcon, RepeatIcon, ResizeIcon, WarnIcon } from './DiceIcons'
@@ -31,12 +38,15 @@ export function DiceTray({
   arrangement,
   onClose,
   onEscape,
+  trayRef,
 }: {
   arrangement: DiceArrangement
   /** Shuts the tray, and unpins it. */
   onClose: () => void
   /** Escape: shuts the tray unless it is pinned. */
   onEscape: () => void
+  /** The element the layout moves and measures. */
+  trayRef: RefObject<HTMLElement | null>
 }) {
   const dice = useDice()
   const arrangeHelpId = useId()
@@ -91,7 +101,7 @@ export function DiceTray({
       className="dice-tray"
       id="dice-tray"
       onKeyDown={onKeyDown}
-      ref={arrangement.trayRef}
+      ref={trayRef}
       style={arrangement.trayStyle}
       tabIndex={-1}
     >

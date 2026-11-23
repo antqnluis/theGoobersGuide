@@ -26,12 +26,13 @@ export function DiceDock() {
   const dice = useDice()
   const { open, setOpen, result, resultSeq, failure } = dice
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const trayRef = useRef<HTMLElement>(null)
   const restoredPin = useRef(false)
   const restoreFocus = useRef(false)
   const focusPanel = useRef(false)
   const [seenSeq, setSeenSeq] = useState(0)
   const [held, setHeld] = useState(false)
-  const arrangement = useDiceLayout({ open, host: dice.host })
+  const arrangement = useDiceLayout(trayRef, { open, host: dice.host })
   const { pinned, setPinned } = arrangement
 
   const openTray = useCallback(() => {
@@ -144,7 +145,14 @@ export function DiceDock() {
         </div>
       )}
 
-      {open && <DiceTray arrangement={arrangement} onClose={closeTray} onEscape={escapeTray} />}
+      {open && (
+        <DiceTray
+          arrangement={arrangement}
+          onClose={closeTray}
+          onEscape={escapeTray}
+          trayRef={trayRef}
+        />
+      )}
 
       <DiceTrayButton
         onClick={open ? closeTray : openTray}
