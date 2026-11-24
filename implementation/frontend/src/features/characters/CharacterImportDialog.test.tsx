@@ -77,11 +77,45 @@ describe('CharacterImportDialog', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  describe('the steps', () => {
+    it('lays out three steps and locks the review until a document is added', () => {
+      setup()
+      const steps = within(screen.getByRole('list')).getAllByRole('listitem')
+      expect(steps).toHaveLength(3)
+      expect(
+        within(steps[0]).getByRole('heading', { name: 'Turn your sheet into a document' }),
+      ).toBeInTheDocument()
+      expect(within(steps[1]).getByLabelText('Character document (JSON)')).toBeInTheDocument()
+      expect(steps[2]).toHaveAttribute('data-state', 'locked')
+      expect(within(steps[2]).getByText('Locked')).toBeInTheDocument()
+      expect(within(steps[0]).getByRole('button', { name: /Copy conversion prompt/ })).toBeVisible()
+    })
+
+    it('says in words why Create is unavailable, and stops once it is ready', async () => {
+      const { user } = setup()
+      expect(createButton()).toHaveAccessibleDescription('Add a document in step 2 first.')
+      await paste(user, documentText({ level: 99 }))
+      expect(await screen.findByText('Fix 1 problem in the document first.')).toBeInTheDocument()
+      await user.clear(screen.getByLabelText('Character document (JSON)'))
+      await paste(user, documentText())
+      await screen.findByRole('region', { name: 'Review' })
+      expect(screen.queryByText(/in the document first/)).not.toBeInTheDocument()
+      expect(createButton()).toBeEnabled()
+    })
+
+    it('folds the prompt step once a document is in, and brings it back on request', async () => {
+      const { user } = setup()
+      await paste(user, documentText())
+      expect(screen.queryByRole('button', { name: /Copy conversion prompt/ })).toBeNull()
+      await user.click(screen.getByRole('button', { name: 'Show the prompt again' }))
+      expect(screen.getByRole('button', { name: /Copy conversion prompt/ })).toBeInTheDocument()
+    })
+  })
+
   describe('the conversion prompt', () => {
     it('copies the prompt and says so', async () => {
       const { user } = setup()
       const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
-      await user.click(screen.getByText('How do I make a document?'))
       await user.click(screen.getByRole('button', { name: 'Copy conversion prompt' }))
       expect(write).toHaveBeenCalledTimes(1)
       expect(write.mock.calls[0][0]).toContain('the-goobers-guide-character')
@@ -93,6 +127,7 @@ describe('CharacterImportDialog', () => {
       vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
       await user.click(screen.getByRole('button', { name: 'Copy conversion prompt' }))
       expect(await screen.findByText(/Couldn’t copy/)).toBeInTheDocument()
+      expect(screen.getByText('Show the prompt').closest('details')).toHaveAttribute('open')
       expect((screen.getByLabelText('Conversion prompt') as HTMLTextAreaElement).value).toContain(
         'the-goobers-guide-character',
       )

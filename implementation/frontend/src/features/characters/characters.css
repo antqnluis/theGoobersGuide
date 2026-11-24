@@ -1924,6 +1924,116 @@
 
 .import-dialog__actions {
   margin-top: 18px;
+  align-items: center;
+}
+
+.import-dialog__reason {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+/* The three steps: a ruled list, not nested plates. */
+.import-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-dialog .import-steps {
+  margin-top: 16px;
+}
+
+.import-step {
+  padding: 16px 0 18px;
+  border-top: 2px solid var(--journal-rule);
+}
+
+.import-step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.import-step__head h4 {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-family: var(--journal-font-display);
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.import-step__number {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--journal-line);
+  border-radius: var(--journal-radius);
+  background: var(--journal-page-shade);
+  font-family: var(--journal-font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.import-step__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--journal-ink-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.import-step[data-state='done'] .import-step__state {
+  color: var(--journal-forest);
+}
+
+.import-step[data-state='attention'] .import-step__state {
+  color: var(--journal-oxblood-deep);
+}
+
+.import-step__body {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0 calc(2rem + 12px);
+}
+
+.import-step__body > p,
+.import-step__body .journal-field {
+  margin: 0;
+}
+
+.import-step[data-state='locked'] .import-step__head h4 {
+  color: var(--journal-ink-soft);
+}
+
+.import-step__locked {
+  color: var(--journal-ink-soft);
+  max-width: 62ch;
+}
+
+.import-step__body > p:not(.import-step__locked) {
+  max-width: 68ch;
+}
+
+.import-dialog__prompt summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 30rem) {
+  .import-step__body {
+    margin-left: 0;
+  }
 }
 
 .import-review {
@@ -1946,7 +2056,7 @@
   border-color: var(--journal-danger, #a3342a);
 }
 
-.import-review__section h4 {
+.import-review__section h5 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
