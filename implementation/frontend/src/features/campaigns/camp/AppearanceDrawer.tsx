@@ -400,10 +400,11 @@ export function AppearanceDrawer({
               </details>
             </li>
             <li>
-              <strong>Shrink it to 32 × 32 pixels.</strong>
+              <strong>Shrink it to 64 × 64 pixels.</strong>
               <span>
                 Use nearest-neighbour scaling in a pixel editor such as Piskel or Aseprite, and keep
-                the transparent background. A 16 × 16 sprite also works and stands a little smaller.
+                the transparent background. 32 × 32 and 16 × 16 also work and stand a little
+                smaller.
               </span>
             </li>
             <li>

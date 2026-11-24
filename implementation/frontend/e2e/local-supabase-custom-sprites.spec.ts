@@ -17,6 +17,7 @@ const sprite = (fill: string) => `${fill.repeat(1366)}==`
 const first = sprite('A')
 const second = sprite('B')
 const large = `${'C'.repeat(5462)}==`
+const huge = `${'D'.repeat(21846)}==`
 
 const save = (player: Player, campaignId: string, pixels: string | null = first) =>
   player.client.rpc('set_campaign_custom_sprite', {
@@ -100,6 +101,7 @@ test('saving, visibility, validation, removal by owner, departure, and cascade',
       profile_id: guest.id,
       pixels: large,
     })
+    await rpcOk(save(guest, campaignId, huge))
     expect((await rpcError(save(guest, campaignId, `${'A'.repeat(3000)}==`))).message).toBe(
       'sprite_invalid',
     )

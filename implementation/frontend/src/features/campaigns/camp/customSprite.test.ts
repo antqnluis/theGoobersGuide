@@ -36,13 +36,24 @@ describe('customSprite', () => {
     expect(Array.from(new Uint8ClampedArray(decoded!.pixels.buffer))).toEqual(Array.from(rgba))
   })
 
-  it('draws a 32x32 sprite 24 art pixels tall and a 16x16 one at its own size', () => {
+  it('stores a 64x64 sprite as 21848 base64 characters and reads it back', () => {
+    const rgba = sprite((x, y) => [x * 3, y * 3, 9, (x + y) % 5 === 0 ? 0 : 255], 64)
+    const encoded = encodeSprite(rgba)
+    expect(encoded).toHaveLength(21848)
+    const decoded = decodeSprite(encoded!)
+    expect(decoded?.size).toBe(64)
+    expect(Array.from(new Uint8ClampedArray(decoded!.pixels.buffer))).toEqual(Array.from(rgba))
+  })
+
+  it('draws bigger sprites larger, but within the 30-pixel seat spacing', () => {
     expect(spriteFootprint(16)).toBe(16)
     expect(spriteFootprint(32)).toBe(24)
+    expect(spriteFootprint(64)).toBe(28)
   })
 
   it('refuses anything that is not exactly one 16x16 sprite', () => {
     expect(encodeSprite(new Uint8ClampedArray(24 * 24 * 4))).toBeNull()
+    expect(encodeSprite(new Uint8ClampedArray(128 * 128 * 4))).toBeNull()
     expect(decodeSprite('A'.repeat(5462) + '==')).not.toBeNull()
     expect(decodeSprite('A'.repeat(2000))).toBeNull()
     expect(decodeSprite('')).toBeNull()

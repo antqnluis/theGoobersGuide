@@ -1,22 +1,23 @@
-// A player's own sprite for their seat at the camp: 16x16, or 32x32 for more detail. It is
-// stored as the sprite's straight RGBA bytes in base64 (1368 characters for 16x16, 5464 for
-// 32x32). A 16x16 sprite stands as tall as the built-in adventurers; a 32x32 one is drawn
-// at 24 art pixels, so it draws, flips, casts a shadow, and outlines like them.
+// A player's own sprite for their seat at the camp: 16x16, 32x32 or 64x64 for more detail. It
+// is stored as the sprite's straight RGBA bytes in base64 (1368 characters for 16x16, 5464
+// for 32x32, 21848 for 64x64). A 16x16 sprite stands as tall as the built-in adventurers; the
+// larger ones are drawn at 24 and 28 art pixels (seats are 30 apart), so they draw, flip,
+// cast a shadow, and outline like them.
 
 /** Edge lengths a sprite may have, in pixels. */
-export const spriteSizes = [16, 32] as const
+export const spriteSizes = [16, 32, 64] as const
 export type SpriteSize = (typeof spriteSizes)[number]
 
 /** The size the camp draws a sprite at, in art pixels (whole numbers, to stay on the grid). */
 export function spriteFootprint(size: number) {
-  return size === 32 ? 24 : size
+  return size === 64 ? 28 : size === 32 ? 24 : size
 }
 
-/** Largest PNG file read when choosing a sprite; a 32x32 image is a few kilobytes. */
+/** Largest PNG file read when choosing a sprite; a 32x32 image is a few kilobytes and a 64x64 one under twenty. */
 export const maxSpriteFileBytes = 64 * 1024
 
 const bytesFor = (size: number) => size * size * 4
-// base64 of n bytes is 4 * ceil(n / 3) characters; both sizes end in two "=" padding marks.
+// base64 of n bytes is 4 * ceil(n / 3) characters; every size ends in two "=" padding marks.
 const lengthFor = (size: number) => 4 * Math.ceil(bytesFor(size) / 3)
 const encodedPattern = /^[A-Za-z0-9+/]+==$/
 
@@ -95,7 +96,7 @@ export function spriteTag(encoded: string) {
 
 export type SpriteFileResult = { ok: true; encoded: string } | { ok: false; reason: string }
 
-/** Reads a chosen file: a PNG of exactly 16x16 or 32x32 pixels with something visible. */
+/** Reads a chosen file: a PNG of exactly 16x16, 32x32 or 64x64 pixels with something visible. */
 export async function readSpriteFile(file: File): Promise<SpriteFileResult> {
   if (file.type !== 'image/png') return { ok: false, reason: 'Choose a PNG image.' }
   if (file.size > maxSpriteFileBytes) return { ok: false, reason: 'That file is too large.' }
@@ -113,7 +114,7 @@ export async function readSpriteFile(file: File): Promise<SpriteFileResult> {
     if (width !== height || !spriteSizes.some((size) => size === width)) {
       return {
         ok: false,
-        reason: 'The sprite must be exactly 32 × 32 pixels (16 × 16 also works).',
+        reason: 'The sprite must be exactly 64 × 64 pixels (32 × 32 or 16 × 16 also work).',
       }
     }
     const canvas = document.createElement('canvas')
@@ -133,10 +134,10 @@ export async function readSpriteFile(file: File): Promise<SpriteFileResult> {
 
 /**
  * A prompt to paste into an image generator. Generators rarely hit an exact pixel grid, so
- * it asks for a large nearest-neighbour sprite that is scaled down to 32 × 32 afterwards.
+ * it asks for a large nearest-neighbour sprite that is scaled down to 64 × 64 afterwards.
  */
 export const spritePrompt = [
   'Pixel art sprite of [describe your character: race, cloak colour, hat, gear], sitting cross-legged on the ground by a campfire, side view facing right, whole body in frame.',
-  'Crisp readable pixels on a strict 32 x 32 grid (shown at 512 x 512, each pixel a flat 16 x 16 block), a limited palette of 12 to 16 colours, one-pixel dark outline, no anti-aliasing, no gradients, no shading blur.',
+  'Crisp readable pixels on a strict 64 x 64 grid (shown at 512 x 512, each pixel a flat 8 x 8 block), a limited palette of 16 to 24 colours, one-pixel dark outline, no anti-aliasing, no gradients, no shading blur.',
   'Fully transparent background (PNG with alpha), no ground, no shadow, no text, no border. The feet sit on the bottom row of the image and the sprite fills the canvas.',
 ].join(' ')
