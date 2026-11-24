@@ -6,6 +6,7 @@ import type { CharacterSummary } from '../characters/characterTypes'
 import { PixelIcon } from '../characters/PixelIcon'
 import { UnsavedChangesDialog } from '../characters/UnsavedChangesDialog'
 import { NoteEditor } from './NoteEditor'
+import { VisibilityChip } from '../npcs/VisibilityChip'
 import { NoteView } from './NoteView'
 import { noteOptions, notesOptions } from './noteQueries'
 import { filterNotes, groupNotes, noteAuthorLabel, noteEditedLabel } from './noteRules'
@@ -24,11 +25,14 @@ export function CampNotes({
   campaignId,
   characters,
   enabled,
+  filter: controlledFilter,
   onDirtyChange,
+  onFilterChange: onControlledFilterChange,
   onNotice,
   onScreenChange,
   roster,
   screen,
+  tabs,
   userId,
 }: {
   actions: ReturnType<typeof useNoteActions>
@@ -37,17 +41,24 @@ export function CampNotes({
   characters: readonly CharacterSummary[]
   /** True once the Notes destination has been opened, so nothing loads before it is needed. */
   enabled: boolean
+  /** The filter text, kept by the workspace so it survives a visit to the NPCs tab. */
+  filter?: string
+  onFilterChange?: (filter: string) => void
   onDirtyChange?: (dirty: boolean) => void
   onNotice: (notice: string) => void
   onScreenChange: (screen: NoteScreen) => void
   roster: readonly CampaignRosterMember[]
   screen: NoteScreen
+  /** The Notes / NPCs switch, shown above the list. */
+  tabs?: React.ReactNode
   userId: string
 }) {
   const listQuery = useQuery(notesOptions(campaignId, userId, enabled))
   const openId = screen.type === 'note' ? screen.id : ''
   const detailQuery = useQuery(noteOptions(openId, userId, enabled && openId !== ''))
-  const [filter, setFilter] = useState('')
+  const [localFilter, setLocalFilter] = useState('')
+  const filter = controlledFilter ?? localFilter
+  const setFilter = onControlledFilterChange ?? setLocalFilter
   const [dirty, setDirty] = useState(false)
   const [pendingNav, setPendingNav] = useState<NoteScreen | null>(null)
   // A share or make-private that lost a race: the latest version is shown, and the change is not made.
@@ -151,9 +162,10 @@ export function CampNotes({
       headingRef={titleRef}
       icon="quill"
       place="Journal crates"
-      title="Campaign notes"
+      title="Notes & NPCs"
     >
       <div className="camp-notes" data-screen={screen.type} ref={rootRef}>
+        {screen.type === 'list' && tabs}
         {screen.type === 'list' && (
           <NoteList
             error={errorAlert || null}
@@ -402,6 +414,7 @@ function NoteList({
                 {row.title}
               </button>
               <p className="note-row__meta">
+                <VisibilityChip visibility={row.visibility} />
                 <span>{noteAuthorLabel(row.author_id, userId, roster)}</span>
                 <span>{noteEditedLabel(row, userId, roster, now)}</span>
                 {row.character_id && names.get(row.character_id) && (
@@ -438,10 +451,6 @@ function NoteList({
       {status === 'success' && (
         <>
           <div className="journal-actions note-toolbar">
-            <button className="journal-button" onClick={onNew} ref={newRef} type="button">
-              <PixelIcon name="quill" />
-              New note
-            </button>
             {all.length > 0 && (
               <div className="journal-field note-toolbar__filter">
                 <label htmlFor="notes-filter">Filter by title</label>
@@ -455,9 +464,16 @@ function NoteList({
                 />
               </div>
             )}
+            <button className="journal-button" onClick={onNew} ref={newRef} type="button">
+              <PixelIcon name="quill" />
+              New note
+            </button>
           </div>
           {all.length === 0 ? (
-            <p className="journal-status note-empty">No notes yet. Write the first one.</p>
+            <div className="journal-status note-empty">
+              <PixelIcon name="quill" />
+              <p>No notes yet. Write the first one.</p>
+            </div>
           ) : shown.length === 0 ? (
             <p className="journal-status note-empty" role="status">
               No notes match &ldquo;{filter.trim()}&rdquo;.

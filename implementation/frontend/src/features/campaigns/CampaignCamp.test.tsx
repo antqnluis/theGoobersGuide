@@ -46,7 +46,7 @@ function campElement({
       party={<h2 id="camp-party-heading">People in this campaign</h2>}
       characters={<h2 id="camp-characters-heading">My characters</h2>}
       adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
-      notes={<h2 id="camp-notes-heading">Campaign notes</h2>}
+      notes={<h2 id="camp-notes-heading">Notes & NPCs</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
     />
@@ -99,7 +99,7 @@ describe('CampaignCamp unsaved notes', () => {
   async function openCrates(unsavedChanges: UnsavedChanges) {
     const user = userEvent.setup()
     const out = renderCamp({ unsavedChanges })
-    await user.click(screen.getByRole('button', { name: /Notes\s*Journal crates/ }))
+    await user.click(screen.getByRole('button', { name: /Notes & NPCs\s*Journal crates/ }))
     return { ...out, user }
   }
 
@@ -230,16 +230,16 @@ describe('CampaignCamp destinations', () => {
     expect(entry).toHaveFocus()
   })
 
-  it('opens the journal crates as Notes for everyone', async () => {
+  it('opens the journal crates as Notes & NPCs for everyone', async () => {
     const user = userEvent.setup()
     renderCamp({ isOwner: false })
     const entry = within(screen.getByRole('navigation', { name: 'Places' })).getByRole('button', {
-      name: /Notes\s*Journal crates/,
+      name: /Notes & NPCs\s*Journal crates/,
     })
 
     await user.click(entry)
     expect(document.querySelector('[data-camp-state]')).toHaveAttribute('data-camp-state', 'notes')
-    expect(screen.getByRole('dialog', { name: 'Campaign notes' })).toBeVisible()
+    expect(screen.getByRole('dialog', { name: 'Notes & NPCs' })).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Back to camp' }))
     expect(entry).toHaveFocus()

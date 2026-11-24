@@ -1164,7 +1164,7 @@ test('players write private and shared notes at the crates, and a second player 
         .getByRole('list', { name: 'Camp places' })
         .getByRole('button', { name: /^Notes/ })
         .click()
-      const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+      const dialog = page.getByRole('dialog', { name: 'Notes & NPCs' })
       await expect(dialog).toBeVisible()
       return dialog
     }

@@ -106,7 +106,7 @@ describe('journal crates', () => {
   it('are the Notes destination for everyone, with a target that covers the 32×38 sprite', () => {
     expect(campLocations.find(({ id }) => id === 'notes')).toEqual({
       id: 'notes',
-      label: 'Notes',
+      label: 'Notes & NPCs',
       place: 'Journal crates',
       world: { x: journalCrates.x, y: journalCrates.y },
       hit: { width: 40, height: 46 },

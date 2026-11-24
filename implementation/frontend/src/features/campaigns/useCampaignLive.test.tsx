@@ -88,12 +88,15 @@ describe('what it subscribes to', () => {
       'character_sheets:UPDATE',
       'notes:INSERT',
       'notes:UPDATE',
+      'npcs:INSERT',
+      'npcs:UPDATE',
     ])
     expect(options.subscriptions.some((entry) => entry.event === '*')).toBe(false)
     for (const entry of options.subscriptions) {
       if (
         [
           'notes',
+          'npcs',
           'adventures',
           'adventure_participants',
           'adventure_handoffs',
@@ -124,6 +127,18 @@ describe('refreshing what changed', () => {
     emit('campaign_overviews', 'UPDATE', { campaign_id: campaignId })
     settle()
     expect(keysOf(spy)).toEqual([JSON.stringify(['campaigns', 'overview', campaignId, userId])])
+  })
+
+  it('refetches the NPC list and the NPC', () => {
+    const spy = setup()
+    emit('npcs', 'UPDATE', { id: 'p1' })
+    settle()
+    expect(keysOf(spy).sort()).toEqual(
+      [
+        JSON.stringify(['campaigns', 'npcs', 'detail', 'p1', userId]),
+        JSON.stringify(['campaigns', 'npcs', campaignId, userId]),
+      ].sort(),
+    )
   })
 
   it('refetches the notes list and the note', () => {
@@ -236,9 +251,10 @@ describe('joining the channel', () => {
     act(() => live.options!.onJoin!())
 
     const calls = spy.mock.calls
-    const [notes, adventures, sheets] = calls.map(([filters]) => filters!)
-    expect(calls).toHaveLength(3)
+    const [notes, npcs, adventures, sheets] = calls.map(([filters]) => filters!)
+    expect(calls).toHaveLength(4)
     expect(notes.queryKey).toEqual(['campaigns', 'notes'])
+    expect(npcs.queryKey).toEqual(['campaigns', 'npcs'])
     expect(adventures.queryKey).toEqual(['campaigns', 'adventures'])
     expect(sheets.queryKey).toEqual(['campaigns', 'characters', 'sheet'])
 

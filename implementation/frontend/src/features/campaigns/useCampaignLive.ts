@@ -11,6 +11,7 @@ import {
 } from '../adventures/adventureQueries'
 import { characterSheetKey } from '../characters/characterQueries'
 import { noteKey, notesKey, notesPrefix } from '../notes/noteQueries'
+import { npcKey, npcsKey, npcsPrefix } from '../npcs/npcQueries'
 import { overviewKey } from './overview/overviewQueries'
 
 const settleMs = 250
@@ -110,6 +111,16 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
       campaignFilter,
     ),
     ...watch(
+      'npcs',
+      ['INSERT', 'UPDATE'],
+      (change) => {
+        const id = text(change.new, 'id')
+        invalidateSoon(npcsKey(campaignId, userId))
+        if (id) invalidateSoon(npcKey(id, userId))
+      },
+      campaignFilter,
+    ),
+    ...watch(
       'adventures',
       ['INSERT', 'UPDATE'],
       (change) => {
@@ -160,6 +171,7 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
         Date.now() - query.state.dataUpdatedAt > freshMs
       for (const queryKey of [
         notesPrefix,
+        npcsPrefix,
         adventuresPrefix,
         ['campaigns', 'characters', 'sheet'],
       ]) {

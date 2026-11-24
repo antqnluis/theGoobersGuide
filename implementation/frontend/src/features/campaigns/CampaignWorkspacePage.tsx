@@ -20,6 +20,10 @@ import { useDiceScope } from '../dice/useDice'
 import { CampNotes, type NoteScreen } from '../notes/CampNotes'
 import { notesKey } from '../notes/noteQueries'
 import { useNoteActions } from '../notes/useNoteActions'
+import { CampNpcs, type NpcScreen } from '../npcs/CampNpcs'
+import { NotebookTabs, type NotebookTab } from '../npcs/NotebookTabs'
+import { npcsKey } from '../npcs/npcQueries'
+import { useNpcActions } from '../npcs/useNpcActions'
 import { CampaignForm } from './CampaignForm'
 import { CampaignOutgoingInvitations } from './CampaignOutgoingInvitations'
 import { CampaignOwnershipTransfer } from './CampaignOwnershipTransfer'
@@ -80,6 +84,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const membership = useCampaignMembership(campaignId, userId)
   const characterActions = useCharacterActions(campaignId, userId)
   const noteActions = useNoteActions(campaignId, userId)
+  const npcActions = useNpcActions(campaignId, userId)
   const adventureActions = useAdventureActions(campaignId, userId)
   const overviewActions = useOverviewActions(campaignId, userId)
   const queryClient = useQueryClient()
@@ -93,6 +98,14 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const [noteDirty, setNoteDirty] = useState(false)
   // The notes load when the Notes destination is first opened, and refresh each time after.
   const [notesOpened, setNotesOpened] = useState(false)
+  // The journal crates hold two tabs: campaign notes and the NPC log. NPCs load once opened.
+  const [notebookTab, setNotebookTab] = useState<NotebookTab>('notes')
+  const [npcScreen, setNpcScreen] = useState<NpcScreen>({ type: 'list' })
+  const [npcDirty, setNpcDirty] = useState(false)
+  const [npcsOpened, setNpcsOpened] = useState(false)
+  // Each tab keeps its own filter text while the other is showing.
+  const [noteFilter, setNoteFilter] = useState('')
+  const [npcFilter, setNpcFilter] = useState('')
   const [adventureScreen, setAdventureScreen] = useState<AdventureScreen>({ type: 'list' })
   const [adventureDirty, setAdventureDirty] = useState(false)
   // The adventures load when the Adventures destination is first opened, and refresh each time after.
@@ -346,7 +359,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       unsavedChanges={{
         overview: overviewDirty,
         characters: characterDirty,
-        notes: noteDirty,
+        notes: noteDirty || npcDirty,
         adventures: adventureDirty,
       }}
       waiting={{ adventures: requestCount.data ?? 0 }}
@@ -367,6 +380,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         if (notesOpened)
           void queryClient.invalidateQueries({ queryKey: notesKey(campaignId, userId) })
         else setNotesOpened(true)
+        if (npcsOpened)
+          void queryClient.invalidateQueries({ queryKey: npcsKey(campaignId, userId) })
       }}
       onDismissToast={toasts.dismiss}
       toasts={toasts.toasts}
@@ -384,6 +399,9 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         noteActions.clearError()
         setNoteScreen({ type: 'list' })
         setNoteDirty(false)
+        npcActions.clearError()
+        setNpcScreen({ type: 'list' })
+        setNpcDirty(false)
         adventureActions.clearError()
         setAdventureScreen({ type: 'list' })
         setAdventureDirty(false)
@@ -398,6 +416,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         membership.pendingAction !== null ||
         characterActions.pendingAction !== null ||
         noteActions.pendingAction !== null ||
+        npcActions.pendingAction !== null ||
         adventureActions.pendingAction !== null
       }
       isOwner={isOwner}
@@ -550,18 +569,46 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         />
       }
       notes={
-        <CampNotes
-          actions={noteActions}
-          campaignId={campaignId}
-          characters={charactersQuery.data ?? []}
-          enabled={notesOpened}
-          onDirtyChange={setNoteDirty}
-          onNotice={toasts.push}
-          onScreenChange={setNoteScreen}
-          roster={roster}
-          screen={noteScreen}
-          userId={userId}
-        />
+        notebookTab === 'notes' ? (
+          <CampNotes
+            actions={noteActions}
+            campaignId={campaignId}
+            characters={charactersQuery.data ?? []}
+            enabled={notesOpened}
+            filter={noteFilter}
+            onFilterChange={setNoteFilter}
+            onDirtyChange={setNoteDirty}
+            onNotice={toasts.push}
+            onScreenChange={setNoteScreen}
+            roster={roster}
+            screen={noteScreen}
+            tabs={
+              <NotebookTabs
+                active="notes"
+                onChange={(tab) => {
+                  setNotebookTab(tab)
+                  setNpcsOpened(true)
+                }}
+              />
+            }
+            userId={userId}
+          />
+        ) : (
+          <CampNpcs
+            actions={npcActions}
+            campaignId={campaignId}
+            enabled={npcsOpened}
+            filter={npcFilter}
+            onFilterChange={setNpcFilter}
+            onDirtyChange={setNpcDirty}
+            onNotice={toasts.push}
+            onScreenChange={setNpcScreen}
+            roster={roster}
+            screen={npcScreen}
+            tabs={<NotebookTabs active="npcs" onChange={setNotebookTab} />}
+            userId={userId}
+          />
+        )
       }
       settings={
         <CampPanel

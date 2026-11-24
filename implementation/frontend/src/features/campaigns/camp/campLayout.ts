@@ -36,7 +36,7 @@ export type CampProp = {
 /** The map table, the "Adventures" destination (47×35 sprite). */
 export const mapTable: CampProp = { id: 'map-table', x: 690, y: 242 }
 
-/** The journal crates, the "Notes" destination (32×38 sprite). */
+/** The journal crates, the "Notes & NPCs" destination (32×38 sprite). */
 export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
 
 /** The one table that drives scene buttons, the Places list, and panel gating. */
@@ -88,7 +88,7 @@ export const campLocations: readonly CampLocation[] = [
   },
   {
     id: 'notes',
-    label: 'Notes',
+    label: 'Notes & NPCs',
     place: 'Journal crates',
     // The crates' spot, and their 32×38 sprite, rounded up to a comfortable target.
     world: { x: journalCrates.x, y: journalCrates.y },

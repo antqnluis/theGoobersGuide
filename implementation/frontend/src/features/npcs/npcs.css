@@ -1,0 +1,229 @@
+/* The Notes & NPCs page: ribbon tabs, the NPC cast gallery, and the NPC page. Journal tokens only. */
+
+/* Ribbons, in the voice of the character sheet's section tabs. */
+.notebook-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 2px solid var(--journal-rule);
+}
+
+.notebook-tabs__tab {
+  display: inline-flex;
+  min-height: var(--journal-touch);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -2px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  padding: 0 14px;
+  color: var(--journal-ink);
+  background: transparent;
+  font: 700 0.8rem / 1 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.notebook-tabs__tab .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.notebook-tabs__tab:hover,
+.notebook-tabs__tab[aria-current='page'] {
+  border-bottom-color: var(--journal-oxblood);
+}
+
+.notebook-tabs__tab[aria-current='page'] {
+  background: color-mix(in srgb, var(--journal-page-shade) 60%, transparent);
+}
+
+.notebook-tabs__tab:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: -3px;
+}
+
+/* An empty list: a dashed parchment plate with one short line. */
+.note-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 1px dashed var(--journal-line);
+  border-radius: var(--journal-radius);
+  padding: 28px 18px;
+  text-align: center;
+}
+
+.note-empty p {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--journal-ink);
+  font: 600 1.15rem / 1.35 var(--journal-font-display);
+  text-wrap: balance;
+}
+
+.note-empty .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.note-row__meta .journal-chip {
+  align-self: center;
+}
+
+/* The cast: portrait tiles in a grid, one whole-tile target each. Plates, not nested cards. */
+.npc-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.npc-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--journal-rule);
+  border-radius: var(--journal-radius);
+  padding: 14px 10px 12px;
+  background: rgb(255 255 255 / 0.35);
+  text-align: center;
+}
+
+.npc-tile:hover {
+  border-color: var(--journal-line);
+  background: rgb(255 255 255 / 0.55);
+}
+
+.npc-tile:focus-within {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 2px;
+}
+
+.npc-tile__open {
+  border: 0;
+  padding: 0;
+  color: var(--journal-oxblood-deep);
+  background: none;
+  font: 700 1.1rem / 1.25 var(--journal-font-display);
+  text-wrap: balance;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+/* The name's target stretches over the whole tile. */
+.npc-tile__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.npc-tile__open:focus-visible {
+  outline: none;
+}
+
+.npc-tile__subtitle {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.npc-tile .journal-chip {
+  margin-top: 2px;
+}
+
+.npc-medallion {
+  flex: none;
+}
+
+/* A round picture fills the medallion. */
+.npc-medallion img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.npc-medallion:has(img) {
+  overflow: hidden;
+}
+
+/* An NPC's page: the portrait and its quiet picture actions beside the name and what we know. */
+.npc-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 22px;
+  min-width: 0;
+}
+
+.npc-identity__portrait {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 8.5rem;
+}
+
+.npc-identity__text {
+  display: grid;
+  flex: 1 1 14rem;
+  align-content: start;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.npc-identity__subtitle {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.npc-portrait-editor {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+.journal-button.npc-portrait-editor__button {
+  min-height: var(--journal-touch);
+  padding-inline: 8px;
+  color: var(--journal-oxblood-deep);
+  font-size: 0.82rem;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.npc-portrait-editor__hint,
+.npc-form__hint {
+  margin: 0;
+  color: var(--journal-ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.npc-form__hint {
+  text-align: start;
+}
+
+@container notes (max-width: 28rem) {
+  .npc-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .npc-identity__portrait {
+    width: 100%;
+  }
+}

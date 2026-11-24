@@ -208,7 +208,7 @@ test('the dock stays reachable over an open journal, and Escape closes only the 
   await places(page)
     .getByRole('button', { name: /^Notes/ })
     .click()
-  const journal = page.getByRole('dialog', { name: 'Campaign notes' })
+  const journal = page.getByRole('dialog', { name: 'Notes & NPCs' })
   await expect(journal).toBeVisible()
 
   const key = journal.getByRole('button', { name: /^Dice/ })
@@ -305,7 +305,7 @@ test('dice written in spells, features, and notes become chips that roll', async
   await places(page)
     .getByRole('button', { name: /^Notes/ })
     .click()
-  const notes = page.getByRole('dialog', { name: 'Campaign notes' })
+  const notes = page.getByRole('dialog', { name: 'Notes & NPCs' })
   await notes.getByRole('button', { name: /Cellar trap/ }).click()
   await notes.getByRole('button', { name: 'Roll 1d4 + 2 for Cellar trap' }).click()
   expect(state.calls[2]).toMatchObject({ p_label: 'Cellar trap — 1d4 + 2', p_source: 'text' })

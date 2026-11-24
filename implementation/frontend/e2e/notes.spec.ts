@@ -43,7 +43,7 @@ async function openNotes(
   const mock = await mockNotes(page, state, { fail: options.fail, hold: options.hold })
   const camp = await openCamp(page)
   await notesEntry(page).click()
-  const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+  const dialog = page.getByRole('dialog', { name: 'Notes & NPCs' })
   await expect(dialog).toBeVisible()
   return { camp, dialog, state, mock }
 }
@@ -150,7 +150,7 @@ test('writes, links, shares, hides, and deletes notes, and keeps them across a r
   await page.reload()
   await expect(page.locator('.camp')).toHaveAttribute('data-camp-ready', 'true')
   await notesEntry(page).click()
-  await expect(page.getByRole('dialog', { name: 'Campaign notes' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Notes & NPCs' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Party plan' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Clues' })).toHaveCount(0)
 })

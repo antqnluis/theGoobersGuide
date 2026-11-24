@@ -1047,6 +1047,74 @@ export type Database = {
           },
         ]
       }
+      npcs: {
+        Row: {
+          author_id: string
+          body: string
+          campaign_id: string
+          created_at: string
+          id: string
+          location: string
+          name: string
+          portrait_path: string | null
+          role: string
+          updated_at: string
+          updated_by: string | null
+          visibility: string
+        }
+        ComputedFields: never
+        Insert: {
+          author_id?: string
+          body?: string
+          campaign_id: string
+          created_at?: string
+          id?: string
+          location?: string
+          name: string
+          portrait_path?: string | null
+          role?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          location?: string
+          name?: string
+          portrait_path?: string | null
+          role?: string
+          updated_at?: string
+          updated_by?: string | null
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'npcs_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'npcs_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'npcs_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

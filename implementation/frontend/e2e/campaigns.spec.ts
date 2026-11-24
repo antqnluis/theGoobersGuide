@@ -1019,7 +1019,7 @@ test('the journal crates open Notes from the Places list and the scene at every 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
 
     // Focusing the Places entry brings the crates into view, then Enter opens the journal.
-    const entry = places.getByRole('button', { name: /^Notes\s*Journal crates/ })
+    const entry = places.getByRole('button', { name: /^Notes & NPCs\s*Journal crates/ })
     await entry.scrollIntoViewIfNeeded()
     expect((await entry.boundingBox())!.height).toBeGreaterThanOrEqual(44)
     await entry.focus()
@@ -1031,7 +1031,7 @@ test('the journal crates open Notes from the Places list and the scene at every 
     await page.keyboard.press('Enter')
     await expect(camp).toHaveAttribute('data-camp-state', 'notes')
     await expect(back).toBeFocused()
-    const dialog = page.getByRole('dialog', { name: 'Campaign notes' })
+    const dialog = page.getByRole('dialog', { name: 'Notes & NPCs' })
     await expect(dialog).toBeInViewport({ ratio: 1 })
 
     // On a desktop view the camera frames the crates in the part the journal leaves open.
