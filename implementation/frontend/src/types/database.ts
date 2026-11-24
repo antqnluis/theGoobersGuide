@@ -555,6 +555,69 @@ export type Database = {
           },
         ]
       }
+      campaign_overviews: {
+        Row: {
+          announcement: string
+          campaign_id: string
+          chapter: string
+          created_at: string
+          house_rules: string
+          in_world_date: string
+          last_session: string
+          location: string
+          next_session_at: string | null
+          next_session_note: string
+          objective: string
+          ruleset: string
+          situation: string
+          table_notes: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          announcement?: string
+          campaign_id: string
+          chapter?: string
+          created_at?: string
+          house_rules?: string
+          in_world_date?: string
+          last_session?: string
+          location?: string
+          next_session_at?: string | null
+          next_session_note?: string
+          objective?: string
+          ruleset?: string
+          situation?: string
+          table_notes?: string
+          updated_at?: string
+        }
+        Update: {
+          announcement?: string
+          campaign_id?: string
+          chapter?: string
+          created_at?: string
+          house_rules?: string
+          in_world_date?: string
+          last_session?: string
+          location?: string
+          next_session_at?: string | null
+          next_session_note?: string
+          objective?: string
+          ruleset?: string
+          situation?: string
+          table_notes?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'campaign_overviews_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: true
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       campaigns: {
         Row: {
           created_at: string
@@ -736,13 +799,74 @@ export type Database = {
           },
         ]
       }
+      character_resources: {
+        Row: {
+          character_id: string
+          created_at: string
+          current: number
+          die: number | null
+          id: string
+          kind: string
+          maximum: number
+          name: string | null
+          position: number
+          reset: string
+          slot_level: number | null
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          character_id: string
+          created_at?: string
+          current: number
+          die?: number | null
+          id?: string
+          kind: string
+          maximum: number
+          name?: string | null
+          position?: number
+          reset: string
+          slot_level?: number | null
+          updated_at?: string
+        }
+        Update: {
+          character_id?: string
+          created_at?: string
+          current?: number
+          die?: number | null
+          id?: string
+          kind?: string
+          maximum?: number
+          name?: string | null
+          position?: number
+          reset?: string
+          slot_level?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_resources_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       character_sheets: {
         Row: {
           armor_class: number | null
+          body_revision: number
           character_id: string
+          concentration: string | null
+          conditions: string[]
           cp: number
           current_hp: number | null
+          death_save_failures: number
+          death_save_successes: number
+          exhaustion: number
           gp: number
+          inspiration: boolean
           max_hp: number | null
           sheet: NonNullable<Json>
           sp: number
@@ -753,10 +877,17 @@ export type Database = {
         ComputedFields: never
         Insert: {
           armor_class?: number | null
+          body_revision?: number
           character_id: string
+          concentration?: string | null
+          conditions?: string[]
           cp?: number
           current_hp?: number | null
+          death_save_failures?: number
+          death_save_successes?: number
+          exhaustion?: number
           gp?: number
+          inspiration?: boolean
           max_hp?: number | null
           sheet?: NonNullable<Json>
           sp?: number
@@ -766,10 +897,17 @@ export type Database = {
         }
         Update: {
           armor_class?: number | null
+          body_revision?: number
           character_id?: string
+          concentration?: string | null
+          conditions?: string[]
           cp?: number
           current_hp?: number | null
+          death_save_failures?: number
+          death_save_successes?: number
+          exhaustion?: number
           gp?: number
+          inspiration?: boolean
           max_hp?: number | null
           sheet?: NonNullable<Json>
           sp?: number
@@ -1093,6 +1231,25 @@ export type Database = {
         Args: { p_delta: number; p_item_id: string }
         Returns: number
       }
+      adjust_character_resource: {
+        Args: { p_delta: number; p_resource_id: string }
+        Returns: {
+          current: number
+          updated_at: string
+        }[]
+      }
+      apply_character_hp: {
+        Args: { p_amount: number; p_character_id: string; p_kind: string }
+        Returns: {
+          concentration: string
+          current_hp: number
+          damage_taken: number
+          death_save_failures: number
+          death_save_successes: number
+          temp_hp: number
+          updated_at: string
+        }[]
+      }
       apply_character_update: {
         Args: {
           p_changes: Json
@@ -1207,6 +1364,15 @@ export type Database = {
         Args: { p_adventure_id: string; p_character_id: string }
         Returns: string
       }
+      record_death_save: {
+        Args: { p_character_id: string; p_result: string }
+        Returns: {
+          current_hp: number
+          death_save_failures: number
+          death_save_successes: number
+          updated_at: string
+        }[]
+      }
       remove_campaign_member: {
         Args: { p_campaign_id: string; p_profile_id: string }
         Returns: undefined
@@ -1282,6 +1448,10 @@ export type Database = {
       set_character_status: {
         Args: { p_character_id: string; p_status: string }
         Returns: undefined
+      }
+      take_character_rest: {
+        Args: { p_character_id: string; p_kind: string; p_plan: Json }
+        Returns: Json
       }
       transfer_campaign_ownership: {
         Args: { p_campaign_id: string; p_profile_id: string }

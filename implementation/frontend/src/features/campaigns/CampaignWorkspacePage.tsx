@@ -6,6 +6,7 @@ import { campaignCharactersOptions } from '../characters/characterQueries'
 import { CharacterTent, type TentView } from '../characters/CharacterTent'
 import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
 import { useCharacterActions } from '../characters/useCharacterActions'
+import { useResourceActions } from '../characters/useResourceActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
 import {
   adventuresKey,
@@ -79,6 +80,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const management = useCampaignManagement(campaignId, userId)
   const membership = useCampaignMembership(campaignId, userId)
   const characterActions = useCharacterActions(campaignId, userId)
+  const resourceActions = useResourceActions(campaignId, userId)
   const noteActions = useNoteActions(campaignId, userId)
   const adventureActions = useAdventureActions(campaignId, userId)
   const overviewActions = useOverviewActions(campaignId, userId)
@@ -519,6 +521,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           actions={characterActions}
           campaignId={campaignId}
           characters={charactersQuery.data ?? []}
+          live={resourceActions}
           confirmation={characterConfirmation}
           onConfirmationChange={(next) => {
             characterActions.clearError()

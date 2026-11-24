@@ -98,13 +98,14 @@ test.describe('catalog', () => {
         {},
       ),
     ).toBe(
-      'adventure_handoffs,adventure_objectives,adventure_participants,adventure_updates,adventures,character_sheets,dice_rolls,notes',
+      'adventure_handoffs,adventure_objectives,adventure_participants,adventure_updates,adventures,campaign_overviews,character_resources,character_sheets,dice_rolls,notes',
     )
     expect(
       localDatabaseQuery(
         `select string_agg(distinct relreplident::text, ',') from pg_class
          where oid in ('public.character_sheets'::regclass, 'public.notes'::regclass,
-                       'public.adventures'::regclass, 'public.adventure_updates'::regclass);`,
+                       'public.adventures'::regclass, 'public.adventure_updates'::regclass,
+                       'public.character_resources'::regclass);`,
         {},
       ),
     ).toBe('d')
@@ -155,6 +156,60 @@ test.describe('sheets', () => {
       )
       await settle(2500)
       expect(ownerInbox.events).toHaveLength(before)
+    } finally {
+      for (const inbox of inboxes) await inbox.close()
+      await cleanup(players, [campaignId])
+    }
+  })
+})
+
+test.describe('resources', () => {
+  test("a shared sheet's tracker updates reach members; a private one stays silent", async () => {
+    const { players, campaignId, owner, member, outsider } = await table()
+    const inboxes: Inbox[] = []
+    try {
+      const brand = await character(member, campaignId, 'Brand')
+      const added = await member.client
+        .from('character_resources')
+        .insert({
+          character_id: brand,
+          kind: 'tracker',
+          name: 'Ki',
+          maximum: 3,
+          current: 3,
+          reset: 'short',
+        })
+        .select('id')
+        .single()
+      expect(added.error).toBeNull()
+      const resourceId = added.data!.id
+
+      const watch = [{ table: 'character_resources' }]
+      const ownerInbox = await listen(owner.client, 'owner', watch)
+      const memberInbox = await listen(member.client, 'member', watch)
+      const outsiderInbox = await listen(outsider.client, 'outsider', watch)
+      inboxes.push(ownerInbox, memberInbox, outsiderInbox)
+
+      // Private: only the character's owner hears the tap.
+      await rpcOk(
+        member.client.rpc('adjust_character_resource', { p_resource_id: resourceId, p_delta: -1 }),
+      )
+      await waitFor(() => idsOf(memberInbox, 'character_resources').includes(resourceId))
+      await settle()
+      expect(ownerInbox.events).toEqual([])
+      expect(outsiderInbox.events).toEqual([])
+
+      // Shared: another member hears the next tap, with the new value; an outsider still does not.
+      await rpcOk(
+        member.client.from('characters').update({ sheet_visibility: 'campaign' }).eq('id', brand),
+      )
+      await rpcOk(
+        member.client.rpc('adjust_character_resource', { p_resource_id: resourceId, p_delta: -1 }),
+      )
+      await waitFor(() => idsOf(ownerInbox, 'character_resources').includes(resourceId))
+      const heard = ownerInbox.events.find((event) => event.row.id === resourceId)
+      expect(heard?.row.current).toBe(1)
+      expect(outsiderInbox.events).toEqual([])
     } finally {
       for (const inbox of inboxes) await inbox.close()
       await cleanup(players, [campaignId])

@@ -1,4 +1,5 @@
 import { listCharacterImports } from './characterImportService'
+import { listCharacterResources } from './resourceService'
 import { listCharacterItems, listCoinTransactions } from './inventoryService'
 import {
   getCharacterPortraitUrl,
@@ -15,6 +16,12 @@ export const characterSheetKey = (characterId: string, userId: string) =>
 
 /** Every inventory query, for invalidation when membership changes (items are per character). */
 export const characterItemsPrefix = ['campaigns', 'characters', 'items'] as const
+
+/** Every tracker query, for invalidation when membership changes (trackers are per character). */
+export const characterResourcesPrefix = ['campaigns', 'characters', 'resources'] as const
+
+export const characterResourcesKey = (characterId: string, userId: string) =>
+  ['campaigns', 'characters', 'resources', characterId, userId] as const
 
 /** Every coin-log query, for invalidation when membership changes. */
 export const coinLogPrefix = ['campaigns', 'characters', 'coin-log'] as const
@@ -63,6 +70,15 @@ export function characterItemsOptions(characterId: string, userId: string, enabl
   return {
     queryKey: characterItemsKey(characterId, userId),
     queryFn: () => listCharacterItems(characterId),
+    enabled,
+  }
+}
+
+/** The character's trackers; pass `enabled: false` until the sheet itself is readable. */
+export function characterResourcesOptions(characterId: string, userId: string, enabled = true) {
+  return {
+    queryKey: characterResourcesKey(characterId, userId),
+    queryFn: () => listCharacterResources(characterId),
     enabled,
   }
 }

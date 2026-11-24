@@ -6,6 +6,7 @@ import type {
   CharacterSheet,
   CharacterSheetBody,
   CharacterStatus,
+  CharacterStatusState,
   CharacterSummary,
   CharacterVitals,
   SheetVisibility,
@@ -17,7 +18,7 @@ type Functions = Database['public']['Functions']
 const summaryFields =
   'id,campaign_id,owner_id,name,species,class_name,subclass,background,level,status,in_party,sheet_visibility,portrait_path,status_changed_at,created_at,updated_at'
 const sheetFields =
-  'character_id,max_hp,current_hp,temp_hp,armor_class,speed,cp,sp,gp,sheet,updated_at'
+  'character_id,max_hp,current_hp,temp_hp,armor_class,speed,cp,sp,gp,conditions,exhaustion,death_save_successes,death_save_failures,concentration,inspiration,body_revision,sheet,updated_at'
 
 type SheetRow = Omit<CharacterSheet, 'sheet'> & { sheet: unknown }
 
@@ -137,20 +138,38 @@ export async function updateCharacterVitals(
   return toSheet(data as SheetRow)
 }
 
+/** Patches only the given status columns (conditions, exhaustion, saves, concentration, inspiration). */
+export async function updateCharacterStatus(
+  characterId: string,
+  patch: Partial<CharacterStatusState>,
+): Promise<CharacterSheet> {
+  const { data, error } = await supabase
+    .from('character_sheets')
+    .update(patch)
+    .eq('character_id', characterId)
+    .select(sheetFields)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw denied('sheet_unavailable')
+  return toSheet(data as SheetRow)
+}
+
 /**
- * Saves the whole body, but only if nobody wrote the sheet since `previousUpdatedAt`.
- * Zero rows means another device saved first (or the sheet is gone).
+ * Saves the whole body, but only if nobody saved the body since `previousRevision`. Vitals,
+ * coins, status, and trackers do not move the revision. Zero rows means another device saved
+ * the body first (or the sheet is gone).
  */
 export async function updateCharacterSheetBody(
   characterId: string,
   body: CharacterSheetBody,
-  previousUpdatedAt: string,
+  previousRevision: number,
 ): Promise<CharacterSheet> {
   const { data, error } = await supabase
     .from('character_sheets')
     .update({ sheet: body })
     .eq('character_id', characterId)
-    .eq('updated_at', previousUpdatedAt)
+    .eq('body_revision', previousRevision)
     .select(sheetFields)
     .maybeSingle()
 

@@ -9,6 +9,7 @@ import { getCharacterSheet } from './characterService'
 import { character, item, sheet, userId } from './characterTestData'
 import { defaultSheetBody } from './characterValidation'
 import { listCharacterItems } from './inventoryService'
+import { listCharacterResources } from './resourceService'
 
 vi.mock('./characterImportService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterImportService')>()),
@@ -25,6 +26,11 @@ vi.mock('./characterService', async (importOriginal) => ({
   getCharacterSheet: vi.fn(),
 }))
 
+vi.mock('./resourceService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./resourceService')>()),
+  listCharacterResources: vi.fn(),
+}))
+
 vi.mock('./inventoryService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./inventoryService')>()),
   listCharacterItems: vi.fn(),
@@ -34,6 +40,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(listCharacterItems).mockResolvedValue([])
+  vi.mocked(listCharacterResources).mockResolvedValue([])
 })
 
 function actions(overrides: Partial<SheetActions> = {}) {
@@ -211,9 +218,9 @@ describe('CharacterSheet (owner)', () => {
 
     await user.click(save)
     expect(sheetActions.saveSheet).toHaveBeenCalledTimes(1)
-    const [id, body, stamp] = vi.mocked(sheetActions.saveSheet).mock.calls[0]
+    const [id, body, revision] = vi.mocked(sheetActions.saveSheet).mock.calls[0]
     expect(id).toBe(character().id)
-    expect(stamp).toBe('2026-11-13T10:05:00+00:00')
+    expect(revision).toBe(sheet().body_revision)
     expect(body.abilities.str).toBe(16)
     expect(body.saving_throws).toEqual(['con'])
     expect(body.skills).toEqual({ stealth: 'expertise' })
@@ -309,7 +316,7 @@ describe('CharacterSheet (read-only)', () => {
       'Collapse features and notes',
       'Collapse inventory',
     ])
-    expect(screen.getByText('12 / 30')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Hit points' })).toHaveTextContent('12 / 30')
     expect(screen.getByText('30 ft.')).toBeInTheDocument()
     expect(screen.getByText('Greataxe')).toBeInTheDocument()
     expect(screen.getByText('Rage')).toBeInTheDocument()
@@ -636,5 +643,119 @@ describe('CharacterSheet folding sections', () => {
     await user.click(screen.getByRole('button', { name: 'Inventory' }))
     expect(screen.getByRole('button', { name: 'Collapse inventory' })).toBeInTheDocument()
     expect(screen.getByText('Rope')).toBeVisible()
+  })
+})
+
+describe('CharacterSheet play view and shared sheets (M04)', () => {
+  const live = () => ({
+    error: null as string | null,
+    pendingAction: undefined,
+    changeHp: vi.fn().mockResolvedValue(undefined),
+    saveStatus: vi.fn().mockResolvedValue(undefined),
+    saveDeathSave: vi.fn().mockResolvedValue(undefined),
+    adjustResource: vi.fn().mockResolvedValue(undefined),
+  })
+
+  function renderPlay({
+    summary = character(),
+    liveActions = live(),
+    play = true,
+  }: {
+    summary?: ReturnType<typeof character>
+    liveActions?: ReturnType<typeof live>
+    play?: boolean
+  } = {}) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <CharacterSheet
+          actions={play ? actions() : undefined}
+          character={summary}
+          live={play ? (liveActions as never) : undefined}
+          playView={play}
+          readOnly
+          userId={userId}
+        />
+      </QueryClientProvider>,
+    )
+    return { liveActions, user: userEvent.setup() }
+  }
+
+  it('gives the owner HP controls, status controls, and trackers, and no save bar', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    vi.mocked(listCharacterResources).mockResolvedValue([
+      {
+        id: 'ki',
+        character_id: character().id,
+        kind: 'tracker',
+        name: 'Ki',
+        slot_level: null,
+        die: null,
+        maximum: 3,
+        current: 3,
+        reset: 'short',
+        position: 0,
+        created_at: '2026-11-24T10:00:00+00:00',
+        updated_at: '2026-11-24T10:00:00+00:00',
+      },
+    ])
+    renderPlay()
+    expect(await screen.findByRole('button', { name: 'Damage' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Add condition')).toBeInTheDocument()
+    expect(await screen.findByRole('group', { name: 'Ki, 3 of 3 left' })).toBeInTheDocument()
+    expect(screen.queryByText('All changes saved')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save stats' })).not.toBeInTheDocument()
+    // The section tabs and the roll buttons are still the owner's.
+    expect(screen.getByRole('button', { name: 'Inventory' })).toBeInTheDocument()
+  })
+
+  it('shows the death save track only at 0 HP', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    renderPlay()
+    await screen.findByRole('button', { name: 'Damage' })
+    expect(screen.queryByRole('region', { name: 'Death saves' })).not.toBeInTheDocument()
+    cleanup()
+
+    vi.mocked(getCharacterSheet).mockResolvedValue(
+      sheet({ ...fullSheet(), current_hp: 0, death_save_failures: 2 }),
+    )
+    renderPlay()
+    const track = await screen.findByRole('region', { name: 'Death saves' })
+    expect(within(track).getByRole('button', { name: 'Roll death save' })).toBeInTheDocument()
+    expect(within(track).getByRole('button', { name: 'Failures 2 of 3' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('shows another member the same card with no buttons or fields', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(
+      sheet({
+        ...fullSheet(),
+        current_hp: 0,
+        temp_hp: 3,
+        conditions: ['prone'],
+        concentration: 'Bless',
+        death_save_successes: 1,
+      }),
+    )
+    vi.mocked(listCharacterResources).mockResolvedValue([])
+    renderPlay({ play: false, summary: character({ owner_id: 'someone-else' }) })
+    const hp = await screen.findByRole('group', { name: 'Hit points' })
+    expect(hp).toHaveTextContent('+3 temp')
+    expect(screen.getByRole('list', { name: 'Conditions' })).toHaveTextContent('Prone')
+    expect(screen.getByText('Bless')).toBeInTheDocument()
+    expect(screen.getByText('Successes: 1 of 3')).toBeInTheDocument()
+    expect(document.querySelector('input, textarea, select')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /Damage|Heal|Roll death save|Add|Remove/ }),
+    ).toBeNull()
+  })
+
+  it('hides the live controls once the character is retired', async () => {
+    vi.mocked(getCharacterSheet).mockResolvedValue(fullSheet())
+    renderPlay({ summary: character({ status: 'retired' }) })
+    expect(await screen.findByRole('group', { name: 'Hit points' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Damage' })).not.toBeInTheDocument()
   })
 })

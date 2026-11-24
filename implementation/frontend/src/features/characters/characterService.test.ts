@@ -13,6 +13,7 @@ import {
   setSheetVisibility,
   updateCharacterDetails,
   updateCharacterSheetBody,
+  updateCharacterStatus,
   updateCharacterVitals,
   uploadCharacterPortrait,
   removeCharacterPortrait,
@@ -186,21 +187,38 @@ describe('queries and writes', () => {
     )
   })
 
-  it('saves the body only against the previous updated_at', async () => {
-    const stamp = '2026-11-13T13:02:01.36002+00:00'
-    const body = { ...defaultSheetBody(), features: 'Rage' }
+  it('patches only the given status columns', async () => {
     const calls = builder({
-      data: { character_id: characterId, updated_at: 'new', sheet: body },
+      data: { character_id: characterId, conditions: ['prone'], sheet: {} },
       error: null,
     })
-    const sheet = await updateCharacterSheetBody(characterId, body, stamp)
+    const sheet = await updateCharacterStatus(characterId, { conditions: ['prone'] })
+    expect(calls).toContainEqual(['update', [{ conditions: ['prone'] }]])
+    expect(calls).toContainEqual(['eq', ['character_id', characterId]])
+    expect(sheet.conditions).toEqual(['prone'])
+
+    builder({ data: null, error: null })
+    await expect(updateCharacterStatus(characterId, { inspiration: true })).rejects.toThrow(
+      'sheet_unavailable',
+    )
+  })
+
+  it('saves the body only against the previous body_revision', async () => {
+    const revision = 3
+    const body = { ...defaultSheetBody(), features: 'Rage' }
+    const calls = builder({
+      data: { character_id: characterId, body_revision: 4, sheet: body },
+      error: null,
+    })
+    const sheet = await updateCharacterSheetBody(characterId, body, revision)
     expect(calls).toContainEqual(['update', [{ sheet: body }]])
     expect(calls).toContainEqual(['eq', ['character_id', characterId]])
-    expect(calls).toContainEqual(['eq', ['updated_at', stamp]])
+    expect(calls).toContainEqual(['eq', ['body_revision', revision]])
+    expect(calls).not.toContainEqual(['eq', ['updated_at', expect.anything()]])
     expect(sheet.sheet.features).toBe('Rage')
 
     builder({ data: null, error: null })
-    await expect(updateCharacterSheetBody(characterId, body, stamp)).rejects.toThrow(
+    await expect(updateCharacterSheetBody(characterId, body, revision)).rejects.toThrow(
       'sheet_conflict',
     )
   })

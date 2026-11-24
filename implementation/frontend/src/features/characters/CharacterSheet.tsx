@@ -41,6 +41,12 @@ import {
   skillRoll,
 } from './characterRolls'
 import { carryingCapacity } from './inventoryRules'
+import { ConditionsBar } from './ConditionsBar'
+import { DeathSaves } from './DeathSaves'
+import { HpControls } from './HpControls'
+import { ResourceTrackers } from './ResourceTrackers'
+import type { ResourceActions } from './useResourceActions'
+import './live.css'
 import { PixelIcon, type PixelIconName } from './PixelIcon'
 import { SpellList } from './SpellList'
 import { inventoryActions, type useCharacterActions } from './useCharacterActions'
@@ -58,11 +64,14 @@ type CharacterSheetProps = {
   /** Others' shared sheets are read-only; the owner edits. */
   readOnly: boolean
   /**
-   * With `readOnly`, still lets the owner change current HP in place (and save it); every
-   * other field stays display-only. Needs `actions`.
+   * With `readOnly`, the owner's play view: HP, trackers, conditions, and death saves can be
+   * used in place (M04), and coins and items stay interactive. Every other field stays
+   * display-only. Needs `actions`; the live controls also need `live`.
    */
-  quickHp?: boolean
+  playView?: boolean
   actions?: SheetActions
+  /** The live-resource actions for the play view. Without them the card is display only. */
+  live?: ResourceActions
   onNotice?: (notice: string) => void
   /** Reports whether any edit is unsaved, so the caller can guard leaving. */
   onDirtyChange?: (dirty: boolean) => void
@@ -78,8 +87,9 @@ export function CharacterSheet({
   character,
   userId,
   readOnly,
-  quickHp = false,
+  playView = false,
   actions,
+  live,
   onNotice,
   onDirtyChange,
   dock,
@@ -119,7 +129,8 @@ export function CharacterSheet({
       key={character.id}
       onDirtyChange={onDirtyChange}
       onNotice={onNotice}
-      quickHp={quickHp && readOnly && Boolean(actions)}
+      live={live}
+      playView={playView && readOnly && Boolean(actions)}
       readOnly={readOnly || !actions}
       sheet={query.data}
       userId={userId}
@@ -177,8 +188,9 @@ function SheetContent({
   character,
   dock,
   onDirtyChange,
+  live,
   onNotice,
-  quickHp,
+  playView,
   readOnly,
   sheet,
   userId,
@@ -187,8 +199,9 @@ function SheetContent({
   character: CharacterSummary
   dock?: HTMLElement | null
   onDirtyChange?: (dirty: boolean) => void
+  live?: ResourceActions
   onNotice?: (notice: string) => void
-  quickHp: boolean
+  playView: boolean
   readOnly: boolean
   sheet: CharacterSheetData
   userId: string
@@ -220,11 +233,15 @@ function SheetContent({
   const bodyDirty = JSON.stringify(body) !== savedBody
   const savedVitals = toDraft(sheet)
   const vitalsDirty = vitalFields.some(([field]) => vitalsDraft[field] !== savedVitals[field])
-  // The save bar serves the full editor, and the display's current-HP quick edit.
-  const hasBar = !readOnly || quickHp
+  // The save bar serves the edit view. The play view changes HP, trackers, and status through
+  // their own calls, so it has nothing to save here.
+  const hasBar = !readOnly
   const dirty = hasBar && (bodyDirty || vitalsDirty)
-  // Coins and items are interactive wherever the owner works (display and edit views).
-  const owned = hasBar && Boolean(actions)
+  // The owner's views: the section tabs, and coins and items that save on their own.
+  const hasTabs = !readOnly || playView
+  const owned = hasTabs && Boolean(actions)
+  // Live controls work on an active character you own; everything else only displays.
+  const liveControls = playView && character.status === 'active' ? live : undefined
   // An open item form with typed input also counts as unsaved when leaving.
   const unsaved = dirty || (owned && itemFormDirty)
 
@@ -266,7 +283,7 @@ function SheetContent({
     const found = validateSheetBody(body)
     setBodyErrors(found)
     if (found.length) return
-    if (await actions.saveSheet(character.id, body, sheet.updated_at)) {
+    if (await actions.saveSheet(character.id, body, sheet.body_revision)) {
       onNotice?.('Character sheet saved.')
     }
   }
@@ -375,17 +392,15 @@ function SheetContent({
           >
             {savingVitals ? 'Saving stats…' : 'Save stats'}
           </button>
-          {!quickHp && (
-            <button
-              aria-busy={savingSheet || undefined}
-              className="journal-button"
-              disabled={busy || !bodyDirty}
-              onClick={() => void saveBody()}
-              type="button"
-            >
-              {savingSheet ? 'Saving sheet…' : 'Save sheet'}
-            </button>
-          )}
+          <button
+            aria-busy={savingSheet || undefined}
+            className="journal-button"
+            disabled={busy || !bodyDirty}
+            onClick={() => void saveBody()}
+            type="button"
+          >
+            {savingSheet ? 'Saving sheet…' : 'Save sheet'}
+          </button>
           <button
             className="journal-button journal-button--ghost"
             disabled={busy || !dirty}
@@ -403,7 +418,7 @@ function SheetContent({
     <>
       <nav aria-label="Sheet sections" className="sheet-nav">
         <ul>
-          {hasBar ? (
+          {hasTabs ? (
             sectionTabs.map(([key, label, icon]) => (
               <li key={key}>
                 <button className="sheet-nav__tab" onClick={() => jump(key)} type="button">
@@ -433,7 +448,7 @@ function SheetContent({
               type="button"
             >
               <PixelIcon name="book" />
-              {hasBar ? 'Import and export' : 'Export and history'}
+              {hasTabs ? 'Import and export' : 'Export and history'}
             </button>
           </li>
         </ul>
@@ -456,105 +471,73 @@ function SheetContent({
                 Vitals
               </h3>
               {readOnly ? (
-                <dl className="sheet-readout">
-                  {quickHp ? (
-                    <div className="sheet-quickhp">
-                      <dt>Hit points</dt>
+                <div className="live-card">
+                  {live && liveControls && live.error && (
+                    <p className="journal-alert live-card__error" role="alert">
+                      {live.error}
+                    </p>
+                  )}
+                  <HpControls
+                    characterId={character.id}
+                    concentrationRoll={
+                      canRoll
+                        ? (dc) => ({
+                            ...savingThrowRoll(body, level, 'con', character.id),
+                            label: `Concentration save (DC ${dc})`,
+                          })
+                        : undefined
+                    }
+                    hp={sheet}
+                    live={liveControls}
+                  />
+                  {sheet.current_hp === 0 && (
+                    <DeathSaves
+                      characterId={character.id}
+                      failures={sheet.death_save_failures}
+                      live={liveControls}
+                      successes={sheet.death_save_successes}
+                    />
+                  )}
+                  <ConditionsBar characterId={character.id} live={liveControls} status={sheet} />
+                  <dl className="sheet-readout">
+                    <div className="sheet-readout__key">
+                      <dt>Armor class</dt>
+                      <dd>{notSet(sheet.armor_class)}</dd>
+                    </div>
+                    <div className="sheet-readout__key">
+                      <dt>Initiative</dt>
                       <dd>
-                        <form
-                          id={vitalsFormId}
-                          onSubmit={(event) => {
-                            event.preventDefault()
-                            void saveVitals()
-                          }}
-                        >
-                          {(
-                            [
-                              ['current_hp', 'Current HP'],
-                              ['temp_hp', 'Temporary HP'],
-                            ] as const
-                          ).map(([name, label]) => (
-                            <div className="sheet-quickhp__field" key={name}>
-                              <label htmlFor={`vital-${name}`}>{label}</label>
-                              <input
-                                className="journal-input"
-                                disabled={busy}
-                                id={`vital-${name}`}
-                                inputMode="numeric"
-                                onChange={(event) => {
-                                  setVitalsDraft((current) => ({
-                                    ...current,
-                                    [name]: event.target.value,
-                                  }))
-                                  setVitalsErrors([])
-                                }}
-                                placeholder={name === 'temp_hp' ? '0' : 'Not set'}
-                                type="number"
-                                value={vitalsDraft[name]}
-                              />
-                            </div>
-                          ))}
-                          <span className="sheet-quickhp__max">of {notSet(sheet.max_hp)} max</span>
-                        </form>
-                        {sheet.max_hp !== null && sheet.max_hp > 0 && sheet.current_hp !== null && (
-                          <div aria-hidden="true" className="sheet-quickhp__bar">
-                            <span
-                              style={{
-                                width: `${Math.min(100, Math.max(0, (sheet.current_hp / sheet.max_hp) * 100))}%`,
-                              }}
-                            />
-                          </div>
+                        {canRoll ? (
+                          <RollButton
+                            ariaLabel={`Roll initiative, ${formatModifier(initiativeBonus(body))}`}
+                            roll={initiativeRoll(body, character.id)}
+                          >
+                            {formatModifier(initiativeBonus(body))}
+                          </RollButton>
+                        ) : (
+                          formatModifier(initiativeBonus(body))
                         )}
                       </dd>
                     </div>
-                  ) : (
-                    <div>
-                      <dt>Hit points</dt>
-                      <dd>
-                        {sheet.current_hp === null && sheet.max_hp === null
-                          ? 'Not set'
-                          : `${notSet(sheet.current_hp)} / ${notSet(sheet.max_hp)}`}
-                      </dd>
+                    <div className="sheet-readout__key">
+                      <dt>Speed</dt>
+                      <dd>{notSet(sheet.speed, ' ft.')}</dd>
                     </div>
-                  )}
-                  {!quickHp && (
-                    <div>
-                      <dt>Temporary HP</dt>
-                      <dd>{sheet.temp_hp}</dd>
+                    <div className="sheet-readout__minor">
+                      <dt>Proficiency bonus</dt>
+                      <dd>{formatModifier(proficiencyBonus(level))}</dd>
                     </div>
-                  )}
-                  <div className="sheet-readout__key">
-                    <dt>Armor class</dt>
-                    <dd>{notSet(sheet.armor_class)}</dd>
-                  </div>
-                  <div className="sheet-readout__key">
-                    <dt>Initiative</dt>
-                    <dd>
-                      {canRoll ? (
-                        <RollButton
-                          ariaLabel={`Roll initiative, ${formatModifier(initiativeBonus(body))}`}
-                          roll={initiativeRoll(body, character.id)}
-                        >
-                          {formatModifier(initiativeBonus(body))}
-                        </RollButton>
-                      ) : (
-                        formatModifier(initiativeBonus(body))
-                      )}
-                    </dd>
-                  </div>
-                  <div className="sheet-readout__key">
-                    <dt>Speed</dt>
-                    <dd>{notSet(sheet.speed, ' ft.')}</dd>
-                  </div>
-                  <div className="sheet-readout__minor">
-                    <dt>Proficiency bonus</dt>
-                    <dd>{formatModifier(proficiencyBonus(level))}</dd>
-                  </div>
-                  <div className="sheet-readout__minor">
-                    <dt>Passive Perception</dt>
-                    <dd>{passivePerception(body, level)}</dd>
-                  </div>
-                </dl>
+                    <div className="sheet-readout__minor">
+                      <dt>Passive Perception</dt>
+                      <dd>{passivePerception(body, level)}</dd>
+                    </div>
+                  </dl>
+                  <ResourceTrackers
+                    characterId={character.id}
+                    live={liveControls}
+                    userId={userId}
+                  />
+                </div>
               ) : (
                 <form
                   className="sheet-vitals"

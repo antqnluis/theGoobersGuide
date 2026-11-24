@@ -2,7 +2,7 @@
 
 ## Status
 
-**Approved (2026-11-24). Not started.** Every recommendation in [Approved decisions](#approved-decisions) (L1–L12) was approved as written. No code or migrations yet; Phase 0 is next. This plan builds on characters and sheets from [M03.2](../completed/M03.2-Characters-and-Party.md), the coin delta RPC pattern from [M03.3](../completed/M03.3-Inventory-and-Currency.md), server-rolled dice and live sheets from [M03.7](../completed/M03.7-Session-Utilities.md), and the character document from [M03.8](../completed/M03.8-Character-Imports.md).
+**Approved (2026-11-24). In progress: Phases 0–4 done.** Every recommendation in [Approved decisions](#approved-decisions) (L1–L12) was approved as written. Phases 1 (status columns and `body_revision`), 2 (resources table and RPCs), 3 (data layer), and 4 (play view) are in; Phase 5 (rests and the editor) is next. See the [Implementation Log](M04-Implementation-Log.md). This plan builds on characters and sheets from [M03.2](../completed/M03.2-Characters-and-Party.md), the coin delta RPC pattern from [M03.3](../completed/M03.3-Inventory-and-Currency.md), server-rolled dice and live sheets from [M03.7](../completed/M03.7-Session-Utilities.md), and the character document from [M03.8](../completed/M03.8-Character-Imports.md).
 
 Evidence was gathered on 2026-11-24 by reading files only: the 35 migrations (ending `20261124110000_allow_64px_custom_sprites.sql`), `characterTypes.ts`, `characterService.ts`, `CharacterSheet.tsx`, `CharacterTent.tsx`, `spellFormat.ts`, `SpellList.tsx`, `diceContext.ts`, and `legacy/docs/PRODUCT.md` §3.2 and §5.4. No database queries were run; Phase 0 records the baseline.
 

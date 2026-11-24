@@ -78,6 +78,17 @@ export type CharacterVitals = Pick<
   'max_hp' | 'current_hp' | 'temp_hp' | 'armor_class' | 'speed'
 >
 
+/** Live status stored beside the vitals: small, fixed, and changed mid-session (M04 L2). */
+export type CharacterStatusState = Pick<
+  Tables['character_sheets']['Row'],
+  | 'conditions'
+  | 'exhaustion'
+  | 'death_save_successes'
+  | 'death_save_failures'
+  | 'concentration'
+  | 'inspiration'
+>
+
 export const denominations = ['cp', 'sp', 'gp'] as const
 export type Denomination = (typeof denominations)[number]
 
@@ -86,9 +97,12 @@ export type CharacterPurse = Record<Denomination, number>
 
 /** A sheet row with its body normalized to a complete version-1 object. */
 export type CharacterSheet = CharacterVitals &
-  CharacterPurse & {
+  CharacterPurse &
+  CharacterStatusState & {
     character_id: string
     updated_at: string
+    /** Counts body saves only, so it is the concurrency token for the body (M04 L10). */
+    body_revision: number
     sheet: CharacterSheetBody
   }
 
@@ -142,3 +156,90 @@ export type CharacterDetails = {
   background: string | null
   level: number
 }
+
+/** What a tracker counts: spell slots of one level, hit dice of one size, or something named. */
+export const resourceKinds = ['spell_slots', 'hit_dice', 'tracker'] as const
+export type ResourceKind = (typeof resourceKinds)[number]
+
+/** Which rest refills a tracker; `none` means only by hand. */
+export const resetRules = ['short', 'long', 'none'] as const
+export type ResetRule = (typeof resetRules)[number]
+
+export const hitDieSizes = [6, 8, 10, 12] as const
+
+/** One tracker row (M04 L1, L4). */
+export type CharacterResource = Omit<Tables['character_resources']['Row'], 'kind' | 'reset'> & {
+  kind: ResourceKind
+  reset: ResetRule
+}
+
+/** A tracker as written by the editor: the columns an owner may set. */
+export type ResourceValues = {
+  kind: ResourceKind
+  name: string | null
+  slot_level: number | null
+  die: number | null
+  maximum: number
+  current: number
+  reset: ResetRule
+  position: number
+}
+
+/** The standard conditions: stored as `key`, shown with a label and a one-line reminder (L8). */
+export const standardConditions = [
+  { key: 'blinded', label: 'Blinded', reminder: "Can't see. Attacks against you have advantage." },
+  {
+    key: 'charmed',
+    label: 'Charmed',
+    reminder: "Can't attack the charmer. They have advantage on social checks.",
+  },
+  { key: 'deafened', label: 'Deafened', reminder: "Can't hear. Fails checks that need hearing." },
+  {
+    key: 'frightened',
+    label: 'Frightened',
+    reminder: 'Disadvantage while the source is in sight. Cannot move closer.',
+  },
+  { key: 'grappled', label: 'Grappled', reminder: 'Speed is 0.' },
+  { key: 'incapacitated', label: 'Incapacitated', reminder: "Can't take actions or reactions." },
+  {
+    key: 'invisible',
+    label: 'Invisible',
+    reminder: 'Unseen. Attacks against you have disadvantage; yours have advantage.',
+  },
+  {
+    key: 'paralyzed',
+    label: 'Paralyzed',
+    reminder: 'Incapacitated. Attacks within 5 feet are critical hits.',
+  },
+  {
+    key: 'petrified',
+    label: 'Petrified',
+    reminder: 'Turned to stone. Incapacitated and resistant to all damage.',
+  },
+  {
+    key: 'poisoned',
+    label: 'Poisoned',
+    reminder: 'Disadvantage on attack rolls and ability checks.',
+  },
+  {
+    key: 'prone',
+    label: 'Prone',
+    reminder: 'Disadvantage on attacks. Melee attacks against you have advantage.',
+  },
+  {
+    key: 'restrained',
+    label: 'Restrained',
+    reminder: 'Speed is 0. Disadvantage on attacks and Dexterity saves.',
+  },
+  {
+    key: 'stunned',
+    label: 'Stunned',
+    reminder: 'Incapacitated. Fails Strength and Dexterity saves.',
+  },
+  {
+    key: 'unconscious',
+    label: 'Unconscious',
+    reminder: 'Incapacitated and prone. Unaware of surroundings.',
+  },
+] as const
+export type StandardConditionKey = (typeof standardConditions)[number]['key']

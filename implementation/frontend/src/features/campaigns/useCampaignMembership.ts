@@ -10,6 +10,7 @@ import {
 import {
   campaignCharactersKey,
   characterItemsPrefix,
+  characterResourcesPrefix,
   coinLogPrefix,
 } from '../characters/characterQueries'
 import { adventuresPrefix } from '../adventures/adventureQueries'
@@ -82,6 +83,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
       planetsKey,
       charactersKey,
       characterItemsPrefix,
+      characterResourcesPrefix,
       coinLogPrefix,
       notesPrefix,
       adventuresPrefix,
@@ -101,6 +103,7 @@ export function useCampaignMembership(campaignId: string, userId: string) {
         queryClient.invalidateQueries({ queryKey: listKey }),
         queryClient.invalidateQueries({ queryKey: charactersKey }),
         queryClient.invalidateQueries({ queryKey: characterItemsPrefix }),
+        queryClient.invalidateQueries({ queryKey: characterResourcesPrefix }),
         queryClient.invalidateQueries({ queryKey: coinLogPrefix }),
         queryClient.invalidateQueries({ queryKey: notesPrefix }),
         queryClient.invalidateQueries({ queryKey: adventuresPrefix }),

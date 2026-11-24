@@ -143,8 +143,17 @@ test.describe('catalog and privileges', () => {
         'speed',
         'sheet',
         'updated_at',
+        'body_revision',
+        'conditions',
+        'exhaustion',
+        'death_save_successes',
+        'death_save_failures',
+        'concentration',
+        'inspiration',
       ]),
-    ).toBe('armor_class,current_hp,max_hp,sheet,speed,temp_hp')
+    ).toBe(
+      'armor_class,concentration,conditions,current_hp,death_save_failures,death_save_successes,exhaustion,inspiration,max_hp,sheet,speed,temp_hp',
+    )
   })
 
   test('private function privileges are minimal and the unique index is partial', () => {

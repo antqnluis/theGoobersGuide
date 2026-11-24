@@ -482,6 +482,13 @@ export type MockSheet = {
   cp: number
   sp: number
   gp: number
+  conditions: string[]
+  exhaustion: number
+  death_save_successes: number
+  death_save_failures: number
+  concentration: string | null
+  inspiration: boolean
+  body_revision: number
   sheet: Record<string, unknown>
   updated_at: string
 }
@@ -570,6 +577,13 @@ export function mockSheet(characterId: string, overrides: Partial<MockSheet> = {
     cp: 0,
     sp: 0,
     gp: 0,
+    conditions: [],
+    exhaustion: 0,
+    death_save_successes: 0,
+    death_save_failures: 0,
+    concentration: null,
+    inspiration: false,
+    body_revision: 0,
     sheet: { version: 1 },
     updated_at: nextStamp(),
     ...overrides,
@@ -635,6 +649,7 @@ export async function mockCharacters(
         'characters',
         'character_sheets',
         'character_items',
+        'character_resources',
         'character_currency_log',
         'character_imports',
       ].includes(table) &&
@@ -727,9 +742,14 @@ export async function mockCharacters(
       if (method === 'GET') return respond(visible)
       if (method === 'PATCH') {
         const stampFilter = eq('updated_at')
+        const revisionFilter = eq('body_revision')
         const writable = owner && sheet && isMine(owner) ? sheet : null
         if (!writable || (stampFilter && stampFilter !== writable.updated_at)) return respond([])
+        // The body's concurrency token counts body saves only (M04 L10).
+        if (revisionFilter && revisionFilter !== String(writable.body_revision)) return respond([])
+        const bodyChanged = 'sheet' in (body as object)
         Object.assign(writable, body, { updated_at: nextStamp() })
+        if (bodyChanged) writable.body_revision += 1
         return respond([writable])
       }
     }
@@ -745,6 +765,9 @@ export async function mockCharacters(
       const owner = characterOf(characterId)
       return Boolean(owner && isMine(owner))
     }
+
+    // Trackers: none in the mocked camp; live resources are covered by the unit and stack tests.
+    if (table === 'character_resources' && method === 'GET') return respond([])
 
     if (table === 'character_items') {
       if (method === 'GET') {

@@ -7,6 +7,7 @@ import { countCharacterAdventures } from '../adventures/adventureService'
 import { importCharacter } from './characterImportService'
 import { getCharacterSheet } from './characterService'
 import { campaignId, character, sheet, userId } from './characterTestData'
+import { listCharacterResources } from './resourceService'
 import type { CharacterSummary } from './characterTypes'
 import type { CharacterConfirmation } from './CharacterStatusControls'
 import { CharacterTent, type TentView } from './CharacterTent'
@@ -21,6 +22,11 @@ vi.mock('../adventures/adventureService', async (importOriginal) => ({
   countCharacterAdventures: vi.fn(),
 }))
 
+vi.mock('./resourceService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./resourceService')>()),
+  listCharacterResources: vi.fn(),
+}))
+
 vi.mock('./characterService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./characterService')>()),
   getCharacterSheet: vi.fn(),
@@ -30,6 +36,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(getCharacterSheet).mockResolvedValue(sheet())
+  vi.mocked(listCharacterResources).mockResolvedValue([])
   vi.mocked(countCharacterAdventures).mockResolvedValue({ sole: 0, shared: 0 })
 })
 
@@ -51,7 +58,31 @@ function makeActions(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function makeLive(overrides: Record<string, unknown> = {}) {
+  return {
+    error: null as string | null,
+    clearError: vi.fn(),
+    busy: false,
+    pendingAction: undefined,
+    changeHp: vi.fn().mockResolvedValue({
+      current_hp: 7,
+      temp_hp: 0,
+      death_save_successes: 0,
+      death_save_failures: 0,
+      damage_taken: 5,
+      concentration: null,
+      updated_at: 'stamp',
+    }),
+    adjustResource: vi.fn().mockResolvedValue({ current: 1, updated_at: 'stamp' }),
+    takeRest: vi.fn(),
+    saveDeathSave: vi.fn(),
+    saveStatus: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  }
+}
+
 function Harness({
+  live,
   characters,
   status = 'success',
   actions,
@@ -63,6 +94,7 @@ function Harness({
   characters: CharacterSummary[]
   status?: 'pending' | 'error' | 'success'
   actions: ReturnType<typeof makeActions>
+  live?: ReturnType<typeof makeLive>
   initialView?: TentView
   onNotice: (notice: string | null) => void
   onRetry?: () => void
@@ -73,6 +105,7 @@ function Harness({
   return (
     <CharacterTent
       actions={actions as never}
+      live={live as never}
       campaignId={campaignId}
       characters={characters}
       confirmation={confirmation}
@@ -157,7 +190,7 @@ describe('CharacterTent list', () => {
     expect(screen.queryByRole('dialog', { name: 'Import a character' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Import updates' }))
     // The link opens the character's sheet, where Import updates lives under its tab.
-    expect(await screen.findByLabelText('Current HP')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Vitals' })).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Import and export' }))
     expect(await screen.findByRole('button', { name: 'Import updates' })).toBeInTheDocument()
   })
@@ -267,7 +300,7 @@ describe('CharacterTent unsaved edits', () => {
   it('goes back without a question when nothing changed', async () => {
     const { user } = setup({ characters: [character()] })
     await user.click(screen.getByRole('button', { name: 'Open Brand' }))
-    await screen.findByLabelText('Current HP')
+    await screen.findByRole('heading', { name: 'Vitals' })
     await user.click(screen.getByRole('button', { name: 'Back to my characters' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
@@ -291,22 +324,42 @@ describe('CharacterTent unsaved edits', () => {
 })
 
 describe('CharacterTent sheet display and editor', () => {
-  it('shows the sheet read-only, with current and temporary HP as its only quick edits', async () => {
-    const { actions, user } = setup({ characters: [character()] })
+  it('shows the play view: HP controls, no typed vitals, no save bar, and no editing fields', async () => {
+    const live = makeLive()
+    const { user } = setup({ characters: [character()], live })
     await user.click(screen.getByRole('button', { name: 'Open Brand' }))
-    const hp = await screen.findByLabelText('Current HP')
-    expect(hp).toHaveValue(12)
+    const group = await screen.findByRole('group', { name: 'Hit points' })
+    expect(group).toHaveTextContent('12 / 30')
+    expect(screen.queryByLabelText('Current HP')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Maximum HP')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Strength score')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Features and traits')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Save sheet' })).not.toBeInTheDocument()
+    for (const name of ['Save sheet', 'Save stats']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
 
-    await user.clear(hp)
-    await user.type(hp, '9')
-    await user.clear(screen.getByLabelText('Temporary HP'))
-    await user.type(screen.getByLabelText('Temporary HP'), '4')
-    await user.click(screen.getByRole('button', { name: 'Save stats' }))
-    expect(actions.saveVitals).toHaveBeenCalledWith(character().id, { current_hp: 9, temp_hp: 4 })
+    await user.type(screen.getByLabelText('Amount'), '5')
+    await user.click(screen.getByRole('button', { name: 'Damage' }))
+    expect(live.changeHp).toHaveBeenCalledWith(character().id, 'damage', 5)
+  })
+
+  it('shows the live error beside the HP controls', async () => {
+    const live = makeLive({ error: 'Set max and current HP on the sheet first.' })
+    const { user } = setup({ characters: [character()], live })
+    await user.click(screen.getByRole('button', { name: 'Open Brand' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Set max and current HP on the sheet first.',
+    )
+  })
+
+  it('hides the live controls on a retired character, but still shows its numbers', async () => {
+    const live = makeLive()
+    const gone = character({ status: 'retired' })
+    const { user } = setup({ characters: [gone], live })
+    await user.click(screen.getByRole('button', { name: /Old|Brand/ }))
+    const group = await screen.findByRole('group', { name: 'Hit points' })
+    expect(group).toHaveTextContent('12 / 30')
+    expect(screen.queryByRole('button', { name: 'Damage' })).not.toBeInTheDocument()
   })
 
   it('opens one editor for details and sheet, and comes back', async () => {

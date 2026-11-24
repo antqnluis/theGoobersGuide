@@ -43,13 +43,13 @@ function actions(overrides: Partial<SheetActions> = {}): SheetActions {
 
 function renderSheet({
   readOnly,
-  quickHp = false,
+  playView = false,
   sheetActions = actions(),
   withActions = true,
   onDirtyChange,
 }: {
   readOnly: boolean
-  quickHp?: boolean
+  playView?: boolean
   sheetActions?: SheetActions
   withActions?: boolean
   onDirtyChange?: (dirty: boolean) => void
@@ -61,7 +61,7 @@ function renderSheet({
         actions={withActions ? sheetActions : undefined}
         character={character()}
         onDirtyChange={onDirtyChange}
-        quickHp={quickHp}
+        playView={playView}
         readOnly={readOnly}
         userId={userId}
       />
@@ -72,7 +72,7 @@ function renderSheet({
 
 describe('Coins and Inventory sections', () => {
   it('adds Spells, Coins, and Inventory tabs after Attacks, in both owner views', async () => {
-    for (const props of [{ readOnly: false }, { readOnly: true, quickHp: true }]) {
+    for (const props of [{ readOnly: false }, { readOnly: true, playView: true }]) {
       renderSheet(props)
       const nav = await screen.findByRole('navigation', { name: 'Sheet sections' })
       expect(
@@ -103,7 +103,7 @@ describe('Coins and Inventory sections', () => {
   })
 
   it.each([
-    ['the display view', { readOnly: true, quickHp: true }],
+    ['the display view', { readOnly: true, playView: true }],
     ['the edit view', { readOnly: false }],
   ])('is interactive for the owner in %s', async (_name, props) => {
     renderSheet(props)

@@ -9,7 +9,7 @@ import {
   invitationsKey,
   requestCountKey,
 } from '../adventures/adventureQueries'
-import { characterSheetKey } from '../characters/characterQueries'
+import { characterResourcesKey, characterSheetKey } from '../characters/characterQueries'
 import { noteKey, notesKey, notesPrefix } from '../notes/noteQueries'
 import { overviewKey } from './overview/overviewQueries'
 
@@ -98,6 +98,12 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
     ...watch('character_sheets', ['UPDATE'], (change) => {
       const characterId = text(change.new, 'character_id')
       if (characterId) invalidateSoon(characterSheetKey(characterId, userId))
+    }),
+    // Trackers: one row event per tap. Like sheets, they carry no campaign column; the event
+    // names the character, and only a cached list is refetched.
+    ...watch('character_resources', ['INSERT', 'UPDATE'], (change) => {
+      const characterId = text(change.new, 'character_id')
+      if (characterId) invalidateSoon(characterResourcesKey(characterId, userId))
     }),
     ...watch(
       'notes',

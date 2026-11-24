@@ -2829,7 +2829,7 @@ async function openUpdates(page: Page, state: CharacterState) {
 test('the active-character note links to Import updates on the sheet', async ({ page }) => {
   const { dialog } = await openTent(page, withUpdatableCharacter())
   await dialog.getByRole('button', { name: 'Import updates' }).click()
-  await expect(dialog.getByLabel('Current HP')).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Import and export' }).click()
   await expect(dialog.getByRole('button', { name: 'Import updates' })).toBeVisible()
 })
@@ -3069,7 +3069,7 @@ test('edits details, vitals, and the sheet, and keeps them after a reload', asyn
   const { dialog, state } = await openTent(page, withCharacter())
   await dialog.getByRole('button', { name: 'Open Brand' }).click()
 
-  // The display only edits HP in place; everything else is in the one editor.
+  // The display plays HP, trackers, and status in place; everything else is in the one editor.
   await expect(dialog.getByLabel('Strength score')).toHaveCount(0)
   await expect(dialog.getByLabel('Maximum HP')).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Edit character' }).click()
@@ -3080,6 +3080,7 @@ test('edits details, vitals, and the sheet, and keeps them after a reload', asyn
   await expect(dialog.getByRole('heading', { name: 'Edit Brand the Bold' })).toBeVisible()
 
   await dialog.getByLabel('Maximum HP').fill('40')
+  await dialog.getByLabel('Current HP').fill('25')
   await dialog.getByLabel('Armor class').fill('17')
   await dialog.getByRole('button', { name: 'Save stats' }).click()
   await expect(dialog.getByText('Stats saved.')).toBeVisible()
@@ -3095,9 +3096,6 @@ test('edits details, vitals, and the sheet, and keeps them after a reload', asyn
   await dialog.getByRole('button', { name: 'Back to character sheet' }).click()
   // The page turn applies the new screen a frame later.
   await expect(dialog.getByRole('button', { name: 'Edit character' })).toBeVisible()
-  await dialog.getByLabel('Current HP').fill('25')
-  await dialog.getByRole('button', { name: 'Save stats' }).click()
-  await expect(dialog.getByText('Stats saved.').last()).toBeVisible()
 
   expect(state.characters[0]).toMatchObject({ name: 'Brand the Bold', level: 5 })
   expect(state.sheets[0]).toMatchObject({ max_hp: 40, current_hp: 25, armor_class: 17 })
@@ -3113,7 +3111,7 @@ test('edits details, vitals, and the sheet, and keeps them after a reload', asyn
   await tentEntry(page).click()
   const reopened = page.getByRole('dialog', { name: 'My characters' })
   await reopened.getByRole('button', { name: 'Open Brand the Bold' }).click()
-  await expect(reopened.getByLabel('Current HP')).toHaveValue('25')
+  await expect(reopened.getByRole('group', { name: 'Hit points' })).toContainText('25 / 40')
   await reopened.getByRole('button', { name: 'Edit character' }).click()
   await expect(reopened.getByLabel('Strength score')).toHaveValue('18')
   await expect(reopened.getByLabel('Attack 1 name')).toHaveValue('Greataxe')
@@ -3356,23 +3354,16 @@ for (const [width, height] of [
   [768, 1024],
   [1440, 900],
 ] as const) {
-  test(`the character folio fits at ${width}px and keeps Save stats in reach`, async ({ page }) => {
+  test(`the character folio fits at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height })
     const { dialog } = await openTent(page, withCharacter())
     await dialog.getByRole('button', { name: 'Open Brand' }).click()
     await expect(dialog.getByRole('heading', { name: 'Vitals' })).toBeVisible()
     expect(await dialogFits(page)).toBe(true)
 
-    // The save bar stays on screen however far the sheet is scrolled.
+    // The play view has no save bar; its HP controls are on screen and the page still fits.
+    await expect(dialog.getByRole('button', { name: 'Damage' })).toBeVisible()
     await dialog.locator('.camp-ledger__body').evaluate((el) => el.scrollTo(0, el.scrollHeight))
-    const save = dialog.getByRole('button', { name: 'Save stats' })
-    await expect(save).toBeInViewport()
-    expect(await save.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(
-      40,
-    )
-    await expect(save).toBeDisabled()
-    await dialog.getByLabel('Current HP').fill('35')
-    await expect(save).toBeEnabled()
     expect(await dialogFits(page)).toBe(true)
   })
 }

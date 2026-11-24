@@ -182,10 +182,10 @@ export function useCharacterActions(campaignId: string, userId: string) {
       queryClient.setQueryData(characterSheetKey(characterId, userId), sheet)
     })
 
-  const saveSheet = (characterId: string, body: CharacterSheetBody, previousUpdatedAt: string) =>
+  const saveSheet = (characterId: string, body: CharacterSheetBody, previousRevision: number) =>
     run('sheet', characterId, async () => {
       try {
-        const sheet = await updateCharacterSheetBody(characterId, body, previousUpdatedAt)
+        const sheet = await updateCharacterSheetBody(characterId, body, previousRevision)
         queryClient.setQueryData(characterSheetKey(characterId, userId), sheet)
       } catch (failure) {
         if (isSheetConflict(failure)) {
@@ -237,7 +237,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
   const adjustCurrency = (characterId: string, deltas: Partial<CharacterPurse>) =>
     run('currency', characterId, async () => {
       const { updated_at, ...purse } = await adjustCharacterCurrency(characterId, deltas)
-      // The stamp is the body's concurrency token: adopt it so the next body save matches.
+      // Keep the stamp current: imports check it. Body saves use `body_revision`, untouched here.
       queryClient.setQueryData<CharacterSheet | null>(
         characterSheetKey(characterId, userId),
         (sheet) => (sheet ? { ...sheet, ...purse, updated_at } : sheet),

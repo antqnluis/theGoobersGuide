@@ -13,6 +13,7 @@ import { PixelIcon } from './PixelIcon'
 import { sameTentView, tentDirection, turnPage } from './tentTransition'
 import { UnsavedChangesDialog } from './UnsavedChangesDialog'
 import type { useCharacterActions } from './useCharacterActions'
+import type { ResourceActions } from './useResourceActions'
 import './characters.css'
 
 /** Which screen of the tent is showing. Owned by the workspace so closing the camp resets it. */
@@ -35,6 +36,8 @@ type CharacterTentProps = {
   confirmation: CharacterConfirmation | null
   onConfirmationChange: (confirmation: CharacterConfirmation | null) => void
   actions: ReturnType<typeof useCharacterActions>
+  /** HP, tracker, rest, and status actions for the play view; without them it only displays. */
+  live?: ResourceActions
   /** A brief confirmation for the player, shown as a toast. */
   onNotice: (notice: string) => void
   /** Reports whether the open form or sheet holds edits that leaving would lose. */
@@ -59,6 +62,7 @@ export function CharacterTent({
   confirmation,
   onConfirmationChange,
   actions,
+  live,
   onNotice,
   onDirtyChange,
 }: CharacterTentProps) {
@@ -311,7 +315,8 @@ export function CharacterTent({
             dock={dock}
             onDirtyChange={reportDirty('sheet')}
             onNotice={onNotice}
-            quickHp
+            live={live}
+            playView
             readOnly
             userId={userId}
           />

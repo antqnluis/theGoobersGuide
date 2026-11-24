@@ -139,6 +139,7 @@ test.describe('catalog and privileges', () => {
         {},
       ),
     ).toBe('armor_class,current_hp,max_hp,sheet,speed,temp_hp')
+    // (M04 added status columns with their own grants; those are asserted in the resources spec.)
   })
 
   test('the guard function is postgres-only and the policies are the planned four', () => {

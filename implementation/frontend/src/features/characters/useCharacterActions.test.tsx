@@ -53,6 +53,13 @@ const sheet: CharacterSheet = {
   cp: 0,
   sp: 0,
   gp: 0,
+  conditions: [],
+  exhaustion: 0,
+  death_save_successes: 0,
+  death_save_failures: 0,
+  concentration: null,
+  inspiration: false,
+  body_revision: 4,
   updated_at: 'new-stamp',
   sheet: defaultSheetBody(),
 }
@@ -132,14 +139,14 @@ describe('useCharacterActions', () => {
     expect(stale(queryClient, charactersKey)).toBeFalsy()
   })
 
-  it('saves the body against the previous stamp and caches the returned row', async () => {
+  it('saves the body against the previous revision and caches the returned row', async () => {
     vi.mocked(updateCharacterSheetBody).mockResolvedValue(sheet)
     const { queryClient, result } = setup()
     const body = defaultSheetBody()
     await act(async () => {
-      await result.current.saveSheet(characterId, body, 'old-stamp')
+      await result.current.saveSheet(characterId, body, 7)
     })
-    expect(updateCharacterSheetBody).toHaveBeenCalledWith(characterId, body, 'old-stamp')
+    expect(updateCharacterSheetBody).toHaveBeenCalledWith(characterId, body, 7)
     expect(queryClient.getQueryData(sheetKey)).toBe(sheet)
   })
 
@@ -148,7 +155,7 @@ describe('useCharacterActions', () => {
     const { queryClient, result } = setup()
     let ok = true
     await act(async () => {
-      ok = await result.current.saveSheet(characterId, defaultSheetBody(), 'old-stamp')
+      ok = await result.current.saveSheet(characterId, defaultSheetBody(), 7)
     })
     expect(ok).toBe(false)
     expect(result.current.error).toBe(

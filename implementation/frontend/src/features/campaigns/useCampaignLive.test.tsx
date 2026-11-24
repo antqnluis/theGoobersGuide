@@ -32,6 +32,7 @@ const invitations = ['campaigns', 'adventures', 'invitations', campaignId, userI
 const notesList = ['campaigns', 'notes', campaignId, userId]
 const noteDetail = ['campaigns', 'notes', 'detail', 'n1', userId]
 const sheet = (id: string) => ['campaigns', 'characters', 'sheet', id, userId]
+const resources = (id: string) => ['campaigns', 'characters', 'resources', id, userId]
 
 let client: QueryClient
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -85,6 +86,8 @@ describe('what it subscribes to', () => {
       'adventures:UPDATE',
       'campaign_overviews:INSERT',
       'campaign_overviews:UPDATE',
+      'character_resources:INSERT',
+      'character_resources:UPDATE',
       'character_sheets:UPDATE',
       'notes:INSERT',
       'notes:UPDATE',
@@ -117,6 +120,14 @@ describe('refreshing what changed', () => {
     emit('character_sheets', 'UPDATE', { character_id: 'c1' })
     settle()
     expect(keysOf(spy)).toEqual([JSON.stringify(sheet('c1'))])
+  })
+
+  it('refetches the trackers of a character when one is added or changes', () => {
+    const spy = setup()
+    emit('character_resources', 'UPDATE', { character_id: 'c1', id: 'r1' })
+    emit('character_resources', 'INSERT', { character_id: 'c1', id: 'r2' })
+    settle()
+    expect(keysOf(spy)).toEqual([JSON.stringify(resources('c1'))])
   })
 
   it('refetches the overview when the owner changes it', () => {
@@ -192,6 +203,7 @@ describe('refreshing what changed', () => {
   it('ignores an event without the ids it needs', () => {
     const spy = setup()
     emit('character_sheets', 'UPDATE', {})
+    emit('character_resources', 'UPDATE', {})
     emit('adventure_updates', 'INSERT', {})
     settle()
     expect(spy).not.toHaveBeenCalled()
