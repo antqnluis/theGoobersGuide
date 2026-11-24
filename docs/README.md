@@ -13,7 +13,9 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 ## In progress
 
-None.
+| Doc | Status |
+| --- | --- |
+| [M04 — Live Resources](in-progress/M04-Live-Resources.md) | Approved 2026-11-24 (L1–L12 as written); not started. Damage and healing, spell slots, hit dice, class trackers, rests, conditions, death saves, and a body-only revision token. |
 
 ## Completed
 
