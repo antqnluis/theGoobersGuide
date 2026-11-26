@@ -422,6 +422,50 @@ export type Database = {
           },
         ]
       }
+      campaign_crafting_libraries: {
+        Row: {
+          campaign_id: string
+          enabled_at: string
+          enabled_by: string | null
+          library_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          campaign_id: string
+          enabled_at?: string
+          enabled_by?: string | null
+          library_id: string
+        }
+        Update: {
+          campaign_id?: string
+          enabled_at?: string
+          enabled_by?: string | null
+          library_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'campaign_crafting_libraries_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'campaign_crafting_libraries_enabled_by_fkey'
+            columns: ['enabled_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'campaign_crafting_libraries_library_id_fkey'
+            columns: ['library_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_libraries'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       campaign_custom_sprites: {
         Row: {
           campaign_id: string
@@ -551,6 +595,69 @@ export type Database = {
             columns: ['profile_id']
             isOneToOne: false
             referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      campaign_overviews: {
+        Row: {
+          announcement: string
+          campaign_id: string
+          chapter: string
+          created_at: string
+          house_rules: string
+          in_world_date: string
+          last_session: string
+          location: string
+          next_session_at: string | null
+          next_session_note: string
+          objective: string
+          ruleset: string
+          situation: string
+          table_notes: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          announcement?: string
+          campaign_id: string
+          chapter?: string
+          created_at?: string
+          house_rules?: string
+          in_world_date?: string
+          last_session?: string
+          location?: string
+          next_session_at?: string | null
+          next_session_note?: string
+          objective?: string
+          ruleset?: string
+          situation?: string
+          table_notes?: string
+          updated_at?: string
+        }
+        Update: {
+          announcement?: string
+          campaign_id?: string
+          chapter?: string
+          created_at?: string
+          house_rules?: string
+          in_world_date?: string
+          last_session?: string
+          location?: string
+          next_session_at?: string | null
+          next_session_note?: string
+          objective?: string
+          ruleset?: string
+          situation?: string
+          table_notes?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'campaign_overviews_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: true
+            referencedRelation: 'campaigns'
             referencedColumns: ['id']
           },
         ]
@@ -860,6 +967,294 @@ export type Database = {
           },
         ]
       }
+      crafting_items: {
+        Row: {
+          attunement: boolean
+          attunement_note: string | null
+          category: string
+          consumable: boolean
+          created_at: string
+          description: string | null
+          dm_notes: string | null
+          harvest: Json | null
+          id: string
+          library_id: string
+          name: string
+          name_key: string | null
+          rarity: string
+          slug: string
+          source: string | null
+          tags: string[]
+          updated_at: string
+          value_cp: number
+          weight: number | null
+        }
+        ComputedFields: never
+        Insert: {
+          attunement?: boolean
+          attunement_note?: string | null
+          category: string
+          consumable?: boolean
+          created_at?: string
+          description?: string | null
+          dm_notes?: string | null
+          harvest?: Json | null
+          id?: string
+          library_id: string
+          name: string
+          name_key?: never
+          rarity: string
+          slug: string
+          source?: string | null
+          tags?: string[]
+          updated_at?: string
+          value_cp: number
+          weight?: number | null
+        }
+        Update: {
+          attunement?: boolean
+          attunement_note?: string | null
+          category?: string
+          consumable?: boolean
+          created_at?: string
+          description?: string | null
+          dm_notes?: string | null
+          harvest?: Json | null
+          id?: string
+          library_id?: string
+          name?: string
+          name_key?: never
+          rarity?: string
+          slug?: string
+          source?: string | null
+          tags?: string[]
+          updated_at?: string
+          value_cp?: number
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_items_library_id_fkey'
+            columns: ['library_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_libraries'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      crafting_libraries: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_libraries_owner_id_fkey'
+            columns: ['owner_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      crafting_pack_imports: {
+        Row: {
+          id: string
+          imported_at: string
+          imported_by: string
+          items_added: number
+          items_removed: number
+          items_updated: number
+          library_id: string
+          pack_name: string
+          recipes_added: number
+          recipes_removed: number
+          recipes_updated: number
+          source_label: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          items_added: number
+          items_removed: number
+          items_updated: number
+          library_id: string
+          pack_name: string
+          recipes_added: number
+          recipes_removed: number
+          recipes_updated: number
+          source_label?: string | null
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          items_added?: number
+          items_removed?: number
+          items_updated?: number
+          library_id?: string
+          pack_name?: string
+          recipes_added?: number
+          recipes_removed?: number
+          recipes_updated?: number
+          source_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_pack_imports_imported_by_fkey'
+            columns: ['imported_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'crafting_pack_imports_library_id_fkey'
+            columns: ['library_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_libraries'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      crafting_recipe_materials: {
+        Row: {
+          item_id: string
+          library_id: string
+          position: number
+          quantity: number
+          recipe_id: string
+          role: string
+        }
+        ComputedFields: never
+        Insert: {
+          item_id: string
+          library_id: string
+          position: number
+          quantity: number
+          recipe_id: string
+          role: string
+        }
+        Update: {
+          item_id?: string
+          library_id?: string
+          position?: number
+          quantity?: number
+          recipe_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_recipe_materials_item_fkey'
+            columns: ['library_id', 'item_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_items'
+            referencedColumns: ['library_id', 'id']
+          },
+          {
+            foreignKeyName: 'crafting_recipe_materials_recipe_fkey'
+            columns: ['library_id', 'recipe_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_recipes'
+            referencedColumns: ['library_id', 'id']
+          },
+        ]
+      }
+      crafting_recipes: {
+        Row: {
+          check_dc: number | null
+          check_skill: string | null
+          crafting_cost_cp: number
+          created_at: string
+          dm_notes: string | null
+          id: string
+          library_id: string
+          notes: string | null
+          output_item_id: string
+          output_quantity: number
+          requirements: string | null
+          slug: string
+          source: string | null
+          tools: string[]
+          updated_at: string
+          workdays: number
+        }
+        ComputedFields: never
+        Insert: {
+          check_dc?: number | null
+          check_skill?: string | null
+          crafting_cost_cp: number
+          created_at?: string
+          dm_notes?: string | null
+          id?: string
+          library_id: string
+          notes?: string | null
+          output_item_id: string
+          output_quantity: number
+          requirements?: string | null
+          slug: string
+          source?: string | null
+          tools?: string[]
+          updated_at?: string
+          workdays: number
+        }
+        Update: {
+          check_dc?: number | null
+          check_skill?: string | null
+          crafting_cost_cp?: number
+          created_at?: string
+          dm_notes?: string | null
+          id?: string
+          library_id?: string
+          notes?: string | null
+          output_item_id?: string
+          output_quantity?: number
+          requirements?: string | null
+          slug?: string
+          source?: string | null
+          tools?: string[]
+          updated_at?: string
+          workdays?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_recipes_library_id_fkey'
+            columns: ['library_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_libraries'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'crafting_recipes_output_fkey'
+            columns: ['library_id', 'output_item_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_items'
+            referencedColumns: ['library_id', 'id']
+          },
+        ]
+      }
       dice_rolls: {
         Row: {
           campaign_id: string
@@ -1162,12 +1557,7 @@ export type Database = {
         Returns: number
       }
       apply_character_update: {
-        Args: {
-          p_changes: Json
-          p_character_id: string
-          p_expected: Json
-          p_source_label?: string
-        }
+        Args: { p_changes: Json; p_character_id: string; p_expected: Json; p_source_label?: string }
         Returns: string
       }
       approve_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
@@ -1219,6 +1609,7 @@ export type Database = {
         }
         Returns: string
       }
+      delete_crafting_library: { Args: { p_confirm: boolean; p_library_id: string }; Returns: Json }
       get_campaign_party: {
         Args: { p_campaign_id: string }
         Returns: {
@@ -1239,6 +1630,10 @@ export type Database = {
       import_character: {
         Args: { p_campaign_id: string; p_character: Json; p_source_label?: string }
         Returns: string
+      }
+      import_crafting_pack: {
+        Args: { p_library_id: string; p_pack: Json; p_source_label?: string }
+        Returns: Json
       }
       leave_adventure: { Args: { p_adventure_id: string }; Returns: undefined }
       leave_campaign: { Args: { p_campaign_id: string }; Returns: undefined }
@@ -1336,11 +1731,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_campaign_crafting_library: {
+        Args: { p_campaign_id: string; p_enabled: boolean; p_library_id: string }
+        Returns: undefined
+      }
       set_campaign_custom_sprite: {
-        Args: {
-          p_campaign_id: string
-          p_pixels: string
-        }
+        Args: { p_campaign_id: string; p_pixels: string }
         Returns: undefined
       }
       set_character_in_party: {

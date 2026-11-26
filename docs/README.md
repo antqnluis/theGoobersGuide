@@ -13,7 +13,9 @@ Docs are grouped by status. When a doc's status changes, move it to the matching
 
 ## In progress
 
-None.
+| Doc | Status |
+| --- | --- |
+| [M04 — Crafting Guide](in-progress/M04-Crafting-Guide-Plan.md) | Implementation plan (Phases 0–6): W1–W18 agreed, review questions settled 2026-11-27. Phase 0 done (baseline and shrine art brief); see the [implementation log](in-progress/M04-Implementation-Log.md). |
 
 ## Completed
 

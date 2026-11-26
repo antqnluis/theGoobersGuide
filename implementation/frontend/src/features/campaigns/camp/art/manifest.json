@@ -257,6 +257,22 @@
       "provenance": "ChatGPT, comp A style; dormant props sheet; sprite, scale 0.1"
     },
     {
+      "id": "shrine-stone",
+      "file": "shrine-stone.png",
+      "width": 27,
+      "height": 42,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; shrine stone; sprite, scale 0.048"
+    },
+    {
+      "id": "shrine-stone-lit",
+      "file": "shrine-stone-lit.png",
+      "width": 27,
+      "height": 42,
+      "status": "final",
+      "provenance": "ChatGPT, comp A style; shrine stone; sprite, scale 0.048"
+    },
+    {
       "id": "wagon",
       "file": "wagon.png",
       "width": 104,
