@@ -47,6 +47,7 @@ function campElement({
       characters={<h2 id="camp-characters-heading">My characters</h2>}
       adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
       notes={<h2 id="camp-notes-heading">Notes & NPCs</h2>}
+      visions={<h2 id="camp-visions-heading">The Maker’s Visions</h2>}
       settings={<h2 id="camp-settings-heading">Campaign settings</h2>}
       title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
     />
@@ -328,6 +329,7 @@ describe('CampaignCamp frame loop cleanup', () => {
           characters={<h2 id="camp-characters-heading">Characters</h2>}
           adventures={<h2 id="camp-adventures-heading">Adventures</h2>}
           notes={<h2 id="camp-notes-heading">Notes</h2>}
+          visions={<h2 id="camp-visions-heading">The Maker’s Visions</h2>}
           settings={<h2 id="camp-settings-heading">Settings</h2>}
           title={<h1 id="campaign-workspace-heading">The Red Hand</h1>}
         />,

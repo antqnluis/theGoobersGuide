@@ -7,6 +7,8 @@ import { CharacterTent, type TentView } from '../characters/CharacterTent'
 import type { CharacterConfirmation } from '../characters/CharacterStatusControls'
 import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
+import { CampVisions } from '../crafting/CampVisions'
+import { craftingPrefix } from '../crafting/craftingQueries'
 import {
   adventuresKey,
   adventuresOptions,
@@ -110,6 +112,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const [adventureDirty, setAdventureDirty] = useState(false)
   // The adventures load when the Adventures destination is first opened, and refresh each time after.
   const [adventuresOpened, setAdventuresOpened] = useState(false)
+  // The Maker's Visions load when the shrine is first opened, and refresh each time after.
+  const [visionsOpened, setVisionsOpened] = useState(false)
   // A shared sheet opened read-only from the Party panel.
   const [partySheetId, setPartySheetId] = useState<string | null>(null)
   const toasts = useCampToasts()
@@ -376,6 +380,12 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
           } else setAdventuresOpened(true)
           return
         }
+        if (id === 'visions') {
+          if (visionsOpened) {
+            void queryClient.invalidateQueries({ queryKey: craftingPrefix })
+          } else setVisionsOpened(true)
+          return
+        }
         if (id !== 'notes') return
         if (notesOpened)
           void queryClient.invalidateQueries({ queryKey: notesKey(campaignId, userId) })
@@ -609,6 +619,15 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
             userId={userId}
           />
         )
+      }
+      visions={
+        <CampVisions
+          campaignId={campaignId}
+          enabled={visionsOpened}
+          isOwner={isOwner}
+          onNotice={toasts.push}
+          userId={userId}
+        />
       }
       settings={
         <CampPanel

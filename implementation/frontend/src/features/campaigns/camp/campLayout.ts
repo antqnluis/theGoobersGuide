@@ -2,7 +2,7 @@
 export const panorama = { width: 960, height: 270 } as const
 
 export type CampLocationId =
-  'overview' | 'party' | 'characters' | 'adventures' | 'notes' | 'settings'
+  'overview' | 'party' | 'characters' | 'adventures' | 'notes' | 'visions' | 'settings'
 
 export type CampLocation = {
   id: CampLocationId
@@ -38,6 +38,12 @@ export const mapTable: CampProp = { id: 'map-table', x: 690, y: 242 }
 
 /** The journal crates, the "Notes & NPCs" destination (32×38 sprite). */
 export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
+
+/**
+ * The shrine stone, the "Visions" destination (27×42 sprite): between the bedroll circle and
+ * the map table, about 7 px clear of the last bedroll and 26 px of the table.
+ */
+export const shrineStone: CampProp = { id: 'shrine-stone', x: 625, y: 246 }
 
 /** The one table that drives scene buttons, the Places list, and panel gating. */
 export const campLocations: readonly CampLocation[] = [
@@ -96,6 +102,18 @@ export const campLocations: readonly CampLocation[] = [
     plate: 'above',
     plateAlign: 'center',
     ownerOnly: false,
+  },
+  {
+    id: 'visions',
+    label: 'Visions',
+    place: 'Shrine stone',
+    // The stone's spot, and its 27×42 sprite, rounded up to a comfortable target.
+    world: { x: shrineStone.x, y: shrineStone.y },
+    hit: { width: 40, height: 46 },
+    plate: 'above',
+    plateAlign: 'center',
+    // The player's view arrives with the long rest; until then only the DM's side exists.
+    ownerOnly: true,
   },
   {
     id: 'settings',

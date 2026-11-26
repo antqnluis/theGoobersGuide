@@ -9,6 +9,7 @@ import {
   bedrolls,
   firePit,
   journalCrates,
+  shrineStone,
   mapTable,
   seatParty,
   tent,
@@ -114,6 +115,7 @@ export function outlineTargets(
   if (location === 'settings') return new Set([wagon.id])
   if (location === 'adventures') return new Set([mapTable.id])
   if (location === 'notes') return new Set([journalCrates.id])
+  if (location === 'visions') return new Set([shrineStone.id])
   if (location === 'party') {
     return new Set([...bedrolls.map(({ id }) => id), ...figures.map(({ spriteId }) => spriteId)])
   }

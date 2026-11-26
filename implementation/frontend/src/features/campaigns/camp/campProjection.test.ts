@@ -99,7 +99,7 @@ describe('hit targets at the resting camera', () => {
     // narrow rest view: the Places list opens them and the camera pans there (see the reveal
     // test below).
     for (const { id, world, hit } of campLocations.filter(
-      ({ id }) => id !== 'settings' && id !== 'notes' && id !== 'adventures',
+      ({ id }) => id !== 'settings' && id !== 'notes' && id !== 'adventures' && id !== 'visions',
     )) {
       const rect = hitRect(world, hit, restView(width, height, dpr), dpr)
       expect(isInFrame(rect, { width, height }), id).toBe(true)
@@ -116,7 +116,7 @@ describe('hit targets at the resting camera', () => {
   ])(
     'brings the tent, the map table, the crates, and the wagon into the %i x %i scene when their place is revealed (dpr %i)',
     (width, height, dpr) => {
-      for (const id of ['characters', 'adventures', 'notes', 'settings']) {
+      for (const id of ['characters', 'adventures', 'notes', 'visions', 'settings']) {
         const place = campLocations.find((location) => location.id === id)!
         const base = restView(width, height, dpr)
         const visible = visibleWidth(base.deviceWidth, base.scale)

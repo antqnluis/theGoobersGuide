@@ -997,6 +997,65 @@ test.describe('import_crafting_pack', () => {
   })
 })
 
+// --- The limits the pack prompt and the client parser state are the database's ---------------------------------------------------
+
+test.describe('the format’s largest values', () => {
+  test('every limit the pack prompt states is accepted by the database at its largest', async () => {
+    const { players } = await newPlayers(['dm'])
+    const { dm } = players
+    const libraryId = await newLibrary(dm)
+    const materials = Array.from({ length: 20 }, (_, index) =>
+      item(`m${index}`, `Material ${index}`, { value_gp: 1_000_000 }),
+    )
+    const content = pack({
+      items: [
+        ...materials,
+        item('x'.repeat(80), 'n'.repeat(80), {
+          category: 'wondrous',
+          rarity: 'artifact',
+          value_gp: 1_000_000,
+          weight: 99_999.99,
+          consumable: true,
+          attunement: 'a'.repeat(120),
+          description: `${'d'.repeat(1990)}\nline two`,
+          tags: Array.from({ length: 10 }, (_, index) => `${'t'.repeat(39)}${index}`),
+          source: 's'.repeat(200),
+          harvest: {
+            from: Array.from({ length: 10 }, () => 'f'.repeat(80)),
+            skill: 's'.repeat(40),
+            dc: 40,
+            notes: 'n'.repeat(500),
+          },
+          dm_notes: 'm'.repeat(2000),
+        }),
+      ],
+      recipes: [
+        {
+          id: 'r'.repeat(80),
+          output: { item: 'x'.repeat(80), quantity: 999 },
+          key_materials: materials.slice(0, 5).map((entry) => ({ item: entry.id, quantity: 999 })),
+          materials: materials.slice(5).map((entry) => ({ item: entry.id, quantity: 999 })),
+          crafting_cost_gp: 1_000_000,
+          workdays: 9999,
+          tools: Array.from({ length: 10 }, () => 't'.repeat(80)),
+          requirements: 'r'.repeat(500),
+          check: { skill: 's'.repeat(40), dc: 40 },
+          notes: 'n'.repeat(2000),
+          source: 's'.repeat(200),
+          dm_notes: 'd'.repeat(2000),
+        },
+      ],
+      remove: { items: [], recipes: [] },
+    })
+    expect(await importOk(dm, libraryId, content)).toMatchObject({
+      items_added: 21,
+      recipes_added: 1,
+    })
+    const stored = (await itemRows(dm, libraryId)).find((row) => row.slug === 'x'.repeat(80))!
+    expect(stored).toMatchObject({ value_cp: 100_000_000, weight: 99_999.99, rarity: 'artifact' })
+  })
+})
+
 // --- Hidden catalogue -------------------------------------------------------------------------
 
 test.describe('hidden catalogue', () => {

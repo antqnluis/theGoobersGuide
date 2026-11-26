@@ -83,6 +83,7 @@ class SceneBoundary extends Component<
 function leaveName(id: CampLocationId | undefined) {
   if (id === 'notes') return 'the journal'
   if (id === 'adventures') return 'the map table'
+  if (id === 'visions') return 'the shrine'
   return 'the tent'
 }
 
@@ -110,6 +111,7 @@ export function CampaignCamp({
   characters,
   adventures,
   notes,
+  visions,
   settings,
   partyDrawer,
   characterFolio = false,
@@ -160,6 +162,7 @@ export function CampaignCamp({
   characters: ReactNode
   adventures: ReactNode
   notes: ReactNode
+  visions: ReactNode
   settings: ReactNode
   /** A collapsible tab on the Party page's side (appearance), shown only there. */
   partyDrawer?: ReactNode
@@ -218,7 +221,7 @@ export function CampaignCamp({
         : 'journal'
       : active?.id === 'party' && partyFolio
         ? 'folio'
-        : active?.id === 'adventures' || active?.id === 'notes'
+        : active?.id === 'adventures' || active?.id === 'notes' || active?.id === 'visions'
           ? 'wide'
           : 'journal'
   const folioOpen =
@@ -713,6 +716,7 @@ export function CampaignCamp({
             <section hidden={active?.id !== 'characters'}>{characters}</section>
             <section hidden={active?.id !== 'adventures'}>{adventures}</section>
             <section hidden={active?.id !== 'notes'}>{notes}</section>
+            {isOwner && <section hidden={active?.id !== 'visions'}>{visions}</section>}
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>

@@ -6,11 +6,13 @@ export const documentFormats = {
   character: 'the-goobers-guide-character',
   update: 'the-goobers-guide-character-update',
   handoff: 'the-goobers-guide-adventure-handoff',
+  crafting: 'the-goobers-guide-crafting-pack',
 } as const
 
 export const characterDocumentVersion = 3
 export const updateDocumentVersion = 2
 export const handoffDocumentVersion = 1
+export const craftingPackVersion = 1
 
 export type JsonRead = { ok: true; value: unknown } | { ok: false; message: string }
 
@@ -49,6 +51,8 @@ export const regenerateUpdateMessage =
   'This document uses a different format version. Copy the current update prompt and generate the update again.'
 export const regenerateHandoffMessage =
   'This document uses a different format version. Copy the current handoff prompt and generate the proposal again.'
+export const regenerateCraftingMessage =
+  'This pack uses a different format version. Copy the current pack prompt and generate the pack again.'
 
 /**
  * What to say when a document is a known Goobers Guide format, but not the one being read:
@@ -63,18 +67,32 @@ export const wrongFormatMessages: WrongFormatMessages = {
       'This is an update document. Open the character and use Import updates.',
     [documentFormats.handoff]:
       'This is an adventure handoff. Open the adventure and use Import handoff, or start one from the map table.',
+    [documentFormats.crafting]:
+      'This is a crafting pack. Open the Maker’s Visions and use Import pack.',
   },
   [documentFormats.update]: {
     [documentFormats.character]:
       'This is a character document. Use Import character from the tent to create a new character.',
     [documentFormats.handoff]:
       'This is an adventure handoff. Open the adventure and use Import handoff, or start one from the map table.',
+    [documentFormats.crafting]:
+      'This is a crafting pack. Open the Maker’s Visions and use Import pack.',
   },
   [documentFormats.handoff]: {
     [documentFormats.character]:
       'This is a character document. Use Import character from the tent to create a new character.',
     [documentFormats.update]:
       'This is a character update. Open the character and use Import updates.',
+    [documentFormats.crafting]:
+      'This is a crafting pack. Open the Maker’s Visions and use Import pack.',
+  },
+  [documentFormats.crafting]: {
+    [documentFormats.character]:
+      'This is a character document. Use Import character from the tent to create a new character.',
+    [documentFormats.update]:
+      'This is a character update. Open the character and use Import updates.',
+    [documentFormats.handoff]:
+      'This is an adventure handoff. Open the adventure and use Import handoff, or start one from the map table.',
   },
 }
 

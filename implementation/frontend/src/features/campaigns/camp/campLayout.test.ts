@@ -13,6 +13,7 @@ import {
   partySeats,
   resolveLocation,
   seatParty,
+  shrineStone,
   tent,
   wagon,
   waystone,
@@ -37,6 +38,7 @@ describe('owner gating', () => {
       'characters',
       'adventures',
       'notes',
+      'visions',
       'settings',
     ])
     expect(availableLocations(false).map(({ id }) => id)).toEqual([
@@ -46,7 +48,7 @@ describe('owner gating', () => {
       'adventures',
       'notes',
     ])
-    expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
+    expect(parkedLocations(false).map(({ id }) => id)).toEqual(['visions', 'settings'])
     expect(parkedLocations(true)).toEqual([])
   })
 
@@ -62,7 +64,17 @@ describe('layout table', () => {
     const points = [
       ...campLocations.map(({ world }) => world),
       ...partySeats,
-      ...[wagon, tent, mapTable, journalCrates, firePit, waystone, ...bedrolls, ...dormantProps],
+      ...[
+        wagon,
+        tent,
+        mapTable,
+        journalCrates,
+        shrineStone,
+        firePit,
+        waystone,
+        ...bedrolls,
+        ...dormantProps,
+      ],
     ]
     for (const { x, y } of points) {
       expect(x).toBeGreaterThan(0)
@@ -141,6 +153,38 @@ describe('map table', () => {
 
   it('is no longer dormant scenery, so nothing is dormant any more', () => {
     expect(dormantProps).toEqual([])
+  })
+})
+
+describe('shrine stone', () => {
+  it('is the Visions destination for campaign owners only, until the player view arrives', () => {
+    expect(campLocations.find(({ id }) => id === 'visions')).toEqual({
+      id: 'visions',
+      label: 'Visions',
+      place: 'Shrine stone',
+      world: { x: shrineStone.x, y: shrineStone.y },
+      hit: { width: 40, height: 46 },
+      plate: 'above',
+      plateAlign: 'center',
+      ownerOnly: true,
+    })
+    expect(shrineStone.id).toBe('shrine-stone')
+    expect(resolveLocation('visions', true)?.id).toBe('visions')
+    expect(resolveLocation('visions', false)).toBeNull()
+  })
+
+  it('stands between the last bedroll and the map table without covering either', () => {
+    // Sprite widths: bedroll 43, shrine 27, map table 47, drawn from x - floor(width / 2).
+    const left = (prop: { x: number }, width: number) => prop.x - Math.floor(width / 2)
+    const bedrollRight = Math.max(...bedrolls.map((bedroll) => left(bedroll, 43) + 43))
+    expect(left(shrineStone, 27)).toBeGreaterThan(bedrollRight)
+    expect(left(shrineStone, 27) + 27).toBeLessThan(left(mapTable, 47))
+  })
+
+  it('draws behind the bedrolls and in front of the map table’s back edge', () => {
+    const frontBedroll = Math.min(...bedrolls.map(({ y }) => y))
+    expect(shrineStone.y).toBeLessThan(frontBedroll)
+    expect(shrineStone.y).toBeGreaterThan(mapTable.y)
   })
 })
 

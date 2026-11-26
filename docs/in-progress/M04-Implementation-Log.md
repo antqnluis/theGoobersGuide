@@ -66,3 +66,34 @@ None in behaviour. The import also accepts an optional `source_label` that may b
 Not run: the rest of `test:local-supabase` (the notes, adventures, dice, live, appearance, sprite, galaxy, and import specs) and `test:e2e`. Not changed by this phase.
 
 Not tested yet: a concurrent import and rest (needs Phase 4), and account deletion cascading to libraries (no account-deletion flow exists).
+
+## Phase 2: Pack format, prompt, and the DM tab (2026-11-27)
+
+### What was added (`implementation/frontend/src/features/crafting/` unless noted)
+
+- `craftingPack.ts`: the pack parser. It checks every §2.3–2.4 field against `craftingLimits`, collects path-level problems (`items[2].value_gp`), lists unknown keys under "Not imported", and returns a normalized pack. Given a `LibrarySnapshot` it also checks references, names (a pack may swap two), removals that would strand a recipe, and the per-library caps, and counts new, updated, and removed things by slug.
+- `craftingPackPrompt.ts`: the copyable prompt, built from the same constants. The tests check each stated limit at its boundary against the parser. It can list a library's existing item ids (capped at 400).
+- `craftingCost.ts`: line cost, subtotal, total, still to pay, and the DMG guideline. The tests reproduce the §2.6 table exactly (oil 100 gp and 50 gp still to pay, dagger 200 gp and 110 gp).
+- `craftingService.ts`, `craftingQueries.ts`, `useCraftingActions.ts`: RPC calls and table reads (paged in 1,000s because of `max_rows`), query keys under `['campaigns', 'crafting']`, and the DM's writes with mapped error copy.
+- `PackImportDialog`, `LibraryBrowser`, `VisionsDm`, and `CampVisions`: import with review counts, browse with filters, the "No known source" hint, and a player preview; libraries with create, rename, delete (checked first), and enable or disable; and the area itself.
+- `characters/importText.ts`: `documentFormats.crafting`, `craftingPackVersion`, and wrong-format messages in both directions.
+- Camp: `'visions'` location (label _Visions_, place _Shrine stone_), the `shrineStone` prop at x 625, y 246 (drawn with the new `shrine-stone` sprite), its outline target, and the `visions` node in `CampaignCamp` and `CampaignWorkspacePage`, loaded on first open.
+
+### Decisions made while building
+
+- **The shrine is owner-only for now.** `ownerOnly: true` keeps the area (and its Places entry) the campaign owner's until Phase 5 adds the player view; players see the stone as scenery. Phase 5 must flip it to `false`.
+- **The lit sprite is not drawn yet.** `shrine-stone-lit` exists in the manifest, but nothing uses it until the glow in Phase 5.
+- **`delete_crafting_library` copy** already shows saved-vision and linked-item counts when they are above zero (they are zero until Phases 3 and 4).
+- **Libraries enabled by a previous DM** appear as "Library 1, 2…" with a Turn off button, because a library's name belongs to its owner (C15).
+- Browser-visible copy uses the plan's names ("The Maker’s Visions", "Shrine stone", "Visions").
+
+### Verification (from `implementation/frontend`)
+
+| Command                                                   | Result                                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `npm run lint`, `npm run format:check`, `npm run build`   | Passed                                                                                                            |
+| `npm test`                                                | Passed: 136 files, 2,140 tests (crafting: 8 files, 209 tests)                                                     |
+| `npm run art:check`                                       | Passed                                                                                                            |
+| `npx playwright test e2e/local-supabase-crafting.spec.ts` | Passed: 17 tests. It gained a test that every limit the prompt states is accepted by the database at its largest. |
+
+Not run: `npm run test:e2e`, the camp-scene specs, the rest of `test:local-supabase`, and a visual check of the new screens in a browser (the project skips graphical suites). The DM tab has not been opened against the local stack in the browser. Phase 6's real-stack UI test covers it.

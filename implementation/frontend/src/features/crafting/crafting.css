@@ -1,0 +1,241 @@
+/* The Maker's Visions: the DM's libraries, pack import, and library browser. */
+
+.visions-dm > * + *,
+.library-browser > * + * {
+  margin-top: 16px;
+}
+
+.crafting-lede,
+.crafting-hint,
+.crafting-count {
+  margin: 0;
+}
+
+.crafting-hint,
+.crafting-count {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.crafting-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.crafting-libraries,
+.crafting-list,
+.crafting-history {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crafting-library,
+.crafting-row {
+  border: 1.5px solid var(--journal-line);
+  border-radius: 2px;
+  padding: 12px 14px;
+}
+
+.crafting-library > * + * {
+  margin-top: 10px;
+}
+
+.crafting-library__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.crafting-library__head .journal-section-title {
+  margin: 0;
+}
+
+.crafting-library--foreign {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.crafting-form {
+  display: grid;
+  gap: 12px;
+}
+
+.crafting-confirm > * + * {
+  margin-top: 10px;
+}
+
+.crafting-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crafting-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 12px;
+}
+
+.crafting-row summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  cursor: pointer;
+}
+
+.crafting-row__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.crafting-row__meta {
+  color: var(--journal-ink-soft);
+  font-size: 0.9rem;
+}
+
+.crafting-row details > * + * {
+  margin-top: 12px;
+}
+
+.crafting-row details > summary + * {
+  margin-top: 12px;
+}
+
+.crafting-row__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.crafting-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.crafting-facts > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) 1fr;
+  gap: 4px 12px;
+}
+
+.crafting-facts dt {
+  color: var(--journal-ink-soft);
+  font-weight: 600;
+}
+
+.crafting-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.crafting-dm {
+  border-left: 3px solid var(--journal-line);
+  padding-left: 12px;
+}
+
+.crafting-dm > * + * {
+  margin-top: 8px;
+}
+
+.crafting-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.crafting-lines th,
+.crafting-lines td {
+  border-bottom: 1px solid var(--journal-line);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.crafting-lines td:nth-child(n + 2),
+.crafting-lines thead th:nth-child(n + 2) {
+  text-align: right;
+}
+
+.crafting-lines tfoot th,
+.crafting-lines tfoot td {
+  font-weight: 700;
+}
+
+.crafting-key {
+  color: var(--journal-ink-soft);
+  font-weight: 400;
+}
+
+.crafting-warning {
+  border-left: 3px solid var(--rarity-rare-edge, var(--journal-line));
+}
+
+.crafting-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.crafting-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.crafting-prompt .crafting-hint {
+  flex-basis: 100%;
+}
+
+.pack-dialog__issues ul {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+}
+
+.pack-dialog__issues code,
+.handoff-review__ignored code {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.pack-dialog__review {
+  border: 1.5px solid var(--journal-forest, var(--journal-line));
+  border-radius: 2px;
+  padding: 10px 14px;
+}
+
+.pack-dialog__review h4 {
+  margin: 0 0 6px;
+}
+
+.pack-dialog__review dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.pack-dialog__review dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.pack-dialog__review dt {
+  min-width: 5rem;
+  font-weight: 600;
+}
+
+.pack-dialog__review dd {
+  margin: 0;
+}
