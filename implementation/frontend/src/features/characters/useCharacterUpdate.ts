@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { visionsPrefix } from '../crafting/craftingQueries'
 import { applyCharacterUpdate, importError, isImportConflict } from './characterImportService'
 import {
   campaignCharactersKey,
@@ -70,6 +71,7 @@ export function useCharacterUpdate(character: CharacterSummary, userId: string) 
         queryClient.invalidateQueries({ queryKey: characterSheetKey(character.id, userId) }),
         queryClient.invalidateQueries({ queryKey: characterItemsKey(character.id, userId) }),
         queryClient.invalidateQueries({ queryKey: coinLogKey(character.id, userId) }),
+        queryClient.invalidateQueries({ queryKey: visionsPrefix(character.id) }),
         queryClient.invalidateQueries({ queryKey: characterImportsKey(character.id, userId) }),
       ])
       return { kind: 'applied' }

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { adventuresPrefix } from '../adventures/adventureQueries'
+import { visionsPrefix } from '../crafting/craftingQueries'
 import {
   campaignCharactersKey,
   characterItemsKey,
@@ -233,6 +234,11 @@ export function useCharacterActions(campaignId: string, userId: string) {
     void queryClient.invalidateQueries({ queryKey: itemsKey(characterId) })
   }
 
+  /** What a character holds decides their visions' counts, so those are read again (W11). */
+  const refreshVisions = (characterId: string) => {
+    void queryClient.invalidateQueries({ queryKey: visionsPrefix(characterId) })
+  }
+
   /** Positive amounts add coins, negative amounts spend them; all or nothing. */
   const adjustCurrency = (characterId: string, deltas: Partial<CharacterPurse>) =>
     run('currency', characterId, async () => {
@@ -250,6 +256,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
     run('item-add', characterId, async () => {
       const item = await addCharacterItem(characterId, values)
       settleItem(characterId, (items) => [...items, item])
+      refreshVisions(characterId)
     })
 
   const editItem = (characterId: string, item: CharacterItem, values: CharacterItemValues) =>
@@ -259,6 +266,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
       async () => {
         const saved = await updateCharacterItem(item.id, values, item.updated_at)
         settleItem(characterId, (items) => items.map((row) => (row.id === saved.id ? saved : row)))
+        refreshVisions(characterId)
       },
       item.id,
     )
@@ -291,6 +299,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
           items.map((row) => (row.id === itemId ? { ...row, quantity } : row)),
         )
         await queryClient.invalidateQueries({ queryKey: itemsKey(characterId) })
+        refreshVisions(characterId)
       },
       itemId,
     )
@@ -302,6 +311,7 @@ export function useCharacterActions(campaignId: string, userId: string) {
       async () => {
         await deleteCharacterItem(itemId)
         settleItem(characterId, (items) => items.filter((row) => row.id !== itemId))
+        refreshVisions(characterId)
       },
       itemId,
     )

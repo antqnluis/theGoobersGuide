@@ -13,7 +13,7 @@ import type {
 type Functions = Database['public']['Functions']
 
 const itemFields =
-  'id,character_id,name,quantity,weight,description,rarity,equipped,attuned,created_at,updated_at'
+  'id,character_id,name,quantity,weight,description,rarity,crafting_item_id,equipped,attuned,created_at,updated_at'
 
 type ItemRow = Omit<CharacterItem, 'weight' | 'rarity'> & {
   weight: number | string | null
@@ -175,6 +175,8 @@ const inventoryErrors: Record<string, string> = {
   item_quantity_invalid: 'Quantity must be between 0 and 9,999.',
   item_unavailable: 'This item is no longer available.',
   item_conflict: 'This item changed on another device. The latest version is shown.',
+  item_catalogue_unavailable:
+    'That catalogue item isn’t available in this campaign any more. Unlink the item or pick another.',
 }
 
 /**

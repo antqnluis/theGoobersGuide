@@ -85,6 +85,19 @@ describe('listCharacterItems', () => {
     expect(items.map((item) => item.weight)).toEqual([2.5, null])
   })
 
+  it('reads each item’s catalogue link', async () => {
+    const calls = builder({
+      data: [
+        { ...row, crafting_item_id: 'crafting-fang' },
+        { ...row, id: 'b', crafting_item_id: null },
+      ],
+      error: null,
+    })
+    const items = await listCharacterItems(characterId)
+    expect(items.map((entry) => entry.crafting_item_id)).toEqual(['crafting-fang', null])
+    expect(calls.find(([method]) => method === 'select')?.[1][0]).toContain('crafting_item_id')
+  })
+
   it('reads each item’s rarity, and treats an unknown one as common', async () => {
     builder({
       data: [
@@ -111,6 +124,18 @@ describe('item writes', () => {
     const item = await addCharacterItem(characterId, values)
     expect(calls).toContainEqual(['insert', [{ character_id: characterId, ...values }]])
     expect(item.weight).toBe(10)
+  })
+
+  it('sends the catalogue link with an added item, and clears it with null', async () => {
+    const calls = builder({ data: row, error: null })
+    await addCharacterItem(characterId, { ...values, crafting_item_id: 'crafting-fang' })
+    expect(calls).toContainEqual([
+      'insert',
+      [{ character_id: characterId, ...values, crafting_item_id: 'crafting-fang' }],
+    ])
+    const edit = builder({ data: row, error: null })
+    await updateCharacterItem(itemId, { ...values, crafting_item_id: null }, 'stamp')
+    expect(edit).toContainEqual(['update', [{ ...values, crafting_item_id: null }]])
   })
 
   it('reports a row-level-security refusal as denied and passes other errors through', async () => {
@@ -224,6 +249,10 @@ describe('error copy', () => {
     ['item_quantity_invalid', 'Quantity must be between 0 and 9,999.'],
     ['item_unavailable', 'This item is no longer available.'],
     ['item_conflict', 'This item changed on another device. The latest version is shown.'],
+    [
+      'item_catalogue_unavailable',
+      'That catalogue item isn’t available in this campaign any more. Unlink the item or pick another.',
+    ],
     ['character_unavailable', 'This character is no longer available.'],
     ['character_update_denied', 'This character could not be updated by this account.'],
   ])('maps %s', (message, copy) => {

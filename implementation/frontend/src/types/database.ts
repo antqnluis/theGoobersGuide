@@ -796,6 +796,7 @@ export type Database = {
         Row: {
           attuned: boolean
           character_id: string
+          crafting_item_id: string | null
           created_at: string
           description: string | null
           equipped: boolean
@@ -810,6 +811,7 @@ export type Database = {
         Insert: {
           attuned?: boolean
           character_id: string
+          crafting_item_id?: string | null
           created_at?: string
           description?: string | null
           equipped?: boolean
@@ -823,6 +825,7 @@ export type Database = {
         Update: {
           attuned?: boolean
           character_id?: string
+          crafting_item_id?: string | null
           created_at?: string
           description?: string | null
           equipped?: boolean
@@ -839,6 +842,13 @@ export type Database = {
             columns: ['character_id']
             isOneToOne: false
             referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'character_items_crafting_item_id_fkey'
+            columns: ['crafting_item_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_items'
             referencedColumns: ['id']
           },
         ]
@@ -1713,6 +1723,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      search_crafting_items: { Args: { p_character_id: string; p_query: string }; Returns: Json }
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
         Returns: string

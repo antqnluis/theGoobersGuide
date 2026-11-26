@@ -97,3 +97,37 @@ Not tested yet: a concurrent import and rest (needs Phase 4), and account deleti
 | `npx playwright test e2e/local-supabase-crafting.spec.ts` | Passed: 17 tests. It gained a test that every limit the prompt states is accepted by the database at its largest. |
 
 Not run: `npm run test:e2e`, the camp-scene specs, the rest of `test:local-supabase`, and a visual check of the new screens in a browser (the project skips graphical suites). The DM tab has not been opened against the local stack in the browser. Phase 6's real-stack UI test covers it.
+
+## Phase 3: Inventory links (2026-11-27)
+
+### What was added
+
+- Migration `20261127110000_link_items_to_crafting.sql`:
+  - `character_items.crafting_item_id` (nullable, `on delete set null`, indexed), with insert and update column grants.
+  - `guard_character_item_write` refuses a link to an item outside the libraries enabled on the character's campaign (`item_catalogue_unavailable`). A nonexistent id, another DM's item, and your own library that this campaign doesn't use all give the same error. Clearing a link, and leaving one unchanged after its library is disabled, are always allowed.
+  - `search_crafting_items(p_character_id, p_query)`: at most 8 suggestions, owner and current member only, query 2 to 80 characters, prefix matches before word matches, `%` and `_` literal. It returns only `id`, `name`, `category`, `rarity`, `value_cp`, `weight`, and `description`.
+  - `delete_crafting_library` now counts the inventory links a delete clears.
+- Frontend:
+  - `ItemForm` takes a `characterId`. With it, the name field is a combobox over the suggestions (250 ms debounce, arrow keys, Enter, and Escape that closes only the list). Picking one fills name, rarity, weight, and description, and links the item. A "Linked to the catalogue" chip has an Unlink button. Renaming a linked item keeps the link.
+  - Inventory rows show a "Catalogue" chip to the owner only, so a shared sheet tells readers nothing about it.
+  - The visions cache key (`visionsPrefix`, `visionsKey`) exists, and adding, editing, removing, or changing the quantity of an item, and applying a character update, invalidate it. Equipping does not. Nothing reads it before Phase 4.
+  - `inventoryError` has copy for `item_catalogue_unavailable`.
+- Tests: the crafting integration spec grew to 30 tests (13 new: grants, linking on insert and update, refusals, library delete and item removal clearing links, and the suggestions rules including privacy for other players, the DM, a departed player, and a missing character).
+
+### Decisions made while building
+
+- **"Materials" means items whose category is `material`** (C9). A crafted dagger is not suggested, so upgrade items stay hidden. In Phase 4 the suggestions also include the outputs of the character's own visions, so that migration must replace `search_crafting_items`.
+- **`delete_crafting_library` still reports `saved: 0`.** Phase 4 replaces it again to count saved recipes.
+- **Matching itself (C4) is not implemented yet.** Phase 3 stores the link and the name fallback is Phase 4's `private.crafting_held` helper, so the plan's "matching" integration cases (unlinked exact names, quantity 0, summed rows) move to Phase 4 with the long rest.
+- A changed item row is also touched when its library is deleted (the link is cleared), which moves its `updated_at`. An open edit form for that item would then meet the existing conflict message.
+
+### Verification (from `implementation/frontend`)
+
+| Command                                                                                               | Result                         |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `npm run db:migrate` and `npm run db:types` (backend)                                                 | Applied and regenerated        |
+| `npm run lint`, `npm run format:check`, `npm run build`                                               | Passed                         |
+| `npm test`                                                                                            | Passed: 136 files, 2,161 tests |
+| `npx playwright test` on the crafting, inventory, characters, imports, membership, and handoffs specs | Passed: 142 tests              |
+
+Not run: `npm run test:e2e`, the camp-scene specs, and the rest of `test:local-supabase` (notes, adventures, dice, live, appearance, sprite, galaxy). The item form was not opened in a browser.

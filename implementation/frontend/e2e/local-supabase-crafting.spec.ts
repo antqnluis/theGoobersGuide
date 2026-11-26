@@ -5,14 +5,15 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  RANDOM_ID,
   rpcError,
   rpcOk,
   type Player,
 } from './support/localPlayers.ts'
 
-// M04 Phase 1: the crafting catalogue (libraries, items, recipes, the pack import, and the
-// campaign links) against the real local stack. The plan is §2, §3, §5, and §8.1. The long rest,
-// visions, and inventory links arrive in later phases and are tested then.
+// M04 Phases 1 and 3: the crafting catalogue (libraries, items, recipes, the pack import, and the
+// campaign links, and the inventory links and suggestions of Phase 3) against the real local stack.
+// The plan is §2, §3, §5, and §8.1. The long rest and visions arrive in Phase 4 and are tested then.
 
 const ROLES = ['anon', 'authenticated', 'service_role', 'public']
 const FORMAT = 'the-goobers-guide-crafting-pack'
@@ -348,7 +349,9 @@ test.describe('catalog and privileges', () => {
          where confrelid = 'public.crafting_items'::regclass and contype = 'f';`,
         {},
       ),
-    ).toBe('crafting_recipe_materials_item_fkey:a,crafting_recipes_output_fkey:a')
+    ).toBe(
+      'character_items_crafting_item_id_fkey:n,crafting_recipe_materials_item_fkey:a,crafting_recipes_output_fkey:a',
+    )
   })
 
   test('every function rejects a signed-out call', async () => {
@@ -1323,6 +1326,403 @@ test.describe('set_campaign_crafting_library', () => {
       message: 'crafting_library_unavailable',
     })
     expect(counts(libraryId)).toBe('0,0,0')
+    await cleanup(players, [campaignId])
+  })
+})
+
+// --- Phase 3: catalogue links on inventory items and suggestions ----------------------------------
+
+async function newCharacter(player: Player, campaignId: string, name = 'Hero') {
+  const { data, error } = await player.client.rpc('create_character', {
+    p_campaign_id: campaignId,
+    p_name: name,
+  })
+  expect(error?.message ?? null).toBeNull()
+  return data as string
+}
+
+/** A campaign with a DM, a player and their character, and the §2.6 library enabled on it. */
+async function craftingTable() {
+  const { players } = await newPlayers(['dm', 'player', 'other'])
+  const { dm, player, other } = players
+  const campaignId = await createCampaign(dm, 'Table')
+  await invite(dm, campaignId, player)
+  await invite(dm, campaignId, other)
+  const libraryId = await newLibrary(dm, 'Wyvern Components')
+  await importOk(dm, libraryId, wyvern())
+  await rpcOk(enable(dm, campaignId, libraryId))
+  const itemIds = Object.fromEntries(
+    (await itemRows(dm, libraryId)).map((row) => [row.slug, row.id as string]),
+  )
+  const characterId = await newCharacter(player, campaignId)
+  return { players, dm, player, other, campaignId, libraryId, itemIds, characterId }
+}
+
+function addItem(
+  player: Player,
+  characterId: string,
+  name: string,
+  extra: Record<string, unknown> = {},
+) {
+  return player.client
+    .from('character_items')
+    .insert({ character_id: characterId, name, ...extra } as never)
+    .select('id, crafting_item_id')
+    .single()
+}
+
+function search(player: Player, characterId: string, query: string) {
+  return player.client.rpc('search_crafting_items', { p_character_id: characterId, p_query: query })
+}
+
+test.describe('inventory links', () => {
+  test('the column grants let an owner set and clear a link, and nothing else changes', () => {
+    expect(columnsWith('character_items', 'authenticated', 'insert')).toContain('crafting_item_id')
+    expect(columnsWith('character_items', 'authenticated', 'update')).toContain('crafting_item_id')
+    expect(columnsWith('character_items', 'anon', 'select')).toBe('')
+    expect(
+      localDatabaseQuery(
+        `select confdeltype::text from pg_constraint
+         where conrelid = 'public.character_items'::regclass and conname = 'character_items_crafting_item_id_fkey';`,
+        {},
+      ),
+    ).toBe('n')
+    expect(
+      holders(
+        (r) =>
+          `has_function_privilege(${r}, 'private.assert_item_catalogue_link(uuid, uuid)', 'execute')`,
+      ),
+    ).toBe('')
+    expect(
+      holders(
+        (r) =>
+          `has_function_privilege(${r}, 'public.search_crafting_items(uuid, text)', 'execute')`,
+      ),
+    ).toBe('authenticated')
+  })
+
+  test('a player links an item to the catalogue when adding or editing it, and clears the link', async () => {
+    const { player, characterId, itemIds, players, campaignId } = await craftingTable()
+
+    const added = await addItem(player, characterId, 'Fang', {
+      crafting_item_id: itemIds['wyvern-fang'],
+    })
+    expect(added.error).toBeNull()
+    expect(added.data!.crafting_item_id).toBe(itemIds['wyvern-fang'])
+
+    // Linking an existing item, relinking, renaming (the link stays), and clearing.
+    const plain = (await addItem(player, characterId, 'Gland')).data!
+    expect(plain.crafting_item_id).toBeNull()
+    const update = (values: Record<string, unknown>) =>
+      player.client
+        .from('character_items')
+        .update(values as never)
+        .eq('id', plain.id)
+        .select('crafting_item_id, name')
+        .single()
+    expect((await update({ crafting_item_id: itemIds['wyvern-poison-gland'] })).data).toEqual({
+      crafting_item_id: itemIds['wyvern-poison-gland'],
+      name: 'Gland',
+    })
+    expect((await update({ name: 'My favourite gland' })).data).toEqual({
+      crafting_item_id: itemIds['wyvern-poison-gland'],
+      name: 'My favourite gland',
+    })
+    expect(
+      (await update({ crafting_item_id: itemIds['alchemical-base'] })).data?.crafting_item_id,
+    ).toBe(itemIds['alchemical-base'])
+    expect((await update({ crafting_item_id: null })).data?.crafting_item_id).toBeNull()
+    await cleanup(players, [campaignId])
+  })
+
+  test('a link outside the campaign’s enabled libraries is refused the same way, whatever the reason', async () => {
+    const { dm, player, other, characterId, itemIds, campaignId, libraryId, players } =
+      await craftingTable()
+
+    // Your own library that this campaign doesn't use, another DM's library, and an unknown id.
+    const unused = await newLibrary(dm, 'Not enabled')
+    await importOk(dm, unused, pack({ items: [item('stray', 'Stray')] }))
+    const elsewhere = await newLibrary(other, 'Elsewhere')
+    await importOk(other, elsewhere, pack({ items: [item('foreign', 'Foreign')] }))
+    const strayId = (await itemRows(dm, unused))[0].id as string
+    const foreignId = (await itemRows(other, elsewhere))[0].id as string
+    const otherCampaign = await createCampaign(other, 'Other table')
+    await rpcOk(enable(other, otherCampaign, elsewhere))
+
+    for (const id of [strayId, foreignId, RANDOM_ID]) {
+      const insert = await addItem(player, characterId, 'Nope', { crafting_item_id: id })
+      expect(insert.error?.message, id).toBe('item_catalogue_unavailable')
+    }
+    const row = (await addItem(player, characterId, 'Plain')).data!
+    for (const id of [strayId, foreignId, RANDOM_ID]) {
+      const update = await player.client
+        .from('character_items')
+        .update({ crafting_item_id: id } as never)
+        .eq('id', row.id)
+      expect(update.error?.message, id).toBe('item_catalogue_unavailable')
+    }
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.character_items where character_id = '${characterId}' and name = 'Nope';`,
+        {},
+      ),
+    ).toBe('0')
+
+    // Enabling the library makes its items linkable; disabling keeps a link but stops new ones.
+    await rpcOk(enable(dm, campaignId, unused))
+    expect(
+      (await addItem(player, characterId, 'Stray bit', { crafting_item_id: strayId })).error,
+    ).toBeNull()
+    await rpcOk(enable(dm, campaignId, unused, false))
+    const kept = await player.client
+      .from('character_items')
+      .select('crafting_item_id')
+      .eq('name', 'Stray bit')
+      .single()
+    expect(kept.data?.crafting_item_id).toBe(strayId)
+    // Editing a kept link without changing it still works; a new link to it does not.
+    expect(
+      (await player.client.from('character_items').update({ quantity: 3 }).eq('name', 'Stray bit'))
+        .error,
+    ).toBeNull()
+    expect(
+      (await addItem(player, characterId, 'Again', { crafting_item_id: strayId })).error?.message,
+    ).toBe('item_catalogue_unavailable')
+    expect(itemIds['wyvern-fang']).toBeTruthy()
+    expect(libraryId).toBeTruthy()
+    await cleanup(players, [campaignId, otherCampaign])
+  })
+
+  test('only the character’s owner can link, and another player’s item is out of reach', async () => {
+    const { dm, other, characterId, itemIds, campaignId, players } = await craftingTable()
+    // Another member, and the DM, can't add items to this character at all.
+    for (const stranger of [other, dm]) {
+      const insert = await addItem(stranger, characterId, 'Planted', {
+        crafting_item_id: itemIds['wyvern-fang'],
+      })
+      expect(insert.error?.code).toBe('42501')
+    }
+    await cleanup(players, [campaignId])
+  })
+
+  test('deleting a library clears the links and keeps the inventory items', async () => {
+    const { dm, player, characterId, itemIds, libraryId, campaignId, players } =
+      await craftingTable()
+    const linked = (
+      await addItem(player, characterId, 'Fang', { crafting_item_id: itemIds['wyvern-fang'] })
+    ).data!
+    await addItem(player, characterId, 'Gland', {
+      crafting_item_id: itemIds['wyvern-poison-gland'],
+    })
+    await addItem(player, characterId, 'Rope')
+
+    const preview = await dm.client.rpc('delete_crafting_library', {
+      p_library_id: libraryId,
+      p_confirm: false,
+    })
+    expect(preview.data).toEqual({ campaigns: 1, saved: 0, linked_items: 2, deleted: false })
+
+    await rpcOk(
+      dm.client.rpc('delete_crafting_library', { p_library_id: libraryId, p_confirm: true }),
+    )
+    const { data } = await player.client
+      .from('character_items')
+      .select('name, crafting_item_id')
+      .eq('character_id', characterId)
+      .order('name')
+    expect(data).toEqual([
+      { name: 'Fang', crafting_item_id: null },
+      { name: 'Gland', crafting_item_id: null },
+      { name: 'Rope', crafting_item_id: null },
+    ])
+    expect(linked.id).toBeTruthy()
+    await cleanup(players, [campaignId])
+  })
+
+  test('removing a catalogue item through an import clears only its links', async () => {
+    const { dm, player, characterId, itemIds, libraryId, campaignId, players } =
+      await craftingTable()
+    await addItem(player, characterId, 'Base', { crafting_item_id: itemIds['alchemical-base'] })
+    await addItem(player, characterId, 'Fang', { crafting_item_id: itemIds['wyvern-fang'] })
+    // The base is used by a recipe, so it goes with that recipe.
+    await importOk(
+      dm,
+      libraryId,
+      pack({
+        remove: { recipes: ['venom-blade-oil'], items: ['alchemical-base', 'venom-blade-oil'] },
+      }),
+    )
+    const { data } = await player.client
+      .from('character_items')
+      .select('name, crafting_item_id')
+      .eq('character_id', characterId)
+      .order('name')
+    expect(data).toEqual([
+      { name: 'Base', crafting_item_id: null },
+      { name: 'Fang', crafting_item_id: itemIds['wyvern-fang'] },
+    ])
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('search_crafting_items', () => {
+  const keys = ['category', 'description', 'id', 'name', 'rarity', 'value_cp', 'weight']
+
+  test('suggests materials of the enabled libraries by prefix or word, with player-facing fields only', async () => {
+    const { player, characterId, itemIds, players, campaignId } = await craftingTable()
+
+    const prefix = await search(player, characterId, 'wyv')
+    expect(prefix.error).toBeNull()
+    const rows = prefix.data as Array<Record<string, unknown>>
+    expect(rows.map((row) => row.name)).toEqual(['Wyvern Fang', 'Wyvern Poison Gland'])
+    expect(Object.keys(rows[0]).sort()).toEqual(keys)
+    expect(rows[0]).toMatchObject({
+      id: itemIds['wyvern-fang'],
+      category: 'material',
+      rarity: 'uncommon',
+      value_cp: 4000,
+      weight: 0.5,
+      description: null,
+    })
+
+    // A word that starts later in the name matches after the names that start with it.
+    const word = (await search(player, characterId, 'gland')).data as Array<{ name: string }>
+    expect(word.map((row) => row.name)).toEqual(['Wyvern Poison Gland'])
+    const mixed = (await search(player, characterId, 'al')).data as Array<{ name: string }>
+    expect(mixed.map((row) => row.name)).toEqual(['Alchemical Base'])
+
+    // Case and edge spaces don't matter.
+    expect(((await search(player, characterId, '  WYVERN FANG ')).data as unknown[]).length).toBe(1)
+    await cleanup(players, [campaignId])
+  })
+
+  test('never suggests anything but materials, so the upgrades stay hidden', async () => {
+    const { player, characterId, players, campaignId } = await craftingTable()
+    for (const query of ['dagger', 'venom', 'blade', 'wyrm', 'oil']) {
+      expect((await search(player, characterId, query)).data, query).toEqual([])
+    }
+    await cleanup(players, [campaignId])
+  })
+
+  test('treats wildcards as plain characters, and ranks prefix matches first', async () => {
+    const { dm, player, characterId, libraryId, players, campaignId } = await craftingTable()
+    await importOk(
+      dm,
+      libraryId,
+      pack({
+        items: [
+          item('odd', '100% Pure'),
+          item('under', 'A_B Thing'),
+          item('late', 'Pure Gold'),
+          item('early', 'Gold Pure'),
+        ],
+      }),
+    )
+    // A wildcard in the query matches only itself, never "anything".
+    for (const query of ['%%', '__', '%u', '_b']) {
+      expect((await search(player, characterId, query)).data, query).toEqual([])
+    }
+    expect(
+      ((await search(player, characterId, '100%')).data as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    ).toEqual(['100% Pure'])
+    expect(
+      ((await search(player, characterId, 'a_b')).data as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    ).toEqual(['A_B Thing'])
+    // "pure": names starting with it first, then names with a later word that does.
+    expect(
+      ((await search(player, characterId, 'pure')).data as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    ).toEqual(['Pure Gold', '100% Pure', 'Gold Pure'])
+    await cleanup(players, [campaignId])
+  })
+
+  test('returns at most eight suggestions', async () => {
+    const { dm, player, characterId, libraryId, players, campaignId } = await craftingTable()
+    await importOk(
+      dm,
+      libraryId,
+      pack({
+        items: Array.from({ length: 12 }, (_, index) =>
+          item(`scale-${index}`, `Dragon Scale ${String(index).padStart(2, '0')}`),
+        ),
+      }),
+    )
+    const rows = (await search(player, characterId, 'dragon')).data as Array<{ name: string }>
+    expect(rows.map((row) => row.name)).toEqual(
+      Array.from({ length: 8 }, (_, index) => `Dragon Scale ${String(index).padStart(2, '0')}`),
+    )
+    await cleanup(players, [campaignId])
+  })
+
+  test('uses only the libraries this campaign has enabled', async () => {
+    const { dm, player, characterId, campaignId, libraryId, players } = await craftingTable()
+    const second = await newLibrary(dm, 'Second')
+    await importOk(dm, second, pack({ items: [item('extra', 'Wyvern Scale')] }))
+    const names = async () =>
+      ((await search(player, characterId, 'wyvern')).data as Array<{ name: string }>).map(
+        (row) => row.name,
+      )
+    expect(await names()).toEqual(['Wyvern Fang', 'Wyvern Poison Gland'])
+    await rpcOk(enable(dm, campaignId, second))
+    expect(await names()).toEqual(['Wyvern Fang', 'Wyvern Poison Gland', 'Wyvern Scale'])
+    await rpcOk(enable(dm, campaignId, libraryId, false))
+    expect(await names()).toEqual(['Wyvern Scale'])
+    await cleanup(players, [campaignId])
+  })
+
+  test('refuses short and long queries, and anyone who is not the character’s owner', async () => {
+    const { dm, other, player, characterId, campaignId, players } = await craftingTable()
+    for (const query of ['', ' ', 'a', ' a ', 'x'.repeat(81), 'bad\u0007chars']) {
+      expect(
+        await rpcError(search(player, characterId, query)),
+        JSON.stringify(query),
+      ).toMatchObject({
+        code: '22023',
+        message: 'crafting_query_invalid',
+      })
+    }
+    expect(((await search(player, characterId, 'x'.repeat(80))).data as unknown[]).length).toBe(0)
+
+    // Another player (even with a shared sheet), the DM, a stranger, and a missing character.
+    await player.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+    for (const stranger of [other, dm]) {
+      expect(await rpcError(search(stranger, characterId, 'wyvern'))).toEqual({
+        code: 'P0001',
+        message: 'character_unavailable',
+      })
+    }
+    expect(await rpcError(search(player, RANDOM_ID, 'wyvern'))).toEqual({
+      code: 'P0001',
+      message: 'character_unavailable',
+    })
+    expect(
+      await rpcError(
+        player.client.rpc('search_crafting_items', {
+          p_character_id: characterId,
+          p_query: null as never,
+        }),
+      ),
+    ).toMatchObject({ code: '22023' })
+    await cleanup(players, [campaignId])
+  })
+
+  test('a departed player gets nothing, and rejoining restores it', async () => {
+    const { dm, player, characterId, campaignId, players } = await craftingTable()
+    await rpcOk(player.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    expect(await rpcError(search(player, characterId, 'wyvern'))).toEqual({
+      code: 'P0001',
+      message: 'character_unavailable',
+    })
+    await invite(dm, campaignId, player)
+    expect(((await search(player, characterId, 'wyvern')).data as unknown[]).length).toBe(2)
     await cleanup(players, [campaignId])
   })
 })

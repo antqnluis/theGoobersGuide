@@ -120,6 +120,7 @@ export function CharacterInventory({
 
       {owner && editing?.type === 'add' ? (
         <ItemForm
+          characterId={characterId}
           isPending={addPending}
           mode="add"
           onCancel={() => {
@@ -228,6 +229,7 @@ function InventoryRow({
     return (
       <li className="inventory-item inventory-item--editing">
         <ItemForm
+          characterId={characterId}
           // A refetch after a conflict brings the latest version, so the form starts over.
           initial={item}
           isPending={pendingAction === 'item-edit'}
@@ -265,6 +267,11 @@ function InventoryRow({
           )}
           {item.equipped && <li className="journal-chip journal-chip--active">Equipped</li>}
           {item.attuned && <li className="journal-chip journal-chip--party">Attuned</li>}
+          {actions && item.crafting_item_id && (
+            <li className="journal-chip" title="Counts toward the Maker’s Visions">
+              Catalogue
+            </li>
+          )}
         </ul>
       </div>
       <p className="inventory-item__meta">

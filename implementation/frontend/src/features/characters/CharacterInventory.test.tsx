@@ -408,3 +408,38 @@ describe('CharacterInventory removal', () => {
     expect(screen.getByRole('button', { name: 'Remove Healing potion' })).toBeEnabled()
   })
 })
+
+describe('CharacterInventory catalogue links', () => {
+  const fang = item({ id: 'fang', name: 'Wyvern Fang', crafting_item_id: 'crafting-fang' })
+
+  it('marks a linked item for its owner, and tells a reader of a shared sheet nothing', async () => {
+    renderInventory({ items: [rope, fang] })
+    expect(await screen.findByText('Wyvern Fang')).toBeInTheDocument()
+    expect(within(row('Wyvern Fang')).getByText('Catalogue')).toBeVisible()
+    expect(within(row('Rope')).queryByText('Catalogue')).not.toBeInTheDocument()
+    cleanup()
+
+    renderInventory({ items: [rope, fang], owner: false })
+    expect(await screen.findByText('Wyvern Fang')).toBeInTheDocument()
+    expect(screen.queryByText('Catalogue')).not.toBeInTheDocument()
+  })
+
+  it('opens the edit form as linked, and unlinking is saved with the item', async () => {
+    const { actions, user } = renderInventory({ items: [fang] })
+    await user.click(await screen.findByRole('button', { name: /Edit Wyvern Fang/ }))
+    expect(screen.getByText('Linked to the catalogue')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Unlink' }))
+    await user.click(screen.getByRole('button', { name: 'Save item' }))
+    expect(actions.editItem).toHaveBeenCalledWith(
+      characterId,
+      fang,
+      expect.objectContaining({ crafting_item_id: null }),
+    )
+  })
+
+  it('gives the add form the character, so it can suggest from the catalogue', async () => {
+    const { user } = renderInventory({ items: [] })
+    await user.click(await screen.findByRole('button', { name: /Add item/ }))
+    expect(screen.getByLabelText('Name')).toHaveAttribute('role', 'combobox')
+  })
+})

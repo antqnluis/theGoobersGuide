@@ -10,6 +10,7 @@ import {
   listImports,
   listLibraries,
   previewLibraryDelete,
+  searchCraftingItems,
   setCampaignLibrary,
   updateLibrary,
 } from './craftingService'
@@ -197,6 +198,26 @@ describe('imports and campaign links', () => {
       p_library_id: 'l1',
       p_enabled: true,
     })
+  })
+})
+
+describe('searchCraftingItems', () => {
+  it('asks for the character’s suggestions with the trimmed text', async () => {
+    const rows = [{ id: 'i1', name: 'Wyvern Fang' }]
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: rows, error: null } as never)
+    await expect(searchCraftingItems('char-1', '  wyv ')).resolves.toEqual(rows)
+    expect(supabase.rpc).toHaveBeenCalledWith('search_crafting_items', {
+      p_character_id: 'char-1',
+      p_query: 'wyv',
+    })
+  })
+
+  it('returns an empty list for no data, and throws what the database said', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null } as never)
+    await expect(searchCraftingItems('char-1', 'wyv')).resolves.toEqual([])
+    const error = { message: 'character_unavailable' }
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error } as never)
+    await expect(searchCraftingItems('char-1', 'wyv')).rejects.toBe(error)
   })
 })
 

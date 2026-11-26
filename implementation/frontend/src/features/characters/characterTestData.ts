@@ -52,6 +52,7 @@ export function item(overrides: Partial<CharacterItem> = {}): CharacterItem {
     weight: null,
     description: null,
     rarity: 'common',
+    crafting_item_id: null,
     equipped: false,
     attuned: false,
     created_at: '2026-11-14T10:00:00+00:00',

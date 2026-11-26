@@ -110,6 +110,8 @@ export type CharacterItemInput = {
   rarity?: ItemRarity
   equipped: boolean
   attuned: boolean
+  /** The catalogue item this one is linked to; left out by imports, which keep the link. */
+  crafting_item_id?: string | null
 }
 
 /** An item as stored: trimmed, empty weight and description as null. */
@@ -121,6 +123,8 @@ export type CharacterItemValues = {
   rarity?: ItemRarity
   equipped: boolean
   attuned: boolean
+  /** Sent only when the form knows the link: a string sets it, null clears it. */
+  crafting_item_id?: string | null
 }
 
 /** Editable summary fields as typed into the form. */

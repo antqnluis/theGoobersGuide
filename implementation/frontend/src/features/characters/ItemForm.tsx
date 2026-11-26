@@ -1,4 +1,7 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { formatCopper } from '../crafting/craftingCost'
+import type { ItemSuggestion } from '../crafting/craftingTypes'
+import { useItemSuggestions } from '../crafting/useItemSuggestions'
 import {
   itemRarities,
   type CharacterItem,
@@ -6,7 +9,7 @@ import {
   type CharacterItemValues,
   type ItemRarity,
 } from './characterTypes'
-import { rarityLabels } from './itemRarity'
+import { rarityLabels, toRarity } from './itemRarity'
 import { normalizeItemInput, validateItemInput, type ItemErrors } from './inventoryValidation'
 
 type Fields = {
@@ -17,6 +20,8 @@ type Fields = {
   rarity: ItemRarity
   equipped: boolean
   attuned: boolean
+  /** The catalogue item this one is linked to, if any. */
+  craftingItemId: string | null
 }
 
 function toFields(item?: CharacterItem): Fields {
@@ -28,11 +33,13 @@ function toFields(item?: CharacterItem): Fields {
     rarity: item?.rarity ?? 'common',
     equipped: item?.equipped ?? false,
     attuned: item?.attuned ?? false,
+    craftingItemId: item?.crafting_item_id ?? null,
   }
 }
 
 /** Adds or edits one item. Validates on submit; the button stays enabled until it is pending. */
 export function ItemForm({
+  characterId,
   initial,
   isPending,
   mode,
@@ -40,6 +47,11 @@ export function ItemForm({
   onDirtyChange,
   onSubmit,
 }: {
+  /**
+   * The character the item belongs to. With it, the name field suggests catalogue items and the
+   * form can link or unlink the item; without it, the form leaves the link as it is.
+   */
+  characterId?: string
   initial?: CharacterItem
   isPending: boolean
   mode: 'add' | 'edit'
@@ -54,6 +66,15 @@ export function ItemForm({
   const [errors, setErrors] = useState<ItemErrors>({})
   const submittingRef = useRef(false)
   const nameRef = useRef<HTMLInputElement>(null)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  // Suggestions are offered only while the item is not already linked; unlink to look again.
+  const { suggestions, isSearching } = useItemSuggestions(
+    characterId,
+    values.name,
+    suggestOpen && values.craftingItemId === null,
+  )
+  const showSuggestions = suggestOpen && suggestions.length > 0
 
   const dirty = (Object.keys(values) as (keyof Fields)[]).some(
     (field) => values[field] !== saved[field],
@@ -78,12 +99,53 @@ export function ItemForm({
     setErrors((current) => ({ ...current, [field]: undefined }))
   }
 
+  /** Fills the name, rarity, and (when the catalogue has them) weight and description, and links. */
+  function pick(suggestion: ItemSuggestion) {
+    setValues((current) => ({
+      ...current,
+      name: suggestion.name,
+      rarity: toRarity(suggestion.rarity),
+      weight: suggestion.weight === null ? current.weight : String(suggestion.weight),
+      description: suggestion.description ?? current.description,
+      craftingItemId: suggestion.id,
+    }))
+    setErrors((current) => ({
+      ...current,
+      name: undefined,
+      weight: undefined,
+      description: undefined,
+    }))
+    setSuggestOpen(false)
+    setActiveIndex(-1)
+  }
+
+  function onNameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      setActiveIndex((index) => (index + step + suggestions.length) % suggestions.length)
+    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault()
+      pick(suggestions[activeIndex])
+    } else if (event.key === 'Escape') {
+      // Closes the list, not the journal behind it.
+      event.preventDefault()
+      event.stopPropagation()
+      setSuggestOpen(false)
+      setActiveIndex(-1)
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (submittingRef.current) return
+    const { craftingItemId, ...fields } = values
     const input: CharacterItemInput = {
-      ...values,
+      ...fields,
       quantity: values.quantity.trim() === '' ? Number.NaN : Number(values.quantity),
+      // Only a form that can search can also link, so only it speaks for the link.
+      ...(characterId ? { crafting_item_id: craftingItemId } : {}),
     }
     const found = validateItemInput(input)
     setErrors(found)
@@ -120,18 +182,77 @@ export function ItemForm({
       <div className="journal-field item-form__name">
         <label htmlFor={id('name')}>Name</label>
         <input
+          aria-activedescendant={
+            showSuggestions && activeIndex >= 0 ? id(`suggestion-${activeIndex}`) : undefined
+          }
+          aria-autocomplete={characterId ? 'list' : undefined}
+          aria-controls={showSuggestions ? id('suggestions') : undefined}
           aria-describedby={describe('name')}
+          aria-expanded={characterId ? showSuggestions : undefined}
           aria-invalid={errors.name ? 'true' : undefined}
           autoComplete="off"
           className="journal-input"
           disabled={isPending}
           id={id('name')}
-          onChange={(event) => change('name', event.target.value)}
+          onBlur={() => setSuggestOpen(false)}
+          onChange={(event) => {
+            change('name', event.target.value)
+            setSuggestOpen(true)
+            setActiveIndex(-1)
+          }}
+          onKeyDown={onNameKeyDown}
           ref={nameRef}
           required
+          role={characterId ? 'combobox' : undefined}
           value={values.name}
         />
         {error('name')}
+        {characterId && values.craftingItemId && (
+          <p className="item-form__link">
+            <span className="journal-chip journal-chip--active">Linked to the catalogue</span>
+            <button
+              className="journal-button journal-button--ghost"
+              disabled={isPending}
+              onClick={() => change('craftingItemId', null)}
+              type="button"
+            >
+              Unlink
+            </button>
+          </p>
+        )}
+        {isSearching && (
+          <p className="item-form__hint" role="status">
+            Searching the catalogue…
+          </p>
+        )}
+        {showSuggestions && (
+          <ul
+            aria-label="Catalogue suggestions"
+            className="item-suggestions"
+            id={id('suggestions')}
+            role="listbox"
+          >
+            {suggestions.map((suggestion, index) => (
+              <li
+                aria-selected={index === activeIndex}
+                className="item-suggestions__option"
+                id={id(`suggestion-${index}`)}
+                key={suggestion.id}
+                onMouseDown={(event) => {
+                  // Keep focus in the field, so picking doesn't close the list first.
+                  event.preventDefault()
+                  pick(suggestion)
+                }}
+                role="option"
+              >
+                <span className="item-suggestions__name">{suggestion.name}</span>
+                <span className="item-suggestions__meta">
+                  {rarityLabels[toRarity(suggestion.rarity)]} · {formatCopper(suggestion.value_cp)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="journal-field">
         <label htmlFor={id('quantity')}>Quantity</label>

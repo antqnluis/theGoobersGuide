@@ -3,6 +3,7 @@ import {
   listCampaignLibraries,
   listImports,
   listLibraries,
+  searchCraftingItems,
 } from './craftingService'
 
 /** Every crafting query, for cache-wide refreshes. Under ['campaigns'] so transfers refresh it too. */
@@ -54,5 +55,30 @@ export function libraryImportsOptions(libraryId: string, userId: string, enabled
     queryKey: libraryImportsKey(libraryId, userId),
     queryFn: () => listImports(libraryId),
     enabled,
+  }
+}
+
+/**
+ * Everything a character's visions read from, for any user. Inventory edits invalidate it, so
+ * counts and still to pay follow the inventory (plan W11). Nothing reads it before Phase 4.
+ */
+export const visionsPrefix = (characterId: string) =>
+  ['campaigns', 'crafting', 'visions', characterId] as const
+
+export const visionsKey = (characterId: string, userId: string) =>
+  ['campaigns', 'crafting', 'visions', characterId, userId] as const
+
+/** Catalogue suggestions for what a player is typing as an item's name. */
+export const suggestionsKey = (characterId: string, query: string) =>
+  ['campaigns', 'crafting', 'suggestions', characterId, query.trim().toLowerCase()] as const
+
+export function suggestionsOptions(characterId: string, query: string, enabled: boolean) {
+  return {
+    queryKey: suggestionsKey(characterId, query),
+    queryFn: () => searchCraftingItems(characterId, query),
+    enabled,
+    // Suggestions change only when the DM changes a library, so a short reuse is fine.
+    staleTime: 30_000,
+    retry: false,
   }
 }

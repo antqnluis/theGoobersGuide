@@ -75,6 +75,7 @@ export function normalizeItemInput(input: CharacterItemInput): CharacterItemValu
     rarity: input.rarity,
     equipped: input.equipped,
     attuned: input.attuned,
+    ...(input.crafting_item_id === undefined ? {} : { crafting_item_id: input.crafting_item_id }),
   }
 }
 

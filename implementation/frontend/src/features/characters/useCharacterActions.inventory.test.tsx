@@ -166,6 +166,43 @@ describe('items', () => {
     expect(stale(queryClient, itemsKey)).toBe(true)
   })
 
+  it('refreshes the character’s visions after every change to what they carry (W11)', async () => {
+    vi.mocked(addCharacterItem).mockResolvedValue(item({ id: 'lantern' }))
+    vi.mocked(updateCharacterItem).mockResolvedValue(item({ id: 'rope', name: 'Rope 2' }))
+    vi.mocked(adjustItemQuantity).mockResolvedValue(4)
+    vi.mocked(deleteCharacterItem).mockResolvedValue(undefined)
+    vi.mocked(setItemFlag).mockResolvedValue(item({ id: 'rope', equipped: true }))
+    const { queryClient, result } = setup()
+    const spy = vi.spyOn(queryClient, 'invalidateQueries')
+    const refreshed = () =>
+      spy.mock.calls.some(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) ===
+          JSON.stringify(['campaigns', 'crafting', 'visions', characterId]),
+      )
+
+    for (const [label, change] of [
+      ['add', () => result.current.addItem(characterId, values)],
+      ['edit', () => result.current.editItem(characterId, rope, values)],
+      ['quantity', () => result.current.changeItemQuantity(characterId, 'torch', -1)],
+      ['remove', () => result.current.removeItem(characterId, 'torch')],
+    ] as const) {
+      spy.mockClear()
+      expect(refreshed(), label).toBe(false)
+      await act(async () => {
+        await change()
+      })
+      expect(refreshed(), label).toBe(true)
+    }
+
+    // Equipping changes nothing about what is held.
+    spy.mockClear()
+    await act(async () => {
+      await result.current.changeItemFlag(characterId, 'rope', 'equipped', true)
+    })
+    expect(refreshed()).toBe(false)
+  })
+
   it('does nothing to a list that was never loaded', async () => {
     vi.mocked(addCharacterItem).mockResolvedValue(item({ id: 'x' }))
     const { queryClient, result } = setup(null)

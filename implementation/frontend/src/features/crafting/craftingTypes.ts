@@ -166,6 +166,17 @@ export type CampaignLibraryLink = {
   enabled_at: string
 }
 
+/** One suggestion for an inventory item's name: the player-facing fields only (plan C9, C16). */
+export type ItemSuggestion = {
+  id: string
+  name: string
+  category: CraftingCategory
+  rarity: ItemRarity
+  value_cp: number
+  weight: number | null
+  description: string | null
+}
+
 export type LibraryDeletePreview = {
   campaigns: number
   saved: number

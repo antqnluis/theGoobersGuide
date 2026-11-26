@@ -7,6 +7,7 @@ import type {
   CraftingCategory,
   CraftingLibrary,
   CraftingPack,
+  ItemSuggestion,
   LibraryContent,
   LibraryDeletePreview,
   LibraryItem,
@@ -168,6 +169,25 @@ export async function importPack(
   })
   if (error) throw error
   return data as unknown as PackImportResult
+}
+
+/** The shortest and longest text a suggestion search accepts. */
+export const suggestionQueryLength = { min: 2, max: 80 } as const
+
+/**
+ * Up to 8 catalogue suggestions for a character's item name: materials of the libraries enabled
+ * on its campaign. Only the character's owner may ask.
+ */
+export async function searchCraftingItems(
+  characterId: string,
+  query: string,
+): Promise<ItemSuggestion[]> {
+  const { data, error } = await supabase.rpc('search_crafting_items', {
+    p_character_id: characterId,
+    p_query: query.trim(),
+  })
+  if (error) throw error
+  return (data ?? []) as unknown as ItemSuggestion[]
 }
 
 /** The libraries enabled on a campaign; only its owner can list them. */
