@@ -30,6 +30,7 @@ import {
   type LibraryItem,
   type LibraryRecipe,
 } from './craftingTypes'
+import { RibbonTabs } from './RibbonTabs'
 import './crafting.css'
 
 const pageStep = 100
@@ -43,7 +44,7 @@ function ItemRow({ item }: { item: LibraryItem }) {
     : null
   const harvest = item.harvest
   return (
-    <li className="crafting-row">
+    <li className="journal-panel crafting-row">
       <details>
         <summary>
           <span className="crafting-row__name">{item.name}</span>
@@ -170,7 +171,7 @@ function RecipeRow({ recipe, index }: { recipe: LibraryRecipe; index: LibraryInd
   const keys = lines.filter((line) => line.role === 'key')
 
   return (
-    <li className="crafting-row">
+    <li className="journal-panel crafting-row">
       <details>
         <summary>
           <span className="crafting-row__name">
@@ -339,27 +340,26 @@ function Browser({ content }: { content: LibraryContent }) {
 
   return (
     <>
-      <div className="crafting-tabs" role="group" aria-label="Browse">
-        {(
-          [
-            ['items', 'Items', content.items.length],
-            ['recipes', 'Recipes', content.recipes.length],
-          ] as const
-        ).map(([id, label, count]) => (
-          <button
-            aria-pressed={tab === id}
-            className={`journal-button ${tab === id ? '' : 'journal-button--secondary'}`}
-            key={id}
-            onClick={() => {
-              setTab(id)
-              setShown(pageStep)
-            }}
-            type="button"
-          >
-            {label} ({count.toLocaleString('en-US')})
-          </button>
-        ))}
-      </div>
+      <RibbonTabs
+        active={tab}
+        label="Browse"
+        onChange={(id) => {
+          setTab(id)
+          setShown(pageStep)
+        }}
+        tabs={[
+          {
+            id: 'items',
+            label: `Items (${content.items.length.toLocaleString('en-US')})`,
+            icon: 'pack',
+          },
+          {
+            id: 'recipes',
+            label: `Recipes (${content.recipes.length.toLocaleString('en-US')})`,
+            icon: 'quill',
+          },
+        ]}
+      />
 
       <div className="crafting-filters">
         <div className="journal-field">

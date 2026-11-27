@@ -309,6 +309,7 @@ The components feel refined and restrained: familiar controls sit inside a calm,
 
 - **Style:** The brand uses serif display type. Account links use compact sans-serif text with a fine underline for the current route (starlight at the doorway); hover adds an underline and the accent color.
 - **Mobile:** Navigation moves to its own full-width row beneath the brand.
+- **Ribbon tabs:** the notes' Notes and NPCs, the Maker's Visions views, and the library browser share one ribbon (`.notebook-tabs` in `journal.css`): an oxblood pixel icon and an uppercase label on a rule, the current view underlined in oxblood.
 - **Sheet ribbons:** The character sheet has a sticky strip of section tabs (icon plus uppercase label, 44px, a 4px oxblood underline on hover) that scrolls sideways without a visible scrollbar.
 
 ### Journal page
@@ -340,6 +341,20 @@ The tray is a parchment plate with a leather header (title, a live-state line wi
 ### Roll buttons
 
 On your own sheet's display view, the numbers that can roll are buttons: an ability modifier and its saving throw, each skill, initiative, an attack's to-hit, and its damage when it has dice. They keep the sheet's layout and add a 2px brown line on a parchment-shade fill (44px minimum), which deepens to oxblood on hover. A bonus or damage that is not plain dice stays plain text, and others' sheets and the edit view have no roll buttons. A press rolls; Shift-click rolls with advantage and Alt-click with disadvantage; a long press, right-click, or the context-menu key opens a small leather menu (advantage, disadvantage, roll privately, as they apply) that returns focus to the button. The result appears in the dice tray, or in its peek when the tray is shut; after a natural 20 on an attack, "Roll critical damage" sits beside it.
+
+### Sealed visions
+
+What a long rest brings to a player arrives sealed, in the Maker's Visions journal page. Each new vision and fragment is a leather plate with a brass 2px rim, a double inner rule, and a pixel wax seal (oxblood, outlined in brass the way the camp outlines its sprites) beside a serif line, "A vision stirs" or "A fragment stirs", and the words "Break the seal". It names only what is behind it. A leather strip above the list says how many things stir and offers **Break all seals**; what the rest did not bring is never sealed.
+
+Breaking a seal is the one authored moment. The wax cracks along a jagged line into two halves that fall away, eight ember pixels burst out in lantern and brass, and a lantern-wash flash passes over the plate (about 0.5s, stepped for the embers). The card then unfurls top to bottom in its place: the title inks in left to right in steps, the rarity chip and "New" pop, one bright pass in the rarity's edge colour crosses it, each material line on its face slides in in turn with its tick catching lantern, and "still to pay" totals up in whole-coin steps. Opening several at once staggers them by 220ms. A fragment's `???` clears from a smudge and its held names ink in. Focus moves to a card opened alone; a polite live region names what was revealed.
+
+The cards sit side by side in a **rail**: each group (Visions, Fragments, Saved) is a row with its heading and two 44px arrow keys on the right, which appear only when more cards wait, and a thin brass scrollbar. The row bleeds to the page edge and its far edge fades, so a half-seen card says there is more; cards snap to their starts, the row is a focusable, labelled region the arrow keys scroll, and under reduced motion the arrows jump instead of gliding. A card is a portrait folio, `min(19rem, 82%)` wide (fragments `min(16rem, 76%)`), set on the journal's printed plate like every other plate in the area (the DM's libraries and the library browser's rows too): the name in the serif at the journal heading size, the rarity and "New" chips ("New" is a lantern chip with a pixel star, the same chip anatomy as the rarity and status chips), the amount still to pay, then one line per material (a tick or cross, the name, held of needed), and a "Recipe details" pointer that opens the whole costing, table, tools, and notes inside the card. A fragment is built the same way: "Unknown item: ???" in the serif, a "New" chip, then one line per key material held (a tick, the name, "held") and one for what is not found (a cross, `???`, `×N`). A sealed card is the same width and stands taller, so a broken seal changes in place. Views of the page (My visions and the DM's libraries and rests, the library browser's Items and Recipes) switch with the journal's ribbon tabs, never a pair of toggle buttons. Within a card the costing table is always its two-line stacked form.
+
+- **Once per rest.** Which seals are broken is remembered on this device, per character and rest (`goobers-visions-opened:*`), so a reload keeps them open and a new rest seals the new ones. "Replay the reveal" seals them again. The record is a nicety; the database still decides what is new.
+- **The shrine follows the seals.** The scene's lit sprite, its ember motes, and the Places count ("Visions, N new") count what is still sealed, so reading it puts the glow out.
+- **Reduced motion:** the seals stay, and breaking one opens its folio at once with no crack, unfurl, sweep, or count; every animation lives under `prefers-reduced-motion: no-preference`.
+- **On a phone** (a card under 34rem) the materials table becomes two-line rows (name, then what is held and the sum) and the unit price is dropped.
+- **Colour:** leather, brass, lantern, and the rarity edges only; no new tokens.
 
 ### Empty states
 

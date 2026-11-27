@@ -9,6 +9,7 @@ import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
 import { CampVisions } from '../crafting/CampVisions'
 import { craftingPrefix, visionsOptions } from '../crafting/craftingQueries'
+import { useSealedCount } from '../crafting/visionReveal'
 import {
   adventuresKey,
   adventuresOptions,
@@ -149,7 +150,8 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
     ),
   )
-  // The shrine glows and the Places entry counts what the viewer's active character has new.
+  // The shrine glows and the Places entry counts what the viewer's active character has new and
+  // has not yet unsealed.
   // Read when the camp opens, kept live by useCampaignLive, and refetched on focus. A failed
   // read shows no count.
   const activeCharacterId =
@@ -159,10 +161,16 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
   const visionsQuery = useQuery(
     visionsOptions(activeCharacterId, userId, Boolean(userId) && Boolean(campaignQuery.data)),
   )
-  const newVisionCount = visionsQuery.data
-    ? visionsQuery.data.visions.filter((vision) => vision.new).length +
-      visionsQuery.data.fragments.filter((fragment) => fragment.new).length
-    : 0
+  const newVisionIds = [
+    ...(visionsQuery.data?.visions ?? []).filter((vision) => vision.new).map((v) => v.recipe_id),
+    ...(visionsQuery.data?.fragments ?? []).filter((fragment) => fragment.new).map((f) => f.id),
+  ]
+  // What is still sealed is what waits: breaking the seals puts the shrine's glow out.
+  const newVisionCount = useSealedCount(
+    activeCharacterId,
+    visionsQuery.data?.last_rest_at ?? null,
+    newVisionIds,
+  )
   const overviewQuery = useQuery(
     overviewOptions(
       campaignId,

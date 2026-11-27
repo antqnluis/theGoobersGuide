@@ -32,13 +32,6 @@
   list-style: none;
 }
 
-.crafting-library,
-.crafting-row {
-  border: 1.5px solid var(--journal-line);
-  border-radius: 2px;
-  padding: 12px 14px;
-}
-
 .crafting-library > * + * {
   margin-top: 10px;
 }
@@ -70,12 +63,6 @@
 
 .crafting-confirm > * + * {
   margin-top: 10px;
-}
-
-.crafting-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .crafting-filters {
@@ -248,50 +235,697 @@
 
 .vision-card {
   display: block;
-  border: 1px solid var(--journal-line);
-  padding: 10px 12px;
 }
 
+/* What a rest just brought carries a lantern rule along its top, over the plate's double rule. */
 .vision-card[data-new] {
-  border-color: var(--journal-brass-deep);
-  border-left-width: 4px;
+  box-shadow:
+    inset 0 3px 0 var(--journal-lantern),
+    inset 0 0 0 3px var(--journal-page),
+    inset 0 0 0 4px var(--journal-rule);
+}
+
+.vision-card__face {
+  display: grid;
+  gap: 8px;
+}
+
+.vision-have {
+  display: inline-block;
+  vertical-align: -2px;
+}
+
+.crafting-lines td:nth-child(n + 3) {
+  white-space: nowrap;
+}
+
+.vision-card {
+  container-type: inline-size;
+}
+
+/* In a narrow card each material is its own two-line row: the name, then what is held and the sum. */
+@container (max-width: 34rem) {
+  .crafting-lines,
+  .crafting-lines tbody,
+  .crafting-lines tfoot {
+    display: block;
+  }
+
+  .crafting-lines thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .crafting-lines tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 2px 12px;
+    border-bottom: 1px solid var(--journal-line);
+    padding: 8px 0;
+  }
+
+  .crafting-lines th,
+  .crafting-lines td {
+    display: block;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .crafting-lines tbody th[scope='row'],
+  .crafting-lines tfoot th[scope='row'] {
+    grid-column: 1 / -1;
+  }
+
+  .crafting-lines td:nth-child(n + 2) {
+    text-align: left;
+  }
+
+  .crafting-lines td:empty,
+  .crafting-lines .crafting-each {
+    display: none;
+  }
+
+  .crafting-lines td:nth-child(n + 2):last-child {
+    grid-column: 2;
+    text-align: right;
+    white-space: nowrap;
+  }
 }
 
 .vision-card summary {
+  display: grid;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.vision-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.vision-card summary:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: 4px;
+}
+
+.vision-card .crafting-row__name {
+  margin: 0;
+  font: 600 1.4rem / 1.15 var(--journal-font-display);
+  text-wrap: balance;
+}
+
+.vision-face__chips {
   display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vision-face__pay {
+  font-weight: 700;
+}
+
+/* What the recipe asks for, at a glance: one line per material, held of needed. */
+.vision-face__lines {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--journal-rule);
+  padding-top: 8px;
+}
+
+.vision-face__line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.vision-face__line[data-have='short'] .vision-face__count {
+  font-weight: 700;
+}
+
+.vision-face__line--more {
+  display: block;
+  color: var(--journal-ink-soft);
+}
+
+.vision-face__count {
+  color: var(--journal-ink-soft);
+  white-space: nowrap;
+}
+
+.vision-face__open {
+  display: inline-flex;
+  min-height: 28px;
   align-items: center;
-  gap: 6px 12px;
-  cursor: pointer;
+  gap: 8px;
+  color: var(--journal-oxblood);
+  font: 700 0.8rem / 1.2 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* A drawn pointer, turned down when the recipe is open. */
+.vision-face__open::after {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  content: '';
+}
+
+.vision-card details[open] .vision-face__open::after {
+  transform: rotate(90deg);
+}
+
+.vision-card details[open] > summary {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--journal-rule);
 }
 
 .vision-card details > * + * {
   margin-top: 12px;
 }
 
-.vision-badge {
-  background: var(--journal-lantern-wash);
-  border: 1px solid var(--journal-brass-deep);
-  color: var(--journal-ink);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 1px 6px;
-  text-transform: uppercase;
-}
-
-.vision-fragment__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  font-weight: 700;
-}
-
 .vision-unknown {
   letter-spacing: 0.08em;
 }
 
+.crafting-lines td[data-have] {
+  white-space: nowrap;
+}
+
 .crafting-lines td[data-have='short'] {
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The reveal: what a rest brought arrives sealed in wax. Breaking a seal cracks it into embers
+   and the folio unfurls, inks in, lights its materials one by one, and totals what is still to
+   pay. Every animation lives under no-preference; reduced motion keeps the seals and the words
+   and drops the show.
+   --------------------------------------------------------------------------------------------- */
+
+.vision-stir {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  border: 2px solid var(--journal-brass-deep);
+  border-radius: 3px;
+  padding: 14px 16px;
+  color: var(--camp-cream, #fff0d7);
+  background: var(--journal-leather);
+  box-shadow: 0 6px 18px rgb(11 9 18 / 0.3);
+}
+
+.vision-stir .crafting-hint {
+  color: var(--journal-brass);
+}
+
+.vision-stir__title {
+  margin: 0;
+  font: 600 1.4rem / 1.15 var(--journal-font-display);
+  text-wrap: balance;
+}
+
+.vision-sealed {
+  display: block;
+}
+
+.vision-seal {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 15rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  overflow: hidden;
+  border: 2px solid var(--journal-brass-deep);
+  border-radius: 3px;
+  padding: 18px 16px;
+  color: var(--camp-cream, #fff0d7);
+  background: var(--journal-leather);
+  box-shadow:
+    inset 0 0 0 3px var(--journal-leather-deep),
+    0 6px 18px rgb(11 9 18 / 0.3);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.vision-seal:hover {
+  background: var(--journal-leather-light);
+}
+
+.vision-seal:focus-visible {
+  outline: 3px solid var(--journal-focus-dark);
+  outline-offset: 2px;
+}
+
+.vision-seal[data-breaking] {
+  cursor: progress;
+}
+
+/* Warm light behind the wax, on the leather. */
+.vision-seal::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 38%, rgb(242 176 74 / 0.32), transparent 9rem);
+  content: '';
+  pointer-events: none;
+}
+
+.vision-seal__wax {
+  position: relative;
+  z-index: 1;
+  width: 66px;
+  height: 66px;
+  flex: none;
+  color: var(--journal-oxblood);
+}
+
+.vision-seal__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* A brass pixel outline, the way the camp rings its sprites. */
+  filter: drop-shadow(3px 0 0 var(--journal-brass)) drop-shadow(-3px 0 0 var(--journal-brass))
+    drop-shadow(0 3px 0 var(--journal-brass)) drop-shadow(0 -3px 0 var(--journal-brass));
+}
+
+.vision-seal__art[data-half='left'] {
+  clip-path: polygon(-30% -30%, 50% -30%, 42% 22%, 58% 48%, 44% 74%, 50% 130%, -30% 130%);
+}
+
+.vision-seal__art[data-half='right'] {
+  clip-path: polygon(50% -30%, 130% -30%, 130% 130%, 50% 130%, 44% 74%, 58% 48%, 42% 22%);
+}
+
+.vision-seal__embers {
+  position: absolute;
+  inset: 0;
+}
+
+.vision-seal__embers i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: var(--journal-lantern);
+  opacity: 0;
+}
+
+.vision-seal__embers i:nth-child(odd) {
+  background: var(--journal-brass);
+}
+
+.vision-seal__embers i:nth-child(1) {
+  --x: -46px;
+  --y: -38px;
+}
+.vision-seal__embers i:nth-child(2) {
+  --x: 0px;
+  --y: -54px;
+}
+.vision-seal__embers i:nth-child(3) {
+  --x: 48px;
+  --y: -36px;
+}
+.vision-seal__embers i:nth-child(4) {
+  --x: 58px;
+  --y: 4px;
+}
+.vision-seal__embers i:nth-child(5) {
+  --x: 40px;
+  --y: 42px;
+}
+.vision-seal__embers i:nth-child(6) {
+  --x: -6px;
+  --y: 52px;
+}
+.vision-seal__embers i:nth-child(7) {
+  --x: -44px;
+  --y: 38px;
+}
+.vision-seal__embers i:nth-child(8) {
+  --x: -60px;
+  --y: -2px;
+}
+
+.vision-seal__words {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.vision-seal__title {
+  font: 600 1.4rem / 1.1 var(--journal-font-display);
+}
+
+.vision-seal__hint {
+  color: var(--journal-brass);
+  font: 700 0.8rem / 1.3 var(--journal-font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The last rest's date, with the way to watch the reveal again. */
+.vision-rest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The wax waits with a slow two-beat glow. */
+  .vision-seal:not([data-breaking])::before {
+    animation: seal-glow 2.6s steps(2, jump-none) infinite;
+  }
+
+  .vision-seal[data-breaking] .vision-seal__art[data-half='left'] {
+    animation: seal-left 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .vision-seal[data-breaking] .vision-seal__art[data-half='right'] {
+    animation: seal-right 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .vision-seal[data-breaking] .vision-seal__embers i {
+    animation: seal-ember 520ms steps(7) forwards;
+  }
+
+  .vision-seal[data-breaking]::after {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 38%, var(--journal-lantern-wash), transparent 11rem);
+    content: '';
+    animation: seal-flash 520ms ease-out forwards;
+    pointer-events: none;
+  }
+
+  .vision-card--entering {
+    position: relative;
+    overflow: hidden;
+    animation: folio-unfurl 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+
+  /* One bright pass over the folio, in the colour of its rarity. */
+  .vision-card--entering::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 38%,
+      var(--sweep, rgb(255 244 224 / 0.6)) 50%,
+      transparent 62%
+    );
+    content: '';
+    transform: translateX(-120%);
+    animation: folio-sweep 900ms steps(14) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 420ms);
+    pointer-events: none;
+  }
+
+  .vision-card--entering[data-rarity='uncommon'] {
+    --sweep: color-mix(in srgb, var(--rarity-uncommon-edge) 38%, transparent);
+  }
+  .vision-card--entering[data-rarity='rare'] {
+    --sweep: color-mix(in srgb, var(--rarity-rare-edge) 38%, transparent);
+  }
+  .vision-card--entering[data-rarity='very_rare'] {
+    --sweep: color-mix(in srgb, var(--rarity-very-rare-edge) 38%, transparent);
+  }
+  .vision-card--entering[data-rarity='legendary'] {
+    --sweep: color-mix(in srgb, var(--rarity-legendary-edge) 45%, transparent);
+  }
+  .vision-card--entering[data-rarity='artifact'] {
+    --sweep: color-mix(in srgb, var(--rarity-artifact-edge) 45%, transparent);
+  }
+
+  .vision-card--entering .crafting-row__name {
+    animation: ink-in 760ms steps(16) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 220ms);
+  }
+
+  .vision-card--entering .journal-chip {
+    animation: chip-pop 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 760ms);
+  }
+
+  .vision-card--entering .vision-face__line {
+    animation: line-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 820ms + var(--line, 0) * 150ms);
+  }
+
+  .vision-card--entering .vision-face__line[data-have='enough'] .vision-have {
+    animation: have-flash 800ms steps(6) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 1000ms + var(--line, 0) * 150ms);
+  }
+
+  .vision-card--fragment.vision-card--entering .vision-unknown {
+    animation: smudge-clear 900ms steps(9) both;
+    animation-delay: calc(var(--enter-delay, 0ms) + 300ms);
+  }
+}
+
+@keyframes seal-glow {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes seal-left {
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(-18px, 10px) rotate(-20deg);
+  }
+}
+
+@keyframes seal-right {
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(18px, 10px) rotate(20deg);
+  }
+}
+
+@keyframes seal-ember {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y));
+  }
+}
+
+@keyframes seal-flash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes folio-unfurl {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0);
+    opacity: 1;
+  }
+}
+
+@keyframes folio-sweep {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes ink-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes chip-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes have-flash {
+  0%,
+  40% {
+    color: var(--journal-lantern);
+    transform: scale(1.5);
+  }
+  100% {
+    color: inherit;
+    transform: scale(1);
+  }
+}
+
+@keyframes smudge-clear {
+  from {
+    opacity: 0.25;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The rail: each group lays its cards side by side and scrolls sideways past what fits.
+   --------------------------------------------------------------------------------------------- */
+
+.vision-group > * + * {
+  margin-top: 10px;
+}
+
+.vision-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vision-group__head .journal-section-title {
+  flex: 1;
+  margin: 0;
+}
+
+.vision-group__keys {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.vision-key {
+  display: inline-flex;
+  width: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.vision-key__arrow--back {
+  transform: rotate(180deg);
+}
+
+.vision-key:disabled .vision-key__arrow {
+  opacity: 0.35;
+}
+
+.vision-rail__scroller {
+  /* The row bleeds to the page's padding so a half-seen card shows there is more. */
+  margin-inline: calc(-1 * clamp(18px, 3vw, 28px));
+  padding-inline: clamp(18px, 3vw, 28px);
+  scroll-padding-inline: clamp(18px, 3vw, 28px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-color: var(--journal-brass-deep) var(--journal-page-shade);
+  scrollbar-width: thin;
+  padding-block: 4px 14px;
+}
+
+.vision-rail__scroller:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: -3px;
+}
+
+.vision-rail__scroller[data-more~='after'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
+.vision-rail__scroller[data-more~='before'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+}
+
+.vision-rail__scroller[data-more~='before'][data-more~='after'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 2.5rem,
+    #000 calc(100% - 2.5rem),
+    transparent
+  );
+}
+
+.vision-rail {
+  --card: min(19rem, 82cqw);
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vision-rail[data-size='slim'] {
+  --card: min(16rem, 76cqw);
+}
+
+.vision-rail > li {
+  flex: 0 0 var(--card);
+  width: var(--card);
+  scroll-snap-align: start;
+}
+
+.vision-group {
+  container-type: inline-size;
 }

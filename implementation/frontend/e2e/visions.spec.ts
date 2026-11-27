@@ -234,8 +234,18 @@ test('shows a vision with its costs, a fragment, and the new count at the shrine
   await expect(shrineEntry(page)).toHaveAccessibleName('Visions, 2 new')
 
   await expect(dialog.getByRole('heading', { name: 'Visions (2)' })).toBeVisible()
-  await dialog.locator('summary').filter({ hasText: 'Wyvern Fang Dagger' }).click()
+
+  // What the rest brought is sealed: only what is behind each seal is named.
+  await expect(dialog.getByText('2 things stir from the rest')).toBeVisible()
+  await expect(dialog.getByText('Wyvern Fang Dagger')).toHaveCount(0)
+  await expect(dialog.locator('.vision-card--fragment')).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Break the seal on a vision' }).click()
+  // The folio opens itself and totals what is still to pay.
   await expect(dialog.getByText('110 gp still to pay, 1 material missing')).toBeVisible()
+  // The card's face already says what is held; the recipe opens to the whole costing.
+  const face = dialog.locator('.vision-card', { hasText: 'Wyvern Fang Dagger' })
+  await expect(face.locator('.vision-face__line').first()).toContainText('1 of 2')
+  await face.getByText('Recipe details').click()
   const fang = dialog.getByRole('row', { name: /Wyvern Fang × 2/ })
   await expect(fang).toContainText('have 1 of 2')
   await expect(dialog.getByRole('row', { name: /^Still to pay/ })).toContainText('110 gp')
@@ -243,9 +253,12 @@ test('shows a vision with its costs, a fragment, and the new count at the shrine
   await expect(dialog.getByText('Proficiency in Arcana.')).toBeVisible()
 
   await expect(dialog.getByRole('heading', { name: 'Fragments (1)' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Break the seal on a fragment' }).click()
   await expect(dialog.getByText('Unknown item: ???')).toBeVisible()
-  await expect(dialog.getByText('You hold Wyvern Fang.')).toBeVisible()
-  await expect(dialog.getByText('??? ×1')).toBeVisible()
+  const fragment = dialog.locator('.vision-card--fragment')
+  await expect(fragment.locator('.vision-face__line').first()).toContainText('Wyvern Fang')
+  await expect(fragment.locator('.vision-face__line').first()).toContainText('held')
+  await expect(fragment.getByText('×1')).toBeVisible()
   // Nothing about the recipe leaks beyond what the fragment holds.
   await expect(dialog.getByText('Wyrmfang Blade')).toHaveCount(0)
 })
@@ -326,10 +339,47 @@ test('says the party has only just rested when a second rest comes too soon', as
 test('works at phone width', async ({ page }) => {
   const state = freshState()
   const dialog = await openShrine(page, state, { width: 390, height: 844 })
-  await dialog.locator('summary').filter({ hasText: 'Wyvern Fang Dagger' }).click()
+  await dialog.getByRole('button', { name: 'Break all seals' }).click()
+  // On a phone one card shows and the next peeks in; the arrows scroll the row.
+  await expect(dialog.getByRole('button', { name: 'Scroll Visions (2) forward' })).toBeVisible()
+  await dialog
+    .locator('.vision-card', { hasText: 'Wyvern Fang Dagger' })
+    .getByText('Recipe details')
+    .click()
   await expect(dialog.getByRole('row', { name: /Wyvern Fang × 2/ })).toBeVisible()
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )
   expect(overflow).toBeLessThanOrEqual(0)
+})
+
+test('replays the reveal on request, and remembers what was opened across a reload', async ({
+  page,
+}) => {
+  const state = freshState()
+  const dialog = await openShrine(page, state)
+  await dialog.getByRole('button', { name: 'Break all seals' }).click()
+  // With nothing left sealed the shrine has nothing waiting.
+  await expect(shrineEntry(page)).not.toHaveAccessibleName(/new/)
+  await expect(dialog.getByText('Wyvern Fang Dagger', { exact: true })).toBeVisible()
+  await expect(dialog.getByText(/stir from the rest/)).toHaveCount(0)
+
+  await page.reload()
+  await shrineEntry(page).click()
+  await expect(page.getByText('Wyvern Fang Dagger', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Break the seal/ })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Replay the reveal' }).click()
+  await expect(page.getByRole('button', { name: 'Break the seal on a vision' })).toBeVisible()
+})
+
+test('shows the cards at once, with no show, when motion is reduced', async ({ page }) => {
+  const state = freshState()
+  const dialog = await openShrine(page, state)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await dialog.getByRole('button', { name: 'Break the seal on a vision' }).click()
+  const card = dialog.locator('.vision-card', { hasText: 'Wyvern Fang Dagger' })
+  await expect(card).toBeVisible()
+  await expect(card).toHaveCSS('animation-name', 'none')
+  await expect(card).toContainText('110 gp still to pay')
 })

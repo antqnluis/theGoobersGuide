@@ -26,7 +26,14 @@ vi.mock('./craftingService', async (importOriginal) => ({
 }))
 
 afterEach(cleanup)
+
+/** What a rest brought arrives sealed; most tests want to read it. */
+async function breakSeals(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Break all seals' }))
+}
+
 beforeEach(() => {
+  window.localStorage.clear()
   vi.resetAllMocks()
   vi.mocked(listLibraries).mockResolvedValue([])
   vi.mocked(listCampaignLibraries).mockResolvedValue([])
@@ -78,8 +85,9 @@ describe('CampVisions', () => {
   })
 
   it('reads the viewer’s own character, never the DM’s libraries', async () => {
-    setup()
+    const { user } = setup()
     expect(screen.getByText('Reading your visions…')).toBeVisible()
+    await breakSeals(user)
     expect(await screen.findByText('Wyvern Fang Dagger')).toBeVisible()
     expect(getCharacterVisions).toHaveBeenCalledWith('char-1')
     expect(listLibraries).not.toHaveBeenCalled()
@@ -103,6 +111,7 @@ describe('CampVisions', () => {
     const { user } = setup()
     expect(await screen.findByText('Your visions could not be loaded.')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await breakSeals(user)
     expect(await screen.findByText('Wyvern Fang Dagger')).toBeVisible()
   })
 
@@ -113,6 +122,7 @@ describe('CampVisions', () => {
         characterRow({ id: 'char-2', name: 'Old Ned', status: 'retired' }),
       ],
     })
+    await breakSeals(user)
     await screen.findByText('Wyvern Fang Dagger')
     const picker = screen.getByRole('combobox', { name: 'Character' })
     expect(
@@ -130,7 +140,8 @@ describe('CampVisions', () => {
 
   it('saves a vision and refetches the list', async () => {
     const { user } = setup()
-    await user.click(await screen.findByText('Wyvern Fang Dagger'))
+    // A card just unsealed opens itself.
+    await breakSeals(user)
     vi.mocked(getCharacterVisions).mockResolvedValue(
       visionsDocument({ visions: [{ ...daggerVision, saved: true }, oilVision] }),
     )
@@ -152,8 +163,10 @@ describe('CampVisions', () => {
   it('explains a vision that can no longer be saved, and refreshes the list', async () => {
     vi.mocked(saveVision).mockRejectedValue(new Error('vision_unavailable'))
     const { user } = setup()
-    await user.click(await screen.findByText('Wyvern Fang Dagger'))
-    await user.click(screen.getByRole('button', { name: 'Save this vision (Wyvern Fang Dagger)' }))
+    await breakSeals(user)
+    await user.click(
+      await screen.findByRole('button', { name: 'Save this vision (Wyvern Fang Dagger)' }),
+    )
     expect(await screen.findByRole('alert')).toHaveTextContent('That vision is no longer there')
     await waitFor(() => expect(getCharacterVisions).toHaveBeenCalledTimes(2))
   })
@@ -161,6 +174,7 @@ describe('CampVisions', () => {
   describe('as the campaign owner', () => {
     it('opens on their own visions, with the DM’s tab beside them', async () => {
       const { user } = setup({ isOwner: true })
+      await breakSeals(user)
       expect(await screen.findByText('Wyvern Fang Dagger')).toBeVisible()
       expect(listLibraries).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'DM: libraries and rests' }))

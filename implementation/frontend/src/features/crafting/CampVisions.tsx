@@ -4,6 +4,7 @@ import { CampPanel } from '../campaigns/camp/CampPanel'
 import type { CharacterSummary } from '../characters/characterTypes'
 import { ownCharacters } from './ownCharacters'
 import { visionsOptions } from './craftingQueries'
+import { RibbonTabs } from './RibbonTabs'
 import { VisionList } from './VisionList'
 import { VisionsDm } from './VisionsDm'
 import { useCraftingActions } from './useCraftingActions'
@@ -52,6 +53,7 @@ function CharacterVisions({
       )}
       {visions.isSuccess && (
         <VisionList
+          characterId={character.id}
           onToggleSaved={(vision) => void toggle(vision)}
           pending={actions.isPending}
           visions={visions.data}
@@ -101,24 +103,15 @@ export function CampVisions({
       title="The Maker’s Visions"
     >
       {isOwner && character && (
-        <div className="crafting-tabs" role="group" aria-label="Maker’s Visions">
-          <button
-            aria-pressed={showing === 'visions'}
-            className="journal-button journal-button--secondary"
-            onClick={() => setTab('visions')}
-            type="button"
-          >
-            My visions
-          </button>
-          <button
-            aria-pressed={showing === 'dm'}
-            className="journal-button journal-button--secondary"
-            onClick={() => setTab('dm')}
-            type="button"
-          >
-            DM: libraries and rests
-          </button>
-        </div>
+        <RibbonTabs
+          active={showing}
+          label="Maker’s Visions"
+          onChange={setTab}
+          tabs={[
+            { id: 'visions', label: 'My visions', icon: 'eye' },
+            { id: 'dm', label: 'DM: libraries and rests', icon: 'book' },
+          ]}
+        />
       )}
 
       {showing === 'dm' && (

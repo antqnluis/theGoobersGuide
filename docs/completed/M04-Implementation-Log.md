@@ -1,6 +1,6 @@
 # M04 — Crafting Guide: Implementation Log
 
-Plan: [M04-Crafting-Guide-Plan.md](M04-Crafting-Guide-Plan.md). Branch: `milestone/crafting-guide`.
+Plan: [M04-Crafting-Guide.md](M04-Crafting-Guide.md). Branch: `milestone/crafting-guide`.
 
 ## Phase 0: Baseline and art (2026-11-27)
 
@@ -207,3 +207,105 @@ Not tested: a rest racing a member's departure and a rest racing an import. Both
 | `npx playwright test e2e/visions.spec.ts` | Passed: 7 tests (two selectors and a checkbox wait in the spec needed fixing first) |
 
 Not run: `npm run test:e2e`, the camp-scene specs, and `npm run test:local-supabase`. No database file changed in this phase. The lit sprite and the motes have not been looked at in a browser.
+
+## Phase 6: Real-stack test and documentation (2026-11-27)
+
+### What was added
+
+- **Real-stack browser test** (§8.4) in `e2e/local-supabase-crafting.spec.ts`, now 56 tests. Two accounts and two browsers: the DM creates a library, pastes the §2.6 pack, imports it, and turns it on; the player adds a Wyvern Fang from a suggestion (linked) and a Poison Gland by typing its name (unlinked); the player sees "No visions yet" before the rest; the DM calls the rest and sees "Visions come to 1 character"; the player's Places entry reads "Visions, 2 new" and the dagger shows "have 1 of 2" and "110 gp still to pay", with no sign of the Wyrmfang Blade or the DM's tab. It also checks that the database holds six items and one linked of two inventory rows.
+- **Docs**: a new "Crafting" section in [DATABASE_SCHEMA.md](../reference/DATABASE_SCHEMA.md) (tables, access, the inventory link and the holding rule, RPCs, vision rules, Realtime, lifecycle), a pointer from its inventory section, `crafting_rests` in its Realtime list, and `docs/README.md`.
+- The plan and this log moved from `in-progress/` to `completed/`, with the plan's status set to implemented.
+
+### Decisions made while building
+
+- The browser test reloads the player's page after the rest instead of waiting for Realtime, so Realtime delivery of `crafting_rests` is still checked only as publication membership (Phase 4) and in the unit test for the subscription (Phase 5).
+- The count of imported items is scoped to the DM's own library, because earlier test runs leave libraries with the same name.
+
+### Verification (from `implementation/frontend`)
+
+| Command                                                             | Result                                                                  |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `npx playwright test e2e/local-supabase-crafting.spec.ts`           | Passed: 56 tests (the new browser test needed two selector fixes first) |
+| `npm run lint`, `npm run format:check`, `npm run build`, `npm test` | Passed (140 files, 2,212 tests; no frontend code changed in this phase) |
+
+## Close-out
+
+### Acceptance criteria (§10)
+
+| #   | Criterion                                                                                                        | Where it is checked                                                   |
+| --- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | A DM can create, import, re-import, browse, and enable a library                                                 | Integration spec (Phase 1), `LibraryBrowser` tests, browser test      |
+| 2   | Players read no catalogue row except through their visions and suggestions                                       | Integration spec: direct reads of every table return nothing          |
+| 3   | After a rest, the §2.6 character sees exactly the two visions and no Wyrmfang Blade                              | Integration spec and browser test                                     |
+| 4   | Partial key materials give a fragment with only the held names and a count                                       | Integration spec, `FragmentCard` tests                                |
+| 5   | Counts change with the inventory without a rest; which recipes show changes only at a rest                       | Integration spec                                                      |
+| 6   | Saved visions survive rests; fragments can't be saved                                                            | Integration spec, `CampVisions` tests                                 |
+| 7   | Only the owner can call a rest; it covers active characters of current members and returns no per-character data | Integration spec                                                      |
+| 8   | New badge until the next rest, and the shrine shows the count                                                    | `VisionCard`, `CampaignCamp` and browser tests, `e2e/visions.spec.ts` |
+| 9   | Every screen has loading, empty, error, and success states; the light checks and local-stack suite pass          | Component tests; see below                                            |
+
+### What was not run
+
+`npm run test:e2e` (the full mocked browser suite), the camp-scene specs, and the rest of `test:local-supabase` (notes, adventures, dice, live, appearance, sprite, galaxy) were not run for M04. The lit shrine and its motes have not been looked at in a browser, and the shrine's label plate next to the map table's on a phone was not checked (Phase 0 flagged it). A rest racing a member's departure or an import, and Realtime delivery itself, are untested.
+
+## Sealed visions: the reveal (2026-11-27)
+
+A design pass (the Impeccable overdrive command) on the player's vision screen: what a rest brings now arrives as an experience instead of a list.
+
+### What was added
+
+- **Sealed folios** (`SealedFolio`): each new vision and fragment is a leather plate with a pixel wax seal. Breaking it cracks the wax into halves, bursts embers, and opens the folio in its place. **Break all seals** opens the rest at once.
+- **The folio's entrance** (`VisionCard`, `FragmentCard`, `crafting.css`): it unfurls and opens itself, inks its title in, pops its chips, sweeps once in its rarity's colour, slides each material in with a lantern tick, and counts "still to pay" up (`CountCopper`). Fragments clear from a smudge. Several at once stagger.
+- **Once per rest** (`visionReveal.ts`): which seals are broken is kept on the device per character and rest. "Replay the reveal" seals them again. A later rest seals its own new ones and forgets the old record.
+- **The shrine follows the seals**: the Places count and the lit sprite now count what is still sealed (`useSealedCount`), so reading the visions puts the glow out.
+- Pixel `cross` icon for a missing material, replacing the ✗ glyph (and a drawn tick for ✓). A materials table that stacks into two-line rows in narrow cards. The "new" mark on a card is a lantern top rule, not a coloured side border.
+- DESIGN.md has a "Sealed visions" section.
+
+### Decisions made while building
+
+- **Sealed for everyone, with a skip.** The gate is the feature, so reduced motion keeps the seals and drops the show; "Break all seals" is the quick path during a session.
+- **No server change.** "Sealed" is a device-local nicety over the server's `new` flag; clearing the browser only replays the reveal.
+- The earlier note that the shrine glows until the next rest no longer holds: it glows until the seals are broken.
+
+### Verification (from `implementation/frontend`)
+
+| Command                                                          | Result                                                                                                |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `npx vitest run src/features/crafting src/features/campaigns`    | Passed: 56 files, 742 tests                                                                           |
+| `npx playwright test e2e/visions.spec.ts`                        | Passed: 9 tests                                                                                       |
+| `npx playwright test e2e/local-supabase-crafting.spec.ts`        | Passed: 56 tests                                                                                      |
+| Looked at in the built-in browser against the seeded demo player | Sealed list, mid-crack, mid-unfurl (foil, count-up, tick flash), final card, and a 375px phone layout |
+
+Final run: `npm run lint`, `npm run format:check`, and `npm run build` passed, and `npm test` passed (143 files, 2,240 tests). The full `npm run test:e2e` and the camp-scene specs were not run.
+
+## Visions layout: the card rail (2026-11-27)
+
+A layout pass (the Impeccable layout command) on the same screen, at the player's request: show the cards side by side and scroll sideways past what fits.
+
+### What changed
+
+- **`CardRail`**: each group (Visions, Fragments, Saved) is a row of cards that scrolls sideways with snap, an edge fade where more wait, and two arrow keys that appear only on overflow. The row is a labelled, focusable region.
+- **Card as a portrait folio**: the face shows the name, chips, still to pay, and one line per material (held of needed), with "Recipe details" opening the table, tools, and notes in the card. Sealed cards are the same width and stand taller.
+- **A just-unsealed card stays closed**, and its entrance (the lantern tick, the stagger, the count-up) plays on the face's lines. Opening it automatically stretched one card to a screen tall in a row of short ones.
+- A `chevron` pixel icon, and the card's unit-price column is gone in the card (it is always the stacked two-line form there).
+
+### Verification (from `implementation/frontend`)
+
+Looked at in the built-in browser against the seeded demo player at 1440 and 375 wide (sealed, opened, scrolled to the end, arrows disabled at each end). `npm run lint`, `npm run format:check`, and `npm run build` passed; `npm test` passed (144 files, 2,249 tests); `e2e/visions.spec.ts` passed (9; one run failed at sign-in in the mocked setup and passed on rerun); the crafting integration spec passed (56); the Impeccable layout scan found nothing. The full `npm run test:e2e` and the camp-scene specs were not run.
+
+## Visions polish: consistency (2026-11-27)
+
+A polish pass (the Impeccable polish command) over the whole Maker's Visions area, the player's view and the DM's, for one set of patterns.
+
+### What was inconsistent, and what it became
+
+- **Tabs:** the player/DM switch and the library browser's Items and Recipes were pairs of toggle buttons, while the notes use ribbon tabs. Now one `RibbonTabs` (pixel icon, uppercase label, oxblood underline) draws all of them, and its CSS moved from `npcs.css` to `journal.css` where the journal's shared pieces live.
+- **Plates:** the vision cards, the DM's libraries, and the library browser's rows each had their own border and radius. All three now use the journal's printed plate (`journal-panel`), and a new card adds its lantern top rule over that plate's double rule.
+- **"New":** a custom, smaller badge beside full-height chips. It is now a `journal-chip` (`journal-chip--new`) with a pixel star, so it reads as a sibling of the rarity and "Saved" chips.
+- **Fragments:** they had their own bold sans title and sentences. They now have the vision card's anatomy: the serif name, a chip row, then ticked and crossed lines ("held" and `???` `×N`).
+- **Type and colour:** card names, the seal title and the strip title all use the journal heading size (1.4rem); the leather plates use the camp cream token instead of a literal.
+- **Replay** is the journal's ghost button instead of a one-off text button, and the DM tab gets a "Libraries" heading so Long rest, Libraries, and New library read as three sections.
+
+### Verification
+
+Looked at in the built-in browser as the DM (main tab and library browser) and as the player at 1440 and 375 wide. `npm run lint`, `npm run format:check`, and `npm run build` passed; `npm test` passed (144 files, 2,250 tests); `e2e/visions.spec.ts` passed (9) after its fragment assertions were updated to the new card; the crafting integration spec passed (56); the Impeccable scan found nothing. The full `npm run test:e2e` and the camp-scene specs were not run.

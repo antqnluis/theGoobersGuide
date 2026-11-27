@@ -1,3 +1,5 @@
+import { useEffect, useRef, type CSSProperties } from 'react'
+import { PixelIcon } from '../characters/PixelIcon'
 import { rarityLabels } from '../characters/itemRarity'
 import {
   formatCopper,
@@ -7,8 +9,12 @@ import {
   stillToPay,
   totalCost,
 } from './craftingCost'
+import { CountCopper } from './CountCopper'
 import { categoryLabels, type Vision } from './craftingTypes'
 import { plural } from './craftingText'
+
+/** How many materials the card's face lists before it says there are more. */
+const faceLines = 5
 
 function attunementText(attunement: Vision['output']['attunement']) {
   if (attunement === true) return 'Requires attunement'
@@ -26,11 +32,24 @@ export function VisionCard({
   vision,
   pending,
   onToggleSaved,
+  entering = false,
+  focusOnEnter = false,
+  enterDelay = 0,
 }: {
   vision: Vision
   pending: boolean
   onToggleSaved: (vision: Vision) => void
+  /** Just unsealed: the card plays its entrance once. */
+  entering?: boolean
+  /** Moves focus to the card's summary when it enters, after a single seal is broken. */
+  focusOnEnter?: boolean
+  /** Staggers several cards entering together, in milliseconds. */
+  enterDelay?: number
 }) {
+  const summary = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (entering && focusOnEnter) summary.current?.focus()
+  }, [entering, focusOnEnter])
   const { output, lines } = vision
   const subtotal = materialsSubtotal(lines)
   const total = totalCost(lines, vision.crafting_cost_cp)
@@ -40,23 +59,63 @@ export function VisionCard({
   const attunement = attunementText(output.attunement)
 
   return (
-    <li className="vision-card" data-new={vision.new || undefined}>
+    <li
+      className={
+        entering ? 'journal-panel vision-card vision-card--entering' : 'journal-panel vision-card'
+      }
+      data-new={vision.new || undefined}
+      data-rarity={output.rarity}
+      style={entering ? ({ '--enter-delay': `${enterDelay}ms` } as CSSProperties) : undefined}
+    >
       <details>
-        <summary>
+        <summary ref={summary}>
           <span className="crafting-row__name">
             {output.name}
             {output.quantity > 1 && ` × ${output.quantity}`}
           </span>
-          <span className="journal-chip journal-chip--rarity" data-rarity={output.rarity}>
-            {rarityLabels[output.rarity]}
+          <span className="vision-face__chips">
+            <span className="journal-chip journal-chip--rarity" data-rarity={output.rarity}>
+              {rarityLabels[output.rarity]}
+            </span>
+            {vision.new && (
+              <span className="journal-chip journal-chip--new">
+                <PixelIcon name="star" />
+                New
+              </span>
+            )}
+            {vision.saved && <span className="journal-chip">Saved</span>}
           </span>
-          {vision.new && <span className="vision-badge">New</span>}
-          {vision.saved && <span className="journal-chip">Saved</span>}
-          <span className="crafting-row__meta">
-            {toPay === 0
-              ? 'Nothing left to pay'
-              : `${formatCopper(toPay)} still to pay${lacking > 0 ? `, ${plural(lacking, 'material')} missing` : ''}`}
+          <span className="crafting-row__meta vision-face__pay">
+            {toPay === 0 && 'Nothing left to pay'}
+            {toPay !== 0 && <CountCopper animate={entering} value={toPay} />}
+            {toPay !== 0 &&
+              ` still to pay${lacking > 0 ? `, ${plural(lacking, 'material')} missing` : ''}`}
           </span>
+          <span className="vision-face__lines">
+            {lines.slice(0, faceLines).map((line, index) => (
+              <span
+                className="vision-face__line"
+                data-have={line.have >= line.need ? 'enough' : 'short'}
+                key={`${line.role}-${line.item_id}`}
+                style={{ '--line': index } as CSSProperties}
+              >
+                <PixelIcon
+                  className="vision-have"
+                  name={line.have >= line.need ? 'check' : 'cross'}
+                />
+                <span className="vision-face__material">{line.name}</span>
+                <span className="vision-face__count">
+                  {line.have} of {line.need}
+                </span>
+              </span>
+            ))}
+            {lines.length > faceLines && (
+              <span className="vision-face__line vision-face__line--more">
+                and {plural(lines.length - faceLines, 'more material')}
+              </span>
+            )}
+          </span>
+          <span className="vision-face__open">Recipe details</span>
         </summary>
 
         {output.description && <p className="crafting-text">{output.description}</p>}
@@ -67,25 +126,30 @@ export function VisionCard({
             <tr>
               <th scope="col">Material</th>
               <th scope="col">You hold</th>
-              <th scope="col">Each</th>
+              <th className="crafting-each" scope="col">
+                Each
+              </th>
               <th scope="col">Total</th>
             </tr>
           </thead>
           <tbody>
-            {lines.map((line) => {
+            {lines.map((line, index) => {
               const enough = line.have >= line.need
               return (
-                <tr key={`${line.role}-${line.item_id}`}>
+                <tr
+                  key={`${line.role}-${line.item_id}`}
+                  style={{ '--line': index } as CSSProperties}
+                >
                   <th scope="row">
                     {line.name}
                     {line.need > 1 && ` × ${line.need}`}
                     {line.role === 'key' && <span className="crafting-key"> (key)</span>}
                   </th>
                   <td data-have={enough ? 'enough' : 'short'}>
-                    <span aria-hidden="true">{enough ? '✓' : '✗'}</span>{' '}
+                    <PixelIcon className="vision-have" name={enough ? 'check' : 'cross'} />{' '}
                     {`have ${line.have} of ${line.need}`}
                   </td>
-                  <td>{formatCopper(line.value_cp)}</td>
+                  <td className="crafting-each">{formatCopper(line.value_cp)}</td>
                   <td>{formatCopper(lineCost(line))}</td>
                 </tr>
               )
@@ -105,9 +169,11 @@ export function VisionCard({
               <td>{formatCopper(total)}</td>
             </tr>
             <tr>
-              <th scope="row">Still to pay</th>
+              <th scope="row">
+                Still to pay<span className="crafting-key"> (missing materials and crafting)</span>
+              </th>
               <td />
-              <td>missing materials and crafting</td>
+              <td />
               <td>{formatCopper(toPay)}</td>
             </tr>
           </tfoot>

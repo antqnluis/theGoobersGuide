@@ -405,6 +405,10 @@ export function VisionsDm({
 
       {status === 'success' && (
         <>
+          <h3 className="journal-section-title" id="visions-libraries">
+            Libraries
+          </h3>
+
           {owned.length === 0 && (
             <p className="journal-status" role="status">
               Create a library and import a crafting pack to begin.
@@ -416,7 +420,7 @@ export function VisionsDm({
               const isOn = enabledIds.has(library.id)
               const onId = `library-${library.id}-on`
               return (
-                <li className="crafting-library" key={library.id}>
+                <li className="journal-panel crafting-library" key={library.id}>
                   {renaming === library.id ? (
                     <LibraryForm
                       initial={{ name: library.name, description: library.description ?? '' }}
@@ -556,7 +560,10 @@ export function VisionsDm({
               </p>
               <ul className="crafting-libraries">
                 {foreign.map((link, position) => (
-                  <li className="crafting-library crafting-library--foreign" key={link.library_id}>
+                  <li
+                    className="journal-panel crafting-library crafting-library--foreign"
+                    key={link.library_id}
+                  >
                     <span>Library {position + 1}</span>
                     <button
                       className="journal-button journal-button--secondary"

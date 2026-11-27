@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,11 +8,15 @@ import { VisionCard } from './VisionCard'
 
 afterEach(cleanup)
 
-function setup(vision: Vision, pending = false) {
+function setup(
+  vision: Vision,
+  pending = false,
+  extra: Partial<ComponentProps<typeof VisionCard>> = {},
+) {
   const onToggleSaved = vi.fn()
   render(
     <ul>
-      <VisionCard onToggleSaved={onToggleSaved} pending={pending} vision={vision} />
+      <VisionCard onToggleSaved={onToggleSaved} pending={pending} vision={vision} {...extra} />
     </ul>,
   )
   return { onToggleSaved, user: userEvent.setup() }
@@ -108,5 +113,50 @@ describe('VisionCard', () => {
   it('shows a quantity above one beside the name', () => {
     setup({ ...oilVision, output: { ...oilVision.output, quantity: 3 } })
     expect(screen.getByText('Venom Blade Oil × 3')).toBeVisible()
+  })
+
+  describe('the face', () => {
+    it('lists each material with how many are held of how many are needed', () => {
+      setup(daggerVision)
+      const card = screen.getByText('Wyvern Fang Dagger').closest('li')!
+      const lines = card.querySelectorAll('.vision-face__line')
+      expect([...lines].map((line) => line.textContent)).toEqual([
+        'Wyvern Fang1 of 2',
+        'Wyvern Poison Gland1 of 1',
+      ])
+      expect(lines[0]).toHaveAttribute('data-have', 'short')
+      expect(lines[1]).toHaveAttribute('data-have', 'enough')
+    })
+
+    it('says how many more materials there are past the first five', () => {
+      const lines = Array.from({ length: 7 }, (_, index) => ({
+        ...daggerVision.lines[0],
+        item_id: `item-${index}`,
+        name: `Material ${index}`,
+      }))
+      setup({ ...daggerVision, lines })
+      expect(screen.getByText('and 2 more materials')).toBeVisible()
+      expect(screen.queryByText('Material 5')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('just unsealed', () => {
+    it('marks itself for its entrance and staggers by its delay, closed like any card', () => {
+      setup(daggerVision, false, { entering: true, enterDelay: 220 })
+      const card = screen.getByText('Wyvern Fang Dagger').closest('li')!
+      expect(card).toHaveClass('vision-card--entering')
+      expect(card).toHaveAttribute('data-rarity', 'uncommon')
+      expect(card.style.getPropertyValue('--enter-delay')).toBe('220ms')
+      expect(card.querySelector('details')).not.toHaveAttribute('open')
+    })
+
+    it('takes focus when asked, and stays plain otherwise', () => {
+      setup(daggerVision, false, { entering: true, focusOnEnter: true })
+      expect(document.querySelector('summary')).toHaveFocus()
+      cleanup()
+      setup(daggerVision)
+      const card = screen.getByText('Wyvern Fang Dagger').closest('li')!
+      expect(card).not.toHaveClass('vision-card--entering')
+    })
   })
 })

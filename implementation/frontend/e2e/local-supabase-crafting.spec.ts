@@ -5,6 +5,7 @@ import {
   createCampaign,
   invite,
   newPlayers,
+  PASSWORD,
   RANDOM_ID,
   rpcError,
   rpcOk,
@@ -13,7 +14,8 @@ import {
 
 // M04 Phases 1, 3, and 4: the crafting catalogue (libraries, items, recipes, the pack import, and
 // the campaign links), the inventory links and suggestions of Phase 3, and the long rest, visions,
-// fragments, and saved visions of Phase 4, against the real local stack. The plan is §2 to §5 and
+// fragments, and saved visions of Phase 4, and the browser test of Phase 6, against the real local
+// stack. The plan is §2 to §5 and
 // §8.1.
 
 const ROLES = ['anon', 'authenticated', 'service_role', 'public']
@@ -2885,5 +2887,134 @@ test.describe('rest performance', () => {
       ),
     ).toBe(String(products * 6))
     await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('the Maker’s Visions in the browser', () => {
+  test('the DM imports and enables the example pack, a player links a Wyvern Fang, the DM calls a rest, and the player sees the dagger', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000)
+    const { players } = await newPlayers(['owner', 'guest'])
+    const { owner, guest } = players
+    const campaignId = await createCampaign(owner, 'M4 real-stack visions')
+    await invite(owner, campaignId, guest)
+    const characterId = await newCharacter(guest, campaignId, 'Brand')
+    const contexts: Array<{ close: () => Promise<void> }> = []
+    // Light on resources: reduced motion, one page per player.
+    const signIn = async (player: Player) => {
+      const context = await browser.newContext({ reducedMotion: 'reduce' })
+      contexts.push(context)
+      const page = await context.newPage()
+      await page.goto('/login')
+      await page.getByLabel('Username or email').fill(`${player.username}@example.com`)
+      await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await expect(page).toHaveURL(/\/app\/campaigns$/)
+      return page
+    }
+    const openShrine = async (page: import('@playwright/test').Page) => {
+      await page.goto(`/app/campaigns/${campaignId}`)
+      await page
+        .locator('.camp-directory')
+        .getByRole('button', { name: /^Visions/ })
+        .click()
+      const dialog = page.getByRole('dialog', { name: 'The Maker’s Visions' })
+      await expect(dialog).toBeVisible()
+      return dialog
+    }
+
+    try {
+      // The DM makes a library, imports the example pack, and turns it on.
+      const dm = await signIn(owner)
+      const shrine = await openShrine(dm)
+      await shrine.getByLabel('Library name').fill('Wyvern Components')
+      await shrine.getByRole('button', { name: 'Create library' }).click()
+      await expect(shrine.getByRole('heading', { name: 'Wyvern Components' })).toBeVisible()
+      await shrine.getByLabel('Use in this campaign').click()
+      await expect(shrine.getByLabel('Use in this campaign')).toBeChecked()
+      await shrine.getByRole('button', { name: 'Import pack' }).click()
+      const importer = dm.getByRole('dialog', { name: /^Import a pack/ })
+      await importer.getByLabel('2. The pack (JSON)').fill(JSON.stringify(wyvern(), null, 2))
+      await importer.getByRole('button', { name: 'Import pack' }).click()
+      await expect(dm.getByText(/Imported .* into Wyvern Components/)).toBeVisible()
+      expect(
+        localDatabaseQuery(
+          `select count(*) from public.crafting_items i join public.crafting_libraries l
+             on l.id = i.library_id where l.owner_id = '${owner.id}' and l.name = 'Wyvern Components';`,
+          {},
+        ),
+      ).toBe('6')
+
+      // The player adds a Wyvern Fang from a suggestion, and a Poison Gland by typing its name.
+      const player = await signIn(guest)
+      await player.goto(`/app/campaigns/${campaignId}`)
+      await player
+        .locator('.camp-directory')
+        .getByRole('button', { name: /^My characters/ })
+        .click()
+      const tent = player.getByRole('dialog', { name: 'My characters' })
+      await tent.getByRole('button', { name: 'Open Brand' }).click()
+
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await tent.getByLabel('Name', { exact: true }).fill('Wyvern F')
+      await tent.getByRole('option', { name: /Wyvern Fang/ }).click()
+      await expect(tent.getByText('Linked to the catalogue')).toBeVisible()
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await expect(tent.getByText('Added Wyvern Fang.')).toBeVisible()
+
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await tent.getByLabel('Name', { exact: true }).fill('wyvern poison gland')
+      await tent.getByRole('button', { name: 'Add item' }).click()
+      await expect(tent.getByText('Added wyvern poison gland.')).toBeVisible()
+      // The first is linked; the second is matched by its name alone.
+      expect(
+        localDatabaseQuery(
+          `select count(*) filter (where crafting_item_id is not null) || '/' || count(*)
+           from public.character_items where character_id = '${characterId}';`,
+          {},
+        ),
+      ).toBe('1/2')
+
+      // Before the rest, nothing has stirred.
+      await openShrine(player)
+      await expect(
+        player.getByText('No visions yet. They come when the party takes a long rest.'),
+      ).toBeVisible()
+
+      // The DM calls the rest and learns only how many characters it reached.
+      await dm.reload()
+      const dmShrine = await openShrine(dm)
+      await dmShrine.getByRole('button', { name: 'Call a long rest' }).click()
+      await dmShrine.getByRole('button', { name: 'Call the rest' }).click()
+      await expect(dm.getByText('The party rests. Visions come to 1 character.')).toBeVisible()
+
+      // The player sees both visions, with the dagger at 1 of 2 and 110 gp still to pay.
+      await player.reload()
+      await expect(
+        player.locator('.camp-directory').getByRole('button', { name: 'Visions, 2 new' }),
+      ).toBeVisible()
+      const playerShrine = await openShrine(player)
+      await expect(playerShrine.getByRole('heading', { name: 'Visions (2)' })).toBeVisible()
+      // The rest's visions arrive sealed. Break them all, and the cards open themselves.
+      await playerShrine.getByRole('button', { name: 'Break all seals' }).click()
+      await expect(
+        playerShrine.locator('summary').filter({ hasText: 'Venom Blade Oil' }),
+      ).toBeVisible()
+      const dagger = playerShrine.locator('.vision-card', { hasText: 'Wyvern Fang Dagger' })
+      await expect(dagger.getByText('110 gp still to pay, 1 material missing')).toBeVisible()
+      await expect(dagger.locator('.vision-face__line').first()).toContainText('1 of 2')
+      await dagger.getByText('Recipe details').click()
+      await expect(dagger.getByRole('row', { name: /Wyvern Fang × 2/ })).toContainText(
+        'have 1 of 2',
+      )
+      await expect(dagger.getByRole('row', { name: /^Still to pay/ })).toContainText('110 gp')
+      // The upgrade they have not earned stays hidden, and so does the DM's side.
+      await expect(player.getByText('Wyrmfang Blade')).toHaveCount(0)
+      await expect(playerShrine.getByRole('button', { name: /DM: libraries/ })).toHaveCount(0)
+    } finally {
+      for (const context of contexts) await context.close()
+      await cleanup(players, [campaignId])
+    }
   })
 })

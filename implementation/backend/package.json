@@ -9,7 +9,8 @@
     "supabase:status": "supabase status",
     "db:migrate": "supabase migration up --local",
     "db:types": "supabase gen types typescript --local --schema public > ../frontend/src/types/database.ts",
-    "db:reset": "supabase db reset --local"
+    "db:reset": "supabase db reset --local",
+    "db:seed": "docker exec -i supabase_db_backend psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/seed.sql"
   },
   "type": "commonjs",
   "devDependencies": {

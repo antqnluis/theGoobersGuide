@@ -330,6 +330,14 @@ textarea.journal-input {
   white-space: nowrap;
 }
 
+.journal-chip--new {
+  --chip-bg: var(--journal-lantern-wash);
+  --chip-ink: var(--journal-ink);
+  --chip-edge: var(--journal-brass-deep);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .journal-chip--active {
   --chip-bg: #d9ebd0;
   --chip-ink: #1d4630;
@@ -1603,4 +1611,47 @@ textarea.journal-input {
   .camp-ledger:has(.camp-drawer) .camp-ledger__body {
     padding-bottom: 64px;
   }
+}
+
+/* Ribbons, in the voice of the character sheet's section tabs. */
+.notebook-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 2px solid var(--journal-rule);
+}
+
+.notebook-tabs__tab {
+  display: inline-flex;
+  min-height: var(--journal-touch);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -2px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  padding: 0 14px;
+  color: var(--journal-ink);
+  background: transparent;
+  font: 700 0.8rem / 1 var(--journal-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.notebook-tabs__tab .pixel-icon {
+  color: var(--journal-oxblood);
+}
+
+.notebook-tabs__tab:hover,
+.notebook-tabs__tab[aria-current='page'] {
+  border-bottom-color: var(--journal-oxblood);
+}
+
+.notebook-tabs__tab[aria-current='page'] {
+  background: color-mix(in srgb, var(--journal-page-shade) 60%, transparent);
+}
+
+.notebook-tabs__tab:focus-visible {
+  outline: 3px solid var(--journal-focus);
+  outline-offset: -3px;
 }
