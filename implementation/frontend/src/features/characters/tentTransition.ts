@@ -4,7 +4,13 @@ import type { TentView } from './CharacterTent'
 /** Which way the journal's page turns: deeper into a character, or back toward the list. */
 export type TentDirection = 'forward' | 'back'
 
-const depth: Record<TentView['type'], number> = { list: 0, create: 1, character: 1, edit: 2 }
+const depth: Record<TentView['type'], number> = {
+  home: 0,
+  list: 0,
+  create: 1,
+  character: 1,
+  edit: 2,
+}
 
 export function tentDirection(from: TentView, to: TentView): TentDirection {
   return depth[to.type] < depth[from.type] ? 'back' : 'forward'

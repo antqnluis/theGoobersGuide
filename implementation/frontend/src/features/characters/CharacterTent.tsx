@@ -17,6 +17,8 @@ import './characters.css'
 
 /** Which screen of the tent is showing. Owned by the workspace so closing the camp resets it. */
 export type TentView =
+  /** The default on opening the tent: the active character's sheet, or the list without one. */
+  | { type: 'home' }
   | { type: 'list' }
   | { type: 'create' }
   | { type: 'character'; id: string }
@@ -79,10 +81,13 @@ export function CharacterTent({
   const history = mine
     .filter((character) => character.status !== 'active')
     .toSorted((a, b) => b.status_changed_at.localeCompare(a.status_changed_at))
-  const selectedId = view.type === 'list' || view.type === 'create' ? null : view.id
+  // `home` opens straight onto the active character, or the list when there is none.
+  const resolved: TentView =
+    view.type === 'home' ? (active ? { type: 'character', id: active.id } : { type: 'list' }) : view
+  const selectedId = resolved.type === 'list' || resolved.type === 'create' ? null : resolved.id
   const selected = selectedId ? mine.find((character) => character.id === selectedId) : undefined
   // A character that vanished (deleted elsewhere, owner left) falls back to the list.
-  const current: TentView = selectedId && !selected ? { type: 'list' } : view
+  const current: TentView = selectedId && !selected ? { type: 'list' } : resolved
   const pendingAction = actions.pendingAction
   const busy = pendingAction !== null
   // Deleting a character deletes the adventures only it was in; the count is read once the
@@ -96,6 +101,14 @@ export function CharacterTent({
         confirmation.characterId === selected?.id,
     ),
   )
+
+  // Once the characters are known, `home` becomes a concrete screen so later changes (such as
+  // retiring the active character) don't move the player off the page they are on.
+  useEffect(() => {
+    if (view.type === 'home' && status === 'success') {
+      onViewChange(active ? { type: 'character', id: active.id } : { type: 'list' })
+    }
+  }, [view.type, status, active, onViewChange])
 
   const reportRef = useRef(onDirtyChange)
   useEffect(() => {
