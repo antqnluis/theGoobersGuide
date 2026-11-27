@@ -5,6 +5,7 @@ import {
   firePit,
   journalCrates,
   shrineStone,
+  shrineStoneLit,
   mapTable,
   partySeats,
   tent,
@@ -144,7 +145,7 @@ describe('outlineTargets', () => {
     expect(outlineTargets('settings', figures)).toEqual(new Set([wagon.id]))
     expect(outlineTargets('adventures', figures)).toEqual(new Set([mapTable.id]))
     expect(outlineTargets('notes', figures)).toEqual(new Set([journalCrates.id]))
-    expect(outlineTargets('visions', figures)).toEqual(new Set([shrineStone.id]))
+    expect(outlineTargets('visions', figures)).toEqual(new Set([shrineStone.id, shrineStoneLit]))
     expect(outlineTargets(null, figures).size).toBe(0)
   })
 

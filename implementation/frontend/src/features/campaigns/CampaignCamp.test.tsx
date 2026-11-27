@@ -363,6 +363,15 @@ describe('CampaignCamp waiting count', () => {
     }
   })
 
+  it('names new visions at the shrine as new, and lets any member open it', async () => {
+    renderCamp({ isOwner: false, waiting: { visions: 2 } })
+    const entry = screen.getByRole('button', { name: 'Visions, 2 new' })
+    expect(entry).toHaveTextContent('Visions (2)')
+    expect(entry).toHaveTextContent('Shrine stone')
+    await userEvent.setup().click(entry)
+    expect(screen.getByRole('dialog', { name: 'The Maker’s Visions' })).toBeVisible()
+  })
+
   it('puts a count only on the entries it is given', () => {
     renderCamp({ waiting: { adventures: 3 } })
     expect(screen.getByRole('button', { name: /^Notes/ })).not.toHaveTextContent('(')

@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contentFromPack, library } from './craftingTestData'
 import {
+  callLongRest,
   createLibrary,
   deleteLibrary,
+  getLastRest,
   getLibraryContent,
   listCampaignLibraries,
   listImports,
@@ -28,6 +30,8 @@ vi.mock('./craftingService', async (importOriginal) => ({
   getLibraryContent: vi.fn(),
   listImports: vi.fn(),
   importPack: vi.fn(),
+  callLongRest: vi.fn(),
+  getLastRest: vi.fn(),
 }))
 
 afterEach(cleanup)
@@ -37,6 +41,7 @@ beforeEach(() => {
   vi.mocked(listCampaignLibraries).mockResolvedValue([])
   vi.mocked(getLibraryContent).mockResolvedValue(contentFromPack())
   vi.mocked(listImports).mockResolvedValue([])
+  vi.mocked(getLastRest).mockResolvedValue(null)
 })
 
 const wyvern = library({ id: 'lib-1', name: 'Wyvern Components' })
@@ -355,5 +360,71 @@ describe('VisionsDm', () => {
     await user.click(await screen.findByRole('button', { name: 'Copy pack prompt' }))
     expect(await screen.findByText('Copied')).toBeVisible()
     expect(await navigator.clipboard.readText()).toContain('the-goobers-guide-crafting-pack')
+  })
+})
+
+describe('Long rest', () => {
+  it('says the party has not rested yet, and reads nothing before the area is opened', async () => {
+    setup(false)
+    expect(getLastRest).not.toHaveBeenCalled()
+    cleanup()
+    setup()
+    expect(await screen.findByText('The party has not rested yet.')).toBeVisible()
+    expect(getLastRest).toHaveBeenCalledWith('camp-1')
+  })
+
+  it('names when the party last rested and how many characters it reached', async () => {
+    vi.mocked(getLastRest).mockResolvedValue({
+      called_at: '2026-11-27T21:04:00Z',
+      character_count: 4,
+    })
+    setup()
+    expect(
+      await screen.findByText(/The party last rested .*, reaching 4 characters\./),
+    ).toBeVisible()
+  })
+
+  it('asks before calling a rest, and cancelling calls nothing', async () => {
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Call a long rest' }))
+    const confirm = screen.getByRole('group', { name: 'Confirm long rest' })
+    expect(confirm).toHaveTextContent('You won’t see what anyone receives')
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(callLongRest).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Call a long rest' })).toBeVisible()
+  })
+
+  it('calls the rest, tells the DM only how many characters it reached, and refreshes', async () => {
+    vi.mocked(callLongRest).mockResolvedValue({
+      rest_id: 'rest-1',
+      called_at: '2026-11-27T21:10:00Z',
+      character_count: 4,
+      library_count: 1,
+    })
+    const { onNotice, user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Call a long rest' }))
+    await user.click(screen.getByRole('button', { name: 'Call the rest' }))
+    await waitFor(() => expect(callLongRest).toHaveBeenCalledWith('camp-1'))
+    await waitFor(() =>
+      expect(onNotice).toHaveBeenCalledWith('The party rests. Visions come to 4 characters.'),
+    )
+    expect(screen.queryByRole('group', { name: 'Confirm long rest' })).not.toBeInTheDocument()
+    await waitFor(() => expect(getLastRest).toHaveBeenCalledTimes(2))
+  })
+
+  it('says the party has only just rested, and keeps the question open', async () => {
+    vi.mocked(callLongRest).mockRejectedValue(new Error('crafting_rest_too_soon'))
+    const { onNotice, user } = setup()
+    await user.click(await screen.findByRole('button', { name: 'Call a long rest' }))
+    await user.click(screen.getByRole('button', { name: 'Call the rest' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The party has only just rested.')
+    expect(onNotice).not.toHaveBeenCalled()
+    expect(screen.getByRole('group', { name: 'Confirm long rest' })).toBeVisible()
+  })
+
+  it('says so when the last rest can’t be read', async () => {
+    vi.mocked(getLastRest).mockRejectedValue(new Error('offline'))
+    setup()
+    expect(await screen.findByText('The last rest could not be read.')).toBeVisible()
   })
 })

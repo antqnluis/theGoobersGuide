@@ -4,7 +4,7 @@ import { assetIdsFor, landscapeIds, sceneProps } from './campArt'
 import { pixelScale, restCameraX, visibleWidth } from './campCamera'
 import { foregroundBand, foregroundSplit, planScene, type ImageSizes } from './campDrawPlan'
 import { frameSpriteId, partyFigures, type PartyFigure } from './campParty'
-import { panorama, tent } from './campLayout'
+import { panorama, shrineStone, shrineStoneLit, tent } from './campLayout'
 import type { CampKind } from './campPalette'
 import { projectToDevice, type View } from './campProjection'
 
@@ -23,7 +23,7 @@ function viewFor(width: number, height: number, dpr = 1): View {
 }
 
 const sizes: ImageSizes = Object.fromEntries(
-  sceneProps.map(({ id }) => [id, { width: 50, height: 30 }]),
+  [...sceneProps.map(({ id }) => id), shrineStoneLit].map((id) => [id, { width: 50, height: 30 }]),
 )
 
 describe('landscape assets', () => {
@@ -41,6 +41,35 @@ describe('landscape assets', () => {
   it('has art on disk for every id', async () => {
     const { artUrl } = await import('./campArt')
     for (const kind of kinds) for (const id of assetIdsFor(kind)) expect(artUrl(id)).toBeTruthy()
+  })
+})
+
+describe('the shrine stone', () => {
+  const view = viewFor(1280, 720)
+
+  it('stands idle by default and glows, in the same place, while visions wait', () => {
+    const idle = planScene(view, 'terrestrial', sizes)
+    const lit = planScene(view, 'terrestrial', sizes, [], 0, true)
+    const idleOp = idle.find(({ id }) => id === shrineStone.id)
+    const litOp = lit.find(({ id }) => id === shrineStoneLit)
+    expect(idle.some(({ id }) => id === shrineStoneLit)).toBe(false)
+    expect(lit.some(({ id }) => id === shrineStone.id)).toBe(false)
+    expect(litOp).toEqual({ ...idleOp, id: shrineStoneLit })
+    expect(lit).toHaveLength(idle.length)
+  })
+
+  it('falls back to the idle sprite when the glowing one has not loaded', () => {
+    const withoutLit = Object.fromEntries(
+      Object.entries(sizes).filter(([id]) => id !== shrineStoneLit),
+    )
+    const ops = planScene(view, 'terrestrial', withoutLit, [], 0, true)
+    expect(ops.some(({ id }) => id === shrineStone.id)).toBe(true)
+  })
+
+  it('has art on disk for the glowing sprite', async () => {
+    const { artUrl } = await import('./campArt')
+    expect(artUrl(shrineStoneLit)).toBeTruthy()
+    expect(assetIdsFor('terrestrial')).toContain(shrineStoneLit)
   })
 })
 

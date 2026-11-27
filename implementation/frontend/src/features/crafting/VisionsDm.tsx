@@ -5,6 +5,7 @@ import { craftingLimits } from './craftingPack'
 import { craftingPackPrompt } from './craftingPackPrompt'
 import {
   campaignLibrariesOptions,
+  lastRestOptions,
   libraryImportsOptions,
   librariesOptions,
 } from './craftingQueries'
@@ -12,8 +13,8 @@ import { previewLibraryDelete } from './craftingService'
 import type { CraftingLibrary, LibraryDeletePreview, PackImport } from './craftingTypes'
 import { LibraryBrowser } from './LibraryBrowser'
 import { PackImportDialog } from './PackImportDialog'
-import { describeImport, plural } from './craftingText'
-import { useCraftingActions } from './useCraftingActions'
+import { describeImport, describeRest, formatRestTime, plural } from './craftingText'
+import { useCraftingActions, type CraftingActions } from './useCraftingActions'
 import './crafting.css'
 
 function describePackImport(entry: PackImport) {
@@ -26,6 +27,92 @@ function describePackImport(entry: PackImport) {
       `${plural(entry.items_removed, 'item')} and ${plural(entry.recipes_removed, 'recipe')} removed`,
   ].filter(Boolean)
   return parts.join('; ') || 'No changes'
+}
+
+/**
+ * Calling a long rest (plan §4): every active character gets new visions from what they carry
+ * now. The DM sees when the party last rested and how many characters it reached, and nothing
+ * about any character's visions or inventory (C6).
+ */
+function LongRest({
+  campaignId,
+  userId,
+  enabled,
+  actions,
+  onNotice,
+}: {
+  campaignId: string
+  userId: string
+  enabled: boolean
+  actions: CraftingActions
+  onNotice: (message: string) => void
+}) {
+  const last = useQuery(lastRestOptions(campaignId, userId, enabled))
+  const [asking, setAsking] = useState(false)
+
+  async function call() {
+    const result = await actions.callRest(campaignId)
+    if (result) {
+      onNotice(describeRest(result))
+      setAsking(false)
+    }
+  }
+
+  return (
+    <section aria-labelledby="visions-long-rest" className="crafting-rest">
+      <h3 className="journal-section-title" id="visions-long-rest">
+        Long rest
+      </h3>
+      <p className="crafting-hint">
+        {last.isSuccess &&
+          (last.data
+            ? `The party last rested ${formatRestTime(last.data.called_at)}, reaching ${plural(last.data.character_count, 'character')}.`
+            : 'The party has not rested yet.')}
+        {last.isError && 'The last rest could not be read.'}
+        {last.isPending && 'Checking the last rest…'}
+      </p>
+      {!asking ? (
+        <button
+          className="journal-button"
+          disabled={actions.isPending}
+          onClick={() => {
+            actions.clearError()
+            setAsking(true)
+          }}
+          type="button"
+        >
+          Call a long rest
+        </button>
+      ) : (
+        <div className="journal-alert crafting-confirm" role="group" aria-label="Confirm long rest">
+          <p>
+            <strong>Call a long rest?</strong> Every active character receives new visions from the
+            materials they carry now, and every player is told at once. You won’t see what anyone
+            receives. A rest can’t be called again for 30 seconds.
+          </p>
+          <div className="journal-actions">
+            <button
+              aria-busy={actions.isPending || undefined}
+              className="journal-button"
+              disabled={actions.isPending}
+              onClick={() => void call()}
+              type="button"
+            >
+              {actions.isPending ? 'Resting…' : 'Call the rest'}
+            </button>
+            <button
+              className="journal-button journal-button--ghost"
+              disabled={actions.isPending}
+              onClick={() => setAsking(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
 }
 
 function ImportHistory({ libraryId, userId }: { libraryId: string; userId: string }) {
@@ -286,6 +373,14 @@ export function VisionsDm({
           {actions.error}
         </p>
       )}
+
+      <LongRest
+        actions={actions}
+        campaignId={campaignId}
+        enabled={enabled}
+        onNotice={onNotice}
+        userId={userId}
+      />
 
       {status === 'pending' && (
         <p className="journal-status" role="status">

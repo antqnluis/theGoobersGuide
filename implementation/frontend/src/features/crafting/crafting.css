@@ -239,3 +239,59 @@
 .pack-dialog__review dd {
   margin: 0;
 }
+
+.vision-character > * + *,
+.vision-list > * + *,
+.crafting-rest > * + * {
+  margin-top: 12px;
+}
+
+.vision-card {
+  display: block;
+  border: 1px solid var(--journal-line);
+  padding: 10px 12px;
+}
+
+.vision-card[data-new] {
+  border-color: var(--journal-brass-deep);
+  border-left-width: 4px;
+}
+
+.vision-card summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  cursor: pointer;
+}
+
+.vision-card details > * + * {
+  margin-top: 12px;
+}
+
+.vision-badge {
+  background: var(--journal-lantern-wash);
+  border: 1px solid var(--journal-brass-deep);
+  color: var(--journal-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  text-transform: uppercase;
+}
+
+.vision-fragment__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-weight: 700;
+}
+
+.vision-unknown {
+  letter-spacing: 0.08em;
+}
+
+.crafting-lines td[data-have='short'] {
+  font-weight: 700;
+}

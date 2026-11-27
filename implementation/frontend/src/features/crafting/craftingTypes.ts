@@ -183,3 +183,70 @@ export type LibraryDeletePreview = {
   linked_items: number
   deleted: boolean
 }
+
+/** What a long rest did, as the campaign owner sees it: counts only, never a character's result. */
+export type LongRestResult = {
+  rest_id: string
+  called_at: string
+  character_count: number
+  library_count: number
+}
+
+/** The newest long rest of a campaign (time and count only; every member may read it). */
+export type LastRest = { called_at: string; character_count: number }
+
+/** The output of a vision, in the fields a player may see (plan C16). */
+export type VisionOutput = {
+  name: string
+  category: CraftingCategory
+  rarity: ItemRarity
+  value_cp: number
+  weight: number | null
+  consumable: boolean
+  attunement: boolean | string | null
+  description: string | null
+  quantity: number
+}
+
+/** One material of a vision, with how many the character holds now. */
+export type VisionLine = {
+  role: 'key' | 'other'
+  item_id: string
+  name: string
+  rarity: ItemRarity
+  value_cp: number
+  need: number
+  have: number
+}
+
+/** A recipe the character holds every key material for, or has saved. */
+export type Vision = {
+  recipe_id: string
+  new: boolean
+  saved: boolean
+  output: VisionOutput
+  lines: VisionLine[]
+  crafting_cost_cp: number
+  workdays: number
+  tools: string[]
+  requirements: string | null
+  check: { skill: string; dc: number } | null
+  notes: string | null
+}
+
+/** A recipe the character holds only some key materials for: nothing else is revealed. */
+export type Fragment = {
+  id: string
+  new: boolean
+  held: string[]
+  missing: number
+}
+
+/** The whole of what one character may see (`get_character_visions`). */
+export type CharacterVisions = {
+  last_rest_at: string | null
+  library_count: number
+  visions: Vision[]
+  fragments: Fragment[]
+  saved: Vision[]
+}

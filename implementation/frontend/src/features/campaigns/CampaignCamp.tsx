@@ -514,7 +514,11 @@ export function CampaignCamp({
       <li key={location.id}>
         <button
           aria-haspopup="dialog"
-          aria-label={waitingHere > 0 ? `${location.label}, ${waitingHere} waiting` : undefined}
+          aria-label={
+            waitingHere > 0
+              ? `${location.label}, ${waitingHere} ${location.id === 'visions' ? 'new' : 'waiting'}`
+              : undefined
+          }
           className="camp-places__destination"
           data-location={location.id}
           onClick={(event) => open(location, event.currentTarget)}
@@ -635,6 +639,7 @@ export function CampaignCamp({
                 rig={rig}
                 figures={figures}
                 highlight={highlight}
+                shrineLit={(waiting.visions ?? 0) > 0}
                 onFail={onFail}
                 onReady={onReady}
                 view={measure.view}
@@ -716,7 +721,7 @@ export function CampaignCamp({
             <section hidden={active?.id !== 'characters'}>{characters}</section>
             <section hidden={active?.id !== 'adventures'}>{adventures}</section>
             <section hidden={active?.id !== 'notes'}>{notes}</section>
-            {isOwner && <section hidden={active?.id !== 'visions'}>{visions}</section>}
+            <section hidden={active?.id !== 'visions'}>{visions}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
           </div>
         </div>

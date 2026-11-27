@@ -15,6 +15,7 @@ import {
   flame,
   hearth,
   particles,
+  shrineGlow,
   skyFxBottom,
   smoke,
   twinkles,
@@ -92,6 +93,7 @@ export default function CampLandscape({
   rig,
   figures,
   highlight,
+  shrineLit = false,
   onReady,
   onFail,
 }: {
@@ -105,6 +107,8 @@ export default function CampLandscape({
   figures: readonly PartyFigure[]
   /** The destination to outline: hovered, focused, or open. */
   highlight: CampLocationId | null
+  /** The shrine glows while the viewer has new visions waiting. */
+  shrineLit?: boolean
   onReady: () => void
   onFail: () => void
 }) {
@@ -229,7 +233,7 @@ export default function CampLandscape({
       const bob = Math.floor(frame.time / breathMs)
       const key = `${frame.cameraX}|${frame.cameraY}|${bob}`
       if (!force && drawn?.key === key) return
-      const ops = planScene(scene, world.kind, sizes, figures, bob)
+      const ops = planScene(scene, world.kind, sizes, figures, bob, shrineLit)
       artContext.fillStyle = ramps.sky[0]
       artContext.fillRect(0, 0, art.width, art.height)
       for (const op of ops) {
@@ -280,6 +284,7 @@ export default function CampLandscape({
       fillRects(fxContext, smoke(frame.tick), ground)
       fillRects(fxContext, flame(frame.tick, frame.flare, lift), ground)
       fillRects(fxContext, embers(frame.tick, frame.flare), ground)
+      if (shrineLit) fillRects(fxContext, shrineGlow(frame.tick, settled), ground)
     }
 
     // The firelight: the pool of light is drawn once per flicker level, then laid over the
@@ -366,7 +371,7 @@ export default function CampLandscape({
       unsubscribe()
       redrawOutline.current = null
     }
-  }, [all, view, world.kind, ramps, figures, rig, onReady, onFail])
+  }, [all, view, world.kind, ramps, figures, shrineLit, rig, onReady, onFail])
 
   // Sized from device pixels, not the container, so a fractional-height box
   // never stretches the art off the pixel grid.

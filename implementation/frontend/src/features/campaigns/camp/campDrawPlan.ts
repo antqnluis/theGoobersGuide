@@ -3,7 +3,7 @@
 
 import { landscapeIds, sceneProps } from './campArt'
 import { layerOffset, layerOrigin, parallax, projectToDevice, type View } from './campProjection'
-import { panorama } from './campLayout'
+import { panorama, shrineStone, shrineStoneLit } from './campLayout'
 import { figureSize, frameSpriteId, type PartyFigure } from './campParty'
 import type { CampKind } from './campPalette'
 
@@ -133,6 +133,8 @@ export function planScene(
   figures: readonly PartyFigure[] = [],
   /** Which breathing frame the party is on; members alternate by their own phase. */
   bobFrame = 0,
+  /** The shrine stone glows: its lit sprite stands where the idle one would. */
+  shrineLit = false,
 ): DrawOp[] {
   const { ridge, mid, ground } = landscapeIds(kind)
   const ops: DrawOp[] = [
@@ -171,8 +173,9 @@ export function planScene(
     if (intersects(op, view)) standing.push({ depth, op })
   }
   for (const prop of sceneProps) {
-    const size = sizes[prop.id]
-    if (size) stand(prop.id, prop, size, prop.y, prop.flip, prop.scale)
+    const id = shrineLit && prop.id === shrineStone.id ? shrineStoneLit : prop.id
+    const size = sizes[id] ?? sizes[prop.id]
+    if (size) stand(sizes[id] ? id : prop.id, prop, size, prop.y, prop.flip, prop.scale)
   }
   for (const figure of figures) {
     const id = frameSpriteId(figure.spriteId, (bobFrame + figure.phase) % 2)

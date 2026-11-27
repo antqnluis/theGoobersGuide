@@ -45,6 +45,9 @@ export const journalCrates: CampProp = { id: 'journal-crates', x: 770, y: 244 }
  */
 export const shrineStone: CampProp = { id: 'shrine-stone', x: 625, y: 246 }
 
+/** The shrine's glowing sprite, drawn in its place while the viewer has new visions waiting. */
+export const shrineStoneLit = 'shrine-stone-lit'
+
 /** The one table that drives scene buttons, the Places list, and panel gating. */
 export const campLocations: readonly CampLocation[] = [
   {
@@ -112,8 +115,8 @@ export const campLocations: readonly CampLocation[] = [
     hit: { width: 40, height: 46 },
     plate: 'above',
     plateAlign: 'center',
-    // The player's view arrives with the long rest; until then only the DM's side exists.
-    ownerOnly: true,
+    // Every member reads their own visions; the campaign owner also gets the DM's tab.
+    ownerOnly: false,
   },
   {
     id: 'settings',

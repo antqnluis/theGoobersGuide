@@ -1,4 +1,4 @@
-import type { PackImportResult } from './craftingTypes'
+import type { LongRestResult, PackImportResult } from './craftingTypes'
 
 export const plural = (count: number, one: string, many = `${one}s`) =>
   `${count.toLocaleString('en-US')} ${count === 1 ? one : many}`
@@ -18,4 +18,19 @@ export function describeImport(result: PackImportResult, libraryName: string) {
       ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
       : (parts[0] ?? 'nothing')
   return `Imported ${list} into ${libraryName}`
+}
+
+/** The toast after a long rest. The count is of characters covered, never of anything they hold. */
+export function describeRest(result: Pick<LongRestResult, 'character_count' | 'library_count'>) {
+  if (result.library_count === 0) {
+    return 'The party rests, but no library is turned on, so nothing stirs.'
+  }
+  if (result.character_count === 0)
+    return 'The party rests. No active characters to receive visions.'
+  return `The party rests. Visions come to ${plural(result.character_count, 'character')}.`
+}
+
+/** "Nov 26, 2026, 9:04 PM", the way the guide dates a rest. */
+export function formatRestTime(iso: string) {
+  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 }

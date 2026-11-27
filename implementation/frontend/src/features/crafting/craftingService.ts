@@ -4,14 +4,17 @@ import { readErrorMessage } from '../campaigns/rpcErrors'
 import type { ItemRarity } from '../characters/characterTypes'
 import type {
   CampaignLibraryLink,
+  CharacterVisions,
   CraftingCategory,
   CraftingLibrary,
   CraftingPack,
   ItemSuggestion,
+  LastRest,
   LibraryContent,
   LibraryDeletePreview,
   LibraryItem,
   LibraryRecipe,
+  LongRestResult,
   PackHarvest,
   PackImport,
   PackImportResult,
@@ -214,6 +217,51 @@ export async function setCampaignLibrary(
   if (error) throw error
 }
 
+/** Everything one character may see: visions, fragments, and saved recipes, with live counts. */
+export async function getCharacterVisions(characterId: string): Promise<CharacterVisions> {
+  const { data, error } = await supabase.rpc('get_character_visions', {
+    p_character_id: characterId,
+  })
+  if (error) throw error
+  return data as unknown as CharacterVisions
+}
+
+export async function saveVision(characterId: string, recipeId: string): Promise<void> {
+  const { error } = await supabase.rpc('save_vision', {
+    p_character_id: characterId,
+    p_recipe_id: recipeId,
+  })
+  if (error) throw error
+}
+
+export async function unsaveVision(characterId: string, recipeId: string): Promise<void> {
+  const { error } = await supabase.rpc('unsave_vision', {
+    p_character_id: characterId,
+    p_recipe_id: recipeId,
+  })
+  if (error) throw error
+}
+
+/** The campaign owner calls a long rest; the result holds counts only. */
+export async function callLongRest(campaignId: string): Promise<LongRestResult> {
+  const { data, error } = await supabase.rpc('call_long_rest', { p_campaign_id: campaignId })
+  if (error) throw error
+  return data as unknown as LongRestResult
+}
+
+/** The newest rest of a campaign, or null when the party has not rested yet. */
+export async function getLastRest(campaignId: string): Promise<LastRest | null> {
+  const { data, error } = await supabase
+    .from('crafting_rests')
+    .select('called_at,character_count')
+    .eq('campaign_id', campaignId)
+    .order('called_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 const craftingErrors: Record<string, string> = {
   crafting_sign_in_required: 'Sign in again to continue.',
   crafting_library_unavailable: 'This library is no longer available.',
@@ -229,6 +277,11 @@ const craftingErrors: Record<string, string> = {
   crafting_campaign_owner_required: 'Only the campaign owner can change which libraries it uses.',
   campaign_unavailable: 'This campaign is no longer available.',
   crafting_argument_required: 'Something was missing from that request. Try again.',
+  crafting_rest_too_soon: 'The party has only just rested. Try again in a moment.',
+  character_unavailable: 'This character is no longer available.',
+  vision_unavailable:
+    'That vision is no longer there. Only a vision you currently hold can be saved.',
+  saved_limit_reached: 'You can keep up to 200 saved visions. Remove one first.',
 }
 
 /** Where in the pack the server found the problem, from the error's detail, when it names one. */

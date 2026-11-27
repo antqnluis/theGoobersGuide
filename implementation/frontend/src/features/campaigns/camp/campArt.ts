@@ -6,6 +6,7 @@ import {
   journalCrates,
   mapTable,
   shrineStone,
+  shrineStoneLit,
   tent,
   wagon,
   waystone,
@@ -48,5 +49,13 @@ export const sceneProps = [
 /** Every image one world needs. */
 export function assetIdsFor(kind: CampKind) {
   const { ridge, mid, ground } = landscapeIds(kind)
-  return ['sky', ridge, mid, ground, 'foreground', ...sceneProps.map(({ id }) => id)]
+  return [
+    'sky',
+    ridge,
+    mid,
+    ground,
+    'foreground',
+    ...sceneProps.map(({ id }) => id),
+    shrineStoneLit,
+  ]
 }

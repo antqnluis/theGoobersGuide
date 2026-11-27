@@ -86,6 +86,7 @@ describe('what it subscribes to', () => {
       'campaign_overviews:INSERT',
       'campaign_overviews:UPDATE',
       'character_sheets:UPDATE',
+      'crafting_rests:INSERT',
       'notes:INSERT',
       'notes:UPDATE',
       'npcs:INSERT',
@@ -101,6 +102,7 @@ describe('what it subscribes to', () => {
           'adventure_participants',
           'adventure_handoffs',
           'campaign_overviews',
+          'crafting_rests',
         ].includes(entry.table)
       ) {
         expect(entry.filter).toBe(`campaign_id=eq.${campaignId}`)
@@ -120,6 +122,18 @@ describe('refreshing what changed', () => {
     emit('character_sheets', 'UPDATE', { character_id: 'c1' })
     settle()
     expect(keysOf(spy)).toEqual([JSON.stringify(sheet('c1'))])
+  })
+
+  it('refetches every cached vision list and the last rest when the party rests', () => {
+    const spy = setup()
+    emit('crafting_rests', 'INSERT', { campaign_id: campaignId })
+    settle()
+    expect(keysOf(spy).sort()).toEqual(
+      [
+        JSON.stringify(['campaigns', 'crafting', 'visions']),
+        JSON.stringify(['campaigns', 'crafting', 'rest', campaignId, userId]),
+      ].sort(),
+    )
   })
 
   it('refetches the overview when the owner changes it', () => {
@@ -251,11 +265,12 @@ describe('joining the channel', () => {
     act(() => live.options!.onJoin!())
 
     const calls = spy.mock.calls
-    const [notes, npcs, adventures, sheets] = calls.map(([filters]) => filters!)
-    expect(calls).toHaveLength(4)
+    const [notes, npcs, adventures, visions, sheets] = calls.map(([filters]) => filters!)
+    expect(calls).toHaveLength(5)
     expect(notes.queryKey).toEqual(['campaigns', 'notes'])
     expect(npcs.queryKey).toEqual(['campaigns', 'npcs'])
     expect(adventures.queryKey).toEqual(['campaigns', 'adventures'])
+    expect(visions.queryKey).toEqual(['campaigns', 'crafting', 'visions'])
     expect(sheets.queryKey).toEqual(['campaigns', 'characters', 'sheet'])
 
     const matches = (filters: typeof notes) =>

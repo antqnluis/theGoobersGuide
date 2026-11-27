@@ -10,6 +10,7 @@ import {
   requestCountKey,
 } from '../adventures/adventureQueries'
 import { characterSheetKey } from '../characters/characterQueries'
+import { allVisionsPrefix, lastRestKey } from '../crafting/craftingQueries'
 import { noteKey, notesKey, notesPrefix } from '../notes/noteQueries'
 import { npcKey, npcsKey, npcsPrefix } from '../npcs/npcQueries'
 import { overviewKey } from './overview/overviewQueries'
@@ -146,6 +147,15 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
     ...watch('adventure_updates', ['INSERT'], (change) =>
       adventureChanged(text(change.new, 'adventure_id'), false),
     ),
+    // A long rest rewrites every character's visions: refetch the ones this tab already holds
+    // (the shrine's glow and the Places count read the active character's). Inventory edits
+    // from another device show on refetch, because `character_items` is not published.
+    ...watch(
+      'crafting_rests',
+      ['INSERT'],
+      () => invalidateSoon(allVisionsPrefix, lastRestKey(campaignId, userId)),
+      campaignFilter,
+    ),
     // A handoff's source arrives with the objectives and update it labels (M03.9 H13). Its
     // table has a campaign column, so the filter keeps other campaigns' events out.
     ...watch(
@@ -173,6 +183,7 @@ export function useCampaignLive(campaignId: string, userId: string, enabled: boo
         notesPrefix,
         npcsPrefix,
         adventuresPrefix,
+        allVisionsPrefix,
         ['campaigns', 'characters', 'sheet'],
       ]) {
         void queryClient.invalidateQueries({ queryKey, predicate: stale })

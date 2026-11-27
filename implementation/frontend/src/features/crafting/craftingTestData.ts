@@ -1,4 +1,11 @@
-import type { CraftingLibrary, CraftingPack, LibraryContent } from './craftingTypes'
+import type { CharacterSummary } from '../characters/characterTypes'
+import type {
+  CharacterVisions,
+  CraftingLibrary,
+  CraftingPack,
+  LibraryContent,
+  Vision,
+} from './craftingTypes'
 
 /** The plan's §2.6 example pack: the one fixture the crafting tests share. */
 export const wyvernPack: CraftingPack = {
@@ -159,5 +166,123 @@ export const library = (overrides: Partial<CraftingLibrary> = {}): CraftingLibra
   description: null,
   created_at: '2026-11-27T10:00:00Z',
   updated_at: '2026-11-27T10:00:00Z',
+  ...overrides,
+})
+
+/** The §2.6 dagger as a character who holds 1 Wyvern Fang and 1 Wyvern Poison Gland sees it. */
+export const daggerVision: Vision = {
+  recipe_id: 'recipe-wyvern-fang-dagger',
+  new: true,
+  saved: false,
+  output: {
+    name: 'Wyvern Fang Dagger',
+    category: 'weapon',
+    rarity: 'uncommon',
+    value_cp: 40000,
+    weight: 1,
+    consumable: false,
+    attunement: null,
+    description: 'A +1 dagger. On a critical hit, the target takes an extra 3d6 poison damage.',
+    quantity: 1,
+  },
+  lines: [
+    {
+      role: 'key',
+      item_id: 'item-wyvern-fang',
+      name: 'Wyvern Fang',
+      rarity: 'uncommon',
+      value_cp: 4000,
+      need: 2,
+      have: 1,
+    },
+    {
+      role: 'other',
+      item_id: 'item-wyvern-poison-gland',
+      name: 'Wyvern Poison Gland',
+      rarity: 'uncommon',
+      value_cp: 5000,
+      need: 1,
+      have: 1,
+    },
+  ],
+  crafting_cost_cp: 7000,
+  workdays: 10,
+  tools: ["Smith's Tools"],
+  requirements: 'Proficiency in Arcana.',
+  check: null,
+  notes: null,
+}
+
+/** The §2.6 oil: one key material held, nothing else yet. */
+export const oilVision: Vision = {
+  recipe_id: 'recipe-venom-blade-oil',
+  new: false,
+  saved: false,
+  output: {
+    name: 'Venom Blade Oil',
+    category: 'potion',
+    rarity: 'uncommon',
+    value_cp: 15000,
+    weight: null,
+    consumable: true,
+    attunement: null,
+    description: null,
+    quantity: 1,
+  },
+  lines: [
+    {
+      role: 'key',
+      item_id: 'item-wyvern-poison-gland',
+      name: 'Wyvern Poison Gland',
+      rarity: 'uncommon',
+      value_cp: 5000,
+      need: 1,
+      have: 1,
+    },
+    {
+      role: 'other',
+      item_id: 'item-alchemical-base',
+      name: 'Alchemical Base',
+      rarity: 'common',
+      value_cp: 500,
+      need: 2,
+      have: 0,
+    },
+  ],
+  crafting_cost_cp: 4000,
+  workdays: 5,
+  tools: ["Poisoner's Kit"],
+  requirements: null,
+  check: { skill: 'Alchemist’s Supplies', dc: 12 },
+  notes: 'Best brewed fresh.',
+}
+
+export const visionsDocument = (overrides: Partial<CharacterVisions> = {}): CharacterVisions => ({
+  last_rest_at: '2026-11-27T21:04:00Z',
+  library_count: 1,
+  visions: [daggerVision, oilVision],
+  fragments: [{ id: 'fragment-1', new: true, held: ['Wyvern Fang'], missing: 1 }],
+  saved: [],
+  ...overrides,
+})
+
+/** One of a campaign's characters, as the camp's roster of sheets lists it. */
+export const characterRow = (overrides: Partial<CharacterSummary> = {}): CharacterSummary => ({
+  id: 'char-1',
+  campaign_id: 'camp-1',
+  owner_id: 'user-1',
+  name: 'Brannoc',
+  status: 'active',
+  sheet_visibility: 'private',
+  background: null,
+  class_name: null,
+  created_at: '2026-11-20T10:00:00Z',
+  in_party: true,
+  level: 3,
+  portrait_path: null,
+  species: null,
+  status_changed_at: '2026-11-20T10:00:00Z',
+  subclass: null,
+  updated_at: '2026-11-20T10:00:00Z',
   ...overrides,
 })

@@ -161,14 +161,49 @@ Only `library_count` above. Nothing else differs from §3 and §4.
 
 ### Verification (from `implementation/frontend` unless noted)
 
-| Command                                                                                                | Result                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run db:migrate` and `npm run db:types` (backend)                                                  | Applied and regenerated                                                                                                                                             |
-| `npm run lint`, `npm run format:check`, `npm run build`                                                | Passed                                                                                                                                                              |
-| `npm test`                                                                                             | Passed: 136 files, 2,161 tests (no frontend code changed)                                                                                                           |
-| `npx playwright test e2e/local-supabase-crafting.spec.ts`                                              | Passed: 55 tests                                                                                                                                                    |
-| `npx playwright test` on the inventory, characters, imports, membership, and handoffs specs            | 111 passed, 1 failed: the inventory UI test "a player adds coins and an item in the tent" failed once and passed when rerun alone (a timing flake in a browser test) |
+| Command                                                                                     | Result                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run db:migrate` and `npm run db:types` (backend)                                       | Applied and regenerated                                                                                                                                              |
+| `npm run lint`, `npm run format:check`, `npm run build`                                     | Passed                                                                                                                                                               |
+| `npm test`                                                                                  | Passed: 136 files, 2,161 tests (no frontend code changed)                                                                                                            |
+| `npx playwright test e2e/local-supabase-crafting.spec.ts`                                   | Passed: 55 tests                                                                                                                                                     |
+| `npx playwright test` on the inventory, characters, imports, membership, and handoffs specs | 111 passed, 1 failed: the inventory UI test "a player adds coins and an item in the tent" failed once and passed when rerun alone (a timing flake in a browser test) |
 
 Not run: `npm run test:e2e`, the camp-scene specs, and the rest of `test:local-supabase` (notes, adventures, dice, live, appearance, sprite, galaxy). Nothing in this phase touches them.
 
 Not tested: a rest racing a member's departure and a rest racing an import. Both rely on the locks in §5.2 (campaign `FOR SHARE`, libraries `FOR SHARE`, the import's `FOR UPDATE`), which the spec doesn't exercise. Realtime delivery of `crafting_rests` is checked only as publication membership; Phase 5's live refresh covers delivery.
+
+## Phase 5: The Maker's Visions area (2026-11-27)
+
+### What was added
+
+- **Player view** (`CampVisions`, `VisionList`, `VisionCard`, `FragmentCard`): a character picker (the active character first, then retired and deceased), then visions, fragments, and saved visions with their counts. A card shows the output, every material as "have 1 of 2" text beside a ✓/✗, line costs, the materials subtotal, the total, **still to pay**, workdays, tools, requirements, the check, notes, a **New** badge, and Save or Remove from saved. A fragment shows "Unknown item: ???", the key materials held by name, and `??? ×N`, with spoken equivalents ("Unknown item", "1 unknown key material"). The empty states are the three in §6.2.
+- **DM tab**: owners get "My visions" and "DM: libraries and rests" tabs (only the DM tab when they have no character). The tab gains a **Long rest** section: the last rest's time and how many characters it reached, then _Call a long rest_ with a confirmation. The toast says "The party rests. Visions come to N characters." (or that no library is on, or no character is active). A second rest inside 30 seconds shows "The party has only just rested."
+- **Camp**: the shrine is now open to every member (`ownerOnly: false`), and the Places entry reads "Visions, N new" (new visions plus new fragments of the viewer's active character). While N > 0 the scene swaps in the `shrine-stone-lit` sprite and rises a few ember motes (`shrineGlow`, standing still under reduced motion). The hover and focus outline covers both sprites.
+- **Live refresh**: `useCampaignLive` subscribes to `crafting_rests` inserts for the campaign and refetches every cached visions list and the last rest. A rejoin refetches stale visions lists too.
+- **Data layer**: `getCharacterVisions`, `saveVision`, `unsaveVision`, `callLongRest`, `getLastRest`, with copy for `crafting_rest_too_soon`, `character_unavailable`, `vision_unavailable`, and `saved_limit_reached`; `visionsOptions`, `lastRestOptions`; `callRest` and `setSaved` in `useCraftingActions`.
+- **Tests**: unit and component tests for every new piece (counts below), `e2e/visions.spec.ts` (7 tests, written per §8.3), and `e2e/support/craftingFixtures.ts`.
+
+### Decisions made while building
+
+- **"New" stays until the next rest, so the shrine glows until then**, even after the player has looked. That is what W14 and W17 say (new until the next rest). If it proves noisy, the fix is a per-device "seen" marker, not a server change.
+- **The count comes from the workspace, not the area.** The page reads the active character's visions as soon as the camp loads, so the Places entry and the glow are right before the shrine is opened. The area reuses that query. Retired and deceased characters load only when picked.
+- **The save buttons carry the output's name** ("Save this vision (Venom Blade Oil)") so several cards on one page stay distinguishable.
+- **A rest with no library on is allowed** (as in the database), and the toast says nothing stirred rather than claiming visions.
+- **The e2e fixtures don't import app code.** The node TypeScript config resolves imports strictly, so `craftingFixtures.ts` holds plain data.
+
+### Plan deviations
+
+- The plan's `CampVisions` "character picker" is a select shown only when the player has more than one character.
+- The glow is the lit sprite plus a few motes rather than a separate light pool, to keep the camp's light layer untouched.
+
+### Verification (from `implementation/frontend`)
+
+| Command                                   | Result                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| `npm run lint`, `npm run format:check`    | Passed                                                                              |
+| `npm run build`                           | Passed (the existing large-chunk warning remains)                                   |
+| `npm test`                                | Passed: 140 files, 2,212 tests                                                      |
+| `npx playwright test e2e/visions.spec.ts` | Passed: 7 tests (two selectors and a checkbox wait in the spec needed fixing first) |
+
+Not run: `npm run test:e2e`, the camp-scene specs, and `npm run test:local-supabase`. No database file changed in this phase. The lit sprite and the motes have not been looked at in a browser.

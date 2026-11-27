@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../../lib/supabase'
 import {
+  callLongRest,
   craftingError,
   createLibrary,
   deleteLibrary,
+  getCharacterVisions,
+  getLastRest,
   getLibraryContent,
   importPack,
   listCampaignLibraries,
   listImports,
   listLibraries,
   previewLibraryDelete,
+  saveVision,
   searchCraftingItems,
   setCampaignLibrary,
+  unsaveVision,
   updateLibrary,
 } from './craftingService'
 import { wyvernPack } from './craftingTestData'
@@ -241,5 +246,68 @@ describe('craftingError', () => {
     expect(craftingError({ message: 'crafting_name_taken', details: 'secret' }, 'x')).not.toContain(
       'secret',
     )
+  })
+})
+
+describe('visions and rests', () => {
+  it('reads one character’s visions through the function, never a table', async () => {
+    const document = { last_rest_at: null, library_count: 0, visions: [], fragments: [], saved: [] }
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: document, error: null } as never)
+    await expect(getCharacterVisions('c1')).resolves.toEqual(document)
+    expect(supabase.rpc).toHaveBeenCalledWith('get_character_visions', { p_character_id: 'c1' })
+    expect(supabase.from).not.toHaveBeenCalled()
+  })
+
+  it('saves and unsaves by character and recipe', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null } as never)
+    await saveVision('c1', 'r1')
+    await unsaveVision('c1', 'r1')
+    expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'save_vision', {
+      p_character_id: 'c1',
+      p_recipe_id: 'r1',
+    })
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'unsave_vision', {
+      p_character_id: 'c1',
+      p_recipe_id: 'r1',
+    })
+  })
+
+  it('throws what the database says, so the caller can map it', async () => {
+    const failure = { message: 'saved_limit_reached' }
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: failure } as never)
+    await expect(saveVision('c1', 'r1')).rejects.toBe(failure)
+    await expect(getCharacterVisions('c1')).rejects.toBe(failure)
+    await expect(callLongRest('camp-1')).rejects.toBe(failure)
+  })
+
+  it('calls a long rest for a campaign and returns the counts', async () => {
+    const result = { rest_id: 'r', called_at: 't', character_count: 3, library_count: 1 }
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: result, error: null } as never)
+    await expect(callLongRest('camp-1')).resolves.toEqual(result)
+    expect(supabase.rpc).toHaveBeenCalledWith('call_long_rest', { p_campaign_id: 'camp-1' })
+  })
+
+  it('reads the newest rest, or null before the first', async () => {
+    const { calls, chain } = builder({ data: { called_at: 't', character_count: 2 }, error: null })
+    vi.mocked(supabase.from).mockReturnValue(chain as never)
+    await expect(getLastRest('camp-1')).resolves.toEqual({ called_at: 't', character_count: 2 })
+    expect(supabase.from).toHaveBeenCalledWith('crafting_rests')
+    expect(calls).toContainEqual(['eq', ['campaign_id', 'camp-1']])
+    expect(calls).toContainEqual(['order', ['called_at', { ascending: false }]])
+    expect(calls).toContainEqual(['limit', [1]])
+
+    const none = builder({ data: null, error: null })
+    vi.mocked(supabase.from).mockReturnValue(none.chain as never)
+    await expect(getLastRest('camp-1')).resolves.toBeNull()
+  })
+
+  it('maps the new database errors to safe copy', () => {
+    const copy = (message: string) => craftingError({ message }, 'fallback')
+    expect(copy('crafting_rest_too_soon')).toBe(
+      'The party has only just rested. Try again in a moment.',
+    )
+    expect(copy('character_unavailable')).toMatch(/no longer available/)
+    expect(copy('vision_unavailable')).toMatch(/no longer there/)
+    expect(copy('saved_limit_reached')).toMatch(/200 saved visions/)
   })
 })

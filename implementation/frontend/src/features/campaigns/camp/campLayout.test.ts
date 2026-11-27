@@ -14,6 +14,7 @@ import {
   resolveLocation,
   seatParty,
   shrineStone,
+  shrineStoneLit,
   tent,
   wagon,
   waystone,
@@ -31,7 +32,7 @@ const member = (
 })
 
 describe('owner gating', () => {
-  it('offers the wagon to owners only', () => {
+  it('offers the wagon to owners only, and the shrine to every member', () => {
     expect(availableLocations(true).map(({ id }) => id)).toEqual([
       'overview',
       'party',
@@ -47,8 +48,9 @@ describe('owner gating', () => {
       'characters',
       'adventures',
       'notes',
+      'visions',
     ])
-    expect(parkedLocations(false).map(({ id }) => id)).toEqual(['visions', 'settings'])
+    expect(parkedLocations(false).map(({ id }) => id)).toEqual(['settings'])
     expect(parkedLocations(true)).toEqual([])
   })
 
@@ -157,7 +159,7 @@ describe('map table', () => {
 })
 
 describe('shrine stone', () => {
-  it('is the Visions destination for campaign owners only, until the player view arrives', () => {
+  it('is the Visions destination for every member', () => {
     expect(campLocations.find(({ id }) => id === 'visions')).toEqual({
       id: 'visions',
       label: 'Visions',
@@ -166,11 +168,12 @@ describe('shrine stone', () => {
       hit: { width: 40, height: 46 },
       plate: 'above',
       plateAlign: 'center',
-      ownerOnly: true,
+      ownerOnly: false,
     })
     expect(shrineStone.id).toBe('shrine-stone')
+    expect(shrineStoneLit).toBe('shrine-stone-lit')
     expect(resolveLocation('visions', true)?.id).toBe('visions')
-    expect(resolveLocation('visions', false)).toBeNull()
+    expect(resolveLocation('visions', false)?.id).toBe('visions')
   })
 
   it('stands between the last bedroll and the map table without covering either', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   embers,
+  shrineGlow,
   firelight,
   flame,
   flameBase,
@@ -14,6 +15,7 @@ import {
   type FxArea,
   type FxRect,
 } from './campFx'
+import { shrineStone } from './campLayout'
 import type { CampKind } from './campPalette'
 import { masterColors, masterFixed } from './masterPalette'
 
@@ -75,6 +77,28 @@ describe('fire', () => {
   it('draws only master palette colours', () => {
     const rects = [...flame(4, 0.5), ...firelight(4), ...embers(4), ...smoke(4)]
     expect(everyColourIsMaster(rects)).toBe(true)
+  })
+})
+
+describe('shrine glow', () => {
+  it('keeps a few warm motes above the stone, in master palette colours', () => {
+    for (const tick of [0, 9, 31]) {
+      const motes = shrineGlow(tick)
+      expect(motes.length).toBeGreaterThan(2)
+      for (const mote of motes) {
+        expect(Math.abs(mote.x - shrineStone.x)).toBeLessThan(12)
+        expect(mote.y).toBeLessThan(shrineStone.y)
+        expect(mote.y).toBeGreaterThan(shrineStone.y - 60)
+        expect(mote.alpha ?? 1).toBeGreaterThan(0)
+      }
+      expect(everyColourIsMaster(motes)).toBe(true)
+    }
+  })
+
+  it('moves with the tick, and stands still when motion is reduced', () => {
+    expect(shrineGlow(0)).not.toEqual(shrineGlow(11))
+    expect(shrineGlow(0, true)).toEqual(shrineGlow(11, true))
+    expect(shrineGlow(0, true).length).toBe(shrineGlow(0).length)
   })
 })
 

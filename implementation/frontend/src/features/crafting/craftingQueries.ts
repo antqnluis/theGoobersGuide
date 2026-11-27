@@ -1,4 +1,6 @@
 import {
+  getCharacterVisions,
+  getLastRest,
   getLibraryContent,
   listCampaignLibraries,
   listImports,
@@ -60,13 +62,40 @@ export function libraryImportsOptions(libraryId: string, userId: string, enabled
 
 /**
  * Everything a character's visions read from, for any user. Inventory edits invalidate it, so
- * counts and still to pay follow the inventory (plan W11). Nothing reads it before Phase 4.
+ * counts and still to pay follow the inventory (plan W11).
  */
+/** Every character's visions, for a rest that reaches the whole table. */
+export const allVisionsPrefix = ['campaigns', 'crafting', 'visions'] as const
+
 export const visionsPrefix = (characterId: string) =>
   ['campaigns', 'crafting', 'visions', characterId] as const
 
 export const visionsKey = (characterId: string, userId: string) =>
   ['campaigns', 'crafting', 'visions', characterId, userId] as const
+
+/** One character's visions; `enabled` waits for the camp and for the character. */
+export function visionsOptions(characterId: string, userId: string, enabled = true) {
+  return {
+    queryKey: visionsKey(characterId, userId),
+    queryFn: () => getCharacterVisions(characterId),
+    enabled: enabled && Boolean(characterId),
+    // Edits from another device show on refetch (plan C12).
+    refetchOnWindowFocus: true,
+  }
+}
+
+export const lastRestKey = (campaignId: string, userId: string) =>
+  ['campaigns', 'crafting', 'rest', campaignId, userId] as const
+
+/** The newest rest of the campaign, for the DM tab and for live refreshes. */
+export function lastRestOptions(campaignId: string, userId: string, enabled = true) {
+  return {
+    queryKey: lastRestKey(campaignId, userId),
+    queryFn: () => getLastRest(campaignId),
+    enabled,
+    refetchOnWindowFocus: true,
+  }
+}
 
 /** Catalogue suggestions for what a player is typing as an item's name. */
 export const suggestionsKey = (characterId: string, query: string) =>

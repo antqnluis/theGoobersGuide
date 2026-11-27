@@ -5,7 +5,7 @@
 // painted on a separate canvas above the art, so the art's own colours stay
 // exactly on the master palette.
 
-import { firePit } from './campLayout'
+import { firePit, shrineStone } from './campLayout'
 import type { CampKind } from './campPalette'
 import { masterFixed } from './masterPalette'
 
@@ -111,6 +111,33 @@ export function embers(tick: number, flare = 0): FxRect[] {
       h: 1,
       color: progress < 0.35 ? fire[3] : progress < 0.7 ? fire[2] : fire[1],
       alpha: 1 - progress ** 2,
+    })
+  }
+  return rects
+}
+
+const shrineMotes = 6
+
+/**
+ * A few ember motes that rise from the shrine stone while the viewer has new visions waiting.
+ * With `settled` (reduced motion) the motes stand still, so the glow stays but nothing moves.
+ */
+export function shrineGlow(tick: number, settled = false): FxRect[] {
+  const rects: FxRect[] = []
+  for (let index = 0; index < shrineMotes; index += 1) {
+    const period = 40 + Math.floor(hash01(index, 11) * 20)
+    const age = settled
+      ? Math.floor(period / 3)
+      : (tick + Math.floor(hash01(index, 12) * period)) % period
+    const progress = age / period
+    const sway = settled ? 0 : Math.round(Math.sin((age + index * 3) / 5) * 2)
+    rects.push({
+      x: shrineStone.x + Math.round((hash01(index, 13) - 0.5) * 12) + sway,
+      y: shrineStone.y - 22 - Math.round(progress * 22),
+      w: 1,
+      h: 1,
+      color: progress < 0.5 ? fire[3] : fire[2],
+      alpha: settled ? 0.8 : 1 - progress ** 2,
     })
   }
   return rects

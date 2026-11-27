@@ -8,7 +8,7 @@ import type { CharacterConfirmation } from '../characters/CharacterStatusControl
 import { useCharacterActions } from '../characters/useCharacterActions'
 import { CampAdventures, type AdventureScreen } from '../adventures/CampAdventures'
 import { CampVisions } from '../crafting/CampVisions'
-import { craftingPrefix } from '../crafting/craftingQueries'
+import { craftingPrefix, visionsOptions } from '../crafting/craftingQueries'
 import {
   adventuresKey,
   adventuresOptions,
@@ -149,6 +149,20 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       Boolean(campaignId) && Boolean(userId) && Boolean(campaignQuery.data),
     ),
   )
+  // The shrine glows and the Places entry counts what the viewer's active character has new.
+  // Read when the camp opens, kept live by useCampaignLive, and refetched on focus. A failed
+  // read shows no count.
+  const activeCharacterId =
+    (charactersQuery.data ?? []).find(
+      (character) => character.owner_id === userId && character.status === 'active',
+    )?.id ?? ''
+  const visionsQuery = useQuery(
+    visionsOptions(activeCharacterId, userId, Boolean(userId) && Boolean(campaignQuery.data)),
+  )
+  const newVisionCount = visionsQuery.data
+    ? visionsQuery.data.visions.filter((vision) => vision.new).length +
+      visionsQuery.data.fragments.filter((fragment) => fragment.new).length
+    : 0
   const overviewQuery = useQuery(
     overviewOptions(
       campaignId,
@@ -366,7 +380,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
         notes: noteDirty || npcDirty,
         adventures: adventureDirty,
       }}
-      waiting={{ adventures: requestCount.data ?? 0 }}
+      waiting={{ adventures: requestCount.data ?? 0, visions: newVisionCount }}
       onDestinationChange={(id) => {
         if (id === 'adventures') {
           if (adventuresOpened) {
@@ -623,6 +637,7 @@ function CampaignWorkspace({ campaignId }: { campaignId: string }) {
       visions={
         <CampVisions
           campaignId={campaignId}
+          characters={charactersQuery.data ?? []}
           enabled={visionsOpened}
           isOwner={isOwner}
           onNotice={toasts.push}
