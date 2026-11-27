@@ -131,3 +131,44 @@ Not run: `npm run test:e2e`, the camp-scene specs, the rest of `test:local-supab
 | `npx playwright test` on the crafting, inventory, characters, imports, membership, and handoffs specs | Passed: 142 tests              |
 
 Not run: `npm run test:e2e`, the camp-scene specs, and the rest of `test:local-supabase` (notes, adventures, dice, live, appearance, sprite, galaxy). The item form was not opened in a browser.
+
+## Phase 4: Rests and visions (2026-11-27)
+
+### What was added
+
+- Migration `20261127120000_add_long_rests_and_visions.sql`:
+  - `crafting_rests` (members read, inserts published to Realtime, newest 50 kept per campaign), and `character_visions` and `character_saved_recipes` with RLS on and **no grants for any role** (C7).
+  - Private helpers: `crafting_held` (the one definition of "holding", C4), `crafting_rest_characters` (active characters of current members, W12), and `crafting_classify` (vision or fragment per character and recipe, W2, W10, W15).
+  - `call_long_rest`, `get_character_visions`, `save_vision`, `unsave_vision` (§3.5, §3.6).
+  - `search_crafting_items` replaced: it now also offers the outputs of the character's current visions and saved recipes (C9). Fragments' outputs stay hidden.
+  - `delete_crafting_library` replaced: `saved` now counts saved recipes.
+- Regenerated `src/types/database.ts`.
+- `e2e/local-supabase-crafting.spec.ts` grew from 30 to 55 tests (privileges, rests, visions and fragments, saved visions, disable and delete, hidden tables, and a rest over 1,900 recipes and six characters).
+
+### Decisions made while building
+
+- **`call_long_rest` and `get_character_visions` return one extra field each: `library_count`.** It is the number of libraries enabled on the campaign. Phase 5 needs it to tell "no library yet" from "nothing stirred" (§6.2) without any table access. It reveals no catalogue data.
+- **Cooldown uses `clock_timestamp()`**, and the rest records `clock_timestamp()` as `called_at`, so a second rest that waited on the advisory lock still sees the first one. Tests move earlier rests back in time instead of waiting 30 seconds.
+- **One statement applies a rest.** A data-modifying CTE drops the rows no longer revealed and upserts the rest from the same classification, so no temporary table is needed.
+- **A rest never deletes rows of a disabled library** and never touches characters it doesn't cover (C5, W12). Re-enabling brings them back unchanged.
+- **Ordering in `get_character_visions`:** visions and saved recipes by "new" first, then output name. Fragments by "new" first, then the held names. A saved recipe that is also a current vision appears in `visions` with `saved: true`, and in `saved` only when no vision row currently reveals it.
+- A saved recipe may also have a fragment row (it dropped back). Both are shown. Not worth special handling.
+- `save_vision` requires a current vision of an enabled library, and takes the character row `FOR NO KEY UPDATE` so the 200 cap holds under concurrent saves. `unsave_vision` always works for the owner.
+
+### Plan deviations
+
+Only `library_count` above. Nothing else differs from §3 and §4.
+
+### Verification (from `implementation/frontend` unless noted)
+
+| Command                                                                                                | Result                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run db:migrate` and `npm run db:types` (backend)                                                  | Applied and regenerated                                                                                                                                             |
+| `npm run lint`, `npm run format:check`, `npm run build`                                                | Passed                                                                                                                                                              |
+| `npm test`                                                                                             | Passed: 136 files, 2,161 tests (no frontend code changed)                                                                                                           |
+| `npx playwright test e2e/local-supabase-crafting.spec.ts`                                              | Passed: 55 tests                                                                                                                                                    |
+| `npx playwright test` on the inventory, characters, imports, membership, and handoffs specs            | 111 passed, 1 failed: the inventory UI test "a player adds coins and an item in the tent" failed once and passed when rerun alone (a timing flake in a browser test) |
+
+Not run: `npm run test:e2e`, the camp-scene specs, and the rest of `test:local-supabase` (notes, adventures, dice, live, appearance, sprite, galaxy). Nothing in this phase touches them.
+
+Not tested: a rest racing a member's departure and a rest racing an import. Both rely on the locks in §5.2 (campaign `FOR SHARE`, libraries `FOR SHARE`, the import's `FOR UPDATE`), which the spec doesn't exercise. Realtime delivery of `crafting_rests` is checked only as publication membership; Phase 5's live refresh covers delivery.

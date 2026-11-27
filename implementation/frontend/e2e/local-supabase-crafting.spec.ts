@@ -11,9 +11,10 @@ import {
   type Player,
 } from './support/localPlayers.ts'
 
-// M04 Phases 1 and 3: the crafting catalogue (libraries, items, recipes, the pack import, and the
-// campaign links, and the inventory links and suggestions of Phase 3) against the real local stack.
-// The plan is §2, §3, §5, and §8.1. The long rest and visions arrive in Phase 4 and are tested then.
+// M04 Phases 1, 3, and 4: the crafting catalogue (libraries, items, recipes, the pack import, and
+// the campaign links), the inventory links and suggestions of Phase 3, and the long rest, visions,
+// fragments, and saved visions of Phase 4, against the real local stack. The plan is §2 to §5 and
+// §8.1.
 
 const ROLES = ['anon', 'authenticated', 'service_role', 'public']
 const FORMAT = 'the-goobers-guide-crafting-pack'
@@ -1723,6 +1724,1166 @@ test.describe('search_crafting_items', () => {
     })
     await invite(dm, campaignId, player)
     expect(((await search(player, characterId, 'wyvern')).data as unknown[]).length).toBe(2)
+    await cleanup(players, [campaignId])
+  })
+})
+
+// --- Phase 4: long rests, visions, fragments, and saved visions -----------------------------------
+
+type Line = {
+  role: string
+  item_id: string
+  name: string
+  rarity: string
+  value_cp: number
+  need: number
+  have: number
+}
+type Card = {
+  recipe_id: string
+  new: boolean
+  saved: boolean
+  output: Record<string, unknown> & { name: string }
+  lines: Line[]
+  crafting_cost_cp: number
+  workdays: number
+  tools: string[]
+  requirements: string | null
+  check: { skill: string; dc: number } | null
+  notes: string | null
+}
+type Fragment = { id: string; new: boolean; held: string[]; missing: number }
+type Visions = {
+  last_rest_at: string | null
+  library_count: number
+  visions: Card[]
+  fragments: Fragment[]
+  saved: Card[]
+}
+type Rest = { rest_id: string; called_at: string; character_count: number; library_count: number }
+
+/** The cooldown is 30 seconds (C13), so tests move earlier rests back before calling another. */
+function backdateRests(campaignId: string) {
+  localDatabaseQuery(
+    `update public.crafting_rests set called_at = called_at - interval '10 minutes'
+     where campaign_id = '${campaignId}';`,
+    {},
+  )
+}
+
+function restCall(dm: Player, campaignId: string) {
+  return dm.client.rpc('call_long_rest', { p_campaign_id: campaignId })
+}
+
+async function callRest(dm: Player, campaignId: string) {
+  backdateRests(campaignId)
+  const { data, error } = await restCall(dm, campaignId)
+  expect(error?.message ?? null).toBeNull()
+  return data as unknown as Rest
+}
+
+async function visionsOf(player: Player, characterId: string) {
+  const { data, error } = await player.client.rpc('get_character_visions', {
+    p_character_id: characterId,
+  })
+  expect(error?.message ?? null).toBeNull()
+  return data as unknown as Visions
+}
+
+const outputNames = (cards: Card[]) => cards.map((card) => card.output.name)
+
+function setQuantity(player: Player, characterId: string, name: string, quantity: number) {
+  return player.client
+    .from('character_items')
+    .update({ quantity })
+    .eq('character_id', characterId)
+    .eq('name', name)
+}
+
+/** A two-key recipe: the Wyvern Fang and a Basilisk Eye make a Gaze Amulet. */
+const gazeAmulet = (): Json =>
+  pack({
+    items: [
+      item('basilisk-eye', 'Basilisk Eye', { value_gp: 60 }),
+      item('gaze-amulet', 'Gaze Amulet', {
+        category: 'wondrous',
+        rarity: 'rare',
+        value_gp: 900,
+        description: 'Stares back.',
+      }),
+    ],
+    recipes: [
+      {
+        id: 'gaze-amulet',
+        output: { item: 'gaze-amulet', quantity: 1 },
+        key_materials: [
+          { item: 'wyvern-fang', quantity: 1 },
+          { item: 'basilisk-eye', quantity: 1 },
+        ],
+        crafting_cost_gp: 100,
+        workdays: 20,
+      },
+    ],
+  })
+
+test.describe('rests and visions: privileges', () => {
+  test('tables, policies, publication, and function privileges are exactly the planned set', () => {
+    for (const table of ['crafting_rests', 'character_visions', 'character_saved_recipes']) {
+      expect(
+        localDatabaseQuery(
+          `select relrowsecurity from pg_class where oid = 'public.${table}'::regclass;`,
+          {},
+        ),
+        `${table} RLS`,
+      ).toBe('t')
+      for (const privilege of ['insert', 'update', 'delete', 'truncate', 'references', 'trigger']) {
+        expect(
+          holders((r) => `has_table_privilege(${r}, 'public.${table}', '${privilege}')`),
+          `${table} ${privilege}`,
+        ).toBe('')
+      }
+    }
+    // Rests are readable by members (policy below); visions and saved recipes by nobody (C7).
+    expect(holders((r) => `has_table_privilege(${r}, 'public.crafting_rests', 'select')`)).toBe(
+      'authenticated',
+    )
+    for (const table of ['character_visions', 'character_saved_recipes']) {
+      expect(
+        holders((r) => `has_table_privilege(${r}, 'public.${table}', 'select')`),
+        `${table} select`,
+      ).toBe('')
+      expect(columnsWith(table, 'authenticated', 'select'), `${table} columns`).toBe('')
+    }
+
+    const policies = (table: string) =>
+      localDatabaseQuery(
+        `select coalesce(string_agg(policyname || ':' || cmd, ' | ' order by policyname), '')
+         from pg_policies where schemaname = 'public' and tablename = '${table}';`,
+        {},
+      )
+    expect(policies('crafting_rests')).toBe("Members read their campaign's rests:SELECT")
+    expect(policies('character_visions')).toBe('')
+    expect(policies('character_saved_recipes')).toBe('')
+
+    // Only inserts are published, and the select policy filters who receives them (C12).
+    expect(
+      localDatabaseQuery(
+        `select count(*) from pg_publication_tables
+         where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'crafting_rests';`,
+        {},
+      ),
+    ).toBe('1')
+    expect(
+      localDatabaseQuery(
+        `select relreplident::text from pg_class where oid = 'public.crafting_rests'::regclass;`,
+        {},
+      ),
+    ).toBe('d')
+
+    const executable = (signature: string) =>
+      holders((r) => `has_function_privilege(${r}, '${signature}', 'execute')`)
+    for (const signature of [
+      'public.call_long_rest(uuid)',
+      'public.get_character_visions(uuid)',
+      'public.save_vision(uuid, uuid)',
+      'public.unsave_vision(uuid, uuid)',
+    ]) {
+      expect(executable(signature), signature).toBe('authenticated')
+      expect(
+        localDatabaseQuery(
+          `select p.prosecdef::text || ':' || coalesce(array_to_string(p.proconfig, ','), '')
+           from pg_proc as p where p.oid = '${signature}'::regprocedure;`,
+          {},
+        ),
+        signature,
+      ).toBe('true:search_path=""')
+    }
+    for (const signature of [
+      'private.crafting_held(uuid, uuid)',
+      'private.crafting_rest_characters(uuid)',
+      'private.crafting_classify(uuid)',
+    ]) {
+      expect(executable(signature), signature).toBe('')
+    }
+
+    // Deleting a rest keeps the visions it revealed; deleting a campaign, character, or recipe
+    // removes theirs.
+    expect(
+      localDatabaseQuery(
+        `select string_agg(conrelid::regclass::text || '.' || conname || ':' || confdeltype::text, ',' order by conname)
+         from pg_constraint
+         where contype = 'f' and conrelid in (
+           'public.character_visions'::regclass, 'public.character_saved_recipes'::regclass,
+           'public.crafting_rests'::regclass);`,
+        {},
+      ),
+    ).toBe(
+      [
+        'character_saved_recipes.character_saved_recipes_character_id_fkey:c',
+        'character_saved_recipes.character_saved_recipes_recipe_id_fkey:c',
+        'character_visions.character_visions_character_id_fkey:c',
+        'character_visions.character_visions_new_in_rest_id_fkey:n',
+        'character_visions.character_visions_recipe_id_fkey:c',
+        'crafting_rests.crafting_rests_called_by_fkey:n',
+        'crafting_rests.crafting_rests_campaign_id_fkey:c',
+      ].join(','),
+    )
+  })
+
+  test('every function rejects a signed-out call, and null arguments', async () => {
+    const { players } = await newPlayers(['a'])
+    const anon = (await import('./support/localSupabase.ts')).localClient()
+    for (const [name, args] of [
+      ['call_long_rest', { p_campaign_id: RANDOM_ID }],
+      ['get_character_visions', { p_character_id: RANDOM_ID }],
+      ['save_vision', { p_character_id: RANDOM_ID, p_recipe_id: RANDOM_ID }],
+      ['unsave_vision', { p_character_id: RANDOM_ID, p_recipe_id: RANDOM_ID }],
+    ] as const) {
+      const { error } = await anon.rpc(name as never, args as never)
+      expect(error, name).not.toBeNull()
+    }
+    const { a } = players
+    for (const [name, args] of [
+      ['call_long_rest', { p_campaign_id: null }],
+      ['get_character_visions', { p_character_id: null }],
+      ['save_vision', { p_character_id: null, p_recipe_id: RANDOM_ID }],
+      ['save_vision', { p_character_id: RANDOM_ID, p_recipe_id: null }],
+      ['unsave_vision', { p_character_id: null, p_recipe_id: RANDOM_ID }],
+    ] as const) {
+      expect(await rpcError(a.client.rpc(name as never, args as never)), name).toMatchObject({
+        code: '22023',
+      })
+    }
+  })
+})
+
+test.describe('call_long_rest', () => {
+  test('only the campaign owner can call it, and it returns no per-character data', async () => {
+    const { dm, player, other, characterId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Fang')
+
+    // A member who isn't the owner, a stranger, and an unknown campaign.
+    expect(await rpcError(restCall(player, campaignId))).toEqual({
+      code: '42501',
+      message: 'crafting_campaign_owner_required',
+    })
+    const stranger = (await newPlayers(['stranger'])).players.stranger
+    for (const caller of [stranger, dm]) {
+      const campaign = caller === dm ? RANDOM_ID : campaignId
+      expect(await rpcError(restCall(caller, campaign))).toEqual({
+        code: 'P0001',
+        message: 'campaign_unavailable',
+      })
+    }
+    expect(other.id).toBeTruthy()
+
+    const rest = await callRest(dm, campaignId)
+    expect(Object.keys(rest).sort()).toEqual([
+      'called_at',
+      'character_count',
+      'library_count',
+      'rest_id',
+    ])
+    expect(rest.character_count).toBe(1)
+    expect(rest.library_count).toBe(1)
+    await cleanup({ ...players, stranger }, [campaignId])
+  })
+
+  test('a rest within 30 seconds of the last is refused, and a rest with no libraries is fine', async () => {
+    const { dm, campaignId, libraryId, players } = await craftingTable()
+    await rpcOk(enable(dm, campaignId, libraryId, false))
+    const first = await callRest(dm, campaignId)
+    expect(first).toMatchObject({ character_count: 1, library_count: 0 })
+    expect(await rpcError(restCall(dm, campaignId))).toEqual({
+      code: 'P0001',
+      message: 'crafting_rest_too_soon',
+    })
+    backdateRests(campaignId)
+    expect((await restCall(dm, campaignId)).error).toBeNull()
+    await cleanup(players, [campaignId])
+  })
+
+  test('two simultaneous rests give one success and one cooldown', async () => {
+    const { dm, campaignId, players } = await craftingTable()
+    const results = await Promise.all([restCall(dm, campaignId), restCall(dm, campaignId)])
+    const failures = results.filter((result) => result.error)
+    expect(results.filter((result) => !result.error)).toHaveLength(1)
+    expect(failures).toHaveLength(1)
+    expect(failures[0].error?.message).toBe('crafting_rest_too_soon')
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.crafting_rests where campaign_id = '${campaignId}';`,
+        {},
+      ),
+    ).toBe('1')
+    await cleanup(players, [campaignId])
+  })
+
+  test('members read their campaign’s rests, nobody else does, and nobody writes them', async () => {
+    const { dm, player, characterId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Fang')
+    const rest = await callRest(dm, campaignId)
+    const stranger = (await newPlayers(['stranger'])).players.stranger
+
+    for (const member of [dm, player]) {
+      const { data, error } = await member.client.from('crafting_rests').select('*')
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+      expect(Object.keys(data![0]).sort()).toEqual([
+        'called_at',
+        'called_by',
+        'campaign_id',
+        'character_count',
+        'id',
+      ])
+      expect(data![0]).toMatchObject({ id: rest.rest_id, character_count: 1 })
+    }
+    expect((await stranger.client.from('crafting_rests').select('*')).data).toEqual([])
+    for (const writer of [dm, player, stranger]) {
+      expect(
+        (
+          await writer.client
+            .from('crafting_rests')
+            .insert({ campaign_id: campaignId, character_count: 5 } as never)
+        ).error?.code,
+      ).toBe('42501')
+      expect(
+        (await writer.client.from('crafting_rests').delete().eq('id', rest.rest_id)).error?.code,
+      ).toBe('42501')
+    }
+    await cleanup({ ...players, stranger }, [campaignId])
+  })
+
+  test('the history keeps the newest 50 rests per campaign', async () => {
+    const { dm, campaignId, players } = await craftingTable()
+    for (let index = 0; index < 52; index += 1) {
+      localDatabaseQuery(
+        `insert into public.crafting_rests (campaign_id, called_by, called_at)
+         values ('${campaignId}', null, now() - interval '1 day' - (${index} || ' minutes')::interval);`,
+        {},
+      )
+    }
+    await callRest(dm, campaignId)
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.crafting_rests where campaign_id = '${campaignId}';`,
+        {},
+      ),
+    ).toBe('50')
+    // The newest one (just called) survived.
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.crafting_rests
+         where campaign_id = '${campaignId}' and called_at > now() - interval '1 hour';`,
+        {},
+      ),
+    ).toBe('1')
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('visions and fragments', () => {
+  test('the §2.6 scenario: two visions with their lines and costs, and nothing about the blade', async () => {
+    const { player, dm, characterId, itemIds, campaignId, players } = await craftingTable()
+
+    // Before any rest: nothing, and the guide knows no rest has happened.
+    expect(await visionsOf(player, characterId)).toEqual({
+      last_rest_at: null,
+      library_count: 1,
+      visions: [],
+      fragments: [],
+      saved: [],
+    })
+
+    // One linked fang and one unlinked gland (found by name, ignoring case and edge spaces).
+    await addItem(player, characterId, 'Fang', { crafting_item_id: itemIds['wyvern-fang'] })
+    await addItem(player, characterId, 'wyvern POISON gland')
+    // Holding something doesn't reveal anything until the DM calls the rest (W3).
+    expect((await visionsOf(player, characterId)).visions).toEqual([])
+
+    const rest = await callRest(dm, campaignId)
+    const doc = await visionsOf(player, characterId)
+    expect(new Date(doc.last_rest_at!).getTime()).toBe(new Date(rest.called_at).getTime())
+    expect(outputNames(doc.visions)).toEqual(['Venom Blade Oil', 'Wyvern Fang Dagger'])
+    expect(doc.fragments).toEqual([])
+    expect(doc.saved).toEqual([])
+    expect(doc.visions.map((card) => [card.new, card.saved])).toEqual([
+      [true, false],
+      [true, false],
+    ])
+
+    const [oil, dagger] = doc.visions
+    expect(oil.output).toEqual({
+      name: 'Venom Blade Oil',
+      category: 'potion',
+      rarity: 'uncommon',
+      value_cp: 15000,
+      weight: null,
+      consumable: true,
+      attunement: null,
+      description: 'Coat one weapon or three pieces of ammunition.',
+      quantity: 1,
+    })
+    expect(oil.lines).toEqual([
+      {
+        role: 'key',
+        item_id: itemIds['wyvern-poison-gland'],
+        name: 'Wyvern Poison Gland',
+        rarity: 'uncommon',
+        value_cp: 5000,
+        need: 1,
+        have: 1,
+      },
+      {
+        role: 'other',
+        item_id: itemIds['alchemical-base'],
+        name: 'Alchemical Base',
+        rarity: 'common',
+        value_cp: 500,
+        need: 2,
+        have: 0,
+      },
+    ])
+    expect(oil).toMatchObject({
+      crafting_cost_cp: 4000,
+      workdays: 5,
+      tools: ["Poisoner's Kit"],
+      requirements: null,
+      check: null,
+      notes: null,
+    })
+
+    expect(dagger.lines.map((line) => [line.role, line.name, line.need, line.have])).toEqual([
+      ['key', 'Wyvern Fang', 2, 1],
+      ['other', 'Wyvern Poison Gland', 1, 1],
+    ])
+    expect(dagger).toMatchObject({
+      crafting_cost_cp: 7000,
+      workdays: 10,
+      tools: ["Smith's Tools"],
+      requirements: 'Proficiency in Arcana.',
+      check: { skill: 'Arcana', dc: 15 },
+    })
+
+    // Only the planned fields, never a slug, tag, source, harvest datum, or DM note (C16).
+    expect(Object.keys(dagger).sort()).toEqual([
+      'check',
+      'crafting_cost_cp',
+      'lines',
+      'new',
+      'notes',
+      'output',
+      'recipe_id',
+      'requirements',
+      'saved',
+      'tools',
+      'workdays',
+    ])
+    expect(Object.keys(dagger.output).sort()).toEqual([
+      'attunement',
+      'category',
+      'consumable',
+      'description',
+      'name',
+      'quantity',
+      'rarity',
+      'value_cp',
+      'weight',
+    ])
+    const text = JSON.stringify(doc)
+    for (const secret of [
+      'Wyrmfang',
+      'wyvern-',
+      'harvest',
+      'dm_notes',
+      'Hidden from players',
+      'Keep it from the first tier',
+      'tags',
+      'Medicine',
+    ]) {
+      expect(text, secret).not.toContain(secret)
+    }
+    await cleanup(players, [campaignId])
+  })
+
+  test('counts follow the inventory at once, but which recipes show changes only at a rest', async () => {
+    const { player, dm, characterId, itemIds, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await callRest(dm, campaignId)
+    const haveBase = async () =>
+      (await visionsOf(player, characterId)).visions[0].lines.find((line) => line.role === 'other')
+        ?.have
+
+    expect(await haveBase()).toBe(0)
+    await addItem(player, characterId, 'Alchemical Base', { quantity: 2 })
+    expect(await haveBase()).toBe(2)
+    // A second row of the same material, linked, adds up with the first.
+    await addItem(player, characterId, 'Flask of base', {
+      crafting_item_id: itemIds['alchemical-base'],
+      quantity: 3,
+    })
+    expect(await haveBase()).toBe(5)
+
+    // A fang now doesn't show its recipe until the next rest.
+    await addItem(player, characterId, 'Wyvern Fang')
+    expect(outputNames((await visionsOf(player, characterId)).visions)).toEqual(['Venom Blade Oil'])
+    await callRest(dm, campaignId)
+    // The dagger is new at this rest, so it is listed ahead of the older oil.
+    expect(outputNames((await visionsOf(player, characterId)).visions)).toEqual([
+      'Wyvern Fang Dagger',
+      'Venom Blade Oil',
+    ])
+    // Losing the gland changes the counts at once; the oil stays until a rest hides it.
+    await setQuantity(player, characterId, 'Wyvern Poison Gland', 0)
+    const doc = await visionsOf(player, characterId)
+    expect(outputNames(doc.visions)).toEqual(['Wyvern Fang Dagger', 'Venom Blade Oil'])
+    expect(doc.visions[1].lines[0].have).toBe(0)
+    await callRest(dm, campaignId)
+    expect(outputNames((await visionsOf(player, characterId)).visions)).toEqual([
+      'Wyvern Fang Dagger',
+    ])
+    await cleanup(players, [campaignId])
+  })
+
+  test('what counts as holding: links, exact names, quantities, rows added together, zero ignored', async () => {
+    const { player, dm, characterId, itemIds, campaignId, libraryId, players } =
+      await craftingTable()
+    // A second library with an item that happens to share a name with the first library's fang.
+    const second = await newLibrary(dm, 'Second')
+    await importOk(dm, second, pack({ items: [item('decoy', 'Decoy')] }))
+    await rpcOk(enable(dm, campaignId, second))
+    const decoy = (await itemRows(dm, second))[0].id as string
+
+    // Not holding: a near miss, a used-up fang (0), and a row named "Wyvern Fang" but linked to
+    // another item (a linked row counts only for its link).
+    await addItem(player, characterId, 'Wyvern Fangs')
+    await addItem(player, characterId, 'Wyvern Fang', { quantity: 0 })
+    await addItem(player, characterId, 'wyvern fang', { crafting_item_id: decoy })
+    await callRest(dm, campaignId)
+    let doc = await visionsOf(player, characterId)
+    expect(doc.visions).toEqual([])
+    expect(doc.fragments).toEqual([])
+
+    // Holding: an unlinked row by exact name ignoring case, and a differently named linked row.
+    await addItem(player, characterId, 'WYVERN FANG', { quantity: 1 })
+    await addItem(player, characterId, 'Spiky tooth', {
+      crafting_item_id: itemIds['wyvern-fang'],
+      quantity: 4,
+    })
+    await callRest(dm, campaignId)
+    doc = await visionsOf(player, characterId)
+    expect(outputNames(doc.visions)).toEqual(['Wyvern Fang Dagger'])
+    expect(doc.visions[0].lines[0]).toMatchObject({ name: 'Wyvern Fang', need: 2, have: 5 })
+
+    // A link into a library that is later disabled stops counting, and does not fall back to
+    // the name (C5).
+    await rpcOk(enable(dm, campaignId, libraryId, false))
+    expect(await visionsOf(player, characterId)).toMatchObject({
+      library_count: 1,
+      visions: [],
+      fragments: [],
+      saved: [],
+    })
+    await cleanup(players, [campaignId])
+  })
+
+  test('a fragment names only the held key materials and counts the rest', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await importOk(dm, libraryId, gazeAmulet())
+    await addItem(player, characterId, 'Wyvern Fang')
+    await callRest(dm, campaignId)
+
+    const doc = await visionsOf(player, characterId)
+    // The fang is also a single key of the dagger, so that one is a full vision.
+    expect(outputNames(doc.visions)).toEqual(['Wyvern Fang Dagger'])
+    expect(doc.fragments).toHaveLength(1)
+    const [fragment] = doc.fragments
+    expect(Object.keys(fragment).sort()).toEqual(['held', 'id', 'missing', 'new'])
+    expect(fragment).toMatchObject({ new: true, held: ['Wyvern Fang'], missing: 1 })
+    expect(fragment.id).toMatch(/^[0-9a-f-]{36}$/)
+    // Nothing about the output, the other materials, or the costs leaves the database (W15).
+    const text = JSON.stringify(doc.fragments)
+    for (const secret of ['Gaze', 'Amulet', 'Basilisk', 'Stares', '9000', '100', 'wondrous']) {
+      expect(text, secret).not.toContain(secret)
+    }
+    // A single key material never makes a fragment.
+    expect(
+      doc.fragments.every((entry) => entry.held.length + entry.missing >= 2),
+      'fragments need at least two key materials',
+    ).toBe(true)
+    await cleanup(players, [campaignId])
+  })
+
+  test('a fragment becomes a new vision at the next rest, then ages, and can drop back', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await importOk(dm, libraryId, gazeAmulet())
+    await addItem(player, characterId, 'Wyvern Fang')
+    await callRest(dm, campaignId)
+    expect((await visionsOf(player, characterId)).fragments[0].new).toBe(true)
+
+    // The second key arrives: the fragment is replaced by a vision that counts as new (W17).
+    await addItem(player, characterId, 'Basilisk Eye')
+    expect((await visionsOf(player, characterId)).fragments).toHaveLength(1)
+    await callRest(dm, campaignId)
+    let doc = await visionsOf(player, characterId)
+    expect(doc.fragments).toEqual([])
+    expect(doc.visions.map((card) => [card.output.name, card.new])).toEqual([
+      ['Gaze Amulet', true],
+      ['Wyvern Fang Dagger', false],
+    ])
+    expect(doc.visions[0].lines.map((line) => [line.name, line.need, line.have])).toEqual([
+      ['Wyvern Fang', 1, 1],
+      ['Basilisk Eye', 1, 1],
+    ])
+
+    // The next rest: nothing is new any more.
+    await callRest(dm, campaignId)
+    doc = await visionsOf(player, characterId)
+    expect(doc.visions.map((card) => card.new)).toEqual([false, false])
+
+    // Losing the eye drops the vision back to a fragment, which is not new (C11).
+    await setQuantity(player, characterId, 'Basilisk Eye', 0)
+    await callRest(dm, campaignId)
+    doc = await visionsOf(player, characterId)
+    expect(outputNames(doc.visions)).toEqual(['Wyvern Fang Dagger'])
+    expect(doc.fragments).toHaveLength(1)
+    expect(doc.fragments[0]).toMatchObject({ new: false, held: ['Wyvern Fang'], missing: 1 })
+
+    // Losing the fang too removes everything.
+    await setQuantity(player, characterId, 'Wyvern Fang', 0)
+    await callRest(dm, campaignId)
+    expect(await visionsOf(player, characterId)).toMatchObject({
+      visions: [],
+      fragments: [],
+    })
+    await cleanup(players, [campaignId])
+  })
+
+  test('a recipe re-imported with other key materials follows at the next rest, its lines at once', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await callRest(dm, campaignId)
+    expect(outputNames((await visionsOf(player, characterId)).visions)).toEqual(['Venom Blade Oil'])
+
+    // The oil now needs an Alchemical Base as its key instead of the gland.
+    const corrected = wyvern()
+    const recipes = corrected.recipes as Json[]
+    recipes[0].key_materials = [{ item: 'alchemical-base', quantity: 1 }]
+    recipes[0].materials = [{ item: 'wyvern-poison-gland', quantity: 1 }]
+    await importOk(dm, libraryId, corrected)
+    const live = (await visionsOf(player, characterId)).visions[0]
+    expect(live.lines.map((line) => [line.role, line.name])).toEqual([
+      ['key', 'Alchemical Base'],
+      ['other', 'Wyvern Poison Gland'],
+    ])
+    await callRest(dm, campaignId)
+    expect((await visionsOf(player, characterId)).visions).toEqual([])
+    await cleanup(players, [campaignId])
+  })
+
+  test('a rest covers active characters of current members only', async () => {
+    const { dm, player, other, characterId, campaignId, players } = await craftingTable()
+    const sidekick = await newCharacter(other, campaignId, 'Sidekick')
+    for (const [who, character] of [
+      [player, characterId],
+      [other, sidekick],
+    ] as const) {
+      await addItem(who, character, 'Wyvern Poison Gland')
+    }
+    expect((await callRest(dm, campaignId)).character_count).toBe(2)
+    for (const [who, character] of [
+      [player, characterId],
+      [other, sidekick],
+    ] as const) {
+      expect(outputNames((await visionsOf(who, character)).visions)).toEqual(['Venom Blade Oil'])
+    }
+
+    // A retired character keeps what it had, still reads it, and gains nothing (W12).
+    await rpcOk(
+      other.client.rpc('set_character_status', { p_character_id: sidekick, p_status: 'retired' }),
+    )
+    await addItem(other, sidekick, 'Wyvern Fang')
+    await setQuantity(other, sidekick, 'Wyvern Poison Gland', 0)
+    expect((await callRest(dm, campaignId)).character_count).toBe(1)
+    let doc = await visionsOf(other, sidekick)
+    expect(outputNames(doc.visions)).toEqual(['Venom Blade Oil'])
+    expect(doc.visions[0].lines[0].have).toBe(0)
+    expect(doc.fragments).toEqual([])
+
+    // Back to active: the next rest brings it up to date.
+    await rpcOk(
+      other.client.rpc('set_character_status', { p_character_id: sidekick, p_status: 'active' }),
+    )
+    expect((await callRest(dm, campaignId)).character_count).toBe(2)
+    doc = await visionsOf(other, sidekick)
+    expect(outputNames(doc.visions)).toEqual(['Wyvern Fang Dagger'])
+    expect(doc.visions[0].new).toBe(true)
+
+    // A deceased character is skipped as well.
+    await rpcOk(
+      other.client.rpc('set_character_status', { p_character_id: sidekick, p_status: 'deceased' }),
+    )
+    await setQuantity(other, sidekick, 'Wyvern Fang', 0)
+    expect((await callRest(dm, campaignId)).character_count).toBe(1)
+    expect(outputNames((await visionsOf(other, sidekick)).visions)).toEqual(['Wyvern Fang Dagger'])
+    await cleanup(players, [campaignId])
+  })
+
+  test('a departed player is not covered, reads nothing, and gets everything back on rejoining', async () => {
+    const { dm, player, other, characterId, campaignId, players } = await craftingTable()
+    const sidekick = await newCharacter(other, campaignId, 'Sidekick')
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await addItem(other, sidekick, 'Wyvern Poison Gland')
+    await callRest(dm, campaignId)
+
+    await rpcOk(other.client.rpc('leave_campaign', { p_campaign_id: campaignId }))
+    await setQuantity(other, sidekick, 'Wyvern Poison Gland', 0).then(() => undefined)
+    expect((await callRest(dm, campaignId)).character_count).toBe(1)
+    expect(
+      await rpcError(other.client.rpc('get_character_visions', { p_character_id: sidekick })),
+    ).toEqual({ code: 'P0001', message: 'character_unavailable' })
+
+    await invite(dm, campaignId, other)
+    // Their old visions are still there, because nothing touched them while they were away.
+    expect(outputNames((await visionsOf(other, sidekick)).visions)).toEqual(['Venom Blade Oil'])
+    await cleanup(players, [campaignId])
+  })
+
+  test('outputs of a character’s own visions and saved recipes join the item suggestions', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await importOk(dm, libraryId, gazeAmulet())
+    await addItem(player, characterId, 'Wyvern Fang')
+    const names = async (query: string) =>
+      ((await search(player, characterId, query)).data as Array<{ name: string }>).map(
+        (row) => row.name,
+      )
+
+    // Before a rest the upgrades stay hidden (C9).
+    expect(await names('dagger')).toEqual([])
+    await callRest(dm, campaignId)
+    // A vision's output is offered, with the player-facing fields only; a fragment's is not.
+    expect(await names('dagger')).toEqual(['Wyvern Fang Dagger'])
+    expect(await names('gaze')).toEqual([])
+    expect(await names('wyrmfang')).toEqual([])
+    const row = (
+      (await search(player, characterId, 'dagger')).data as Array<Record<string, unknown>>
+    )[0]
+    expect(Object.keys(row).sort()).toEqual([
+      'category',
+      'description',
+      'id',
+      'name',
+      'rarity',
+      'value_cp',
+      'weight',
+    ])
+
+    // A saved recipe keeps its output offered after the rest that hides the vision.
+    const card = (await visionsOf(player, characterId)).visions[0]
+    await rpcOk(
+      player.client.rpc('save_vision', {
+        p_character_id: characterId,
+        p_recipe_id: card.recipe_id,
+      }),
+    )
+    await setQuantity(player, characterId, 'Wyvern Fang', 0)
+    await callRest(dm, campaignId)
+    expect(await names('dagger')).toEqual(['Wyvern Fang Dagger'])
+    await rpcOk(
+      player.client.rpc('unsave_vision', {
+        p_character_id: characterId,
+        p_recipe_id: card.recipe_id,
+      }),
+    )
+    expect(await names('dagger')).toEqual([])
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('saved visions', () => {
+  async function withVision() {
+    const table = await craftingTable()
+    await importOk(table.dm, table.libraryId, gazeAmulet())
+    await addItem(table.player, table.characterId, 'Wyvern Fang')
+    await addItem(table.player, table.characterId, 'Wyvern Poison Gland')
+    await callRest(table.dm, table.campaignId)
+    const doc = await visionsOf(table.player, table.characterId)
+    const byName = Object.fromEntries(doc.visions.map((card) => [card.output.name, card]))
+    return { ...table, doc, byName }
+  }
+
+  function save(player: Player, characterId: string, recipeId: string) {
+    return player.client.rpc('save_vision', { p_character_id: characterId, p_recipe_id: recipeId })
+  }
+  function unsave(player: Player, characterId: string, recipeId: string) {
+    return player.client.rpc('unsave_vision', {
+      p_character_id: characterId,
+      p_recipe_id: recipeId,
+    })
+  }
+
+  test('saves a vision, once, and it survives the rest that hides it until it is removed', async () => {
+    const { player, dm, characterId, byName, campaignId, players } = await withVision()
+    const oil = byName['Venom Blade Oil']
+    const dagger = byName['Wyvern Fang Dagger']
+
+    await rpcOk(save(player, characterId, oil.recipe_id))
+    await rpcOk(save(player, characterId, oil.recipe_id))
+    let doc = await visionsOf(player, characterId)
+    expect(doc.visions.map((card) => [card.output.name, card.saved])).toEqual([
+      ['Venom Blade Oil', true],
+      ['Wyvern Fang Dagger', false],
+    ])
+    expect(doc.saved).toEqual([])
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.character_saved_recipes where character_id = '${characterId}';`,
+        {},
+      ),
+    ).toBe('1')
+
+    // Lose the gland and the fang: the rest hides the dagger and the oil's vision rows. The saved
+    // oil stays, with live counts, listed apart from the visions.
+    await setQuantity(player, characterId, 'Wyvern Poison Gland', 0)
+    await setQuantity(player, characterId, 'Wyvern Fang', 0)
+    await callRest(dm, campaignId)
+    doc = await visionsOf(player, characterId)
+    expect(doc.visions).toEqual([])
+    expect(doc.fragments).toEqual([])
+    expect(doc.saved).toHaveLength(1)
+    expect(doc.saved[0]).toMatchObject({ saved: true, new: false })
+    expect(doc.saved[0].output.name).toBe('Venom Blade Oil')
+    expect(doc.saved[0].lines.map((line) => line.have)).toEqual([0, 0])
+
+    // The saved oil can't be saved again as a vision it no longer is, but can be removed.
+    expect(await rpcError(save(player, characterId, dagger.recipe_id))).toEqual({
+      code: 'P0001',
+      message: 'vision_unavailable',
+    })
+    await rpcOk(unsave(player, characterId, oil.recipe_id))
+    await rpcOk(unsave(player, characterId, oil.recipe_id))
+    expect((await visionsOf(player, characterId)).saved).toEqual([])
+    await cleanup(players, [campaignId])
+  })
+
+  test('a fragment, an unknown recipe, and a hidden recipe can’t be saved', async () => {
+    const { player, characterId, libraryId, campaignId, dm, players } = await withVision()
+    const recipes = localDatabaseQuery(
+      `select string_agg(slug || ':' || id, ',') from public.crafting_recipes where library_id = '${libraryId}';`,
+      {},
+    )
+      .split(',')
+      .map((entry) => entry.split(':'))
+    const recipeId = Object.fromEntries(recipes)
+
+    // The amulet is a fragment (the fang only), the blade has not been revealed at all.
+    expect((await visionsOf(player, characterId)).fragments).toHaveLength(1)
+    for (const id of [recipeId['gaze-amulet'], recipeId['wyrmfang-blade'], RANDOM_ID]) {
+      expect(await rpcError(save(player, characterId, id)), id).toEqual({
+        code: 'P0001',
+        message: 'vision_unavailable',
+      })
+    }
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.character_saved_recipes where character_id = '${characterId}';`,
+        {},
+      ),
+    ).toBe('0')
+    expect(dm.id).toBeTruthy()
+    await cleanup(players, [campaignId])
+  })
+
+  test('only the character’s owner can save or remove, whatever the sheet visibility', async () => {
+    const { player, dm, other, characterId, byName, campaignId, players } = await withVision()
+    const oil = byName['Venom Blade Oil']
+    await player.client
+      .from('characters')
+      .update({ sheet_visibility: 'campaign' })
+      .eq('id', characterId)
+    await rpcOk(save(player, characterId, oil.recipe_id))
+
+    const stranger = (await newPlayers(['stranger'])).players.stranger
+    for (const caller of [dm, other, stranger]) {
+      for (const call of [
+        save(caller, characterId, oil.recipe_id),
+        unsave(caller, characterId, oil.recipe_id),
+        caller.client.rpc('get_character_visions', { p_character_id: characterId }),
+      ]) {
+        expect(await rpcError(call)).toEqual({ code: 'P0001', message: 'character_unavailable' })
+      }
+    }
+    expect((await visionsOf(player, characterId)).visions[0].saved).toBe(true)
+
+    // The same answer for a character that doesn't exist.
+    expect(await rpcError(save(player, RANDOM_ID, oil.recipe_id))).toEqual({
+      code: 'P0001',
+      message: 'character_unavailable',
+    })
+    await cleanup({ ...players, stranger }, [campaignId])
+  })
+
+  test('a character saves at most 200 recipes', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Fang')
+    const count = 205
+    await importOk(
+      dm,
+      libraryId,
+      pack({
+        items: Array.from({ length: count }, (_, index) =>
+          item(`bulk-product-${index}`, `Bulk Product ${index}`),
+        ),
+        recipes: Array.from({ length: count }, (_, index) => ({
+          id: `bulk-${index}`,
+          output: { item: `bulk-product-${index}`, quantity: 1 },
+          key_materials: [{ item: 'wyvern-fang', quantity: 1 }],
+          crafting_cost_gp: 1,
+          workdays: 1,
+        })),
+      }),
+    )
+    await callRest(dm, campaignId)
+    const doc = await visionsOf(player, characterId)
+    expect(doc.visions).toHaveLength(count + 1)
+
+    // 199 saved directly; the 200th through the function; the 201st is refused.
+    localDatabaseQuery(
+      `insert into public.character_saved_recipes (character_id, recipe_id)
+       select '${characterId}', r.id from public.crafting_recipes as r
+       where r.library_id = '${libraryId}' and r.slug like 'bulk-%' order by r.slug limit 199;`,
+      {},
+    )
+    const rest = doc.visions.filter((card) => !card.saved)
+    const fresh = (await visionsOf(player, characterId)).visions.filter((card) => !card.saved)
+    expect(fresh.length).toBeGreaterThan(2)
+    expect(rest.length).toBeGreaterThan(2)
+    await rpcOk(save(player, characterId, fresh[0].recipe_id))
+    expect(await rpcError(save(player, characterId, fresh[1].recipe_id))).toEqual({
+      code: 'P0001',
+      message: 'saved_limit_reached',
+    })
+    // Saving what is already saved is still fine at the cap, and a removal makes room.
+    await rpcOk(save(player, characterId, fresh[0].recipe_id))
+    await rpcOk(unsave(player, characterId, fresh[0].recipe_id))
+    await rpcOk(save(player, characterId, fresh[1].recipe_id))
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('disabling and deleting libraries', () => {
+  test('disabling hides visions and saved recipes, a rest leaves them be, and enabling restores them', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await addItem(player, characterId, 'Wyvern Fang')
+    await callRest(dm, campaignId)
+    const oil = (await visionsOf(player, characterId)).visions[0]
+    await rpcOk(
+      player.client.rpc('save_vision', { p_character_id: characterId, p_recipe_id: oil.recipe_id }),
+    )
+    const rows = () =>
+      localDatabaseQuery(
+        `select (select count(*) from public.character_visions where character_id = '${characterId}')
+           || ',' || (select count(*) from public.character_saved_recipes where character_id = '${characterId}');`,
+        {},
+      )
+    expect(rows()).toBe('2,1')
+
+    await rpcOk(enable(dm, campaignId, libraryId, false))
+    expect(await visionsOf(player, characterId)).toMatchObject({
+      library_count: 0,
+      visions: [],
+      fragments: [],
+      saved: [],
+    })
+    // Saving is refused while the library is off, and a rest doesn't delete what is waiting.
+    expect(
+      await rpcError(
+        player.client.rpc('save_vision', {
+          p_character_id: characterId,
+          p_recipe_id: oil.recipe_id,
+        }),
+      ),
+    ).toMatchObject({ message: 'vision_unavailable' })
+    await callRest(dm, campaignId)
+    expect(rows()).toBe('2,1')
+
+    await rpcOk(enable(dm, campaignId, libraryId))
+    const back = await visionsOf(player, characterId)
+    expect(outputNames(back.visions)).toEqual(['Venom Blade Oil', 'Wyvern Fang Dagger'])
+    expect(back.visions[0].saved).toBe(true)
+    await cleanup(players, [campaignId])
+  })
+
+  test('deleting a library removes its visions and saved recipes, after counting them', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await callRest(dm, campaignId)
+    const oil = (await visionsOf(player, characterId)).visions[0]
+    await rpcOk(
+      player.client.rpc('save_vision', { p_character_id: characterId, p_recipe_id: oil.recipe_id }),
+    )
+    await addItem(player, characterId, 'Linked', {
+      crafting_item_id: (await itemRows(dm, libraryId))[0].id as string,
+    })
+
+    const preview = await dm.client.rpc('delete_crafting_library', {
+      p_library_id: libraryId,
+      p_confirm: false,
+    })
+    expect(preview.data).toEqual({ campaigns: 1, saved: 1, linked_items: 1, deleted: false })
+    await rpcOk(
+      dm.client.rpc('delete_crafting_library', { p_library_id: libraryId, p_confirm: true }),
+    )
+    expect(
+      localDatabaseQuery(
+        `select (select count(*) from public.character_visions where character_id = '${characterId}')
+           || ',' || (select count(*) from public.character_saved_recipes where character_id = '${characterId}');`,
+        {},
+      ),
+    ).toBe('0,0')
+    expect(await visionsOf(player, characterId)).toMatchObject({
+      library_count: 0,
+      visions: [],
+      saved: [],
+    })
+    await cleanup(players, [campaignId])
+  })
+
+  test('removing a recipe through an import removes its visions, and deleting a character removes theirs', async () => {
+    const { player, dm, characterId, libraryId, campaignId, players } = await craftingTable()
+    await addItem(player, characterId, 'Wyvern Poison Gland')
+    await callRest(dm, campaignId)
+    const count = () =>
+      localDatabaseQuery(
+        `select count(*) from public.character_visions where character_id = '${characterId}';`,
+        {},
+      )
+    expect(count()).toBe('1')
+    await importOk(dm, libraryId, pack({ remove: { recipes: ['venom-blade-oil'] } }))
+    expect(count()).toBe('0')
+
+    await callRest(dm, campaignId)
+    await addItem(player, characterId, 'Wyvern Fang')
+    await callRest(dm, campaignId)
+    expect(count()).toBe('1')
+    expect((await player.client.from('characters').delete().eq('id', characterId)).error).toBeNull()
+    expect(count()).toBe('0')
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('hidden visions', () => {
+  test('nobody reads a vision, a saved recipe, or the catalogue directly, however they ask', async () => {
+    const { player, dm, other, characterId, byName, campaignId, players } = await (async () => {
+      const table = await craftingTable()
+      await addItem(table.player, table.characterId, 'Wyvern Fang')
+      await addItem(table.player, table.characterId, 'Wyvern Poison Gland')
+      await callRest(table.dm, table.campaignId)
+      const doc = await visionsOf(table.player, table.characterId)
+      await rpcOk(
+        table.player.client.rpc('save_vision', {
+          p_character_id: table.characterId,
+          p_recipe_id: doc.visions[0].recipe_id,
+        }),
+      )
+      return {
+        ...table,
+        byName: Object.fromEntries(doc.visions.map((card) => [card.output.name, card])),
+      }
+    })()
+    expect(byName['Venom Blade Oil']).toBeTruthy()
+
+    for (const member of [player, dm, other]) {
+      for (const table of ['character_visions', 'character_saved_recipes']) {
+        expect((await member.client.from(table).select('*')).error?.code, table).toBe('42501')
+      }
+      expect(
+        (
+          await member.client
+            .from('character_visions')
+            .insert({ character_id: characterId } as never)
+        ).error?.code,
+      ).toBe('42501')
+    }
+    // Players have no table access to the catalogue either; the DM (library owner) does.
+    for (const member of [player, other]) {
+      for (const table of ['crafting_items', 'crafting_recipes', 'crafting_recipe_materials']) {
+        const { data, error } = await member.client.from(table).select('*')
+        expect(error, table).toBeNull()
+        expect(data, table).toEqual([])
+      }
+    }
+    // The DM's rest told them a count and nothing else: they can't read this player's visions.
+    expect(
+      await rpcError(dm.client.rpc('get_character_visions', { p_character_id: characterId })),
+    ).toEqual({
+      code: 'P0001',
+      message: 'character_unavailable',
+    })
+    await cleanup(players, [campaignId])
+  })
+})
+
+test.describe('rest performance', () => {
+  test('a rest over 1,900 recipes and six characters stays quick', async () => {
+    test.setTimeout(180_000)
+    const names = ['dm', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+    const { players } = await newPlayers(names)
+    const { dm } = players
+    const campaignId = await createCampaign(dm, 'Busy table')
+    const materials = 100
+    const products = 1900
+    const libraryId = await newLibrary(dm, 'Big')
+    await importOk(
+      dm,
+      libraryId,
+      pack({
+        items: [
+          ...Array.from({ length: materials }, (_, index) => item(`m${index}`, `Mat ${index}`)),
+          ...Array.from({ length: products }, (_, index) => item(`p${index}`, `Prod ${index}`)),
+        ],
+        recipes: Array.from({ length: products }, (_, index) => ({
+          id: `r${index}`,
+          output: { item: `p${index}`, quantity: 1 },
+          key_materials: [
+            { item: `m${index % materials}`, quantity: 1 },
+            { item: `m${(index + 1) % materials}`, quantity: 1 },
+          ],
+          materials: [{ item: `m${(index + 7) % materials}`, quantity: 2 }],
+          crafting_cost_gp: 5,
+          workdays: 1,
+        })),
+      }),
+    )
+    await rpcOk(enable(dm, campaignId, libraryId))
+    const characters: Array<[Player, string]> = []
+    for (const name of names.slice(1)) {
+      const member = players[name]
+      await invite(dm, campaignId, member)
+      const characterId = await newCharacter(member, campaignId, `Hero ${name}`)
+      const { error } = await member.client.from('character_items').insert(
+        Array.from({ length: materials }, (_, index) => ({
+          character_id: characterId,
+          name: `Mat ${index}`,
+        })),
+      )
+      expect(error).toBeNull()
+      characters.push([member, characterId])
+    }
+
+    const started = Date.now()
+    const rest = await callRest(dm, campaignId)
+    const elapsed = Date.now() - started
+    expect(rest.character_count).toBe(6)
+    expect(elapsed, `the rest took ${elapsed} ms`).toBeLessThan(10_000)
+    expect(
+      localDatabaseQuery(
+        `select count(*) from public.character_visions where kind = 'vision'
+           and character_id in (${characters.map(([, id]) => `'${id}'`).join(',')});`,
+        {},
+      ),
+    ).toBe(String(products * 6))
     await cleanup(players, [campaignId])
   })
 })

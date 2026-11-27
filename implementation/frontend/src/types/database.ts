@@ -853,6 +853,40 @@ export type Database = {
           },
         ]
       }
+      character_saved_recipes: {
+        Row: {
+          character_id: string
+          recipe_id: string
+          saved_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          character_id: string
+          recipe_id: string
+          saved_at?: string
+        }
+        Update: {
+          character_id?: string
+          recipe_id?: string
+          saved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_saved_recipes_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'character_saved_recipes_recipe_id_fkey'
+            columns: ['recipe_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_recipes'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       character_sheets: {
         Row: {
           armor_class: number | null
@@ -900,6 +934,56 @@ export type Database = {
             columns: ['character_id']
             isOneToOne: true
             referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      character_visions: {
+        Row: {
+          character_id: string
+          id: string
+          kind: string
+          new_in_rest_id: string | null
+          recipe_id: string
+          revealed_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          character_id: string
+          id?: string
+          kind: string
+          new_in_rest_id?: string | null
+          recipe_id: string
+          revealed_at?: string
+        }
+        Update: {
+          character_id?: string
+          id?: string
+          kind?: string
+          new_in_rest_id?: string | null
+          recipe_id?: string
+          revealed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'character_visions_character_id_fkey'
+            columns: ['character_id']
+            isOneToOne: false
+            referencedRelation: 'characters'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'character_visions_new_in_rest_id_fkey'
+            columns: ['new_in_rest_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_rests'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'character_visions_recipe_id_fkey'
+            columns: ['recipe_id']
+            isOneToOne: false
+            referencedRelation: 'crafting_recipes'
             referencedColumns: ['id']
           },
         ]
@@ -1265,6 +1349,46 @@ export type Database = {
           },
         ]
       }
+      crafting_rests: {
+        Row: {
+          called_at: string
+          called_by: string | null
+          campaign_id: string
+          character_count: number
+          id: string
+        }
+        ComputedFields: never
+        Insert: {
+          called_at?: string
+          called_by?: string | null
+          campaign_id: string
+          character_count?: number
+          id?: string
+        }
+        Update: {
+          called_at?: string
+          called_by?: string | null
+          campaign_id?: string
+          character_count?: number
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'crafting_rests_called_by_fkey'
+            columns: ['called_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'crafting_rests_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'campaigns'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       dice_rolls: {
         Row: {
           campaign_id: string
@@ -1581,6 +1705,7 @@ export type Database = {
         }
         Returns: string
       }
+      call_long_rest: { Args: { p_campaign_id: string }; Returns: Json }
       cancel_adventure_participant: { Args: { p_participant_id: string }; Returns: undefined }
       cancel_campaign_invitation: { Args: { p_invitation_id: string }; Returns: undefined }
       count_my_adventure_requests: { Args: { p_campaign_id: string }; Returns: number }
@@ -1637,6 +1762,7 @@ export type Database = {
           username: string
         }[]
       }
+      get_character_visions: { Args: { p_character_id: string }; Returns: Json }
       import_character: {
         Args: { p_campaign_id: string; p_character: Json; p_source_label?: string }
         Returns: string
@@ -1723,6 +1849,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      save_vision: { Args: { p_character_id: string; p_recipe_id: string }; Returns: undefined }
       search_crafting_items: { Args: { p_character_id: string; p_query: string }; Returns: Json }
       send_campaign_invitation: {
         Args: { p_campaign_id: string; p_username: string }
@@ -1762,6 +1889,7 @@ export type Database = {
         Args: { p_campaign_id: string; p_profile_id: string }
         Returns: undefined
       }
+      unsave_vision: { Args: { p_character_id: string; p_recipe_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
