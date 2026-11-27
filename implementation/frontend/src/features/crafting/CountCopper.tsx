@@ -25,13 +25,22 @@ export function CountCopper({ value, animate }: { value: number; animate: boolea
     return () => window.clearInterval(timer)
   }, [animate, value])
 
-  if (!counting) return <>{formatCopper(value)}</>
-  // Ease out: the total slows as it lands.
-  const eased = 1 - (1 - step / steps) ** 3
+  if (!animate || value <= 0 || prefersReducedMotion()) return <>{formatCopper(value)}</>
+  // One box that is the same before, during and after the count: the final amount holds the room
+  // (and is what a screen reader reads) while the count is laid over it in the same grid cell.
+  // Counting up from "0 gp" would otherwise wrap onto another line as it lands, and the card
+  // would change shape.
+  const eased = 1 - (1 - step / steps) ** 3 // the total slows as it lands
   return (
-    <>
-      <span aria-hidden="true">{formatCopper(Math.round(value * eased))}</span>
-      <span className="crafting-sr">{formatCopper(value)}</span>
-    </>
+    <span className="count-copper">
+      <span className="count-copper__final" data-counting={counting || undefined}>
+        {formatCopper(value)}
+      </span>
+      {counting && (
+        <span aria-hidden="true" className="count-copper__live">
+          {formatCopper(Math.round(value * eased))}
+        </span>
+      )}
+    </span>
   )
 }

@@ -237,6 +237,16 @@
   display: block;
 }
 
+/* A folio stands as tall as the seal it replaces, so breaking a seal never changes the card's
+   shape: only the plate's colour and the face inside it change. */
+.vision-list {
+  --folio-min: 19rem;
+}
+
+.vision-rail > .vision-card {
+  min-height: var(--folio-min);
+}
+
 /* What a rest just brought carries a lantern rule along its top, over the plate's double rule. */
 .vision-card[data-new] {
   box-shadow:
@@ -463,7 +473,7 @@
   position: relative;
   display: flex;
   width: 100%;
-  min-height: 15rem;
+  min-height: var(--folio-min);
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -640,8 +650,21 @@
   .vision-card--entering {
     position: relative;
     overflow: hidden;
-    animation: folio-unfurl 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: folio-ground 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--enter-delay, 0ms);
+  }
+
+  /* An amount that counts up: the final text holds the room, the count sits over it in the same cell. */
+  .count-copper {
+    display: inline-grid;
+  }
+
+  .count-copper > * {
+    grid-area: 1 / 1;
+  }
+
+  .count-copper__final[data-counting] {
+    color: transparent;
   }
 
   /* One bright pass over the folio, in the colour of its rarity. */
@@ -755,14 +778,15 @@
   }
 }
 
-@keyframes folio-unfurl {
+/* The card opens in the seal's place: it starts as the seal's leather plate (same width and
+   height) and eases into parchment, so no edge or colour jumps. */
+@keyframes folio-ground {
   from {
-    clip-path: inset(0 0 100% 0);
-    opacity: 0;
-  }
-  to {
-    clip-path: inset(0);
-    opacity: 1;
+    border-color: var(--journal-brass-deep);
+    border-width: 2px;
+    padding-block: 18px;
+    background-color: var(--journal-leather);
+    box-shadow: inset 0 0 0 3px var(--journal-leather-deep);
   }
 }
 

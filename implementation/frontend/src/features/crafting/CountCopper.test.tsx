@@ -20,7 +20,8 @@ describe('CountCopper', () => {
 
   it('counts up in steps and lands on the amount, naming the final amount to screen readers', () => {
     const { container } = render(<CountCopper animate value={11000} />)
-    expect(screen.getByText('110 gp', { selector: '.crafting-sr' })).toBeInTheDocument()
+    // The final amount holds the room and is what a screen reader reads; the count is laid over it.
+    expect(screen.getByText('110 gp', { selector: '.count-copper__final' })).toBeInTheDocument()
     const shown = () => container.querySelector('[aria-hidden]')?.textContent
     expect(shown()).toBe('0 gp')
     act(() => void vi.advanceTimersByTime(300))

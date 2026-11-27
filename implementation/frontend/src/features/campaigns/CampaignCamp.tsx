@@ -39,6 +39,7 @@ import { hitRect, isInFrame, projectToDevice } from './camp/campProjection'
 import type { RigFrame } from './camp/campRig'
 import { useCampRig } from './camp/useCampRig'
 import { useCampView, type CampMeasure } from './camp/useCampView'
+import { hearthStrength } from './camp/hearthLight'
 import { useDestinationDialog } from './camp/useDestinationDialog'
 import { useDiceHost } from '../dice/useDice'
 import { CampSettings } from './camp/CampSettings'
@@ -199,6 +200,16 @@ export function CampaignCamp({
     scope: campRef,
   })
   const [leaveAsked, setLeaveAsked] = useState(false)
+  // The campfire's flicker, handed to the open journal's light without re-rendering it.
+  const hearthRef = useRef<HTMLDivElement>(null)
+  const onHearth = useCallback(
+    (glow: number) => {
+      const hearth = hearthRef.current
+      if (hearth && dialogRef.current?.open)
+        hearth.style.setProperty('--hearth-glow', glow.toFixed(3))
+    },
+    [dialogRef],
+  )
   const destinationRef = useRef(onDestinationChange)
   useEffect(() => {
     destinationRef.current = onDestinationChange
@@ -640,6 +651,7 @@ export function CampaignCamp({
                 figures={figures}
                 highlight={highlight}
                 shrineLit={(waiting.visions ?? 0) > 0}
+                onHearth={onHearth}
                 onFail={onFail}
                 onReady={onReady}
                 view={measure.view}
@@ -723,6 +735,22 @@ export function CampaignCamp({
             <section hidden={active?.id !== 'notes'}>{notes}</section>
             <section hidden={active?.id !== 'visions'}>{visions}</section>
             {isOwner && <section hidden={active?.id !== 'settings'}>{settings}</section>}
+          </div>
+          {/* The campfire's light on the open book; the scene's flicker writes --hearth-glow. */}
+          <div
+            aria-hidden="true"
+            className="camp-hearth"
+            ref={hearthRef}
+            style={
+              active
+                ? ({ '--hearth-strength': hearthStrength[active.id] ?? 0.1 } as CSSProperties)
+                : undefined
+            }
+          />
+          <div aria-hidden="true" className="camp-embers">
+            {Array.from({ length: 8 }, (_, ember) => (
+              <i key={ember} />
+            ))}
           </div>
         </div>
         {active?.id === 'party' && !partyFolio && partyDrawer}

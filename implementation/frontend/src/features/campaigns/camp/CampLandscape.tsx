@@ -39,6 +39,7 @@ import { baseSpriteId, frameSpriteId, outlineTargets, type PartyFigure } from '.
 import { campRamps, variantKey, type CampWorld } from './campPalette'
 import { layerOffset, layerOrigin, parallax, projectToDevice, type View } from './campProjection'
 import { breathMs, type CampRig, type RigFrame } from './campRig'
+import { hearthGlow } from './hearthLight'
 
 /** The pools of light are the same for every camp, so they are built once, on first use. */
 const poolCache = new Map<'light' | 'glow', HTMLCanvasElement[]>()
@@ -94,6 +95,7 @@ export default function CampLandscape({
   figures,
   highlight,
   shrineLit = false,
+  onHearth,
   onReady,
   onFail,
 }: {
@@ -109,6 +111,8 @@ export default function CampLandscape({
   highlight: CampLocationId | null
   /** The shrine glows while the viewer has new visions waiting. */
   shrineLit?: boolean
+  /** Told how strongly the fire is lit on each frame, so the open journal can flicker with it. */
+  onHearth?: (glow: number) => void
   onReady: () => void
   onFail: () => void
 }) {
@@ -125,6 +129,11 @@ export default function CampLandscape({
   // The newest highlight, for frames drawn between renders.
   const highlightRef = useRef(highlight)
   const redrawOutline = useRef<(() => void) | null>(null)
+  // The newest listener, for frames drawn between renders.
+  const hearthListener = useRef(onHearth)
+  useEffect(() => {
+    hearthListener.current = onHearth
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -310,6 +319,7 @@ export default function CampLandscape({
 
       const level = settled ? flickerLevels - 1 : flickerLevel(frame.tick)
       const swell = 1 + frame.flare * 0.18
+      hearthListener.current?.(hearthGlow(level, frame.flare, settled))
       const pool = pools[level]
       const centre = projectToDevice(lightCentre, scene)
       const w = pool.width * scale * swell

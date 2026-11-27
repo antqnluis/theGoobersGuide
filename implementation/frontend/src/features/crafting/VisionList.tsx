@@ -43,6 +43,8 @@ function VisionListBody({
   // One seal broken alone hands focus to what it opened; breaking them all does not.
   const [focused, setFocused] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  // How long each card waits to open: staggered only within one "Break all seals".
+  const [stagger, setStagger] = useState<ReadonlyMap<string, number>>(new Map())
 
   if (visions.library_count === 0) {
     return (
@@ -67,6 +69,7 @@ function VisionListBody({
   const sealedFragments = visions.fragments.filter((fragment) => reveal.sealed.has(fragment.id))
 
   function breakOne(id: string) {
+    setStagger((current) => new Map(current).set(id, 0))
     setFocused(id)
     setAnnouncement(
       visionName(id) ? `Vision revealed: ${visionName(id)}.` : 'Fragment revealed: unknown item.',
@@ -75,13 +78,16 @@ function VisionListBody({
   }
 
   function breakAll() {
+    setStagger(
+      (current) =>
+        new Map([...current, ...[...reveal.sealed].map((id, index) => [id, index * 220] as const)]),
+    )
     setFocused(null)
     setAnnouncement(`${plural(reveal.sealed.size, 'seal')} broken.`)
     reveal.openAll()
   }
 
-  /** The order sealed folios open in when all at once, so their entrances stagger. */
-  const staggerOf = (id: string) => [...reveal.entering].indexOf(id) * 220
+  const staggerOf = (id: string) => stagger.get(id) ?? 0
 
   const visionCard = (vision: Vision) =>
     reveal.sealed.has(vision.recipe_id) ? (
